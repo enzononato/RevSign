@@ -27,6 +27,7 @@ import { nonceMiddleware } from '~/middleware/nonce';
 import type { Route } from './+types/root';
 import stylesheet from './app.css?url';
 import { GenericErrorLayout } from './components/general/generic-error-layout';
+import { SourceCodeLink } from './components/revalle/source-code-link'; // REVALLE: link AGPL
 import { langCookie } from './storage/lang-cookie.server';
 import { themeSessionResolver } from './storage/theme-session.server';
 import { appMetaTags } from './utils/meta';
@@ -175,6 +176,9 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
             <TooltipProvider>
               <TrpcProvider>
                 {children}
+
+                {/* REVALLE: link "Código-fonte" (AGPL §13) */}
+                <SourceCodeLink />
 
                 <Toaster />
               </TrpcProvider>
