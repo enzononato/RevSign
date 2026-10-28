@@ -1,0 +1,12 @@
+# RevSign: regras padrão do gitleaks + exceções do upstream.
+# Os nomes de arquivo proibidos (.p12, .env…) são checados em scripts/revalle/check-secrets.sh.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Arquivos de exemplo do upstream Documenso (placeholders, sem segredo real)"
+paths = [
+  '''^\.env\.example$''',
+  '''^apps/remix/example/cert\.p12$''',
+]

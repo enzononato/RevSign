@@ -74,3 +74,13 @@ tmp/
 
 # opencode
 .opencode/package-lock.json
+
+# REVALLE: segredos nunca entram no repositório (ver CHANGES.md)
+.env*
+!.env.example
+*.p12
+*.pfx
+*.key
+*.crt
+!apps/remix/example/cert.p12
+revalle/**/secrets/
