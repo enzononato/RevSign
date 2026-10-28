@@ -21,6 +21,8 @@ Toda edição em arquivo do upstream é marcada com `REVALLE:` no código e list
 | `CHANGES.md` | Este arquivo | 1 |
 | `.gitleaks.toml` | Configuração do gitleaks | 1 |
 | `scripts/revalle/check-secrets.sh` | Checagem de segredos (pre-commit e CI) | 1 |
+| `scripts/revalle/smoke-test.mjs` | Fluxo envio → assinatura → selagem → download, por API | 1 |
+| `scripts/revalle/verify-signed-pdf.sh` | Verifica assinatura PAdES e anexos do PDF final | 1 |
 | `.github/workflows/revalle-secrets.yml` | Checagem de segredos no CI | 1 |
 | `.github/workflows/revalle-image.yml` | Build e publicação da imagem no GHCR | 1 |
 | `apps/remix/app/components/revalle/` | Componentes próprios | 1 |
@@ -32,5 +34,5 @@ Toda edição em arquivo do upstream é marcada com `REVALLE:` no código e list
 2. `git merge vX.Y.Z` na branch `revalle` (merge, nunca rebase).
 3. Resolver conflitos; conferir cada linha desta tabela (`git grep -n "REVALLE:"`).
 4. Revisar migrações novas em `packages/prisma/migrations/` (rodam sozinhas no start).
-5. Rodar os testes e o ensaio local (`revalle/deploy/compose.hml.yml`).
+5. Ensaio local (`revalle/deploy/compose.hml.yml`) + `scripts/revalle/smoke-test.mjs` + `scripts/revalle/verify-signed-pdf.sh`.
 6. Tag `vX.Y.Z-revalle.1`, validar em homologação e só depois em produção.
