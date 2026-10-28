@@ -1,0 +1,75 @@
+# RevSign — ensaio local de homologação (WSL + Docker Desktop).
+#
+# Espelha o que vai no EasyPanel: Postgres dedicado + app da imagem do GHCR,
+# certificado por variável base64 (sem arquivo montado, porque não há SSH na VPS).
+# O Mailpit substitui o SMTP do cPanel e captura os e-mails em http://localhost:8025.
+#
+# Uso (segredos ficam FORA do repositório):
+#   docker compose -f revalle/deploy/compose.hml.yml --env-file ../local-hml/hml.env up -d
+#
+# Modelo do arquivo de variáveis: revalle/deploy/env.hml.example
+
+name: revsign-hml
+
+services:
+  database:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: documenso
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD}
+      POSTGRES_DB: documenso
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U documenso -d documenso']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - database:/var/lib/postgresql/data
+    # Sem "ports": o banco não fica acessível fora da rede do compose.
+
+  mailpit:
+    image: axllent/mailpit:v1.31.5
+    ports:
+      - '127.0.0.1:8025:8025'
+
+  documenso:
+    image: ${REVSIGN_IMAGE:-ghcr.io/enzononato/revsign:v2.21.1-revalle.1}
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      # A imagem do upstream não define NODE_ENV. Sem "production", o tRPC devolve
+      # stack trace nas respostas de erro.
+      NODE_ENV: production
+      TZ: America/Bahia
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?err}
+      NEXT_PRIVATE_ENCRYPTION_KEY: ${NEXT_PRIVATE_ENCRYPTION_KEY:?err}
+      NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY: ${NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY:?err}
+      NEXT_PUBLIC_WEBAPP_URL: ${NEXT_PUBLIC_WEBAPP_URL:-http://localhost:3000}
+      NEXT_PRIVATE_INTERNAL_WEBAPP_URL: http://localhost:3000
+      NEXT_PRIVATE_DATABASE_URL: postgres://documenso:${POSTGRES_PASSWORD}@database:5432/documenso
+      NEXT_PRIVATE_DIRECT_DATABASE_URL: postgres://documenso:${POSTGRES_PASSWORD}@database:5432/documenso
+      NEXT_PUBLIC_UPLOAD_TRANSPORT: database
+      NEXT_PRIVATE_JOBS_PROVIDER: local
+      NEXT_PUBLIC_DISABLE_SIGNUP: ${NEXT_PUBLIC_DISABLE_SIGNUP:-false}
+      DOCUMENSO_DISABLE_TELEMETRY: 'true'
+      NEXT_PUBLIC_REVALLE_SOURCE_URL: https://github.com/enzononato/RevSign
+      # SMTP: Mailpit no ensaio; no EasyPanel, o SMTP do cPanel (ver env.hml.example).
+      NEXT_PRIVATE_SMTP_TRANSPORT: smtp-auth
+      NEXT_PRIVATE_SMTP_HOST: ${NEXT_PRIVATE_SMTP_HOST:-mailpit}
+      NEXT_PRIVATE_SMTP_PORT: ${NEXT_PRIVATE_SMTP_PORT:-1025}
+      NEXT_PRIVATE_SMTP_USERNAME: ${NEXT_PRIVATE_SMTP_USERNAME:-}
+      NEXT_PRIVATE_SMTP_PASSWORD: ${NEXT_PRIVATE_SMTP_PASSWORD:-}
+      NEXT_PRIVATE_SMTP_SECURE: ${NEXT_PRIVATE_SMTP_SECURE:-false}
+      NEXT_PRIVATE_SMTP_FROM_NAME: ${NEXT_PRIVATE_SMTP_FROM_NAME:-Revalle Assinaturas}
+      NEXT_PRIVATE_SMTP_FROM_ADDRESS: ${NEXT_PRIVATE_SMTP_FROM_ADDRESS:-assinaturas@revalle.com.br}
+      # Certificado .p12 em base64 (com senha obrigatória).
+      NEXT_PRIVATE_SIGNING_TRANSPORT: local
+      NEXT_PRIVATE_SIGNING_LOCAL_FILE_CONTENTS: ${NEXT_PRIVATE_SIGNING_LOCAL_FILE_CONTENTS:?err}
+      NEXT_PRIVATE_SIGNING_PASSPHRASE: ${NEXT_PRIVATE_SIGNING_PASSPHRASE:?err}
+    ports:
+      - '127.0.0.1:3000:3000'
+
+volumes:
+  database:
