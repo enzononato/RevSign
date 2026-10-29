@@ -45,6 +45,7 @@ import { getRecipientsWithMissingFields, isRecipientEmailValidForSending } from 
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { insertFormValuesInPdf } from '../pdf/insert-form-values-in-pdf';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
+import { computeOriginalHashes, saveOriginalHashes } from '../revalle/document-hashes';
 import { assertUserNotDisabledById } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
 
@@ -171,6 +172,9 @@ export const sendDocument = async ({ id, userId, teamId, sendEmail, requestMetad
     );
   }
 
+  // REVALLE: SHA-256 do PDF que o signatário verá (depois da injeção, que cria outro DocumentData); só no primeiro envio.
+  const originalHashes = envelope.status === DocumentStatus.DRAFT ? await computeOriginalHashes(envelope.id) : [];
+
   assertRecipientEmailsAllowed(
     envelope.recipients.map((r) => r.email),
     { rejectEmpty: true },
@@ -282,6 +286,9 @@ export const sendDocument = async ({ id, userId, teamId, sendEmail, requestMetad
   }
 
   const updatedEnvelope = await prisma.$transaction(async (tx) => {
+    // REVALLE: grava os hashes originais junto com o envio.
+    await saveOriginalHashes(originalHashes, tx);
+
     if (envelope.status === DocumentStatus.DRAFT) {
       await tx.documentAuditLog.create({
         data: createDocumentAuditLogData({

@@ -524,6 +524,8 @@ model EnvelopeItem {
 
   field Field[]
 
+  revalleHash RevalleDocumentHash? // REVALLE: back-relation (hashes SHA-256)
+
   @@unique([documentDataId])
   @@index([envelopeId])
 }
@@ -1340,4 +1342,15 @@ model RevalleRecipientGate {
   conflictCpf         String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+}
+
+/// REVALLE: SHA-256 do PDF original (no envio) e do PDF selado, por item do envelope.
+model RevalleDocumentHash {
+  id             String       @id @default(cuid())
+  envelopeItemId String       @unique
+  envelopeItem   EnvelopeItem @relation(fields: [envelopeItemId], references: [id], onDelete: Cascade)
+  originalSha256 String
+  finalSha256    String?
+  sentAt         DateTime     @default(now())
+  sealedAt       DateTime?
 }

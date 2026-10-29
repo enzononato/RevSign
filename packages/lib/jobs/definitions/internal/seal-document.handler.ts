@@ -15,11 +15,13 @@ import { groupBy } from 'remeda';
 
 import { NEXT_PRIVATE_USE_PLAYWRIGHT_PDF } from '../../../constants/app';
 import { AppError, AppErrorCode } from '../../../errors/app-error';
+import { sha256Hex } from '../../../revalle/sha256';
 import { getAuditLogsPdf } from '../../../server-only/htmltopdf/get-audit-logs-pdf';
 import { getCertificatePdf } from '../../../server-only/htmltopdf/get-certificate-pdf';
 import { insertFieldInPDFV1 } from '../../../server-only/pdf/insert-field-in-pdf-v1';
 import { insertFieldInPDFV2 } from '../../../server-only/pdf/insert-field-in-pdf-v2';
 import { legacy_insertFieldInPDF } from '../../../server-only/pdf/legacy-insert-field-in-pdf';
+import { recordFinalHash } from '../../../server-only/revalle/document-hashes';
 import { getTeamSettings } from '../../../server-only/team/get-team-settings';
 import { triggerWebhook } from '../../../server-only/webhooks/trigger/trigger-webhook';
 import { DOCUMENT_AUDIT_LOG_TYPE, type TDocumentAuditLog } from '../../../types/document-audit-logs';
@@ -208,7 +210,12 @@ export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition
     const needsCertificate = settings.includeSigningCertificate;
     const needsAuditLog = settings.includeAuditLog;
 
-    const newDocumentData: Array<{ oldDocumentDataId: string; newDocumentDataId: string }> = [];
+    const newDocumentData: Array<{
+      oldDocumentDataId: string;
+      newDocumentDataId: string;
+      envelopeItemId: string; // REVALLE
+      finalSha256: string; // REVALLE
+    }> = [];
 
     for (const { envelopeItem, pdfData } of prefetchedItems) {
       const envelopeItemFields = envelope.envelopeItems.find((item) => item.id === envelopeItem.id)?.field;
@@ -289,7 +296,10 @@ export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition
     }
 
     await prisma.$transaction(async (tx) => {
-      for (const { oldDocumentDataId, newDocumentDataId } of newDocumentData) {
+      for (const { oldDocumentDataId, newDocumentDataId, envelopeItemId, finalSha256 } of newDocumentData) {
+        // REVALLE: SHA-256 dos bytes exatos assinados.
+        await recordFinalHash(envelopeItemId, finalSha256, tx);
+
         await tx.envelopeItem.update({
           where: {
             envelopeId: envelope.id,
@@ -507,5 +517,7 @@ const decorateAndSignPdf = async ({
   return {
     oldDocumentDataId: envelopeItem.documentData.id,
     newDocumentDataId: newDocumentData.id,
+    envelopeItemId: envelopeItem.id, // REVALLE
+    finalSha256: sha256Hex(pdfBytes), // REVALLE
   };
 };
