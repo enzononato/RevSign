@@ -1,5 +1,6 @@
 #!/bin/sh
-# Regenera os PNG/ICO/JPG da marca a partir de revalle/brand/logo.svg e icon.svg.
+# Regenera os PNG/ICO/JPG da marca a partir de revalle/brand/logo.svg e icon.svg, e recolore na cor da marca a
+# arte verde do Documenso que aparece no RevSign (tela final de quem assina, fundo do login, ícones dos e-mails).
 # Roda o ImageMagick num container (alpine:3.22), sem nada instalado na máquina além do Docker.
 #
 # Uso, na raiz do repositório:
@@ -12,13 +13,29 @@ set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 IMAGE=alpine:3.22
 
+# A arte recolorida parte sempre do original do upstream (última tag vX.Y.Z do Documenso na história, ou
+# UPSTREAM_REF), e não do arquivo da árvore: rodar o script de novo não acumula a rotação de cor.
+UPSTREAM_REF="${UPSTREAM_REF:-$(git -C "$ROOT" describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-revalle*')}"
+UPSTREAM_ART='packages/assets/images/signing-celebration.png packages/assets/images/background-pattern.png
+  apps/remix/public/static/completed.png apps/remix/public/static/mail-open.png'
+ORIG=$(mktemp -d)
+trap 'rm -rf "$ORIG"' EXIT
+
+for file in $UPSTREAM_ART; do
+  mkdir -p "$ORIG/$(dirname "$file")"
+  git -C "$ROOT" show "$UPSTREAM_REF:$file" > "$ORIG/$file"
+done
+
+echo "Arte do upstream: $UPSTREAM_REF"
+
 docker run --rm -i \
   -v "$ROOT:/work" \
+  -v "$ORIG:/orig:ro" \
   -w /work \
   -e HOST_UID="$(id -u)" \
   -e HOST_GID="$(id -g)" \
   "$IMAGE" sh -eu <<'SCRIPT'
-apk add --no-cache -q imagemagick imagemagick-svg imagemagick-jpeg >/dev/null
+apk add --no-cache -q imagemagick imagemagick-svg imagemagick-jpeg pngquant >/dev/null
 
 BRAND=revalle/brand
 OUT=$(mktemp -d)
@@ -71,6 +88,32 @@ for dir in apps/remix/public packages/assets; do
   cp "$OUT/og-share-frame2.png" "$dir/static/og-share-frame2.png"
 done
 
+# Arte verde do Documenso -> matiz da marca: em HSL, a matiz de todo pixel vira 209° (a do #1F4E79; 209/360 = 58.06%),
+# com a saturação e a luminosidade do original (cinza continua cinza); `-modulate 100,S` tira um pouco da saturação.
+# Fixar a matiz, e não girar, evita que os dois tons de verde do fundo virem ciano e violeta.
+# O pngquant volta para paleta de 256 cores com alfa, como o original do upstream (RGBA cheio seria ~3x maior,
+# e a imagem abre na tela final de quem assina, no celular).
+brand_hue() {
+  magick "/orig/$1" -colorspace HSL -channel R -evaluate set 58.06% +channel -colorspace sRGB \
+    -modulate 100,"$2" -depth 8 "PNG32:$OUT/hue.png"
+  pngquant --force --speed 1 --strip --output "$3" 256 "$OUT/hue.png"
+}
+
+brand_hue packages/assets/images/signing-celebration.png 80 packages/assets/images/signing-celebration.png
+brand_hue packages/assets/images/background-pattern.png 70 packages/assets/images/background-pattern.png
+brand_hue apps/remix/public/static/mail-open.png 100 "$OUT/mail-open.png"
+# O ícone de "concluído" (círculo com visto) vira a cor da marca chapada.
+magick /orig/apps/remix/public/static/completed.png -fill "$PRIMARY" -colorize 100 -strip \
+  -define png:exclude-chunk=date,time "PNG32:$OUT/completed.png"
+
+for dir in apps/remix/public/static packages/assets/static packages/email/static; do
+  cp "$OUT/completed.png" "$dir/completed.png"
+done
+
+for dir in apps/remix/public/static packages/email/static; do
+  cp "$OUT/mail-open.png" "$dir/mail-open.png"
+done
+
 cp "$OUT/logo.png" packages/assets/logo.png
 cp "$OUT/logo_icon.png" packages/assets/logo_icon.png
 cp "$OUT/logo-email.png" packages/email/static/logo.png
@@ -78,7 +121,8 @@ cp "$OUT/logo-email.png" packages/email/static/logo.png
 chown "$HOST_UID:$HOST_GID" \
   apps/remix/public/*.png apps/remix/public/*.ico apps/remix/public/*.jpg apps/remix/public/static/*.png \
   packages/assets/*.png packages/assets/*.ico packages/assets/*.jpg packages/assets/static/*.png \
-  packages/email/static/logo.png
+  packages/email/static/*.png packages/assets/images/signing-celebration.png \
+  packages/assets/images/background-pattern.png
 
 magick -version | head -1
 SCRIPT
@@ -86,4 +130,6 @@ SCRIPT
 echo 'Gerados (em apps/remix/public/ e packages/assets/): favicon.ico, favicon-16x16.png, favicon-32x32.png,'
 echo '  apple-touch-icon.png, android-chrome-192x192.png, android-chrome-512x512.png, opengraph-image.jpg,'
 echo '  static/logo.png, static/og-share-frame2.png; e packages/assets/logo.png, logo_icon.png,'
-echo '  packages/email/static/logo.png.'
+echo '  packages/email/static/logo.png. Recoloridos: packages/assets/images/{signing-celebration,background-pattern}.png,'
+echo '  static/completed.png (apps/remix/public, packages/assets, packages/email) e static/mail-open.png'
+echo '  (apps/remix/public, packages/email).'
