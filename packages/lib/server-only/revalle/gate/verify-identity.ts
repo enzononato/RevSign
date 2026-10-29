@@ -86,9 +86,11 @@ export const verifyRevalleIdentity = async ({
   const attempt = await reserveAttempt(recipientId);
 
   if (attempt === null) {
-    await lockRevalleGate({ recipientId, reason: 'ATTEMPTS', requestMetadata });
+    const gate = await prisma.revalleRecipientGate.findUniqueOrThrow({ where: { recipientId } });
 
-    return { status: 'LOCKED' };
+    return gate.lockedAt
+      ? { status: 'LOCKED' }
+      : { status: 'IDENTITY_REQUIRED', attemptsLeft: Math.max(0, REVALLE_MAX_ATTEMPTS - gate.failedAttempts) };
   }
 
   const result = await lookup(cpf, birthDate);

@@ -64,7 +64,7 @@ export const confirmRevalleIdentity = async ({
     return { status: 'UNAVAILABLE' };
   }
 
-  try {
+  const commit = async () => {
     if (baseEmail && normalizeEmail(baseEmail) !== email) {
       throw new ConflictError();
     }
@@ -99,10 +99,24 @@ export const confirmRevalleIdentity = async ({
         }),
       });
     });
-  } catch (error) {
-    const isUniqueViolation = error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+  };
 
-    if (error instanceof ConflictError || isUniqueViolation) {
+  const isUniqueViolation = (error: unknown) =>
+    error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+
+  try {
+    try {
+      await commit();
+    } catch (error) {
+      if (!isUniqueViolation(error)) {
+        throw error;
+      }
+
+      // Confirmação concorrente do mesmo e-mail e CPF não é conflito: na segunda passada o vínculo já existe e confere.
+      await commit();
+    }
+  } catch (error) {
+    if (error instanceof ConflictError || isUniqueViolation(error)) {
       await lockRevalleGate({ recipientId, reason: 'CPF_CONFLICT', requestMetadata });
 
       return { status: 'LOCKED' };

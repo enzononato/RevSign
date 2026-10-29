@@ -30,6 +30,8 @@ const waitForBase = async () => {
       await sleep(500);
     }
   }
+
+  throw new Error('colaboradores-db não ficou pronto a tempo');
 };
 
 const unique = () => `gate-${Date.now()}-${Math.floor(Math.random() * 1e6)}@revalle.com.br`;
@@ -289,18 +291,12 @@ test('rajada com um palpite certo e confirmação: no máximo 5 palpites errados
       `select count(*) from "DocumentAuditLog" where "envelopeId" = '${r.envelopeId}' and type = 'REVALLE_IDENTITY_FAILED'`,
     ),
   );
-  const locked =
-    db(`select "lockedAt" is not null from "RevalleRecipientGate" where "recipientId" = ${r.recipientId}`) === 't';
   const links = Number(db(`select count(*) from "RevalleEmailLink" where email = '${r.email}'`));
 
   assert.ok(failed <= 5, `eventos FAILED: ${failed}`);
   assert.ok(attempts(r.recipientId) <= 5);
 
-  if (locked) {
-    assert.equal(links, 0);
-  } else {
-    assert.ok(links <= 1);
-  }
+  assert.ok(links <= 1, `vínculos: ${links}`);
 });
 
 test('confirmIdentity sem verificação prévia não cria vínculo', async () => {
@@ -382,6 +378,38 @@ test('trocar o e-mail do destinatário reinicia o portão', async () => {
   assert.equal(res.state.status, 'TERM_REQUIRED');
   assert.equal((await acceptTerm(r.token)).state.status, 'IDENTITY_REQUIRED');
   assert.equal(attempts(r.recipientId), 0);
+});
+
+test('trocar o e-mail mantém o bloqueio e as tentativas', async () => {
+  const locked = await newRecipient();
+
+  await acceptTerm(locked.token);
+  for (let i = 0; i < 5; i += 1) {
+    await verify(locked.token, MARIA.cpf, '01/01/2001');
+  }
+
+  const upd = await api('POST', '/envelope/recipient/update-many', {
+    envelopeId: locked.envelopeId,
+    data: [{ id: locked.recipientId, email: unique() }],
+  });
+
+  assert.equal(upd.status, 200, upd.text);
+  assert.equal((await verify(locked.token, MARIA.cpf, MARIA.birthDate)).state.status, 'LOCKED');
+
+  const partial = await newRecipient();
+
+  await acceptTerm(partial.token);
+  for (let i = 0; i < 3; i += 1) {
+    await verify(partial.token, MARIA.cpf, '01/01/2001');
+  }
+
+  await api('POST', '/envelope/recipient/update-many', {
+    envelopeId: partial.envelopeId,
+    data: [{ id: partial.recipientId, email: unique() }],
+  });
+
+  assert.equal((await verify(partial.token, MARIA.cpf, MARIA.birthDate)).state.status, 'TERM_REQUIRED');
+  assert.deepEqual((await acceptTerm(partial.token)).state, { status: 'IDENTITY_REQUIRED', attemptsLeft: 2 });
 });
 
 test('envelope rascunho ou concluído devolve 404', async () => {

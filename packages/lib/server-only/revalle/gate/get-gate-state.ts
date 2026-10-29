@@ -16,15 +16,14 @@ import { REVALLE_MAX_ATTEMPTS, type RevalleGateRecipient, type RevalleGateState 
 export const isRevalleIdentityCheckDisabled = () => env('NEXT_PRIVATE_REVALLE_IDENTITY_CHECK') === 'disabled';
 
 export const logRevalleBaseUnavailable = (error?: unknown) => {
-  const { code, message } =
-    error instanceof Error ? (error as Error & { code?: string }) : ({} as { code?: string; message?: string });
+  const code = error instanceof Error ? (error as Error & { code?: string }).code : undefined;
 
-  logger.error({ msg: '[RevSign] base de colaboradores indisponível', code, message: message?.slice(0, 200) });
+  logger.error({ msg: '[RevSign] base de colaboradores indisponível', code });
 };
 
 /**
  * Devolve a linha do portão. Se o e-mail do destinatário mudou desde a última vez, o portão volta ao início
- * (termo, identidade e tentativas), para que quem recebe o link depois não herde o que foi feito pelo e-mail anterior.
+ * (termo e identidade; tentativas e bloqueio ficam), para que quem recebe o link depois não herde o que foi feito pelo e-mail anterior.
  */
 export const ensureRevalleGate = async (recipient: RevalleGateRecipient): Promise<RevalleRecipientGate> => {
   const email = normalizeEmail(recipient.email);
@@ -58,9 +57,6 @@ export const ensureRevalleGate = async (recipient: RevalleGateRecipient): Promis
         pendingCpf: null,
         cpf: null,
         identityConfirmedAt: null,
-        failedAttempts: 0,
-        lockedAt: null,
-        lockReason: null,
       },
     });
   }
