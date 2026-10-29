@@ -1,5 +1,6 @@
 import { DEFAULT_DOCUMENT_DATE_FORMAT } from '@documenso/lib/constants/date-formats';
 import { DEFAULT_DOCUMENT_TIME_ZONE } from '@documenso/lib/constants/time-zones';
+import { assertRevalleGatePassed } from '@documenso/lib/server-only/revalle/gate/assert-gate-passed'; // REVALLE:
 import { DOCUMENT_AUDIT_LOG_TYPE, RECIPIENT_DIFF_TYPE } from '@documenso/lib/types/document-audit-logs';
 import type { RequestMetadata } from '@documenso/lib/universal/extract-request-metadata';
 import { fieldsContainUnsignedRequiredField } from '@documenso/lib/utils/advanced-fields-helpers';
@@ -106,6 +107,9 @@ export const completeDocumentWithToken = async ({
   }
 
   const [recipient] = envelope.recipients;
+
+  // REVALLE: o portão (termo + identidade) vale também na API; sem isso a tela seria contornável
+  await assertRevalleGatePassed(recipient, requestMetadata);
 
   // A retried or duplicate completion request for an already signed
   // recipient throws a code the router resolves idempotently. This must be

@@ -86,6 +86,13 @@ export const latestMail = async (to) => {
   return first ? await (await fetch(`${MAILPIT}/message/${first.ID}`)).json() : undefined;
 };
 
+// Código de 6 dígitos do e-mail mais recente enviado a `to` (Mailpit), ou undefined. Usado na Task 8.
+export const getLatestCode = async (to) => {
+  const mail = await latestMail(to);
+
+  return mail?.Text?.match(/\b(\d{6})\b/)?.[1] ?? mail?.HTML?.replace(/<[^>]+>/g, ' ').match(/\b(\d{6})\b/)?.[1];
+};
+
 // Consulta SQL no banco da stack local (psql -At).
 export const db = (sql) =>
   execFileSync(

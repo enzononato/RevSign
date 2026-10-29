@@ -1,6 +1,8 @@
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
 import { getEnvelopeWhereInput } from '@documenso/lib/server-only/envelope/get-envelope-by-id';
+import { assertRevalleGatePassed } from '@documenso/lib/server-only/revalle/gate/assert-gate-passed'; // REVALLE:
 import { getOrganisationTemplateWhereInput } from '@documenso/lib/server-only/template/get-organisation-template-by-id';
+import type { RequestMetadata } from '@documenso/lib/universal/extract-request-metadata'; // REVALLE:
 import { prisma } from '@documenso/prisma';
 import { EnvelopeType } from '@prisma/client';
 
@@ -48,6 +50,7 @@ export const getEnvelopeItemsByTokenRoute = maybeAuthenticatedProcedure
     const { envelopeItems: data } = await handleGetEnvelopeItemsByToken({
       envelopeId,
       token: access.token,
+      requestMetadata: ctx.metadata.requestMetadata,
     });
 
     return {
@@ -55,7 +58,15 @@ export const getEnvelopeItemsByTokenRoute = maybeAuthenticatedProcedure
     };
   });
 
-const handleGetEnvelopeItemsByToken = async ({ envelopeId, token }: { envelopeId: string; token: string }) => {
+const handleGetEnvelopeItemsByToken = async ({
+  envelopeId,
+  token,
+  requestMetadata,
+}: {
+  envelopeId: string;
+  token: string;
+  requestMetadata: RequestMetadata;
+}) => {
   const envelope = await prisma.envelope.findFirst({
     where: {
       id: envelopeId,
@@ -80,6 +91,14 @@ const handleGetEnvelopeItemsByToken = async ({ envelopeId, token }: { envelopeId
       message: 'Envelope could not be found',
     });
   }
+
+  // REVALLE: o portão (termo + identidade) vale também na API; sem isso o PDF vazaria antes do portão
+  const recipient = await prisma.recipient.findFirstOrThrow({
+    where: { envelopeId: envelope.id, token },
+    select: { id: true, email: true },
+  });
+
+  await assertRevalleGatePassed(recipient, requestMetadata);
 
   return {
     envelopeItems: envelope.envelopeItems,

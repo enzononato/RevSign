@@ -2,6 +2,8 @@ import { getOptionalNonEmbedSession } from '@documenso/auth/server/lib/session/e
 import { APP_DOCUMENT_UPLOAD_SIZE_LIMIT } from '@documenso/lib/constants/app';
 import { AppError } from '@documenso/lib/errors/app-error';
 import { verifyEmbeddingPresignToken } from '@documenso/lib/server-only/embedding-presign/verify-embedding-presign-token';
+import { isRevalleGateBlockingToken } from '@documenso/lib/server-only/revalle/gate/is-gate-blocking-token'; // REVALLE:
+import { extractRequestMetadata } from '@documenso/lib/universal/extract-request-metadata'; // REVALLE:
 import { putNormalizedPdfFileServerSide } from '@documenso/lib/universal/upload/put-file.server';
 import { prisma } from '@documenso/prisma';
 import { sValidator } from '@hono/standard-validator';
@@ -259,6 +261,11 @@ export const filesRoute = new Hono<HonoEnv>()
         };
       }
 
+      // REVALLE: o portão (termo + identidade) vale também no PDF; tokens qr_ (documento concluído) seguem livres
+      if (await isRevalleGateBlockingToken(token, extractRequestMetadata(c.req.raw))) {
+        return c.json({ error: 'Conclua a verificação antes de continuar.' }, 403);
+      }
+
       const envelopeItem = await prisma.envelopeItem.findUnique({
         where: envelopeWhereQuery,
         include: {
@@ -309,6 +316,11 @@ export const filesRoute = new Hono<HonoEnv>()
             qrToken: token,
           },
         };
+      }
+
+      // REVALLE: o portão (termo + identidade) vale também no PDF; tokens qr_ (documento concluído) seguem livres
+      if (await isRevalleGateBlockingToken(token, extractRequestMetadata(c.req.raw))) {
+        return c.json({ error: 'Conclua a verificação antes de continuar.' }, 403);
       }
 
       const envelopeItem = await prisma.envelopeItem.findUnique({

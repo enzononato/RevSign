@@ -134,7 +134,14 @@ const handleV2Loader = async ({ params, request }: Route.LoaderArgs) => {
     });
 };
 
+const REVALLE_DIRECT_TEMPLATES_DISABLED = true as boolean; // REVALLE:
+
 export async function loader(loaderArgs: Route.LoaderArgs) {
+  // REVALLE: templates diretos fora do escopo (spec §1); qualquer pessoa digitaria um e-mail e assinaria sem o portão
+  if (REVALLE_DIRECT_TEMPLATES_DISABLED) {
+    throw new Response('Not Found', { status: 404 });
+  }
+
   const { token } = loaderArgs.params;
 
   if (!token) {

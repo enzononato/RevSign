@@ -89,6 +89,8 @@ export const ZCreateDocumentFromDirectTemplateResponseSchema = z.object({
 
 export type TCreateDocumentFromDirectTemplateResponse = z.infer<typeof ZCreateDocumentFromDirectTemplateResponseSchema>;
 
+const REVALLE_DIRECT_TEMPLATES_DISABLED = true as boolean; // REVALLE:
+
 export const createDocumentFromDirectTemplate = async ({
   directRecipientName: initialDirectRecipientName,
   directRecipientEmail,
@@ -100,6 +102,11 @@ export const createDocumentFromDirectTemplate = async ({
   requestMetadata,
   user,
 }: CreateDocumentFromDirectTemplateOptions): Promise<TCreateDocumentFromDirectTemplateResponse> => {
+  // REVALLE: templates diretos fora do escopo (spec §1); qualquer pessoa digitaria um e-mail e assinaria sem o portão
+  if (REVALLE_DIRECT_TEMPLATES_DISABLED) {
+    throw new AppError(AppErrorCode.NOT_FOUND, { message: 'Direct templates are disabled' });
+  }
+
   const directTemplateEnvelope = await prisma.envelope.findFirst({
     where: {
       directLink: {

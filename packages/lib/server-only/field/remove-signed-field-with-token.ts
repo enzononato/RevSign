@@ -1,3 +1,4 @@
+import { assertRevalleGatePassed } from '@documenso/lib/server-only/revalle/gate/assert-gate-passed'; // REVALLE:
 import { assertSenderNotDisabled } from '@documenso/lib/server-only/user/assert-user-not-disabled';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '@documenso/lib/types/document-audit-logs';
 import type { RequestMetadata } from '@documenso/lib/universal/extract-request-metadata';
@@ -45,6 +46,9 @@ export const removeSignedFieldWithToken = async ({
   }
 
   await assertSenderNotDisabled({ userId: envelope.userId });
+
+  // REVALLE: o portão (termo + identidade) vale também na API; sem isso a tela seria contornável
+  await assertRevalleGatePassed(recipient, requestMetadata);
 
   if (envelope.status !== DocumentStatus.PENDING) {
     throw new Error(`Document ${envelope.id} must be pending`);

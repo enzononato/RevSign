@@ -9,6 +9,13 @@
 //   REVSIGN_URL=http://localhost:3000 REVSIGN_API_TOKEN=api_... \
 //   SIGNER_EMAIL=teste@exemplo.com node scripts/revalle/smoke-test.mjs [saida/]
 //
+// O portão de assinatura é obrigatório no servidor: antes de assinar, o script aceita o termo e, se o portão pedir
+// identidade, informa SMOKE_CPF e SMOKE_BIRTH_DATE (dd/MM/yyyy) de um colaborador da base e confirma "sou eu".
+// Obrigatórias nesse caso (sem elas o script falha com mensagem clara). Em homologação com
+// NEXT_PRIVATE_REVALLE_IDENTITY_CHECK=disabled nada é pedido. O vínculo CPF-e-mail é permanente: use um
+// CPF ainda sem vínculo ou um SIGNER_EMAIL que já esteja vinculado a ele. Se o código por e-mail estiver ligado
+// (Task 7), ver `getLatestCode` em tests/helpers.mjs.
+//
 // Variáveis opcionais: SIGNER_NAME, PDF_PATH (padrão: assets/example.pdf),
 // SEND_EMAIL=false (só gera o link, sem e-mail).
 
@@ -55,10 +62,37 @@ const api = async (method, route, data) => {
 
 // Rotas públicas do signatário (autenticadas só pelo token do link).
 const trpcMutation = async (procedure, input) => {
-  await request('POST', `${BASE_URL}/api/trpc/${procedure}`, {
+  const res = await request('POST', `${BASE_URL}/api/trpc/${procedure}`, {
     headers: { Origin: new URL(BASE_URL).origin, 'Content-Type': 'application/json' },
     body: JSON.stringify({ json: input }),
   });
+
+  return (await res.json()).result?.data?.json;
+};
+
+const passGate = async (token) => {
+  let state = await trpcMutation('revalle.gate.acceptTerm', { token, termVersion: '1' });
+
+  if (state.status === 'IDENTITY_REQUIRED') {
+    const cpf = process.env.SMOKE_CPF;
+    const birthDate = process.env.SMOKE_BIRTH_DATE;
+
+    if (!cpf || !birthDate) {
+      throw new Error(
+        'O portão pede identidade: defina SMOKE_CPF e SMOKE_BIRTH_DATE (dd/MM/yyyy) de um colaborador da base.',
+      );
+    }
+
+    state = await trpcMutation('revalle.gate.verifyIdentity', { token, cpf, birthDate });
+  }
+
+  if (state.status === 'IDENTITY_CONFIRM') {
+    state = await trpcMutation('revalle.gate.confirmIdentity', { token, isMe: true });
+  }
+
+  if (state.status !== 'PASSED') {
+    throw new Error(`Portão não concluído (estado: ${state.status})`);
+  }
 };
 
 const download = async (envelopeItemId, version) => {
@@ -115,6 +149,10 @@ const main = async () => {
   const field = envelope.fields.find((f) => f.recipientId === recipient.id && f.type === 'SIGNATURE');
 
   console.log(`  link de assinatura: ${recipient.signingUrl}`);
+
+  step('passando pelo portão (termo e identidade)');
+
+  await passGate(recipient.token);
 
   step('assinando como destinatário');
 

@@ -4,6 +4,7 @@ import { viewedDocument } from '@documenso/lib/server-only/document/viewed-docum
 import { getCompletedFieldsForToken } from '@documenso/lib/server-only/field/get-completed-fields-for-token';
 import { getFieldsForToken } from '@documenso/lib/server-only/field/get-fields-for-token';
 import { getRecipientByToken } from '@documenso/lib/server-only/recipient/get-recipient-by-token';
+import { assertRevalleGatePassed } from '@documenso/lib/server-only/revalle/gate/assert-gate-passed'; // REVALLE:
 
 import { procedure } from '../trpc';
 import {
@@ -33,6 +34,9 @@ export const getMultiSignDocumentRoute = procedure
           message: 'Document or recipient not found',
         });
       }
+
+      // REVALLE: o portão (termo + identidade) vale também na API
+      await assertRevalleGatePassed(recipient, metadata.requestMetadata);
 
       await viewedDocument({
         token,
