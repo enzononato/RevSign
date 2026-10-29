@@ -42,7 +42,8 @@ export const DocumentSigningMobileWidget = () => {
                   <Button
                     variant="outline"
                     onClick={() => setIsExpanded(!isExpanded)}
-                    className="flex h-8 w-8 items-center justify-center"
+                    // REVALLE: h-11 w-11 p-0 (44 px de área de toque; era h-8 w-8)
+                    className="flex h-11 w-11 flex-shrink-0 items-center justify-center p-0"
                     aria-label={isExpanded ? 'Collapse' : 'Expand'}
                   >
                     {isExpanded ? (

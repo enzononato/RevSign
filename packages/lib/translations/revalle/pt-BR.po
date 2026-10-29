@@ -684,10 +684,10 @@ msgid "You are about to remove the following group from <0>{0}</0>."
 msgstr "Você está prestes a remover o grupo a seguir de <0>{0}</0>."
 
 msgid "Select Options"
-msgstr "Selecionar opções"
+msgstr "Selecione as opções"
 
 msgid "Enter"
-msgstr "Inserir"
+msgstr "Confirmar"
 
 msgid "Enter Email"
 msgstr "Inserir e-mail"
@@ -696,13 +696,13 @@ msgid "Please enter your email address"
 msgstr "Digite seu endereço de e-mail"
 
 msgid "Enter Initials"
-msgstr "Inserir iniciais"
+msgstr "Suas iniciais"
 
 msgid "Please enter your initials"
 msgstr "Digite suas iniciais"
 
 msgid "Enter Name"
-msgstr "Inserir nome"
+msgstr "Seu nome"
 
 msgid "Please enter your full name"
 msgstr "Digite seu nome completo"
@@ -714,7 +714,7 @@ msgid "Please enter a number"
 msgstr "Digite um número"
 
 msgid "Enter Text"
-msgstr "Inserir texto"
+msgstr "Digite o texto"
 
 msgid "Please enter a value"
 msgstr "Digite um valor"
@@ -1552,8 +1552,8 @@ msgstr "Confirme que você é o destinatário"
 msgid "Digite o código"
 msgstr "Digite o código"
 
-msgid "Enviamos um código de 6 dígitos para seu e-mail. Digite-o abaixo para concluir o documento."
-msgstr "Enviamos um código de 6 dígitos para seu e-mail. Digite-o abaixo para concluir o documento."
+msgid "Enviamos um código de 6 dígitos para o seu e-mail. Digite o código abaixo para concluir."
+msgstr "Enviamos um código de 6 dígitos para o seu e-mail. Digite o código abaixo para concluir."
 
 msgid "Enviar código para meu e-mail"
 msgstr "Enviar código para meu e-mail"
@@ -1920,7 +1920,7 @@ msgid "Document already signed"
 msgstr "Documento já assinado"
 
 msgid "This document was already signed and no further action was taken."
-msgstr "Este documento já foi assinado e nenhuma outra ação foi feita."
+msgstr "Você já tinha assinado este documento. Nada foi alterado."
 
 msgid "Applying your signature..."
 msgstr "Aplicando sua assinatura..."
@@ -2228,8 +2228,8 @@ msgstr "Não foi possível confirmar agora. Tente novamente em alguns minutos."
 msgid "{currentAttempts, plural, one {CPF ou data de nascimento não conferem. Você tem # tentativa.} other {CPF ou data de nascimento não conferem. Você tem # tentativas.}}"
 msgstr "{currentAttempts, plural, one {CPF ou data de nascimento não conferem. Você tem # tentativa.} other {CPF ou data de nascimento não conferem. Você tem # tentativas.}}"
 
-msgid "Este link foi bloqueado por segurança. Avisamos quem enviou o documento e o TI. Aguarde o desbloqueio ou peça um novo envio para outro e-mail."
-msgstr "Este link foi bloqueado por segurança. Avisamos quem enviou o documento e o TI. Aguarde o desbloqueio ou peça um novo envio para outro e-mail."
+msgid "Este link foi bloqueado por segurança. Avisamos quem enviou o documento e a equipe de TI. Aguarde o desbloqueio ou peça um novo envio para outro e-mail."
+msgstr "Este link foi bloqueado por segurança. Avisamos quem enviou o documento e a equipe de TI. Aguarde o desbloqueio ou peça um novo envio para outro e-mail."
 
 msgid "Documento enviado por {senderName}"
 msgstr "Documento enviado por {senderName}"
@@ -2773,10 +2773,10 @@ msgid "Want to send slick signing links like this one? <0>Check out Documenso</0
 msgstr "Quer enviar links de assinatura práticos como este? <0>Conheça o RevSign</0>."
 
 msgid "Signing Deadline Expired"
-msgstr "Prazo de assinatura expirado"
+msgstr "Prazo para assinar encerrado"
 
 msgid "The signing deadline for this document has passed. Please contact the document owner if you need a new copy to sign."
-msgstr "O prazo para assinar este documento acabou. Fale com o proprietário do documento se precisar de uma nova cópia para assinar."
+msgstr "O prazo para assinar este documento acabou. Se ainda precisar assinar, fale com quem enviou."
 
 msgid "Forgot password"
 msgstr "Esqueci a senha"
@@ -3240,8 +3240,8 @@ msgstr "O link de assinatura foi bloqueado"
 msgid "O link de {recipientEmail} para o documento \"{documentName}\" foi bloqueado."
 msgstr "O link de {recipientEmail} para o documento \"{documentName}\" foi bloqueado."
 
-msgid "Quem recebeu o link vê: \"Este link foi bloqueado por segurança. Avisamos quem enviou o documento e o TI. Aguarde o desbloqueio ou peça um novo envio para outro e-mail.\" Para liberar, o TI desbloqueia em Admin → Verificações."
-msgstr "Quem recebeu o link vê: \"Este link foi bloqueado por segurança. Avisamos quem enviou o documento e o TI. Aguarde o desbloqueio ou peça um novo envio para outro e-mail.\" Para liberar, o TI desbloqueia em Admin → Verificações."
+msgid "Quem recebeu o link vê: \"Este link foi bloqueado por segurança. Avisamos quem enviou o documento e a equipe de TI. Aguarde o desbloqueio ou peça um novo envio para outro e-mail.\" Para liberar, a equipe de TI desbloqueia em Admin → Verificações."
+msgstr "Quem recebeu o link vê: \"Este link foi bloqueado por segurança. Avisamos quem enviou o documento e a equipe de TI. Aguarde o desbloqueio ou peça um novo envio para outro e-mail.\" Para liberar, a equipe de TI desbloqueia em Admin → Verificações."
 
 msgid "None (Overrides global settings)"
 msgstr "Nenhum (substitui as configurações globais)"
@@ -3828,7 +3828,7 @@ msgid "Unable to upload image"
 msgstr "Não foi possível enviar a imagem"
 
 msgid "Upload New Image"
-msgstr "Enviar nova imagem"
+msgstr "Enviar outra imagem"
 
 msgid "Zoom in"
 msgstr "Aumentar zoom"
@@ -3891,3 +3891,313 @@ msgstr "Seu documento foi reenviado."
 
 msgid "Sign up"
 msgstr "Criar conta"
+
+# REVALLE: linguagem simples no caminho de quem assina (Fase 2, Task 4): msgids que só tinham a tradução do upstream.
+msgid "{0, plural, one {1 Field Remaining} other {# Fields Remaining}}"
+msgstr "{0, plural, one {Falta 1 campo} other {Faltam # campos}}"
+
+msgid "{0, plural, one {1 Field} other {# Fields}}"
+msgstr "{0, plural, one {1 campo} other {# campos}}"
+
+msgid "Sign Document"
+msgstr "Assinar documento"
+
+msgid "Approve Document"
+msgstr "Aprovar documento"
+
+msgid "Assist Document"
+msgstr "Auxiliar no documento"
+
+msgid "View Document"
+msgstr "Ver documento"
+
+msgid "Please complete the document once reviewed"
+msgstr "Revise o documento e conclua"
+
+msgid "Please mark as viewed to complete"
+msgstr "Marque como visto para concluir"
+
+msgid "Please mark as viewed to complete."
+msgstr "Marque como visto para concluir."
+
+msgid "Please review the document before signing."
+msgstr "Leia o documento antes de assinar."
+
+msgid "Please review the document before approving."
+msgstr "Leia o documento antes de aprovar."
+
+msgid "Click to insert field"
+msgstr "Toque ou clique para preencher"
+
+msgid "Viewer"
+msgstr "Leitor"
+
+msgid "Return"
+msgstr "Voltar"
+
+msgid "Reject"
+msgstr "Recusar"
+
+msgid "Reject Document"
+msgstr "Recusar documento"
+
+msgid "Full Name"
+msgstr "Nome completo"
+
+msgid "An error occurred while signing the field."
+msgstr "Não foi possível preencher o campo. Tente de novo."
+
+msgid "Next Field"
+msgstr "Próximo campo"
+
+msgid "Mark as viewed"
+msgstr "Marcar como visto"
+
+msgid "Mark as Viewed"
+msgstr "Marcar como visto"
+
+msgid "You are about to complete signing the following document"
+msgstr "Você vai concluir a assinatura deste documento"
+
+msgid "You are about to complete approving the following document"
+msgstr "Você vai concluir a aprovação deste documento"
+
+msgid "You are about to complete viewing the following document"
+msgstr "Você vai marcar este documento como visto"
+
+msgid "You are about to complete assisting the following document"
+msgstr "Você vai concluir o auxílio neste documento"
+
+msgid "Your Name"
+msgstr "Seu nome"
+
+msgid "Your Email"
+msgstr "Seu e-mail"
+
+msgid "Next Recipient Name"
+msgstr "Nome do próximo destinatário"
+
+msgid "Next Recipient Email"
+msgstr "E-mail do próximo destinatário"
+
+msgid "Sign Signature Field"
+msgstr "Sua assinatura"
+
+msgid "Initials are required"
+msgstr "Digite suas iniciais"
+
+msgid "Name is required"
+msgstr "Digite seu nome"
+
+msgid "Text is required"
+msgstr "Digite o texto"
+
+msgid "Validation failed"
+msgstr "Confira o preenchimento"
+
+msgid "Clear Signature"
+msgstr "Limpar assinatura"
+
+msgid "Upload Signature"
+msgstr "Enviar assinatura"
+
+msgid "Signature is too small"
+msgstr "A assinatura está muito pequena"
+
+msgid "Typed signatures are not allowed. Please draw your signature."
+msgstr "Não é permitido digitar a assinatura. Desenhe sua assinatura."
+
+msgid "Reauthentication is required to sign this field"
+msgstr "Confirme sua identidade para assinar este campo"
+
+msgid "Are you sure you want to reject this document? This action cannot be undone."
+msgstr "Quer mesmo recusar este documento? Não é possível desfazer."
+
+msgid "Please provide a reason for rejecting this document"
+msgstr "Conte por que você está recusando este documento"
+
+msgid "Reason must be less than 500 characters"
+msgstr "Use menos de 500 caracteres"
+
+msgid "Document rejected"
+msgstr "Documento recusado"
+
+msgid "Document Rejected"
+msgstr "Documento recusado"
+
+msgid "The document has been successfully rejected."
+msgstr "Você recusou o documento."
+
+msgid "An error occurred while rejecting the document. Please try again."
+msgstr "Não foi possível recusar o documento. Tente de novo."
+
+msgid "You have rejected this document"
+msgstr "Você recusou este documento"
+
+msgid "The document owner has been notified of your decision. They may contact you with further instructions if necessary."
+msgstr "Avisamos quem enviou o documento. Se precisar, essa pessoa vai falar com você."
+
+msgid "No further action is required from you at this time."
+msgstr "Você não precisa fazer mais nada agora."
+
+msgid "Document Signed"
+msgstr "Documento assinado"
+
+msgid "Document Viewed"
+msgstr "Documento visto"
+
+msgid "Document Approved"
+msgstr "Documento aprovado"
+
+msgid "Processing document"
+msgstr "Finalizando o documento"
+
+msgid "Waiting for others to sign"
+msgstr "Aguardando os outros assinarem"
+
+msgid "Document no longer available to sign"
+msgstr "Este documento não pode mais ser assinado"
+
+msgid "Everyone has signed! You will receive an email copy of the signed document."
+msgstr "Todos assinaram! Você vai receber o documento assinado por e-mail."
+
+msgid "All recipients have signed. The document is being processed and you will receive an email copy shortly."
+msgstr "Todos assinaram. Estamos finalizando o documento e logo você vai recebê-lo por e-mail."
+
+msgid "You will receive an email copy of the signed document once everyone has signed."
+msgstr "Quando todos assinarem, você vai receber o documento assinado por e-mail."
+
+msgid "This document has been cancelled by the owner and is no longer available for others to sign."
+msgstr "Quem enviou cancelou este documento. Ninguém mais pode assiná-lo."
+
+msgid "Go Back Home"
+msgstr "Voltar ao início"
+
+msgid "Create your account and start using state-of-the-art document signing."
+msgstr "Crie sua conta para enviar e assinar documentos no RevSign."
+
+msgid "Claim account"
+msgstr "Criar conta"
+
+msgid "Document Cancelled"
+msgstr "Documento cancelado"
+
+msgid "This document has been cancelled by the owner."
+msgstr "Quem enviou cancelou este documento."
+
+msgid "Waiting for Your Turn"
+msgstr "Aguarde sua vez"
+
+msgid "It's currently not your turn to sign. You will receive an email with instructions once it's your turn to sign the document."
+msgstr "Ainda não é sua vez de assinar. Quando for, você vai receber um e-mail com as instruções."
+
+msgid "Please check your email for updates."
+msgstr "Fique de olho no seu e-mail."
+
+msgid "Were you trying to edit this document instead?"
+msgstr "Você queria editar este documento?"
+
+msgid "Authentication required"
+msgstr "É preciso entrar na conta"
+
+msgid "You need to be logged in as <0>{email}</0> to view this page."
+msgstr "Entre como <0>{email}</0> para ver esta página."
+
+msgid "You need to be logged in to view this page."
+msgstr "Entre na sua conta para ver esta página."
+
+msgid "Your two-factor authentication code"
+msgstr "Seu código para concluir o documento"
+
+msgid "Your verification code is {code}"
+msgstr "Seu código é {code}"
+
+msgid "Verification Code Required"
+msgstr "Seu código para concluir"
+
+msgid "Hi {userName}, you need to enter a verification code to complete the document \"{documentTitle}\"."
+msgstr "Olá, {userName}. Use este código para concluir o documento \"{documentTitle}\"."
+
+msgid "Your verification code:"
+msgstr "Seu código:"
+
+msgid "{expiresInMinutes, plural, one {This code will expire in # minute.} other {This code will expire in # minutes.}}"
+msgstr "{expiresInMinutes, plural, one {O código vale por # minuto.} other {O código vale por # minutos.}}"
+
+msgid "If you didn't request this verification code, you can safely ignore this email."
+msgstr "Se você não pediu este código, ignore este e-mail."
+
+msgid "Please {recipientActionVerb} this document"
+msgstr "Documento para {recipientActionVerb}"
+
+msgid "Please {recipientActionVerb} your document"
+msgstr "Você precisa {recipientActionVerb} seu documento"
+
+msgid "Please {0} your document<0/>\"{documentName}\""
+msgstr "Você precisa {0} seu documento<0/>\"{documentName}\""
+
+msgid "Please {action} your document {documentName}"
+msgstr "Você precisa {action} seu documento {documentName}"
+
+msgid "{inviterName} has invited you to {0}<0/>\"{documentName}\""
+msgstr "{inviterName} pediu para você {0}<0/>\"{documentName}\""
+
+msgid "{inviterName} on behalf of \"{teamName}\" has invited you to {0}<0/>\"{documentName}\""
+msgstr "{inviterName}, em nome de \"{teamName}\", pediu para você {0}<0/>\"{documentName}\""
+
+msgid "{teamName} has invited you to {0}<0/>\"{documentName}\""
+msgstr "{teamName} pediu para você {0}<0/>\"{documentName}\""
+
+msgid "{inviterName} has invited you to {action} {documentName}"
+msgstr "{inviterName} pediu para você {action} {documentName}"
+
+msgid "{inviterName} on behalf of \"{teamName}\" has invited you to {action} {documentName}"
+msgstr "{inviterName}, em nome de \"{teamName}\", pediu para você {action} {documentName}"
+
+msgid "{teamName} has invited you to {action} {documentName}"
+msgstr "{teamName} pediu para você {action} {documentName}"
+
+msgid "{inviterName} has invited you to {action} the document \"{documentName}\"."
+msgstr "{inviterName} pediu para você {action} o documento \"{documentName}\"."
+
+msgid "{0} invited you to {recipientActionVerb} a document"
+msgstr "{0} pediu para você {recipientActionVerb} um documento"
+
+msgid "{0} has invited you to {recipientActionVerb} the document \"{1}\"."
+msgstr "{0} pediu para você {recipientActionVerb} o documento \"{1}\"."
+
+msgid "{inviterName} on behalf of \"{0}\" has invited you to {recipientActionVerb} the document \"{1}\"."
+msgstr "{inviterName}, em nome de \"{0}\", pediu para você {recipientActionVerb} o documento \"{1}\"."
+
+msgid "Continue by signing the document."
+msgstr "Para continuar, assine o documento."
+
+msgid "Continue by viewing the document."
+msgstr "Para continuar, veja o documento."
+
+msgid "Continue by approving the document."
+msgstr "Para continuar, aprove o documento."
+
+msgid "Continue by assisting with the document."
+msgstr "Para continuar, auxilie no documento."
+
+msgid "View Document to sign"
+msgstr "Abrir e assinar"
+
+msgid "View Document to approve"
+msgstr "Abrir e aprovar"
+
+msgid "View Document to assist"
+msgstr "Abrir e auxiliar"
+
+msgid "“{documentName}” was signed by all signers"
+msgstr "Todos assinaram “{documentName}”"
+
+msgid "Continue by downloading the document."
+msgstr "Baixe o documento assinado no botão abaixo."
+
+msgid "Completed Document"
+msgstr "Documento concluído"
+
+msgid "Signing Complete!"
+msgstr "Assinatura concluída!"

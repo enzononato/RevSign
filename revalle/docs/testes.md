@@ -101,6 +101,23 @@ sh scripts/revalle/inspect-pdf-signature.sh smoke-output/final.pdf          # re
 sh scripts/revalle/inspect-pdf-signature.sh smoke-output/final.pdf --full   # estrutura CMS inteira
 ```
 
+## Celular (360 px)
+
+`scripts/revalle/mobile-check.mjs` passa pelo caminho de quem assina numa tela de celular (360×740, escala 2): cria e envia um documento pela API, abre o link, passa pelo portão (termo, CPF e data de nascimento do Fernando fictício do `dev-seed.sql`, "sou eu"), abre o menu de ações e o diálogo de recusa (e cancela), assina um campo de assinatura e um de texto, pede o código por e-mail (lido no Mailpit) e conclui. Em cada passo tira um print e confere:
+
+- sem rolagem horizontal (`document.scrollingElement.scrollWidth <= 360`);
+- todo botão visível (`button` ou `role=button`) com pelo menos 44 px de altura (caixa de seleção vale pela área do `<label>` dela);
+- nada cortado para fora da tela à direita.
+
+```sh
+REVSIGN_API_TOKEN=api_... node scripts/revalle/mobile-check.mjs /tmp/prints-celular
+```
+
+- O navegador roda na imagem Docker `mcr.microsoft.com/playwright:v1.56.1-noble` (o WSL não abre o Chromium), com `--network host` e o repositório montado só para leitura; o script usa o pacote `playwright` do `node_modules` do repo (mesma versão da imagem). Na primeira vez o `docker pull` baixa ~2 GB. Outra imagem: `MOBILE_CHECK_IMAGE`.
+- Os prints (`01-termo.png` … `13-concluido.png`) e o `report.json` ficam na pasta indicada (padrão `/tmp/revsign-mobile-check/`). Se o fluxo quebrar no meio, sai `erro.png`.
+- "Tudo verde" é a última linha `mobile-check: tudo verde` e código de saída 0.
+- O vínculo do CPF do Fernando fictício é solto antes e depois (como no `branding.test.mjs`); o e-mail do signatário é novo a cada execução.
+
 ## Testes e2e do upstream (Playwright)
 
 Os testes em `packages/app-tests` vêm do Documenso e **não são mantidos** pelo RevSign: o portão, o código por e-mail obrigatório e a exigência de domínio da empresa mudam os fluxos que eles esperam. Não use o resultado deles como critério.

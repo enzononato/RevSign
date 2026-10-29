@@ -96,7 +96,8 @@ const MobileDropdownMenu = () => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm">
+        {/* REVALLE: h-11 (44 px de área de toque) */}
+        <Button variant="outline" size="sm" className="h-11">
           <Trans>Actions</Trans>
         </Button>
       </DropdownMenuTrigger>

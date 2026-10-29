@@ -15,9 +15,10 @@ export const SignaturePadColorPicker = ({
   className,
 }: SignaturePadColorPickerProps) => {
   return (
-    <div className={cn('absolute top-2 right-2 text-foreground filter', className)}>
+    // REVALLE: no celular (< sm) o seletor tem 44 px de altura, encostado no canto.
+    <div className={cn('absolute top-0 right-0 text-foreground filter sm:top-2 sm:right-2', className)}>
       <Select defaultValue={selectedColor} onValueChange={(value) => setSelectedColor(value)}>
-        <SelectTrigger className="h-auto w-auto border-none p-0.5">
+        <SelectTrigger className="h-auto min-h-11 w-auto border-none p-0.5 px-2 sm:min-h-0 sm:px-0.5">
           <SelectValue placeholder="" />
         </SelectTrigger>
 

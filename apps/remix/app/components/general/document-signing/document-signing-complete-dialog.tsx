@@ -233,7 +233,7 @@ export const DocumentSigningCompleteDialog = ({
     <Dialog open={showDialog} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button
-          className="w-full"
+          className="min-h-11 w-full lg:min-h-0" // REVALLE: min-h-11 (44 px de área de toque) abaixo de lg
           type="button"
           size={buttonSize}
           onClick={fieldsValidated}

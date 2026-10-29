@@ -72,9 +72,10 @@ const DialogContent = React.forwardRef<
     >
       {children}
       {!hideClose && (
+        // REVALLE: no celular (< sm) a área de toque do "fechar" tem 44 px, com o X no mesmo lugar; de sm para cima, como no upstream.
         <DialogPrimitive.Close
           data-testid="btn-dialog-close"
-          className="absolute top-4 right-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
+          className="absolute top-0.5 right-0.5 inline-flex h-11 w-11 items-center justify-center rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground sm:top-4 sm:right-4 sm:inline-block sm:h-auto sm:w-auto"
         >
           <X className="h-4 w-4" />
           <span className="sr-only">
@@ -97,7 +98,8 @@ DialogHeader.displayName = 'DialogHeader';
 const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'flex flex-col-reverse space-y-2 space-y-reverse sm:flex-row sm:justify-end sm:space-x-2 sm:space-y-0',
+      // REVALLE: no celular (< sm) os botões do rodapé têm 44 px de altura (área de toque).
+      'flex flex-col-reverse space-y-2 space-y-reverse sm:flex-row sm:justify-end sm:space-x-2 sm:space-y-0 [&>button]:min-h-11 sm:[&>button]:min-h-0',
       className,
     )}
     {...props}

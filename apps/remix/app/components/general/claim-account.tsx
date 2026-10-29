@@ -164,7 +164,7 @@ export const ClaimAccount = ({ defaultName, defaultEmail }: ClaimAccountProps) =
                     <Trans>Set a password</Trans>
                   </FormLabel>
                   <FormControl>
-                    <PasswordInput {...field} placeholder={_(msg`Pick a password`)} />
+                    <PasswordInput {...field} className="h-11" placeholder={_(msg`Pick a password`)} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -184,7 +184,8 @@ export const ClaimAccount = ({ defaultName, defaultEmail }: ClaimAccountProps) =
               </div>
             )}
 
-            <Button type="submit" className="mt-6 w-full" loading={form.formState.isSubmitting}>
+            {/* REVALLE: h-11 no botão e na senha (44 px de área de toque, inclusive o "mostrar senha") */}
+            <Button type="submit" className="mt-6 h-11 w-full" loading={form.formState.isSubmitting}>
               <Trans>Claim account</Trans>
             </Button>
           </fieldset>

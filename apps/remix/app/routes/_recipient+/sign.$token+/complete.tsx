@@ -267,7 +267,7 @@ export default function CompletedSigningPage({ loaderData }: Route.ComponentProp
               <DocumentShareButton
                 documentId={document.id}
                 token={recipient.token}
-                className="w-full max-w-none md:flex-1"
+                className="w-full max-w-none flex-none md:flex-1" // REVALLE: flex-none abaixo de md (na coluna, o flex-1 encolhia o botão para 38 px)
               />
 
               {isDocumentCompleted(document) && (

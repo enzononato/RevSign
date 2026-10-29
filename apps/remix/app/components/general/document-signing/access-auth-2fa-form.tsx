@@ -123,8 +123,9 @@ export const AccessAuth2FAForm = ({ onSubmit, token, error }: AccessAuth2FAFormP
             <Trans>Digite o código</Trans>
           </h3>
 
+          {/* REVALLE: frase curta (linguagem simples, Fase 2 Task 4) */}
           <div className="text-muted-foreground text-sm">
-            <Trans>Enviamos um código de 6 dígitos para seu e-mail. Digite-o abaixo para concluir o documento.</Trans>
+            <Trans>Enviamos um código de 6 dígitos para o seu e-mail. Digite o código abaixo para concluir.</Trans>
           </div>
 
           {error && (
@@ -181,7 +182,7 @@ export const AccessAuth2FAForm = ({ onSubmit, token, error }: AccessAuth2FAFormP
                   <Button
                     type="submit"
                     form="access-auth-2fa-form"
-                    className="w-full"
+                    className="h-11 w-full" // REVALLE: h-11 (44 px de área de toque)
                     disabled={!form.formState.isValid}
                     loading={isRequesting2FAEmail || form.formState.isSubmitting}
                   >
@@ -192,7 +193,7 @@ export const AccessAuth2FAForm = ({ onSubmit, token, error }: AccessAuth2FAFormP
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="w-full"
+                    className="h-11 w-full" // REVALLE: h-11 (44 px de área de toque)
                     onClick={requestCode}
                     loading={isRequesting2FAEmail}
                   >
