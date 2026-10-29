@@ -95,7 +95,7 @@ const handleGetEnvelopeItemsByToken = async ({
   // REVALLE: o portão (termo + identidade) vale também na API; sem isso o PDF vazaria antes do portão
   const recipient = await prisma.recipient.findFirstOrThrow({
     where: { envelopeId: envelope.id, token },
-    select: { id: true, email: true },
+    select: { id: true, email: true, role: true, signingStatus: true },
   });
 
   await assertRevalleGatePassed(recipient, requestMetadata);

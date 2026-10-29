@@ -70,8 +70,16 @@ const trpcMutation = async (procedure, input) => {
   return (await res.json()).result?.data?.json;
 };
 
+const gateMutation = async (procedure, input) => {
+  try {
+    return await trpcMutation(procedure, input);
+  } catch (error) {
+    throw new Error(`Portão: ${procedure} falhou. ${error.message}`);
+  }
+};
+
 const passGate = async (token) => {
-  let state = await trpcMutation('revalle.gate.acceptTerm', { token, termVersion: '1' });
+  let state = await gateMutation('revalle.gate.acceptTerm', { token, termVersion: '1' });
 
   if (state.status === 'IDENTITY_REQUIRED') {
     const cpf = process.env.SMOKE_CPF;
@@ -83,11 +91,11 @@ const passGate = async (token) => {
       );
     }
 
-    state = await trpcMutation('revalle.gate.verifyIdentity', { token, cpf, birthDate });
+    state = await gateMutation('revalle.gate.verifyIdentity', { token, cpf, birthDate });
   }
 
   if (state.status === 'IDENTITY_CONFIRM') {
-    state = await trpcMutation('revalle.gate.confirmIdentity', { token, isMe: true });
+    state = await gateMutation('revalle.gate.confirmIdentity', { token, isMe: true });
   }
 
   if (state.status !== 'PASSED') {

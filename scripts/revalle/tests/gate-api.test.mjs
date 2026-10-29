@@ -46,6 +46,12 @@ const setup = async (recipients, meta) => {
   };
 };
 
+const itemPdfRoute = (token, s, version) => {
+  const item = s.envelope.envelopeItems[0];
+
+  return `/api/files/token/${token}/envelope/${s.envelopeId}/envelopeItem/${item.id}/dataId/${item.documentDataId}/${version}/item.pdf`;
+};
+
 const sign = (r) =>
   trpc('envelope.field.sign', {
     token: r.token,
@@ -102,7 +108,7 @@ test('gate-blocks-api: com o portão pendente todas as rotas por token recusam',
   assert.match(removed.text, GATE_MESSAGE);
 
   const items = await fetch(
-    `${BASE_URL}/api/trpc/envelope.items.getByToken?input=${encodeURIComponent(
+    `${BASE_URL}/api/trpc/envelope.items.getManyByToken?input=${encodeURIComponent(
       JSON.stringify({ json: { envelopeId: s.envelopeId, access: { type: 'recipient', token: r.token } } }),
     )}`,
   );
@@ -117,6 +123,20 @@ test('gate-blocks-api: com o portão pendente todas as rotas por token recusam',
 
     assert.ok([401, 403].includes(pdf.status), `${route} => ${pdf.status}`);
   }
+
+  const itemPdf = await fetch(`${BASE_URL}${itemPdfRoute(r.token, s, 'initial')}`);
+
+  assert.ok([401, 403].includes(itemPdf.status), `item.pdf => ${itemPdf.status}`);
+
+  const attachments = await fetch(
+    `${BASE_URL}/api/trpc/envelope.attachment.find?input=${encodeURIComponent(
+      JSON.stringify({ json: { envelopeId: s.envelopeId, token: r.token } }),
+    )}`,
+  );
+  const attachmentsText = await attachments.text();
+
+  assert.notEqual(attachments.status, 200, attachmentsText);
+  assert.match(attachmentsText, GATE_MESSAGE);
 
   const rejected = await trpc('recipient.rejectDocumentWithToken', {
     token: r.token,
@@ -139,6 +159,7 @@ test('depois do portão: PDF por token abre, assina e o documento é selado', as
   const pdf = await fetch(`${BASE_URL}/api/files/token/${r.token}/envelopeItem/${itemId}`);
 
   assert.equal(pdf.status, 200);
+  assert.equal((await fetch(`${BASE_URL}${itemPdfRoute(r.token, s, 'initial')}`)).status, 200);
 
   const signed = await sign(r);
 
@@ -147,6 +168,44 @@ test('depois do portão: PDF por token abre, assina e o documento é selado', as
   const completed = await complete(r, s.documentId);
 
   assert.equal(completed.status, 200, completed.text);
+
+  await waitCompleted(s.envelopeId);
+
+  // Quem já assinou lê sem portão (documentos assinados antes da Fase 3 não têm linha de portão).
+  db(`delete from "RevalleRecipientGate" where "recipientId" = ${r.id}`);
+  db(`delete from "RevalleEmailLink" where cpf = '${MARIA.cpf}'`);
+
+  const download = await fetch(`${BASE_URL}/api/files/token/${r.token}/envelopeItem/${itemId}/download/signed`);
+
+  assert.equal(download.status, 200);
+  assert.equal(db(`select count(*) from "RevalleRecipientGate" where "recipientId" = ${r.id}`), '0');
+});
+
+test('CC e VIEWER não passam pelo portão: leem o PDF, marcam como visto e o documento sela', async () => {
+  const s = await setup(
+    [
+      { email: unique('sig') },
+      { email: unique('view'), role: 'VIEWER', fields: [] },
+      { email: unique('cc'), role: 'CC', fields: [] },
+    ],
+    { distributionMethod: 'NONE' },
+  );
+  const byRole = (role) => s.recipients.find((r) => r.role === role);
+  const [signer, viewer, cc] = [byRole('SIGNER'), byRole('VIEWER'), byRole('CC')];
+  const itemId = s.envelope.envelopeItems[0].id;
+
+  await passGate(signer.token, MARIA);
+  assert.equal((await sign(signer)).status, 200);
+  assert.equal((await complete(signer, s.documentId)).status, 200);
+
+  for (const r of [viewer, cc]) {
+    assert.equal((await fetch(`${BASE_URL}/api/files/token/${r.token}/envelopeItem/${itemId}`)).status, 200);
+  }
+
+  const viewed = await complete(viewer, s.documentId);
+
+  assert.equal(viewed.status, 200, viewed.text);
+  assert.equal(db(`select count(*) from "RevalleRecipientGate" where "recipientId" in (${viewer.id}, ${cc.id})`), '0');
 
   await waitCompleted(s.envelopeId);
 });
@@ -163,9 +222,12 @@ test('sequencial: o segundo não assina antes do primeiro; cada um passa pelo pr
 
   await passGate(second.token, ANA);
 
+  assert.equal((await sign(second)).status, 200);
+
   const earlyComplete = await complete(second, s.documentId);
 
   assert.notEqual(earlyComplete.status, 200, earlyComplete.text);
+  assert.match(earlyComplete.text, /RECIPIENT_OUT_OF_TURN/);
 
   // O portão do primeiro continua pendente: o portão do segundo não vale para ele.
   const firstBlocked = await sign(first);

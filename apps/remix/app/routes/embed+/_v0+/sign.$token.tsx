@@ -138,7 +138,9 @@ async function handleV1Loader({ params, request }: Route.LoaderArgs) {
   }
 
   // REVALLE: o portão (termo + identidade) vale também no embed
-  await assertRevalleGatePassed(recipient, requestMetadata);
+  await assertRevalleGatePassed(recipient, requestMetadata).catch(() => {
+    throw data({ type: 'embed-gate-pending' }, { status: 403 });
+  });
 
   await viewedDocument({
     token,
@@ -326,7 +328,9 @@ async function handleV2Loader({ params, request }: Route.LoaderArgs) {
   }
 
   // REVALLE: o portão (termo + identidade) vale também no embed
-  await assertRevalleGatePassed(recipient, requestMetadata);
+  await assertRevalleGatePassed(recipient, requestMetadata).catch(() => {
+    throw data({ type: 'embed-gate-pending' }, { status: 403 });
+  });
 
   await viewedDocument({
     token,

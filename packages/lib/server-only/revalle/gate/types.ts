@@ -1,3 +1,5 @@
+import type { RecipientRole, SigningStatus } from '@prisma/client';
+
 export const REVALLE_MAX_ATTEMPTS = 5;
 
 export type RevalleGateState =
@@ -8,4 +10,9 @@ export type RevalleGateState =
   | { status: 'LOCKED' }
   | { status: 'UNAVAILABLE' };
 
-export type RevalleGateRecipient = { id: number; email: string };
+export type RevalleGateRecipient = {
+  id: number;
+  email: string;
+  role: RecipientRole;
+  signingStatus: SigningStatus;
+};

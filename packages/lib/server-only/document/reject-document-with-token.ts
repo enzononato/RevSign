@@ -6,7 +6,6 @@
 //
 // Code changes in one should probably be mirrored to the other, particularly in
 // relation to the jobs triggered after a rejection.
-
 import { jobs } from '@documenso/lib/jobs/client';
 import { assertRevalleGatePassed } from '@documenso/lib/server-only/revalle/gate/assert-gate-passed'; // REVALLE:
 import { prisma } from '@documenso/prisma';

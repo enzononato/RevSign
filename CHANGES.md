@@ -32,7 +32,9 @@ Toda edição em arquivo do upstream é marcada com `REVALLE:` no código e list
 | `packages/trpc/server/envelope-router/get-envelope-items-by-token.ts` | Import + leitura do destinatário e `assertRevalleGatePassed` em `handleGetEnvelopeItemsByToken` (recebe `requestMetadata`) | Itens/PDF do envelope por token só depois do portão | 3 |
 | `apps/remix/server/api/files/files.ts`, `apps/remix/server/api/files/routes/get-envelope-item-pdf-by-token.ts` | Imports + `isRevalleGateBlockingToken` nas 3 rotas de arquivo por token (403 JSON; tokens `qr_` ficam livres) | O PDF não vaza antes do portão | 3 |
 | `apps/remix/app/routes/embed+/_v0+/sign.$token.tsx` | Import + `assertRevalleGatePassed` antes de `viewedDocument` nos dois loaders | Embed não contorna o portão | 3 |
-| `apps/remix/app/routes/_recipient+/d.$token+/_index.tsx`, `packages/lib/server-only/template/create-document-from-direct-template.ts` | Loader responde 404 e a função lança `AppError(NOT_FOUND)` (constante `REVALLE_DIRECT_TEMPLATES_DISABLED`) | Templates diretos fora do escopo: qualquer pessoa digitaria um e-mail e assinaria sem o portão | 3 |
+| `apps/remix/app/routes/_recipient+/d.$token+/_index.tsx`, `packages/lib/server-only/template/create-document-from-direct-template.ts` | Loader responde 404 e a função lança `AppError(NOT_FOUND)` (constante `REVALLE_DIRECT_TEMPLATES_DISABLED` de `packages/lib/revalle/direct-templates.ts`) | Templates diretos fora do escopo: qualquer pessoa digitaria um e-mail e assinaria sem o portão | 3 |
+| `packages/trpc/server/envelope-router/attachment/find-attachments.ts`, `packages/trpc/server/embedding-router/persist-embed-signature.ts` | Imports + `assertRevalleGatePassed` (anexos por token; assinatura persistida do embed) | Mesma regra nas demais leituras/escritas por token | 3 |
+| `apps/remix/app/routes/embed+/_v0+/direct.$token.tsx` | Loader responde 404 (`REVALLE_DIRECT_TEMPLATES_DISABLED`) | Template direto embutido também desligado | 3 |
 
 ## Arquivos novos (não conflitam com o upstream)
 
@@ -58,7 +60,7 @@ Toda edição em arquivo do upstream é marcada com `REVALLE:` no código e list
 | `packages/prisma/migrations/20261029130000_revalle_link_cpf_unique/migration.sql`, `packages/prisma/schema.prisma` (modelos `Revalle*`) | CPF único em `RevalleEmailLink`; e-mail no portão | 3 |
 | `packages/lib/revalle/term.ts` | Termo de assinatura eletrônica (versão 1, provisória) | 3 |
 | `apps/remix/app/routes/_share+/privacidade.tsx` | Página pública `/privacidade` | 3 |
-| `packages/lib/server-only/revalle/gate/`, `packages/trpc/server/revalle-router/`, `packages/email/templates/revalle-gate-locked.tsx` | Núcleo do portão: termo, identidade (CPF + data), bloqueio e aviso por e-mail | 3 |
+| `packages/lib/server-only/revalle/gate/` (inclui `is-gate-blocking-token.ts`, usado pelas rotas de arquivo por token), `packages/lib/revalle/direct-templates.ts`, `packages/trpc/server/revalle-router/`, `packages/email/templates/revalle-gate-locked.tsx` | Núcleo do portão: termo, identidade (CPF + data), bloqueio e aviso por e-mail | 3 |
 | `packages/trpc/server/router.ts` | Monta `revalle: revalleRouter` (marcado `// REVALLE:`) | 3 |
 | `packages/lib/types/document-audit-logs.ts`, `packages/lib/utils/document-audit-logs.ts` | Eventos de auditoria `REVALLE_*` (enum, schemas, união e texto em pt-BR; marcados `// REVALLE:`) | 3 |
 

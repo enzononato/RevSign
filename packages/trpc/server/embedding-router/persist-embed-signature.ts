@@ -3,6 +3,7 @@ import { getEmbedSignatureSettingsByTeamId } from '@documenso/lib/server-only/em
 import { upsertEmbedSignature } from '@documenso/lib/server-only/embedding/upsert-embed-signature';
 import { assertRateLimit } from '@documenso/lib/server-only/rate-limit/rate-limit-middleware';
 import { persistEmbedSignatureRateLimit } from '@documenso/lib/server-only/rate-limit/rate-limits';
+import { assertRevalleGatePassed } from '@documenso/lib/server-only/revalle/gate/assert-gate-passed'; // REVALLE:
 import { isRecipientExpired } from '@documenso/lib/utils/recipients';
 import { prisma } from '@documenso/prisma';
 import { DocumentStatus, EnvelopeType, SigningStatus } from '@prisma/client';
@@ -32,6 +33,8 @@ export const persistEmbedSignatureRoute = procedure
       select: {
         id: true,
         email: true,
+        role: true,
+        signingStatus: true,
         expiresAt: true,
         envelope: {
           select: {
@@ -46,6 +49,9 @@ export const persistEmbedSignatureRoute = procedure
         message: 'Recipient not found',
       });
     }
+
+    // REVALLE: o portão (termo + identidade) vale também na assinatura persistida do embed
+    await assertRevalleGatePassed(recipient, metadata.requestMetadata);
 
     const { organisationId, isEnabled } = await getEmbedSignatureSettingsByTeamId({
       teamId: recipient.envelope.teamId,

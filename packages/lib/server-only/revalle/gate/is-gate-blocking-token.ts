@@ -16,7 +16,10 @@ export const isRevalleGateBlockingToken = async (
     return false;
   }
 
-  const recipient = await prisma.recipient.findFirst({ where: { token }, select: { id: true, email: true } });
+  const recipient = await prisma.recipient.findFirst({
+    where: { token },
+    select: { id: true, email: true, role: true, signingStatus: true },
+  });
 
   if (!recipient) {
     return false;

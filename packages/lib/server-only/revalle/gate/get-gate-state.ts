@@ -113,6 +113,11 @@ export const getRevalleGateState = async (
   recipient: RevalleGateRecipient,
   requestMetadata?: RequestMetadata,
 ): Promise<RevalleGateState> => {
+  // CC e VIEWER não assinam (não passam pelo portão); quem já assinou (inclusive antes da Fase 3) lê sem portão.
+  if (recipient.role === 'CC' || recipient.role === 'VIEWER' || recipient.signingStatus === 'SIGNED') {
+    return { status: 'PASSED' };
+  }
+
   const gate = await ensureRevalleGate(recipient);
 
   if (gate.lockedAt) {

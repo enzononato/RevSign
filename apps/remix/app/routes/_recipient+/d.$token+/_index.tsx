@@ -2,6 +2,7 @@ import { getOptionalSession } from '@documenso/auth/server/lib/utils/get-session
 import { EnvelopeRenderProvider } from '@documenso/lib/client-only/providers/envelope-render-provider';
 import { useOptionalSession } from '@documenso/lib/client-only/providers/session';
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
+import { REVALLE_DIRECT_TEMPLATES_DISABLED } from '@documenso/lib/revalle/direct-templates'; // REVALLE:
 import { loadRecipientBrandingByTeamId } from '@documenso/lib/server-only/branding/load-recipient-branding';
 import { getEnvelopeForDirectTemplateSigning } from '@documenso/lib/server-only/envelope/get-envelope-for-direct-template-signing';
 import { getTemplateByDirectLinkToken } from '@documenso/lib/server-only/template/get-template-by-direct-link-token';
@@ -133,8 +134,6 @@ const handleV2Loader = async ({ params, request }: Route.LoaderArgs) => {
       throw new Response('Not Found', { status: 404 });
     });
 };
-
-const REVALLE_DIRECT_TEMPLATES_DISABLED = true as boolean; // REVALLE:
 
 export async function loader(loaderArgs: Route.LoaderArgs) {
   // REVALLE: templates diretos fora do escopo (spec §1); qualquer pessoa digitaria um e-mail e assinaria sem o portão

@@ -25,7 +25,7 @@ export const confirmRevalleIdentity = async ({
 }): Promise<RevalleGateState> => {
   const recipient = await prisma.recipient.findUniqueOrThrow({
     where: { id: recipientId },
-    select: { id: true, email: true, name: true, envelopeId: true },
+    select: { id: true, email: true, name: true, envelopeId: true, role: true, signingStatus: true },
   });
 
   const gate = await ensureRevalleGate(recipient);

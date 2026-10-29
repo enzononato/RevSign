@@ -12,7 +12,7 @@ export const findRevalleGateRecipient = async (token: string) => {
       OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
       envelope: { type: EnvelopeType.DOCUMENT, status: DocumentStatus.PENDING },
     },
-    select: { id: true, email: true },
+    select: { id: true, email: true, role: true, signingStatus: true },
   });
 
   if (!recipient) {

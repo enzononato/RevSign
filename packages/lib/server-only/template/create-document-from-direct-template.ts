@@ -1,3 +1,4 @@
+import { REVALLE_DIRECT_TEMPLATES_DISABLED } from '@documenso/lib/revalle/direct-templates'; // REVALLE:
 import { nanoid, prefixedId } from '@documenso/lib/universal/id';
 import { prisma } from '@documenso/prisma';
 import type { TSignFieldWithTokenMutationSchema } from '@documenso/trpc/server/field-router/schema';
@@ -88,8 +89,6 @@ export const ZCreateDocumentFromDirectTemplateResponseSchema = z.object({
 });
 
 export type TCreateDocumentFromDirectTemplateResponse = z.infer<typeof ZCreateDocumentFromDirectTemplateResponseSchema>;
-
-const REVALLE_DIRECT_TEMPLATES_DISABLED = true as boolean; // REVALLE:
 
 export const createDocumentFromDirectTemplate = async ({
   directRecipientName: initialDirectRecipientName,
