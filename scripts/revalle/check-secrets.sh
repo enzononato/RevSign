@@ -5,10 +5,11 @@
 #   check-secrets.sh --staged          # pre-commit: só o que está no stage
 #   check-secrets.sh --range <base>    # CI: commits próprios da branch desde <base>
 #
-# Duas checagens:
+# Checagens:
 #   1. Caminho: certificados, chaves e .env não podem ser versionados, nem com `git add -f`.
 #      O gitleaks não detecta isso de forma confiável (o .p12 é binário).
-#   2. Conteúdo: gitleaks com as regras padrão + .gitleaks.toml.
+#   2. (só --staged) Catálogos .po do upstream fora de um merge (ver abaixo).
+#   3. Conteúdo: gitleaks com as regras padrão + .gitleaks.toml.
 
 set -eu
 
@@ -54,6 +55,21 @@ if [ -n "$BAD" ]; then
   printf '  %s\n' $BAD >&2
   echo "check-secrets: certificados, chaves e .env ficam só no painel/cofre de senhas." >&2
   exit 1
+fi
+
+# Catálogos do upstream (packages/lib/translations/<idioma>/web.po): o RevSign nunca os edita no git; as traduções
+# ficam no overlay (packages/lib/translations/revalle/). O `translate:revalle` e o build.sh reescrevem esses
+# arquivos no lugar, e é fácil commitá-los sem querer. Durante um merge (MERGE_HEAD) eles vêm do upstream e
+# passam; REVALLE_ALLOW_UPSTREAM_PO=1 libera de propósito (ex.: reverter um commit acidental).
+if [ "$MODE" = "--staged" ] && [ "${REVALLE_ALLOW_UPSTREAM_PO:-}" != "1" ] && ! git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+  CATALOGS="$(printf '%s\n' "$FILES" | grep -E '^packages/lib/translations/[^/]+/web\.po$' | grep -v '^packages/lib/translations/revalle/' || true)"
+
+  if [ -n "$CATALOGS" ]; then
+    echo "check-secrets: catálogos do upstream no stage (as traduções do RevSign vão no overlay):" >&2
+    printf '  %s\n' $CATALOGS >&2
+    echo "check-secrets: desfaça com: git restore --staged --worktree packages/lib/translations/*/web.po" >&2
+    exit 1
+  fi
 fi
 
 cd "$REPO_ROOT"

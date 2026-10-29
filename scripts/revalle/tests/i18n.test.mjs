@@ -1,7 +1,7 @@
 // REVALLE: overlay pt-BR e validador de .po (Task 2a, Fase 2). Puro: roda os scripts em fixtures pequenas.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
@@ -49,6 +49,31 @@ test('check-po: vazio é erro, ou aviso com --warn-missing', () => {
   const r = check('missing', ['--warn-missing']);
   assert.equal(r.status, 0);
   assert.match(r.stdout + r.stderr, /1 sem tradução/);
+});
+
+test('check-po: msgid com Documenso sem tradução é erro mesmo com --warn-missing (salvo licença)', () => {
+  const r = check('missing-documenso', ['--warn-missing']);
+  const out = r.stdout + r.stderr;
+  assert.equal(r.status, 1);
+  assert.match(out, /missing-documenso\.po:\d+: erro: "Welcome to Documenso"/);
+  assert.doesNotMatch(out, /erro: "Documenso is licensed/);
+  assert.match(out, /aviso: "Sign in": sem tradução/);
+});
+
+test('check-po: resumo de uma linha no fim (entradas, sem tradução, obsoletas, erros)', () => {
+  const r = run('check-po.mjs', [
+    join(FX, 'missing-documenso.po'),
+    join(FX, 'ok-placeholder.po'),
+    '--warn-missing',
+    '--overlay',
+    join(FX, 'stale.po'),
+  ]);
+  const lines = r.stdout.trim().split('\n');
+  assert.equal(lines.at(-1), '[check-po] resumo: 4 entradas, 3 sem tradução, 1 obsoletas no overlay, 1 erros');
+  assert.equal(
+    check('ok-placeholder').stdout.trim().split('\n').at(-1),
+    '[check-po] resumo: 1 entradas, 0 sem tradução, 0 obsoletas no overlay, 0 erros',
+  );
 });
 
 test('check-po: Código-fonte e aviso de licença podem citar Documenso', () => {
@@ -122,4 +147,44 @@ test('export-missing: vazios e Documenso, ordenados, com lotes', () => {
   assert.equal(b1.length, 2);
   assert.equal(b3.length, 1);
   assert.deepEqual(b1, all.slice(0, 2));
+});
+
+// Guarda do pre-commit (check-secrets.sh --staged): catálogo do upstream no stage só passa num merge ou com a variável.
+test('check-secrets: bloqueia web.po do upstream no stage; overlay, merge e REVALLE_ALLOW_UPSTREAM_PO=1 passam', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'guard-'));
+  const git = (...args) => spawnSync('git', args, { cwd: repo, encoding: 'utf8' });
+  const guard = (env = {}) =>
+    spawnSync('sh', [join(here, '../check-secrets.sh'), '--staged'], {
+      cwd: repo,
+      encoding: 'utf8',
+      env: { ...process.env, ...env },
+    });
+  const write = (path, text) => {
+    mkdirSync(dirname(join(repo, path)), { recursive: true });
+    writeFileSync(join(repo, path), text);
+  };
+  const BLOCKED = /catálogos do upstream no stage/;
+
+  git('init', '-q');
+  git('config', 'user.email', 'teste@revalle.com.br');
+  git('config', 'user.name', 'Teste');
+  write('README', 'x\n');
+  git('add', 'README');
+  git('commit', '-q', '-m', 'init');
+
+  write('packages/lib/translations/revalle/pt-BR.po', 'msgid ""\nmsgstr ""\n');
+  git('add', '.');
+  assert.doesNotMatch(guard().stderr, BLOCKED);
+
+  write('packages/lib/translations/pt-BR/web.po', 'msgid ""\nmsgstr ""\n');
+  git('add', '.');
+  const blocked = guard();
+  assert.equal(blocked.status, 1);
+  assert.match(blocked.stderr, BLOCKED);
+  assert.match(blocked.stderr, /packages\/lib\/translations\/pt-BR\/web\.po/);
+
+  assert.doesNotMatch(guard({ REVALLE_ALLOW_UPSTREAM_PO: '1' }).stderr, BLOCKED);
+
+  writeFileSync(join(repo, '.git/MERGE_HEAD'), `${git('rev-parse', 'HEAD').stdout.trim()}\n`);
+  assert.doesNotMatch(guard().stderr, BLOCKED);
 });

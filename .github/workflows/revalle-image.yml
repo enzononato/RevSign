@@ -92,6 +92,11 @@ jobs:
           ls -l ./geoip-check.mmdb
           rm -f ./geoip-check.mmdb
 
+      # REVALLE: o catálogo pt-BR compilado na imagem tem de trazer frases que só existem no overlay
+      # (packages/lib/translations/revalle/pt-BR.po). Sem o overlay, o build passa e a imagem mostraria "Documenso".
+      - name: Conferir overlay pt-BR na imagem
+        run: sh scripts/revalle/check-image-i18n.sh revsign:ci
+
       # Publica exatamente a imagem conferida (sem rebuild).
       - name: Publicar imagem
         env:

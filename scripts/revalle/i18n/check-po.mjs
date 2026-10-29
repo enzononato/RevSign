@@ -3,7 +3,10 @@
 //   check-po.mjs [--locale pt-BR] [--warn-missing] [--overlay <po>] [<po>...]
 // Erros (exit 1): {placeholders} diferentes, tags <n></n><n/> com contagem diferente, ICU sem a mesma
 // palavra-chave ou plural sem `other`, "Documenso" no msgstr (salvo allowlist), e vazios sem --warn-missing.
+// Vazio cujo msgid cita "Documenso" (salvo allowlist) é erro mesmo com --warn-missing: cairia no inglês e mostraria
+// a marca do upstream; o build obriga a entrada no overlay.
 // Overlay com msgid que não está no base é só aviso "obsoleto" (upgrade do upstream não quebra o build).
+// A última linha é o resumo (entradas, sem tradução, obsoletas no overlay, erros), para comparar entre versões.
 import { existsSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -101,6 +104,8 @@ const tagCounts = (s) => {
   return counts;
 };
 
+const isDocumensoAllowed = (msgid) => DOCUMENSO_ALLOWLIST.some((re) => re.test(msgid));
+
 const diffSets = (a, b) => [[...a].filter((x) => !b.has(x)), [...b].filter((x) => !a.has(x))];
 
 export const checkEntry = (entry) => {
@@ -136,7 +141,7 @@ export const checkEntry = (entry) => {
     }
   }
 
-  if (entry.msgstr.includes('Documenso') && !DOCUMENSO_ALLOWLIST.some((re) => re.test(entry.msgid))) {
+  if (entry.msgstr.includes('Documenso') && !isDocumensoAllowed(entry.msgid)) {
     problems.push('a tradução contém "Documenso" (trocar por RevSign)');
   }
 
@@ -156,7 +161,17 @@ export const checkFile = (file, { warnMissing }) => {
 
     if (e.msgstr === '') {
       missing++;
-      (warnMissing ? warnings : errors).push({ line: e.line, msgid: e.msgid, text: 'sem tradução' });
+
+      if (/documenso/i.test(e.msgid) && !isDocumensoAllowed(e.msgid)) {
+        errors.push({
+          line: e.line,
+          msgid: e.msgid,
+          text: 'sem tradução e o original cita Documenso (traduzir no overlay)',
+        });
+      } else {
+        (warnMissing ? warnings : errors).push({ line: e.line, msgid: e.msgid, text: 'sem tradução' });
+      }
+
       continue;
     }
 
@@ -198,7 +213,8 @@ const main = () => {
   }
 
   const overlayPath = overlay ?? (locale ? join(TRANSLATIONS, 'revalle', `${locale}.po`) : undefined);
-  let totalErrors = 0;
+  const keys = new Set();
+  const total = { entries: 0, missing: 0, stale: 0, errors: 0 };
 
   for (const file of files) {
     const { po, errors, warnings, missing } = checkFile(file, { warnMissing });
@@ -211,25 +227,36 @@ const main = () => {
       console.log(`${file}:${e.line}: erro: "${excerpt(e.msgid)}": ${e.text}`);
     }
 
+    const entries = po.entries.filter((e) => !isHeader(e));
+
     console.log(
-      `[check-po] ${file}: ${po.entries.length - 1} entradas, ${missing} sem tradução${warnMissing ? ' (aviso)' : ''}, ${errors.length - (warnMissing ? 0 : missing)} erros de conteúdo`,
+      `[check-po] ${file}: ${entries.length} entradas, ${missing} sem tradução${warnMissing ? ' (aviso)' : ''}, ${errors.length} erros`,
     );
-    totalErrors += errors.length;
 
-    if (overlayPath && existsSync(overlayPath)) {
-      const keys = new Set(po.entries.map(entryKey));
+    for (const e of entries) {
+      keys.add(entryKey(e));
+    }
 
-      for (const o of readPo(overlayPath).entries) {
-        if (!isHeader(o) && !keys.has(entryKey(o))) {
-          console.log(
-            `${overlayPath}:${o.line}: aviso: "${excerpt(o.msgid)}": obsoleto (msgid não existe no catálogo)`,
-          );
-        }
+    total.entries += entries.length;
+    total.missing += missing;
+    total.errors += errors.length;
+  }
+
+  // Obsoleto = não existe em nenhum dos catálogos conferidos.
+  if (overlayPath && existsSync(overlayPath)) {
+    for (const o of readPo(overlayPath).entries) {
+      if (!isHeader(o) && !keys.has(entryKey(o))) {
+        total.stale++;
+        console.log(`${overlayPath}:${o.line}: aviso: "${excerpt(o.msgid)}": obsoleto (msgid não existe no catálogo)`);
       }
     }
   }
 
-  process.exit(totalErrors > 0 ? 1 : 0);
+  console.log(
+    `[check-po] resumo: ${total.entries} entradas, ${total.missing} sem tradução, ${total.stale} obsoletas no overlay, ${total.errors} erros`,
+  );
+
+  process.exit(total.errors > 0 ? 1 : 0);
 };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
