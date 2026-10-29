@@ -21,6 +21,12 @@ setup_remote() {
     sftp)
       export RCLONE_CONFIG_REMOTE_TYPE=sftp
       export RCLONE_CONFIG_REMOTE_PORT="${BACKUP_REMOTE_PORT:-22}"
+      # Opcional: arquivo known_hosts montado no container. Sem ele a chave do
+      # servidor SFTP NÃO é verificada (a senha poderia ser capturada num ataque
+      # man-in-the-middle; o dump continua cifrado).
+      if [ -n "${BACKUP_REMOTE_KNOWN_HOSTS_FILE:-}" ]; then
+        export RCLONE_CONFIG_REMOTE_KNOWN_HOSTS_FILE="$BACKUP_REMOTE_KNOWN_HOSTS_FILE"
+      fi
       ;;
     ftps)
       export RCLONE_CONFIG_REMOTE_TYPE=ftp

@@ -65,7 +65,8 @@ sleep 3
 until docker exec "$PG" pg_isready -U postgres -d restore >/dev/null 2>&1; do sleep 1; done
 
 echo "3. decifrando e restaurando (sem gravar o dump em texto puro)"
-docker run --rm -i -v "$IDENTITY:/id:ro" --entrypoint age "$IMG" -d -i /id <"$ENC" \
+# --user: a identidade (age-keygen) é 0600 do usuário do host; o UID 1001 da imagem não leria.
+docker run --rm -i --user "$(id -u):$(id -g)" -v "$IDENTITY:/id:ro" --entrypoint age "$IMG" -d -i /id <"$ENC" \
   | docker exec -i "$PG" pg_restore -U postgres -d restore --no-owner --no-privileges --exit-on-error \
   || { echo "FALHA decifrar/restaurar"; exit 1; }
 

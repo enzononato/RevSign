@@ -43,19 +43,21 @@ services:
       db:
         condition: service_healthy
     environment:
-      BACKUP_DATABASE_URL: postgres://postgres@db:5432/testdb
+      BACKUP_DATABASE_URL: ${BACKUP_DATABASE_URL_TEST:-postgres://postgres@db:5432/testdb}
       BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:-}
       BACKUP_REMOTE_TYPE: ${BACKUP_REMOTE_TYPE:-none}
       BACKUP_REMOTE_HOST: ${BACKUP_REMOTE_HOST:-}
       BACKUP_REMOTE_PORT: ${BACKUP_REMOTE_PORT:-}
       BACKUP_REMOTE_USER: tester
-      BACKUP_REMOTE_PASSWORD: ${TEST_PASS}
+      BACKUP_REMOTE_PASSWORD: ${BACKUP_REMOTE_PASSWORD_TEST:-${TEST_PASS}}
+      BACKUP_REMOTE_KNOWN_HOSTS_FILE: ${BACKUP_REMOTE_KNOWN_HOSTS_FILE:-}
       BACKUP_REMOTE_PATH: ${BACKUP_REMOTE_PATH:-revsign-backups}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
       # Só nos testes: aceita o certificado FTPS autoassinado.
       BACKUP_REMOTE_INSECURE_TLS: 'true'
     volumes:
       - ${TEST_ID_FILE}:/id.txt:ro
+      - ${TEST_KNOWN_HOSTS}:/known_hosts:ro
       - backups:/backups
 
 volumes:

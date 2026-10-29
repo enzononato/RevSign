@@ -95,6 +95,8 @@ services:
       BACKUP_REMOTE_USER: ${BACKUP_REMOTE_USER:-}
       BACKUP_REMOTE_PASSWORD: ${BACKUP_REMOTE_PASSWORD:-}
       BACKUP_REMOTE_PATH: ${BACKUP_REMOTE_PATH:-revsign-backups}
+      # Opcional (SFTP): known_hosts montado no container; ver env.hml.example.
+      BACKUP_REMOTE_KNOWN_HOSTS_FILE: ${BACKUP_REMOTE_KNOWN_HOSTS_FILE:-}
     volumes:
       - backups:/backups
 
