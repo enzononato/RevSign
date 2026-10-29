@@ -2,13 +2,12 @@
 // congelada de cada destinatário (Task 7). Rodam contra a stack local.
 // Extrai texto e imagens do PDF final com poppler num container alpine (como scripts/revalle/verify-signed-pdf.sh).
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { before, beforeEach, test } from 'node:test';
 
-import { api, BASE_URL, completeWithCode, createEnvelope, db, distribute, trpc } from './helpers.mjs';
+import { api, completeWithCode, createEnvelope, db, distribute, downloadItem, poppler, trpc } from './helpers.mjs';
 
 const MARIA = { cpf: '39053344705', birthDate: '07/03/1990' };
 const BEATRIZ = { cpf: '68340192787', birthDate: '09/09/1988' };
@@ -29,22 +28,6 @@ const LABELS = [
   'Código de verificação',
 ];
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const poppler = (dir, script) =>
-  execFileSync(
-    'docker',
-    [
-      'run',
-      '--rm',
-      '-v',
-      `${dir}:/pdf:ro`,
-      'alpine:3.22',
-      'sh',
-      '-c',
-      `apk add --no-cache -q poppler-utils >/dev/null && ${script}`,
-    ],
-    { encoding: 'utf8' },
-  );
-
 let dir;
 let pages;
 let signers;
@@ -127,14 +110,8 @@ before(async () => {
   }
 
   const item = created.envelope.envelopeItems[0];
-  const res = await fetch(`${BASE_URL}/api/v2-beta/envelope/item/${item.id}/download?version=signed`, {
-    headers: { Authorization: `Bearer ${process.env.REVSIGN_API_TOKEN}` },
-  });
-
-  assert.equal(res.status, 200);
-
   dir = mkdtempSync(path.join(tmpdir(), 'cert-'));
-  writeFileSync(path.join(dir, 'signed.pdf'), Buffer.from(await res.arrayBuffer()));
+  writeFileSync(path.join(dir, 'signed.pdf'), await downloadItem(item.id, 'signed'));
 
   const total = Number(poppler(dir, 'pdfinfo /pdf/signed.pdf').match(/^Pages:\s+(\d+)/m)[1]);
 

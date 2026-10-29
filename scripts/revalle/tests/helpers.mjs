@@ -1,15 +1,50 @@
 // Ajudantes dos testes de integração do RevSign (rodam contra a stack local; Node 24+, sem dependências).
 // Variáveis: REVSIGN_URL (padrão http://localhost:3000), REVSIGN_API_TOKEN (token de API do time).
+// As funções de API aceitam `apiToken` para agir com outro token (ex.: o do remetente no aceite da Fase 4).
 // Uso: node --test --test-concurrency=1 scripts/revalle/tests/*.test.mjs (ver revalle/docs/testes.md)
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { crc32, deflateSync } from 'node:zlib';
 
 export const BASE_URL = (process.env.REVSIGN_URL ?? 'http://localhost:3000').replace(/\/$/, '');
 const API = `${BASE_URL}/api/v2-beta`;
 const MAILPIT = 'http://localhost:8025/api/v1';
-const authHeaders = () => ({ Authorization: `Bearer ${process.env.REVSIGN_API_TOKEN}` });
+const authHeaders = (apiToken = process.env.REVSIGN_API_TOKEN) => ({ Authorization: `Bearer ${apiToken}` });
+
+// O app fecha conexões ociosas (keep-alive). Depois de uma espera longa (selagem, reselagem, poppler), o fetch pode
+// reaproveitar um socket que o servidor já fechou: EPIPE/ECONNRESET ao escrever ou UND_ERR_SOCKET ("other side
+// closed") ao ler. O pedido não chega a ser processado nesses casos, então repetir UMA vez é seguro para pedidos
+// idempotentes (GET/HEAD). Para POST, só use `retryOnStaleSocket` onde já se usava (criação de documento).
+const STALE_SOCKET_CODES = new Set(['EPIPE', 'ECONNRESET', 'UND_ERR_SOCKET']);
+
+export const isStaleSocketError = (error) =>
+  STALE_SOCKET_CODES.has(error?.cause?.code) || STALE_SOCKET_CODES.has(error?.code);
+
+// Executa `fn` e, se falhar por socket velho, executa de novo uma única vez. `fn` deve fazer o pedido E ler o corpo.
+export const retryOnStaleSocket = async (fn) => {
+  try {
+    return await fn();
+  } catch (error) {
+    if (!isStaleSocketError(error)) {
+      throw error;
+    }
+
+    return fn();
+  }
+};
+
+// fetch para GET/HEAD com a repetição acima; `read(res)` lê o corpo dentro da repetição (padrão: parse).
+export const fetchIdempotent = (url, init = {}, read = parse) => {
+  const method = (init.method ?? 'GET').toUpperCase();
+
+  if (method !== 'GET' && method !== 'HEAD') {
+    throw new Error(`fetchIdempotent só repete GET/HEAD (recebeu ${method})`);
+  }
+
+  return retryOnStaleSocket(async () => read(await fetch(url, init)));
+};
 
 const parse = async (res) => {
   const text = await res.text();
@@ -21,14 +56,33 @@ const parse = async (res) => {
   }
 };
 
-// API v2 com token. Devolve { status, ok, body, text } (não lança em erro HTTP).
-export const api = async (method, route, body) =>
-  parse(
+// API v2 com token. Devolve { status, ok, body, text } (não lança em erro HTTP). GET repete em socket velho.
+export const api = async (method, route, body, { apiToken } = {}) => {
+  if (method === 'GET' && !body) {
+    return fetchIdempotent(`${API}${route}`, { headers: authHeaders(apiToken) });
+  }
+
+  return parse(
     await fetch(`${API}${route}`, {
       method,
-      headers: body ? { ...authHeaders(), 'Content-Type': 'application/json' } : authHeaders(),
+      headers: body ? { ...authHeaders(apiToken), 'Content-Type': 'application/json' } : authHeaders(apiToken),
       body: body ? JSON.stringify(body) : undefined,
     }),
+  );
+};
+
+// Baixa um item do envelope (`version`: original, signed ou pending) como Buffer; lança se o status não for 200.
+export const downloadItem = (itemId, version, { apiToken } = {}) =>
+  fetchIdempotent(
+    `${API}/envelope/item/${itemId}/download?version=${version}`,
+    { headers: authHeaders(apiToken) },
+    async (res) => {
+      if (res.status !== 200) {
+        throw new Error(`download ${version}: HTTP ${res.status} ${await res.text()}`);
+      }
+
+      return Buffer.from(await res.arrayBuffer());
+    },
   );
 
 // Rota tRPC pública (POST), como a página de assinatura chama. O IP vem do proxy em produção; aqui é simulado.
@@ -54,6 +108,7 @@ export const createEnvelope = async ({
   title,
   meta,
   type = 'DOCUMENT',
+  apiToken,
 } = {}) => {
   const form = new FormData();
 
@@ -74,22 +129,25 @@ export const createEnvelope = async ({
   form.append('files', new File([readFileSync(pdf)], path.basename(pdf), { type: 'application/pdf' }));
 
   const res = await parse(
-    await fetch(`${API}/envelope/create`, { method: 'POST', headers: authHeaders(), body: form }),
+    await fetch(`${API}/envelope/create`, { method: 'POST', headers: authHeaders(apiToken), body: form }),
   );
   const id = res.body?.id;
 
-  return { ...res, id, envelope: id ? (await api('GET', `/envelope/${id}`)).body : undefined };
+  return { ...res, id, envelope: id ? (await api('GET', `/envelope/${id}`, undefined, { apiToken })).body : undefined };
 };
 
 // Envia o envelope e devolve os destinatários (com token).
-export const distribute = async (id) => (await api('POST', '/envelope/distribute', { envelopeId: id })).body.recipients;
+export const distribute = async (id, { apiToken } = {}) =>
+  (await api('POST', '/envelope/distribute', { envelopeId: id }, { apiToken })).body.recipients;
 
 // Último e-mail recebido por `to` no Mailpit (ou undefined).
+const mailpitJson = (url) => fetchIdempotent(url, {}, (res) => res.json());
+
 export const latestMail = async (to) => {
-  const list = await (await fetch(`${MAILPIT}/search?query=${encodeURIComponent(`to:${to}`)}`)).json();
+  const list = await mailpitJson(`${MAILPIT}/search?query=${encodeURIComponent(`to:${to}`)}`);
   const first = list.messages?.[0];
 
-  return first ? await (await fetch(`${MAILPIT}/message/${first.ID}`)).json() : undefined;
+  return first ? await mailpitJson(`${MAILPIT}/message/${first.ID}`) : undefined;
 };
 
 // Código de 6 dígitos do e-mail mais recente enviado a `to` (Mailpit), ou undefined.
@@ -161,7 +219,6 @@ export const db = (sql) =>
 // Cookie de sessão por e-mail e senha (fluxo da tela de login: CSRF + authorize). Devolve o valor para o header Cookie.
 export const signIn = async (email, password) => {
   const origin = new URL(BASE_URL).origin;
-  const csrfRes = await fetch(`${BASE_URL}/api/auth/csrf`, { headers: { Origin: origin } });
   const jar = new Map();
 
   const collect = (res) => {
@@ -173,9 +230,11 @@ export const signIn = async (email, password) => {
     }
   };
 
-  collect(csrfRes);
+  const { csrfToken } = await fetchIdempotent(`${BASE_URL}/api/auth/csrf`, { headers: { Origin: origin } }, (res) => {
+    collect(res);
 
-  const { csrfToken } = await csrfRes.json();
+    return res.json();
+  });
   const cookie = () => [...jar].map(([name, value]) => `${name}=${value}`).join('; ');
 
   const res = await fetch(`${BASE_URL}/api/auth/email-password/authorize`, {
@@ -198,16 +257,99 @@ export const trpcAs = async (cookie, kind, procedure, input, extraHeaders = {}) 
   const origin = new URL(BASE_URL).origin;
   const headers = { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json', ...extraHeaders };
 
-  const res =
-    kind === 'query'
-      ? await fetch(`${BASE_URL}/api/trpc/${procedure}?input=${encodeURIComponent(JSON.stringify({ json: input }))}`, {
-          headers,
-        })
-      : await fetch(`${BASE_URL}/api/trpc/${procedure}`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ json: input }),
-        });
+  if (kind === 'query') {
+    return fetchIdempotent(
+      `${BASE_URL}/api/trpc/${procedure}?input=${encodeURIComponent(JSON.stringify({ json: input }))}`,
+      { headers },
+    );
+  }
 
-  return parse(res);
+  return parse(
+    await fetch(`${BASE_URL}/api/trpc/${procedure}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ json: input }),
+    }),
+  );
+};
+
+// Roda ferramentas do poppler (pdftotext, pdfinfo, pdfimages...) num container alpine com `dir` montado em /pdf.
+export const poppler = (dir, script) =>
+  execFileSync(
+    'docker',
+    [
+      'run',
+      '--rm',
+      '-v',
+      `${dir}:/pdf:ro`,
+      'alpine:3.22',
+      'sh',
+      '-c',
+      `apk add --no-cache -q poppler-utils >/dev/null && ${script}`,
+    ],
+    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
+  );
+
+// dd/MM/yyyy HH:mm no fuso de Brasília (America/Bahia), como o carimbo, o certificado e o /verificar.
+export const brasilia = (date) => {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Bahia',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(new Date(date))
+      .map((part) => [part.type, part.value]),
+  );
+
+  return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}`;
+};
+
+// PNG 60×20 com um traço, como data URL (um "desenho" pequeno de verdade, sem depender de arquivo).
+export const drawingPng = () => {
+  const width = 60;
+  const height = 20;
+  const rows = [];
+
+  for (let y = 0; y < height; y += 1) {
+    const row = Buffer.alloc(1 + width * 4, 0);
+
+    for (let x = 0; x < width; x += 1) {
+      const isInk = Math.abs(y - Math.round((x * (height - 1)) / (width - 1))) <= 1;
+
+      row.writeUInt32BE(isInk ? 0x000000ff : 0x00000000, 1 + x * 4);
+    }
+
+    rows.push(row);
+  }
+
+  const chunk = (type, data) => {
+    const length = Buffer.alloc(4);
+    const crc = Buffer.alloc(4);
+    const body = Buffer.concat([Buffer.from(type), data]);
+
+    length.writeUInt32BE(data.length);
+    crc.writeUInt32BE(crc32(body));
+
+    return Buffer.concat([length, body, crc]);
+  };
+
+  const header = Buffer.alloc(13);
+
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.set([8, 6, 0, 0, 0], 8);
+
+  const png = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(Buffer.concat(rows))),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+
+  return `data:image/png;base64,${png.toString('base64')}`;
 };

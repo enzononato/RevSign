@@ -12,7 +12,15 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { before, test } from 'node:test';
 
-import { BASE_URL, completeWithCode, createEnvelope, db, distribute, trpc } from './helpers.mjs';
+import {
+  completeWithCode,
+  createEnvelope,
+  db,
+  distribute,
+  downloadItem,
+  retryOnStaleSocket,
+  trpc,
+} from './helpers.mjs';
 
 const MODE = process.env.REVSIGN_ICP_SEAL_MODE ?? 'etsi';
 const HASH_MODE = process.env.REVSIGN_ICP_POLICY_HASH_MODE ?? 'policy';
@@ -29,29 +37,6 @@ const OTHER_HASH_MODE = HASH_MODE === 'lpa' ? 'policy' : 'lpa';
 const SIG_POLICY_ID = '1.2.840.113549.1.9.16.2.15';
 const SIGNING_CERTIFICATE_V2 = '1.2.840.113549.1.9.16.2.47';
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// O servidor fecha conexões ociosas (keep-alive); repetir o POST num socket já fechado é seguro (ver stamp.test.mjs).
-const retryOnStaleSocket = async (fn) => {
-  try {
-    return await fn();
-  } catch (error) {
-    if (!['EPIPE', 'ECONNRESET', 'UND_ERR_SOCKET'].includes(error?.cause?.code)) {
-      throw error;
-    }
-
-    return fn();
-  }
-};
-
-const download = async (itemId, version) => {
-  const res = await fetch(`${BASE_URL}/api/v2-beta/envelope/item/${itemId}/download?version=${version}`, {
-    headers: { Authorization: `Bearer ${process.env.REVSIGN_API_TOKEN}` },
-  });
-
-  assert.equal(res.status, 200, `download ${version}`);
-
-  return Buffer.from(await res.arrayBuffer());
-};
 
 const waitStatus = async (envelopeId, status) => {
   for (let i = 0; i < 60 && db(`select status from "Envelope" where id = '${envelopeId}'`) !== status; i += 1) {
@@ -86,8 +71,8 @@ const sealed = async (pdf) => {
   const dir = mkdtempSync(path.join(tmpdir(), 'icp-'));
   const itemId = created.envelope.envelopeItems[0].id;
 
-  writeFileSync(path.join(dir, 'original.pdf'), await download(itemId, 'original'));
-  writeFileSync(path.join(dir, 'signed.pdf'), await download(itemId, 'signed'));
+  writeFileSync(path.join(dir, 'original.pdf'), await downloadItem(itemId, 'original'));
+  writeFileSync(path.join(dir, 'signed.pdf'), await downloadItem(itemId, 'signed'));
 
   return dir;
 };

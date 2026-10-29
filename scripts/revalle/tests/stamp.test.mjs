@@ -6,9 +6,23 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { before, beforeEach, test } from 'node:test';
-import { crc32, deflateSync } from 'node:zlib';
 
-import { api, BASE_URL, completeWithCode, createEnvelope, db, distribute, signIn, trpc, trpcAs } from './helpers.mjs';
+import {
+  api,
+  BASE_URL,
+  brasilia,
+  completeWithCode,
+  createEnvelope,
+  db,
+  distribute,
+  downloadItem,
+  drawingPng,
+  poppler,
+  retryOnStaleSocket,
+  signIn,
+  trpc,
+  trpcAs,
+} from './helpers.mjs';
 
 const MARIA = { cpf: '39053344705', birthDate: '07/03/1990' };
 const admin = { email: process.env.REVSIGN_ADMIN_EMAIL, password: process.env.REVSIGN_ADMIN_PASSWORD };
@@ -16,85 +30,6 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const unique = (label) => `stamp-${label}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@revalle.com.br`;
 const flat = (text) => text.replace(/\s+/g, ' ');
 const count = (text, needle) => text.split(needle).length - 1;
-
-const poppler = (dir, script) =>
-  execFileSync(
-    'docker',
-    [
-      'run',
-      '--rm',
-      '-v',
-      `${dir}:/pdf:ro`,
-      'alpine:3.22',
-      'sh',
-      '-c',
-      `apk add --no-cache -q poppler-utils >/dev/null && ${script}`,
-    ],
-    { encoding: 'utf8' },
-  );
-
-// PNG 60×20 com um traço (um "desenho" pequeno de verdade, sem depender de arquivo).
-const drawingPng = () => {
-  const width = 60;
-  const height = 20;
-  const rows = [];
-
-  for (let y = 0; y < height; y += 1) {
-    const row = Buffer.alloc(1 + width * 4, 0);
-
-    for (let x = 0; x < width; x += 1) {
-      const isInk = Math.abs(y - Math.round((x * (height - 1)) / (width - 1))) <= 1;
-
-      row.writeUInt32BE(isInk ? 0x000000ff : 0x00000000, 1 + x * 4);
-    }
-
-    rows.push(row);
-  }
-
-  const chunk = (type, data) => {
-    const length = Buffer.alloc(4);
-    const crc = Buffer.alloc(4);
-    const body = Buffer.concat([Buffer.from(type), data]);
-
-    length.writeUInt32BE(data.length);
-    crc.writeUInt32BE(crc32(body));
-
-    return Buffer.concat([length, body, crc]);
-  };
-
-  const header = Buffer.alloc(13);
-
-  header.writeUInt32BE(width, 0);
-  header.writeUInt32BE(height, 4);
-  header.set([8, 6, 0, 0, 0], 8);
-
-  const png = Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    chunk('IHDR', header),
-    chunk('IDAT', deflateSync(Buffer.concat(rows))),
-    chunk('IEND', Buffer.alloc(0)),
-  ]);
-
-  return `data:image/png;base64,${png.toString('base64')}`;
-};
-
-const brasilia = (date) => {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('pt-BR', {
-      timeZone: 'America/Bahia',
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-    })
-      .formatToParts(date)
-      .map((part) => [part.type, part.value]),
-  );
-
-  return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}`;
-};
 
 const gate = async (token) => {
   db(`delete from "RevalleEmailLink" where cpf = '${MARIA.cpf}'`);
@@ -131,30 +66,7 @@ const stampAudit = (envelopeId) =>
 
 const imageRows = (list) => list.split('\n').filter((line) => /^\s*\d+\s+\d+\s+(image|smask)/.test(line)).length;
 
-const download = async (itemId, version) => {
-  const res = await fetch(`${BASE_URL}/api/v2-beta/envelope/item/${itemId}/download?version=${version}`, {
-    headers: { Authorization: `Bearer ${process.env.REVSIGN_API_TOKEN}` },
-  });
-
-  assert.equal(res.status, 200, `download ${version}`);
-
-  return Buffer.from(await res.arrayBuffer());
-};
-
-// O servidor fecha conexões ociosas (keep-alive); um POST com corpo em stream pode cair num socket já fechado
-// depois de uma espera longa. O servidor fecha antes de processar o pedido, então repetir é seguro.
-const retryOnStaleSocket = async (fn) => {
-  try {
-    return await fn();
-  } catch (error) {
-    if (!['EPIPE', 'ECONNRESET', 'UND_ERR_SOCKET'].includes(error?.cause?.code)) {
-      throw error;
-    }
-
-    return fn();
-  }
-};
-
+// Criação (POST) repete uma vez em socket velho, como antes; downloads (GET) repetem dentro de downloadItem.
 const create = (options) => retryOnStaleSocket(() => createEnvelope(options));
 
 // Baixa original e final do primeiro item (a extração com poppler fica para depois dos fluxos).
@@ -163,8 +75,8 @@ const fetchPdfs = async (envelope, version = 'signed') => {
   const dir = mkdtempSync(path.join(tmpdir(), 'stamp-'));
   const itemId = envelope.envelopeItems[0].id;
 
-  writeFileSync(path.join(dir, 'original.pdf'), await download(itemId, 'original'));
-  writeFileSync(path.join(dir, 'signed.pdf'), await download(itemId, version));
+  writeFileSync(path.join(dir, 'original.pdf'), await downloadItem(itemId, 'original'));
+  writeFileSync(path.join(dir, 'signed.pdf'), await downloadItem(itemId, version));
 
   return dir;
 };

@@ -101,7 +101,7 @@ Toda edição em arquivo do upstream é marcada com `REVALLE:` no código e list
 | `revalle/docs/aceite-fase1.md` | Roteiro de aceite da Fase 1 | 1 |
 | `packages/lib/revalle/recipient-domains.ts`, `packages/lib/server-only/revalle/assert-recipient-domains.ts` | Regra de domínio dos destinatários (cliente e servidor). Estrita por padrão; placeholder de modelo (regex ancorada `^recipient\.\d+@documenso\.com$`) e `direct.link@documenso.com` só com `allowTemplatePlaceholders` | 3 |
 | `packages/lib/revalle/access-auth.ts` (e teste) | `withRevalleAccessAuth` / `withRevalleRecipientAccessAuth` (código por e-mail sempre exigido). Fica fora de `server-only` porque `utils/document-auth.ts` é importado pelo navegador | 3 |
-| `scripts/revalle/tests/` | Testes de integração contra a stack local (`node --test`) e ajudantes | 3 |
+| `scripts/revalle/tests/` | Testes de integração contra a stack local (`node --test`) e ajudantes. Fase 4: `helpers.mjs` ganha `retryOnStaleSocket`/`fetchIdempotent` (repete uma vez GET em conexão keep-alive já fechada; POST só onde já repetia), `downloadItem`, `poppler`, `brasilia`, `drawingPng` e `apiToken` opcional nas funções de API | 3, 4 |
 | `packages/prisma/migrations/20261029120000_revalle_verification/migration.sql` | Tabelas `RevalleEmailLink` e `RevalleRecipientGate` | 3 |
 | `packages/prisma/migrations/20261029130000_revalle_link_cpf_unique/migration.sql` | CPF único em `RevalleEmailLink`; e-mail no portão | 3 |
 | `packages/prisma/migrations/20261029140000_revalle_code_attempts/migration.sql` | `codeFailedAttempts` (códigos errados por link) e `conflictCpf` (CPF do conflito, para o admin) no portão | 3 |
