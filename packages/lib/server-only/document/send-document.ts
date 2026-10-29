@@ -42,6 +42,7 @@ import { getRecipientsInActiveSigningStep } from '../../utils/recipient-groups';
 import { getRecipientsWithMissingFields, isRecipientEmailValidForSending } from '../../utils/recipients';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { insertFormValuesInPdf } from '../pdf/insert-form-values-in-pdf';
+import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { assertUserNotDisabledById } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
 
@@ -167,6 +168,8 @@ export const sendDocument = async ({ id, userId, teamId, sendEmail, requestMetad
       }),
     );
   }
+
+  assertRecipientEmailsAllowed(envelope.recipients.map((r) => r.email)); // REVALLE:
 
   // Validate that recipients with auth requirements have a valid email.
   envelope.recipients.forEach((recipient) => {

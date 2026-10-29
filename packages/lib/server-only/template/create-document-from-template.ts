@@ -53,6 +53,7 @@ import { incrementDocumentId } from '../envelope/increment-id';
 import { insertFormValuesInPdf } from '../pdf/insert-form-values-in-pdf';
 import { assertOrganisationRatesAndLimits } from '../rate-limit/assert-organisation-rates-and-limits';
 import { assignOmittedRecipientSigningOrders } from '../recipient/assign-omitted-recipient-signing-orders';
+import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { assertCompatibleRecipientGrouping } from '../signature-level/assert-compatible-recipient-grouping';
 import { assertCompatibleRecipientRole } from '../signature-level/assert-compatible-recipient-role';
 import { resolveSignatureLevel } from '../signature-level/resolve-signature-level';
@@ -415,6 +416,8 @@ export const createDocumentFromTemplate = async ({
       token: nanoid(),
     };
   });
+
+  assertRecipientEmailsAllowed(finalRecipients.map((r) => r.email)); // REVALLE:
 
   const defaultRecipients = settings.defaultRecipients
     ? ZDefaultRecipientsSchema.parse(settings.defaultRecipients)
