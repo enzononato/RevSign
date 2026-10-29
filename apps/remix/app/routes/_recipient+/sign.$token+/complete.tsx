@@ -15,7 +15,6 @@ import {
 import { getUserByEmail } from '@documenso/lib/server-only/user/get-user-by-email';
 import { isDocumentCompleted } from '@documenso/lib/utils/document';
 import { trpc } from '@documenso/trpc/react';
-import { DocumentShareButton } from '@documenso/ui/components/document/document-share-button';
 import { SigningCard3D } from '@documenso/ui/components/signing-card';
 import { cn } from '@documenso/ui/lib/utils';
 import { Badge } from '@documenso/ui/primitives/badge';
@@ -264,11 +263,7 @@ export default function CompletedSigningPage({ loaderData }: Route.ComponentProp
               ))}
 
             <div className="mt-8 flex w-full max-w-xs flex-col items-stretch gap-4 md:w-auto md:max-w-none md:flex-row md:items-center">
-              <DocumentShareButton
-                documentId={document.id}
-                token={recipient.token}
-                className="w-full max-w-none flex-none md:flex-1" // REVALLE: flex-none abaixo de md (na coluna, o flex-1 encolhia o botão para 38 px)
-              />
+              {/* REVALLE: sem o "Compartilhar" (cartão para X/Twitter e link público): documento interno não vai para rede social */}
 
               {isDocumentCompleted(document) && (
                 <EnvelopeDownloadDialog
@@ -277,7 +272,12 @@ export default function CompletedSigningPage({ loaderData }: Route.ComponentProp
                   envelopeItems={document.envelopeItems}
                   token={recipient?.token}
                   trigger={
-                    <Button type="button" variant="outline" className="flex-1 md:flex-initial">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      // REVALLE: min-h-11 (44 px de área de toque; na coluna do celular o flex-1 encolhia a altura)
+                      className="min-h-11 flex-1 md:flex-initial"
+                    >
                       <DownloadIcon className="mr-2 h-5 w-5" />
                       <Trans>Download</Trans>
                     </Button>

@@ -1706,7 +1706,7 @@ msgid "You need to setup a passkey to assist with this field."
 msgstr "Você precisa configurar uma chave de acesso (passkey) para auxiliar neste campo."
 
 msgid "You need to setup a passkey to mark this document as viewed."
-msgstr "Você precisa configurar uma chave de acesso (passkey) para marcar este documento como visualizado."
+msgstr "Você precisa configurar uma chave de acesso (passkey) para marcar este documento como visto."
 
 msgid "You need to setup a passkey to sign this document."
 msgstr "Você precisa configurar uma chave de acesso (passkey) para assinar este documento."
@@ -1733,7 +1733,7 @@ msgid "Your browser does not support passkeys, which is required to assist with 
 msgstr "Seu navegador não é compatível com chaves de acesso (passkeys), necessárias para auxiliar neste campo."
 
 msgid "Your browser does not support passkeys, which is required to mark this document as viewed."
-msgstr "Seu navegador não é compatível com chaves de acesso (passkeys), necessárias para marcar este documento como visualizado."
+msgstr "Seu navegador não é compatível com chaves de acesso (passkeys), necessárias para marcar este documento como visto."
 
 msgid "Your browser does not support passkeys, which is required to sign this document."
 msgstr "Seu navegador não é compatível com chaves de acesso (passkeys), necessárias para assinar este documento."
@@ -2304,7 +2304,7 @@ msgid "No expired documents"
 msgstr "Nenhum documento expirado"
 
 msgid "No rejected documents"
-msgstr "Nenhum documento rejeitado"
+msgstr "Nenhum documento recusado"
 
 msgid "Nothing cancelled"
 msgstr "Nada cancelado"
@@ -2316,7 +2316,7 @@ msgid "There are no documents with expired signing links. You can redistribute a
 msgstr "Não há documentos com link de assinatura expirado. Você pode reenviar um documento para renovar a validade."
 
 msgid "There are no rejected documents. Documents that a recipient declines to sign will appear here."
-msgstr "Não há documentos rejeitados. Os documentos que um destinatário rejeitar aparecerão aqui."
+msgstr "Não há documentos recusados. Os documentos que um destinatário recusar aparecerão aqui."
 
 msgid "Search members..."
 msgstr "Buscar membros..."
@@ -2340,7 +2340,7 @@ msgid "Documents that have been cancelled will appear here"
 msgstr "Os documentos cancelados aparecerão aqui"
 
 msgid "Documents that have been rejected will appear here"
-msgstr "Os documentos rejeitados aparecerão aqui"
+msgstr "Os documentos recusados aparecerão aqui"
 
 msgid "Documents that you have completed will appear here"
 msgstr "Os documentos que você concluir aparecerão aqui"
@@ -2431,7 +2431,7 @@ msgid "All claims"
 msgstr "Todos os pacotes"
 
 msgid "Documents, emails and api values may not be accurate since they record the amount of times the action was attempted. Meaning these values may go over the actual quota, get rejected, and will still be recorded."
-msgstr "Os valores de documentos, e-mails e API podem não ser exatos, pois registram o número de vezes que a ação foi tentada. Ou seja, podem passar da cota real, ser rejeitados e mesmo assim ficar registrados."
+msgstr "Os valores de documentos, e-mails e API podem não ser exatos, pois registram o número de vezes que a ação foi tentada. Ou seja, podem passar da cota real, ser bloqueados e mesmo assim ficar registrados."
 
 msgid "Search by organisation name, URL or ID"
 msgstr "Busque por nome, URL ou ID da organização"
@@ -3028,7 +3028,7 @@ msgid "This document has been cancelled by the sender and can no longer be signe
 msgstr "Este documento foi cancelado pelo remetente e não pode mais ser assinado. Fale com o remetente se acha que isso foi um engano."
 
 msgid "This document has been rejected by a recipient and can no longer be signed."
-msgstr "Este documento foi rejeitado por um destinatário e não pode mais ser assinado."
+msgstr "Este documento foi recusado por um destinatário e não pode mais ser assinado."
 
 msgid "This document has not been sent for signing yet. Please wait for the sender to send it before signing."
 msgstr "Este documento ainda não foi enviado para assinatura. Espere o remetente enviá-lo antes de assinar."
@@ -3400,10 +3400,10 @@ msgid "Recipient failed to validate a 2FA token for the document"
 msgstr "Destinatário não conseguiu validar um código 2FA do documento"
 
 msgid "Recipient rejected the document"
-msgstr "Destinatário rejeitou o documento"
+msgstr "Destinatário recusou o documento"
 
 msgid "Recipient rejected the document externally"
-msgstr "Destinatário rejeitou o documento externamente"
+msgstr "Destinatário recusou o documento externamente"
 
 msgid "Recipient requested a 2FA token for the document"
 msgstr "Destinatário pediu um código 2FA para o documento"
@@ -3441,16 +3441,16 @@ msgid "The document ownership was delegated to {0} on behalf of {1}"
 msgstr "A propriedade do documento foi delegada a {0} em nome de {1}"
 
 msgid "The document was rejected externally by {onBehalfOf} on behalf of the recipient"
-msgstr "O documento foi rejeitado externamente por {onBehalfOf} em nome do destinatário"
+msgstr "O documento foi recusado externamente por {onBehalfOf} em nome do destinatário"
 
 msgid "The document was rejected externally by {onBehalfOf} on behalf of {user}"
-msgstr "O documento foi rejeitado externamente por {onBehalfOf} em nome de {user}"
+msgstr "O documento foi recusado externamente por {onBehalfOf} em nome de {user}"
 
 msgid "The document was rejected externally on behalf of the recipient"
-msgstr "O documento foi rejeitado externamente em nome do destinatário"
+msgstr "O documento foi recusado externamente em nome do destinatário"
 
 msgid "The document was rejected externally on behalf of {user}"
-msgstr "O documento foi rejeitado externamente em nome de {user}"
+msgstr "O documento foi recusado externamente em nome de {user}"
 
 msgid "Verificação de identidade desativada nesta instalação (não verificado)"
 msgstr "Verificação de identidade desativada nesta instalação (não verificado)"
@@ -3504,7 +3504,7 @@ msgid "You prefilled a field"
 msgstr "Você preencheu um campo antecipadamente"
 
 msgid "You rejected the document"
-msgstr "Você rejeitou o documento"
+msgstr "Você recusou o documento"
 
 msgid "You removed a field"
 msgstr "Você removeu um campo"
@@ -3630,7 +3630,7 @@ msgid "{user} prefilled a field"
 msgstr "{user} preencheu um campo antecipadamente"
 
 msgid "{user} rejected the document"
-msgstr "{user} rejeitou o documento"
+msgstr "{user} recusou o documento"
 
 msgid "{user} removed a field"
 msgstr "{user} removeu um campo"
@@ -4044,7 +4044,7 @@ msgid "Document Signed"
 msgstr "Documento assinado"
 
 msgid "Document Viewed"
-msgstr "Documento visto"
+msgstr "Documento visualizado"
 
 msgid "Document Approved"
 msgstr "Documento aprovado"
@@ -4201,3 +4201,55 @@ msgstr "Documento concluído"
 
 msgid "Signing Complete!"
 msgstr "Assinatura concluída!"
+
+# REVALLE: Task 4, revisão 1: "recusar" em todo o pt-BR e "visto"/"visualizado" consistentes.
+msgid "{recipientName} has rejected the document '{documentName}'"
+msgstr "{recipientName} recusou o documento '{documentName}'"
+
+msgid "{signerName} has rejected the document \"{documentName}\"."
+msgstr "{signerName} recusou o documento \"{documentName}\"."
+
+msgid "Document \"{0}\" - Rejected by {1}"
+msgstr "Documento \"{0}\" - Recusado por {1}"
+
+msgid "Rejected"
+msgstr "Recusado"
+
+msgid "This document has been rejected by a recipient"
+msgstr "Este documento foi recusado por um destinatário"
+
+msgid "This email confirms that you have rejected the document <0>\"{documentName}\"</0> sent by {documentOwnerName}."
+msgstr "Este e-mail confirma que você recusou o documento <0>\"{documentName}\"</0> enviado por {documentOwnerName}."
+
+msgid "You have rejected the document '{documentName}'"
+msgstr "Você recusou o documento '{documentName}'"
+
+msgid "Document \"{0}\" - Rejection Confirmed"
+msgstr "Documento \"{0}\" - Recusa confirmada"
+
+msgid "Reason for rejection: "
+msgstr "Motivo da recusa: "
+
+msgid "Reason for rejection: {rejectionReason}"
+msgstr "Motivo da recusa: {rejectionReason}"
+
+msgid "Rejection Confirmed"
+msgstr "Recusa confirmada"
+
+msgid "Rejection reason: {reason}"
+msgstr "Motivo da recusa: {reason}"
+
+msgid "The document owner has been notified of this rejection. No further action is required from you at this time. The document owner may contact you with any questions regarding this rejection."
+msgstr "Avisamos quem enviou o documento. Você não precisa fazer mais nada. Se houver dúvidas sobre a recusa, essa pessoa pode falar com você."
+
+msgid "Documents Viewed"
+msgstr "Documentos visualizados"
+
+msgid "To mark this document as viewed, you need to be logged in as <0>{0}</0>"
+msgstr "Para marcar este documento como visto, você precisa estar conectado como <0>{0}</0>"
+
+msgid "To mark this document as viewed, you need to be logged in."
+msgstr "Para marcar este documento como visto, você precisa estar conectado."
+
+msgid "You need to setup 2FA to mark this document as viewed."
+msgstr "Você precisa configurar a verificação em duas etapas (2FA) para marcar este documento como visto."

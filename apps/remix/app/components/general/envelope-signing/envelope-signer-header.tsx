@@ -11,6 +11,7 @@ import { Separator } from '@documenso/ui/primitives/separator';
 import { Plural, Trans } from '@lingui/react/macro';
 import { EnvelopeType, RecipientRole } from '@prisma/client';
 import { BanIcon, DownloadCloudIcon } from 'lucide-react';
+import { useState } from 'react'; // REVALLE:
 import { Link } from 'react-router';
 import { match } from 'ts-pattern';
 
@@ -93,8 +94,13 @@ const MobileDropdownMenu = () => {
   const isEmbedSigning = embedSigningContext !== null;
   const { allowDocumentRejection } = embedSigningContext || {};
 
+  // REVALLE: o diálogo de recusa abre de dentro do menu (que fica aberto, e modal, atrás dele). Ao cancelar, o menu
+  // continuava aberto e invisível, com o body em pointer-events: none, e o 1º toque na página se perdia. Agora o
+  // menu fecha junto com o diálogo.
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   return (
-    <DropdownMenu>
+    <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
       <DropdownMenuTrigger asChild>
         {/* REVALLE: h-11 (44 px de área de toque) */}
         <Button variant="outline" size="sm" className="h-11">
@@ -122,6 +128,11 @@ const MobileDropdownMenu = () => {
           <DocumentSigningRejectDialog
             documentId={mapSecondaryIdToDocumentId(envelope.secondaryId)}
             token={recipient.token}
+            onOpenChange={(open) => {
+              if (!open) {
+                setIsMenuOpen(false);
+              }
+            }}
             trigger={
               <DropdownMenuItem asChild onSelect={(e) => e.preventDefault()}>
                 <div>

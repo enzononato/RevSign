@@ -16,7 +16,7 @@ import { useToast } from '@documenso/ui/primitives/use-toast';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { msg } from '@lingui/core/macro';
 import { Trans, useLingui } from '@lingui/react/macro';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react'; // REVALLE: useRef
 import { useForm } from 'react-hook-form';
 import { useSearchParams } from 'react-router';
 import { z } from 'zod';
@@ -32,6 +32,7 @@ export interface DocumentSigningRejectDialogProps {
   token: string;
   onRejected?: (reason: string) => void | Promise<void>;
   trigger?: React.ReactNode;
+  onOpenChange?: (open: boolean) => void; // REVALLE: o menu "Ações" do celular fecha junto com o diálogo
 }
 
 export function DocumentSigningRejectDialog({
@@ -39,6 +40,7 @@ export function DocumentSigningRejectDialog({
   token,
   onRejected,
   trigger,
+  onOpenChange, // REVALLE:
 }: DocumentSigningRejectDialogProps) {
   const { t } = useLingui();
   const { toast } = useToast();
@@ -102,6 +104,18 @@ export function DocumentSigningRejectDialog({
   useEffect(() => {
     if (!isOpen) {
       form.reset();
+    }
+  }, [isOpen]);
+
+  // REVALLE: avisa quem abriu o diálogo quando ele abre ou fecha, inclusive pelo "Cancelar" (que não passa pelo
+  // onOpenChange do Dialog). Só nas mudanças: este componente monta dentro do menu "Ações" do celular, e avisar o
+  // "fechado" inicial fecharia o menu assim que ele abre.
+  const wasOpenRef = useRef(isOpen);
+
+  useEffect(() => {
+    if (wasOpenRef.current !== isOpen) {
+      wasOpenRef.current = isOpen;
+      onOpenChange?.(isOpen);
     }
   }, [isOpen]);
 

@@ -3,7 +3,8 @@
 //
 // Passa por um fluxo real: cria e envia um documento pela API, abre o link de assinatura, passa pelo portão
 // (termo, CPF/data de nascimento do Fernando fictício do dev-seed.sql, "sou eu"), assina um campo de assinatura e
-// um de texto, abre e fecha o diálogo de recusa, pede o código por e-mail (lido no Mailpit) e conclui.
+// um de texto, abre e cancela o diálogo de recusa (e confere que o 1º toque depois disso abre o campo), pede o código
+// por e-mail (lido no Mailpit) e conclui.
 // Em cada passo tira um print e confere:
 //   - sem rolagem horizontal (document.scrollingElement.scrollWidth <= 360);
 //   - todo botão visível (button / role=button) com altura >= 44 px;
@@ -220,7 +221,6 @@ const runBrowser = async () => {
   const { SIGN_URL, SIGNER_EMAIL, SIGNER_CPF, SIGNER_BIRTH_DATE } = process.env;
   const out = '/out';
   const steps = [];
-  const warnings = [];
 
   const browser = await chromium.launch();
   const context = await browser.newContext({
@@ -304,24 +304,29 @@ const runBrowser = async () => {
       .getByRole('button', { name: /cancelar/i })
       .click();
     await page.getByRole('dialog').waitFor({ state: 'detached' });
-    await page.waitForTimeout(1000);
+    // O 1º toque num campo depois de cancelar a recusa tem de abrir o campo. Antes da correção, o menu "Ações"
+    // continuava aberto e invisível (body com pointer-events: none) e esse toque se perdia.
+    await clickField(FIELDS.signature);
 
-    // O menu de ações do upstream continua aberto (invisível) atrás do diálogo; ao cancelar, a página fica sem
-    // responder até um toque fora fechar o menu. Não é de CSS: fica registrado como aviso e o script dá esse toque.
-    if ((await page.evaluate(() => document.body.style.pointerEvents)) === 'none') {
-      warnings.push({
+    const isFirstTapOk = await page
+      .getByRole('dialog')
+      .waitFor({ timeout: 5000 })
+      .then(
+        () => true,
+        () => false,
+      );
+
+    if (!isFirstTapOk) {
+      steps.push({
         step: '06-recusar',
-        detail:
-          'depois de cancelar a recusa, o 1º toque na página só fecha o menu de ações (body pointer-events: none)',
+        scrollWidth: null,
+        problems: [{ kind: 'first-tap-lost', detail: 'depois de cancelar a recusa, o 1º toque no campo não o abriu' }],
       });
-      console.log('aviso 06-recusar: o 1º toque depois de cancelar a recusa só fecha o menu de ações');
-      await page.touchscreen.tap(WIDTH / 2, HEIGHT / 2);
-      await page.waitForTimeout(500);
+      console.log('FALHA 06-recusar: depois de cancelar a recusa, o 1º toque no campo não o abriu');
+      await clickField(FIELDS.signature);
+      await page.getByRole('dialog').waitFor();
     }
 
-    // 6. Campo de assinatura: desenha.
-    await clickField(FIELDS.signature);
-    await page.getByRole('dialog').waitFor();
     await check('07-dialogo-assinatura');
 
     const canvas = page.getByRole('dialog').locator('canvas').first();
@@ -403,7 +408,7 @@ const runBrowser = async () => {
 
   writeFileSync(
     `${out}/report.json`,
-    `${JSON.stringify({ viewport: `${WIDTH}x${HEIGHT}@2x`, ok: failed.length === 0, steps, warnings }, null, 2)}\n`,
+    `${JSON.stringify({ viewport: `${WIDTH}x${HEIGHT}@2x`, ok: failed.length === 0, steps }, null, 2)}\n`,
   );
   console.log(
     failed.length === 0 ? 'mobile-check: tudo verde' : `mobile-check: ${failed.length} passo(s) com problema`,
