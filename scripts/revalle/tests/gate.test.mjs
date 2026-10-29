@@ -57,7 +57,7 @@ const attempts = (recipientId) =>
   Number(db(`select "failedAttempts" from "RevalleRecipientGate" where "recipientId" = ${recipientId}`));
 
 beforeEach(() => {
-  db(`delete from "RateLimit" where action = 'revalle.gate'`);
+  db('delete from "RateLimit"');
   db(`delete from "RevalleEmailLink" where cpf in (${ALL_CPFS.map((c) => `'${c}'`).join(',')})`);
 });
 
