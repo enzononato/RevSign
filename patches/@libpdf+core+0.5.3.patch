@@ -1,0 +1,114 @@
+diff --git a/node_modules/@libpdf/core/dist/index.d.mts b/node_modules/@libpdf/core/dist/index.d.mts
+index 8c2d0cd..76f7047 100644
+--- a/node_modules/@libpdf/core/dist/index.d.mts
++++ b/node_modules/@libpdf/core/dist/index.d.mts
+@@ -7843,6 +7843,22 @@ interface SignOptions {
+    * @default 12288 (12KB)
+    */
+   estimatedSize?: number;
++  /** REVALLE: ICP-Brasil seal (patches/@libpdf+core+0.5.3.patch). */
++  revalle?: {
++    /** id-aa-ets-sigPolicyId signed attribute (ETSI.CAdES.detached only). */
++    signaturePolicy?: {
++      oid: string;
++      hashAlgorithmOid: "2.16.840.1.101.3.4.2.1";
++      hash: Uint8Array;
++      uri?: string;
++    };
++    /** Certification signature: /Reference DocMDP + catalog /Perms. */
++    docMdpPermissions?: 1 | 2 | 3;
++    /** Literal /Filter written to the signature dictionary (the CMS still follows `subFilter`). */
++    filter?: string;
++    /** Literal /SubFilter written to the signature dictionary (the CMS still follows `subFilter`). */
++    subFilter?: string;
++  };
+ }
+ /**
+  * Options for adding an archival document timestamp to a PDF.
+diff --git a/node_modules/@libpdf/core/dist/index.mjs b/node_modules/@libpdf/core/dist/index.mjs
+index 3becfde..a018513 100644
+--- a/node_modules/@libpdf/core/dist/index.mjs
++++ b/node_modules/@libpdf/core/dist/index.mjs
+@@ -5,7 +5,7 @@ import { cbc, ecb } from "@noble/ciphers/aes.js";
+ import { randomBytes } from "@noble/ciphers/utils.js";
+ import { md5, sha1 } from "@noble/hashes/legacy.js";
+ import { sha256, sha384, sha512 } from "@noble/hashes/sha2.js";
+-import { Boolean, Constructed, Integer, Null, ObjectIdentifier, OctetString, Sequence, UTCTime, fromBER } from "asn1js";
++import { Boolean, Constructed, IA5String, Integer, Null, ObjectIdentifier, OctetString, Sequence, UTCTime, fromBER } from "asn1js";
+ import * as pkijs from "pkijs";
+ import { createCMSECDSASignature } from "pkijs";
+ import { base64 } from "@scure/base";
+@@ -39156,6 +39156,27 @@ function encodeSignedAttributesForSigning(attrs) {
+ 	return encoded;
+ }
+ //#endregion
++//#region REVALLE: id-aa-ets-sigPolicyId (RFC 5126 5.8.1) for the ICP-Brasil signature policy
++function revalleAddSignaturePolicy(attrs, policy) {
++	const sigPolicyQualifiers = policy.uri ? [new Sequence({ value: [new Sequence({ value: [new ObjectIdentifier({ value: "1.2.840.113549.1.9.16.5.1" }), new IA5String({ value: policy.uri })] })] })] : [];
++	attrs.push(new pkijs.Attribute({
++		type: "1.2.840.113549.1.9.16.2.15",
++		values: [new Sequence({ value: [
++			new ObjectIdentifier({ value: policy.oid }),
++			new Sequence({ value: [new Sequence({ value: [new ObjectIdentifier({ value: policy.hashAlgorithmOid })] }), new OctetString({ valueHex: toArrayBuffer(policy.hash) })] }),
++			...sigPolicyQualifiers
++		] })]
++	}));
++	const der = (attr) => new Uint8Array(attr.toSchema().toBER(false));
++	// DER encodes SET OF sorted by encoding; strict validators re-encode signedAttrs before checking the signature.
++	attrs.sort((a, b) => {
++		const x = der(a);
++		const y = der(b);
++		for (let i = 0; i < Math.min(x.length, y.length); i++) if (x[i] !== y[i]) return x[i] - y[i];
++		return x.length - y.length;
++	});
++}
++//#endregion
+ //#region src/signatures/formats/cades-detached.ts
+ /**
+ * CAdES Detached signature format (ETSI.CAdES.detached).
+@@ -39187,6 +39208,8 @@ var CAdESDetachedBuilder = class {
+ 		const signerCert = parseCertificate$1(signer.certificate);
+ 		const allCerts = [signerCert, ...(signer.certificateChain ?? []).map(parseCertificate$1)];
+ 		const signedAttrs = await this.buildSignedAttributes(documentHash, digestAlgorithm, signerCert);
++		// REVALLE: ICP-Brasil signature policy attribute (patches/@libpdf+core+0.5.3.patch)
++		if (options.revalleSignaturePolicy) revalleAddSignaturePolicy(signedAttrs, options.revalleSignaturePolicy);
+ 		const signedAttrsForSigning = encodeSignedAttributesForSigning(signedAttrs);
+ 		this.signatureValue = await signer.sign(new Uint8Array(signedAttrsForSigning), digestAlgorithm);
+ 		this.signerInfo = new pkijs.SignerInfo({
+@@ -42407,11 +42430,26 @@ var PDFSignature = class {
+ 			ByteRange: createByteRangePlaceholderObject(),
+ 			Contents: createContentsPlaceholderObject(resolved.estimatedSize)
+ 		});
++		// REVALLE: ICP-Brasil dictionary names and DocMDP certification (patches/@libpdf+core+0.5.3.patch)
++		const revalle = options.revalle;
++		if (revalle?.filter) signatureDict.set("Filter", PdfName.of(revalle.filter));
++		if (revalle?.subFilter) signatureDict.set("SubFilter", PdfName.of(revalle.subFilter));
++		if (revalle?.docMdpPermissions) signatureDict.set("Reference", new PdfArray([PdfDict.of({
++			Type: PdfName.of("SigRef"),
++			TransformMethod: PdfName.of("DocMDP"),
++			TransformParams: PdfDict.of({
++				Type: PdfName.of("TransformParams"),
++				P: PdfNumber.of(revalle.docMdpPermissions),
++				V: PdfName.of("1.2")
++			})
++		})]));
+ 		signatureDict.set("M", PdfString.fromString(formatPdfDate(resolved.signingTime)));
+ 		if (resolved.reason) signatureDict.set("Reason", PdfString.fromString(escapePdfString(resolved.reason)));
+ 		if (resolved.location) signatureDict.set("Location", PdfString.fromString(escapePdfString(resolved.location)));
+ 		if (resolved.contactInfo) signatureDict.set("ContactInfo", PdfString.fromString(escapePdfString(resolved.contactInfo)));
+ 		const signatureRef = this.pdf.context.registry.register(signatureDict);
++		// REVALLE: catalog /Perms /DocMDP points to the certification signature
++		if (revalle?.docMdpPermissions) this.pdf.getCatalog().set("Perms", PdfDict.of({ DocMDP: signatureRef }));
+ 		this.prepareSignatureField({
+ 			fieldName: resolved.fieldName,
+ 			pageRef: firstPageRef,
+@@ -42428,7 +42466,8 @@ var PDFSignature = class {
+ 			signer: resolved.signer,
+ 			documentHash,
+ 			digestAlgorithm: resolved.digestAlgorithm,
+-			signingTime: resolved.signingTime
++			signingTime: resolved.signingTime,
++			revalleSignaturePolicy: options.revalle?.signaturePolicy // REVALLE:
+ 		});
+ 		if (resolved.timestampAuthority) {
+ 			const signatureHash = await hashData(signedData.getSignatureValue(), resolved.digestAlgorithm);
