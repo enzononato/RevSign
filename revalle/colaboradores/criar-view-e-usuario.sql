@@ -27,11 +27,20 @@ FROM <tabela> t;
 CREATE ROLE revsign_leitura LOGIN PASSWORD '<definir>';
 
 -- 3) Só a view. Nenhum acesso a tabelas.
+--    ATENÇÃO: não revogue nada de PUBLIC no banco real (isso tiraria o acesso de outros usuários).
+--    A view precisa pertencer a um papel que consiga LER a tabela <tabela> (o dono da view é quem
+--    é checado ao ler a tabela, não o revsign_leitura).
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM revsign_leitura;
-REVOKE ALL ON DATABASE <banco> FROM PUBLIC;
 GRANT CONNECT ON DATABASE <banco> TO revsign_leitura;
 GRANT USAGE ON SCHEMA public TO revsign_leitura;
 GRANT SELECT ON vw_colaboradores_assinatura TO revsign_leitura;
+
+-- 3b) Confira que PUBLIC não tem SELECT na tabela (senão o revsign_leitura herdaria o acesso).
+--     No psql: \dp <tabela>   (uma linha "=r/..." na coluna de privilégios significa que PUBLIC lê).
+--     Ou: deve retornar ZERO linhas.
+SELECT grantee, privilege_type FROM information_schema.role_table_grants
+ WHERE table_name = '<tabela>' AND grantee = 'PUBLIC' AND privilege_type = 'SELECT';
+--     Se aparecer linha: REVOKE SELECT ON <tabela> FROM PUBLIC;  (avalie antes se outros usuários dependem disso)
 
 -- 4) Teste (conectado como revsign_leitura): deve listar pessoas.
 --    Já a mesma consulta na tabela <tabela> deve dar "permission denied".

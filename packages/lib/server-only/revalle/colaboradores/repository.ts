@@ -33,6 +33,13 @@ const createRepository = (connectionString: string): ColaboradoresRepository => 
     connectionString,
     max: 5,
     statement_timeout: 5000,
+    query_timeout: 5000,
+    connectionTimeoutMillis: 5000,
+    idleTimeoutMillis: 30000,
+  });
+
+  pool.on('error', () => {
+    console.error('[revalle] Erro em conexão ociosa da base de colaboradores.');
   });
 
   const queryRows = async (text: string, values: unknown[]) => {
