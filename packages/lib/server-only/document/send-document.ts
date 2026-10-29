@@ -169,7 +169,10 @@ export const sendDocument = async ({ id, userId, teamId, sendEmail, requestMetad
     );
   }
 
-  assertRecipientEmailsAllowed(envelope.recipients.map((r) => r.email)); // REVALLE:
+  assertRecipientEmailsAllowed(
+    envelope.recipients.map((r) => r.email),
+    { rejectEmpty: true },
+  ); // REVALLE:
 
   // Validate that recipients with auth requirements have a valid email.
   envelope.recipients.forEach((recipient) => {

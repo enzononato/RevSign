@@ -78,3 +78,14 @@ test('próximo assinante ditado fora da empresa é recusado e nada é gravado', 
   assert.match(done.text, new RegExp(MENSAGEM));
   assert.equal(db(`select "signingStatus" from "Recipient" where id = ${first.id}`), 'NOT_SIGNED');
 });
+
+test('destinatário sem e-mail não pode ser enviado', async () => {
+  const res = await createEnvelope({ recipients: [{ email: '' }] });
+
+  assert.equal(res.status, 200, res.text);
+
+  const sent = await api('POST', '/envelope/distribute', { envelopeId: res.id });
+
+  assert.equal(sent.status, 400, sent.text);
+  assert.match(sent.text, /Todo destinatário precisa de um e-mail da empresa/);
+});

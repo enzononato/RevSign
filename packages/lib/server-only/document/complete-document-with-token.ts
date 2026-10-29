@@ -94,7 +94,7 @@ export const completeDocumentWithToken = async ({
 
   await assertSenderNotDisabled({ userId: envelope.userId });
 
-  assertRecipientEmailsAllowed([dictatedNextSigner?.email]); // REVALLE:
+  assertRecipientEmailsAllowed([dictatedNextSigner?.email, recipientOverride?.email]); // REVALLE:
 
   const legacyDocumentId = mapSecondaryIdToDocumentId(envelope.secondaryId);
 
