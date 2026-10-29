@@ -119,7 +119,7 @@ Outras formas de conferir:
 - O selo digital pode ser conferido em qualquer leitor de PDF (painel de assinaturas do Adobe Reader) e, com o e-CNPJ de produção, no verificador do ITI (`certificado.md`).
 - O QR code do certificado abre a página pública do documento no RevSign: título, quantidade de participantes, data de conclusão e o botão para baixar o PDF final.
 
-## 4. Aceite da Fase 4 (TI)
+## 4. Aceite da Fase 4 (para TI)
 
 O aceite automatizado é o teste `scripts/revalle/tests/acceptance-f4.test.mjs`. Ele faz o que a spec pede (§7.3, "Aceite"): um documento com **três signatários em ordem**, incluindo o próprio remetente, e confere no PDF final cada linha do certificado e o carimbo de cada um.
 

@@ -1,4 +1,4 @@
-import type { RecipientRole } from '@prisma/client';
+import type { DocumentSigningOrder, RecipientRole } from '@prisma/client';
 import { z } from 'zod';
 
 import { groupRecipientsBySigningOrder } from '../utils/recipient-groups';
@@ -13,13 +13,20 @@ export type RevalleSigningPosition = { position: number; total: number };
 
 /**
  * Posição de cada destinatário pela ordem de assinatura, como o fluxo sequencial do upstream a aplica:
- * um grupo (mesma ordem) é um passo só; CC não entra. Use só quando o documento é SEQUENTIAL.
+ * um grupo (mesma ordem) é um passo só; CC não entra. Só em documento SEQUENTIAL; nos outros o mapa vem vazio
+ * (a ordem não existe, então a linha "Ordem de assinatura" não aparece).
  */
 export const getRevalleSigningPositions = (
   recipients: { id: number; role: RecipientRole; signingOrder: number | null }[],
+  signingOrder: DocumentSigningOrder | null | undefined,
 ): Map<number, RevalleSigningPosition> => {
-  const { steps } = groupRecipientsBySigningOrder(recipients);
   const positions = new Map<number, RevalleSigningPosition>();
+
+  if (signingOrder !== 'SEQUENTIAL') {
+    return positions;
+  }
+
+  const { steps } = groupRecipientsBySigningOrder(recipients);
 
   for (const [index, step] of steps.entries()) {
     for (const member of step.members) {

@@ -1,5 +1,5 @@
 import { prisma } from '@documenso/prisma';
-import { DocumentSigningOrder, type RecipientRole } from '@prisma/client';
+import type { RecipientRole } from '@prisma/client';
 
 import {
   buildRevalleCertificateRows,
@@ -49,10 +49,7 @@ export const loadRevalleCertificateData = async ({
   ]);
 
   // Ordem de assinatura só existe (e só aparece) em documento sequencial.
-  const positions =
-    meta?.documentMeta?.signingOrder === DocumentSigningOrder.SEQUENTIAL
-      ? getRevalleSigningPositions(recipients)
-      : new Map();
+  const positions = getRevalleSigningPositions(recipients, meta?.documentMeta?.signingOrder);
 
   const roles = new Map(recipients.map((recipient) => [recipient.id, recipient.role]));
   const byRecipient = new Map<number, RevalleCertificateRecipient>();

@@ -180,11 +180,14 @@ describe('buildRevalleCertificateRows', () => {
 
 describe('getRevalleSigningPositions', () => {
   it('três em sequência: 1º, 2º e 3º de 3', () => {
-    const positions = getRevalleSigningPositions([
-      { id: 12, role: 'SIGNER', signingOrder: 3 },
-      { id: 10, role: 'SIGNER', signingOrder: 1 },
-      { id: 11, role: 'APPROVER', signingOrder: 2 },
-    ]);
+    const positions = getRevalleSigningPositions(
+      [
+        { id: 12, role: 'SIGNER', signingOrder: 3 },
+        { id: 10, role: 'SIGNER', signingOrder: 1 },
+        { id: 11, role: 'APPROVER', signingOrder: 2 },
+      ],
+      'SEQUENTIAL',
+    );
 
     expect(positions.get(10)).toEqual({ position: 1, total: 3 });
     expect(positions.get(11)).toEqual({ position: 2, total: 3 });
@@ -192,17 +195,38 @@ describe('getRevalleSigningPositions', () => {
   });
 
   it('grupo de assinatura (mesma ordem) conta como um passo; CC fica de fora', () => {
-    const positions = getRevalleSigningPositions([
-      { id: 1, role: 'SIGNER', signingOrder: 1 },
-      { id: 2, role: 'SIGNER', signingOrder: 2 },
-      { id: 3, role: 'SIGNER', signingOrder: 2 },
-      { id: 4, role: 'CC', signingOrder: 3 },
-      { id: 5, role: 'SIGNER', signingOrder: 4 },
-    ]);
+    const positions = getRevalleSigningPositions(
+      [
+        { id: 1, role: 'SIGNER', signingOrder: 1 },
+        { id: 2, role: 'SIGNER', signingOrder: 2 },
+        { id: 3, role: 'SIGNER', signingOrder: 2 },
+        { id: 4, role: 'CC', signingOrder: 3 },
+        { id: 5, role: 'SIGNER', signingOrder: 4 },
+      ],
+      'SEQUENTIAL',
+    );
 
     expect(positions.get(2)).toEqual({ position: 2, total: 3 });
     expect(positions.get(3)).toEqual({ position: 2, total: 3 });
     expect(positions.get(5)).toEqual({ position: 3, total: 3 });
     expect(positions.has(4)).toBe(false);
+  });
+
+  it('documento paralelo (ou sem ordem definida): nenhuma posição, então nenhuma linha "Ordem de assinatura"', () => {
+    const recipients = [
+      { id: 10, role: 'SIGNER' as const, signingOrder: 1 },
+      { id: 11, role: 'SIGNER' as const, signingOrder: 2 },
+    ];
+
+    for (const signingOrder of ['PARALLEL', null, undefined] as const) {
+      const positions = getRevalleSigningPositions(recipients, signingOrder);
+
+      expect(positions.size).toBe(0);
+      expect(
+        buildRevalleCertificateRows(completeProof, { role: 'SIGNER', signingPosition: positions.get(10) }).map(
+          (row) => row.label,
+        ),
+      ).not.toContain('Ordem de assinatura');
+    }
   });
 });

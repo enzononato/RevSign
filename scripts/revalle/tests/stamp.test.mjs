@@ -18,7 +18,7 @@ import {
   downloadItem,
   drawingPng,
   poppler,
-  retryOnStaleSocket,
+  retryCreateOnStaleSocket,
   signIn,
   trpc,
   trpcAs,
@@ -67,7 +67,7 @@ const stampAudit = (envelopeId) =>
 const imageRows = (list) => list.split('\n').filter((line) => /^\s*\d+\s+\d+\s+(image|smask)/.test(line)).length;
 
 // Criação (POST) repete uma vez em socket velho, como antes; downloads (GET) repetem dentro de downloadItem.
-const create = (options) => retryOnStaleSocket(() => createEnvelope(options));
+const create = (options) => retryCreateOnStaleSocket(() => createEnvelope(options));
 
 // Baixa original e final do primeiro item (a extração com poppler fica para depois dos fluxos).
 // `version`: 'signed' (selado) ou 'pending' (em andamento, com o que já foi inserido); grava sempre em signed.pdf.
@@ -135,7 +135,7 @@ const createV1 = async ({ email, role = 'SIGNER' }) => {
   );
   form.append('file', new File([readFileSync('assets/example.pdf')], 'example.pdf', { type: 'application/pdf' }));
 
-  const res = await retryOnStaleSocket(() =>
+  const res = await retryCreateOnStaleSocket(() =>
     fetch(`${BASE_URL}/api/v2-beta/document/create`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${process.env.REVSIGN_API_TOKEN}` },

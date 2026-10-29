@@ -45,7 +45,7 @@ import { getRecipientsWithMissingFields, isRecipientEmailValidForSending } from 
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { insertFormValuesInPdf } from '../pdf/insert-form-values-in-pdf';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
-import { computeOriginalHashes, saveOriginalHashes } from '../revalle/document-hashes';
+import { computeOriginalHashes, saveOriginalHashes } from '../revalle/document-hashes'; // REVALLE:
 import { assertUserNotDisabledById } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
 

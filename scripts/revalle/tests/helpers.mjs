@@ -15,14 +15,20 @@ const authHeaders = (apiToken = process.env.REVSIGN_API_TOKEN) => ({ Authorizati
 
 // O app fecha conexões ociosas (keep-alive). Depois de uma espera longa (selagem, reselagem, poppler), o fetch pode
 // reaproveitar um socket que o servidor já fechou: EPIPE/ECONNRESET ao escrever ou UND_ERR_SOCKET ("other side
-// closed") ao ler. O pedido não chega a ser processado nesses casos, então repetir UMA vez é seguro para pedidos
-// idempotentes (GET/HEAD). Para POST, só use `retryOnStaleSocket` onde já se usava (criação de documento).
+// closed") ao ler. Repetir UMA vez é seguro para pedidos idempotentes (GET/HEAD), mesmo que o servidor tenha
+// chegado a processar o primeiro.
+// POST NÃO é idempotente. A única exceção é a criação de documento (`retryCreateOnStaleSocket`), que repete nos
+// mesmos três erros: na prática o UND_ERR_SOCKET aparece justamente no POST da criação (socket ocioso fechado pelo
+// servidor), então restringir a EPIPE/ECONNRESET deixaria o teste instável. Risco aceito: se o servidor já tiver
+// criado o documento quando a conexão caiu, a repetição cria outro e o primeiro fica como envelope de teste órfão
+// (inofensivo na stack local descartável; o teste segue com o segundo). Nenhum outro POST é repetido.
 const STALE_SOCKET_CODES = new Set(['EPIPE', 'ECONNRESET', 'UND_ERR_SOCKET']);
 
 export const isStaleSocketError = (error) =>
   STALE_SOCKET_CODES.has(error?.cause?.code) || STALE_SOCKET_CODES.has(error?.code);
 
 // Executa `fn` e, se falhar por socket velho, executa de novo uma única vez. `fn` deve fazer o pedido E ler o corpo.
+// Só para pedidos idempotentes; para criar documento use `retryCreateOnStaleSocket` (ver o risco acima).
 export const retryOnStaleSocket = async (fn) => {
   try {
     return await fn();
@@ -34,6 +40,9 @@ export const retryOnStaleSocket = async (fn) => {
     return fn();
   }
 };
+
+// Criação de documento (POST): repete uma vez em socket velho, aceitando o risco de um envelope órfão (ver acima).
+export const retryCreateOnStaleSocket = (fn) => retryOnStaleSocket(fn);
 
 // fetch para GET/HEAD com a repetição acima; `read(res)` lê o corpo dentro da repetição (padrão: parse).
 export const fetchIdempotent = (url, init = {}, read = parse) => {

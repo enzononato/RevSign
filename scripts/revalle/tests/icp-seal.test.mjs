@@ -18,7 +18,7 @@ import {
   db,
   distribute,
   downloadItem,
-  retryOnStaleSocket,
+  retryCreateOnStaleSocket,
   trpc,
 } from './helpers.mjs';
 
@@ -49,7 +49,7 @@ const waitStatus = async (envelopeId, status) => {
 // Envia `pdf`, conclui sem desenhar (o carimbo basta) e baixa original e final para um diretório temporário.
 const sealed = async (pdf) => {
   const email = `icp-${Date.now()}-${Math.floor(Math.random() * 1e6)}@revalle.com.br`;
-  const created = await retryOnStaleSocket(() => createEnvelope({ recipients: [{ email }], pdf }));
+  const created = await retryCreateOnStaleSocket(() => createEnvelope({ recipients: [{ email }], pdf }));
 
   assert.equal(created.status, 200, created.text);
 

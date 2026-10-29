@@ -32,7 +32,7 @@ import {
   drawingPng,
   fetchIdempotent,
   poppler,
-  retryOnStaleSocket,
+  retryCreateOnStaleSocket,
   trpc,
 } from './helpers.mjs';
 
@@ -150,7 +150,7 @@ const docId = (envelope) => Number.parseInt(envelope.secondaryId.split('_')[1], 
 
 // Documento descartável de um signatário, só para o portão criar o vínculo e-mail ↔ CPF. Depois é excluído.
 const linkThroughThrowaway = async (email, person) => {
-  const created = await retryOnStaleSocket(() =>
+  const created = await retryCreateOnStaleSocket(() =>
     createEnvelope({
       apiToken: SENDER_TOKEN,
       title: `[TESTE] aceite F4 vínculo ${Date.now().toString(36)}`,
@@ -383,7 +383,7 @@ before(async () => {
 
   fx.title = `[TESTE] aceite F4 ${run}`;
 
-  const created = await retryOnStaleSocket(() =>
+  const created = await retryCreateOnStaleSocket(() =>
     createEnvelope({
       apiToken: SENDER_TOKEN,
       title: fx.title,
@@ -594,7 +594,7 @@ test('ordem sequencial: o 3º não assina antes do 2º (página manda esperar, c
   // A ordem real das assinaturas: 1 < 2 < 3.
   const signedAt = fx.signers.map((signer) => new Date(`${signer.proof.signedAt}Z`).getTime());
 
-  assert.ok(signedAt[0] <= signedAt[1] && signedAt[1] <= signedAt[2], 'assinaturas fora de ordem');
+  assert.ok(signedAt[0] < signedAt[1] && signedAt[1] < signedAt[2], 'assinaturas fora de ordem');
   assert.equal(fx.status, 'COMPLETED');
 });
 
