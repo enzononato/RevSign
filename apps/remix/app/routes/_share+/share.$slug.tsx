@@ -1,6 +1,6 @@
 import { NEXT_PUBLIC_WEBAPP_URL } from '@documenso/lib/constants/app';
 import { getDocumentByAccessToken } from '@documenso/lib/server-only/document/get-document-by-access-token';
-import { redirect, useLoaderData } from 'react-router';
+import { data, redirect, useLoaderData } from 'react-router';
 
 import { DocumentCertificateQRView } from '~/components/general/document/document-certificate-qr-view';
 
@@ -49,7 +49,7 @@ export function meta({ params: { slug } }: Route.MetaArgs) {
   ];
 }
 
-export const loader = async ({ request, params: { slug } }: Route.LoaderArgs) => {
+export const loader = async ({ params: { slug } }: Route.LoaderArgs) => {
   if (slug.startsWith('qr_')) {
     const document = await getDocumentByAccessToken({ token: slug });
 
@@ -63,14 +63,8 @@ export const loader = async ({ request, params: { slug } }: Route.LoaderArgs) =>
     };
   }
 
-  const userAgent = request.headers.get('User-Agent') ?? '';
-
-  if (/bot|facebookexternalhit|WhatsApp|google|bing|duckduckbot|MetaInspector/i.test(userAgent)) {
-    return {};
-  }
-
-  // Is hardcoded because this whole meta is hardcoded anyway for Documenso.
-  throw redirect('https://documenso.com');
+  // REVALLE: sem redirecionar ao documenso.com; só links qr_ existem.
+  throw data(null, { status: 404 });
 };
 
 export default function SharePage() {
