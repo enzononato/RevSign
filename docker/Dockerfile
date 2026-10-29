@@ -80,6 +80,8 @@ COPY --from=builder /app/out/package-lock.json ./package-lock.json
 
 COPY --from=builder /app/lingui.config.ts ./lingui.config.ts
 COPY --from=builder /app/patches ./patches
+# REVALLE: o build.sh do remix roda o overlay pt-BR e o validador (fora do turbo prune)
+COPY --from=builder /app/scripts/revalle/i18n ./scripts/revalle/i18n
 
 RUN npm ci
 

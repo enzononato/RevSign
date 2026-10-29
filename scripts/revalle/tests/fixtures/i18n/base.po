@@ -1,0 +1,34 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=utf-8\n"
+"Language: pt-BR\n"
+
+#: apps/a.tsx
+msgid "Hello {name}"
+msgstr "Olá {name}"
+
+#. placeholder {0}: user.name
+#: apps/b.tsx
+msgid "Welcome {0}, \"friend\""
+msgstr ""
+
+#: apps/c.tsx
+msgid "Powered by Documenso"
+msgstr "Feito com Documenso"
+
+#: apps/d.tsx
+msgctxt "Audit log format"
+msgid "Sent"
+msgstr ""
+
+#: apps/e.tsx
+msgid ""
+"Long text "
+"continues here"
+msgstr ""
+"Texto longo "
+"continua aqui"
+
+#: apps/f.tsx
+msgid "Only in base"
+msgstr ""

@@ -1,0 +1,16 @@
+msgid ""
+msgstr ""
+"Language: pt-BR\n"
+
+msgid "Powered by Documenso"
+msgstr "Feito com RevSign"
+
+msgid "Welcome {0}, \"friend\""
+msgstr "Bem-vindo {0}, \"amigo\""
+
+msgctxt "Audit log format"
+msgid "Sent"
+msgstr "Enviado"
+
+msgid "Not in base"
+msgstr "Fora da base"

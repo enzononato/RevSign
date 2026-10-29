@@ -1,0 +1,7 @@
+msgid ""
+msgstr ""
+"Language: pt-BR\n"
+
+#: x.tsx
+msgid "Click <0>here</0>"
+msgstr "Clique aqui"
