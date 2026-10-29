@@ -374,13 +374,16 @@ export const EnvelopeEditorFieldsPageRenderer = ({ pageData }: { pageData: PageR
           return oldBox;
         }
 
-        // REVALLE: assinatura não fica menor que o carimbo de 5 linhas (caixas em pixels do palco = página escalada)
+        // REVALLE: assinatura não encolhe abaixo do carimbo de 5 linhas (caixas em pixels do palco = página escalada).
+        // Crescer sempre vale, para um campo antigo/da API já menor que o mínimo poder ser aumentado.
         const hasSignature = transformer.nodes().some((node) => node.getAttr('revalleFieldType') === 'SIGNATURE');
+        const minWidth = (currentStage.width() * REVALLE_SIGNATURE_FIELD_MIN.width) / 100;
+        const minHeight = (currentStage.height() * REVALLE_SIGNATURE_FIELD_MIN.height) / 100;
 
         if (
           hasSignature &&
-          (newBox.width < (currentStage.width() * REVALLE_SIGNATURE_FIELD_MIN.width) / 100 ||
-            newBox.height < (currentStage.height() * REVALLE_SIGNATURE_FIELD_MIN.height) / 100)
+          ((newBox.width < minWidth && newBox.width < oldBox.width) ||
+            (newBox.height < minHeight && newBox.height < oldBox.height))
         ) {
           return oldBox;
         }
