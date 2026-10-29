@@ -15,6 +15,7 @@ Toda edição em arquivo do upstream é marcada com `REVALLE:` no código e list
 | `apps/remix/app/root.tsx` | Import + renderização de `<SourceCodeLink />` | AGPL §13: link "Código-fonte" em todas as telas | 1 |
 | `packages/lib/utils/organisations.ts` | `generateDefaultOrganisationSettings`: pt-BR, `America/Bahia`, `dd/MM/yyyy HH:mm`, `includeAuditLog: true`; removido o import `DEFAULT_DOCUMENT_DATE_FORMAT`, que ficou sem uso | Toda organização nova (inclusive a pessoal de cada remetente) nasce com os padrões da Revalle | 1 |
 | `packages/lib/server-only/rate-limit/rate-limit.ts` | Import + aplicação de `getRateLimitOverride` em `createRateLimit` | Limites de tentativas ajustáveis por `NEXT_PRIVATE_REVALLE_RATE_LIMITS`; padrão `auth.signup` de 3/3h para 30/1h por IP (cada unidade sai por um único IP) | 1 |
+| `apps/remix/server/router.ts` | Import + chamada `void runRevalleBootstrap();` depois de `migrateLegacyServiceAccount()` | Na subida, plano `free` sem limites de equipes/membros/destinatários e com branding liberado (reaplicado a cada reinício: edições manuais desse claim em Admin → Claims são revertidas); promove a ADMIN a conta com e-mail confirmado de `NEXT_PRIVATE_REVALLE_ADMIN_EMAIL` | 1 |
 
 ## Arquivos novos (não conflitam com o upstream)
 
@@ -30,6 +31,10 @@ Toda edição em arquivo do upstream é marcada com `REVALLE:` no código e list
 | `apps/remix/app/components/revalle/` | Componentes próprios | 1 |
 | `packages/lib/server-only/revalle/` | Código próprio do servidor (limites de tentativas) e testes | 1 |
 | `revalle/` | Deploy, backup e documentação de operação | 1 |
+| `revalle/docs/deploy.md` | Passo a passo do deploy no EasyPanel e tabela de variáveis | 1 |
+| `revalle/docs/certificado.md` | Certificado de homologação, troca pelo e-CNPJ A1 e renovação | 1 |
+| `revalle/docs/backup.md` | Backup, conta FTP/SFTP no cPanel, chave `age` e teste de restauração | 1 |
+| `revalle/docs/aceite-fase1.md` | Roteiro de aceite da Fase 1 | 1 |
 
 ## Checklist de atualização do upstream
 

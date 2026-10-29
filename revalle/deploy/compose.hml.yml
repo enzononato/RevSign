@@ -33,7 +33,7 @@ services:
       - '127.0.0.1:8025:8025'
 
   documenso:
-    image: ${REVSIGN_IMAGE:-ghcr.io/enzononato/revsign:v2.21.1-revalle.1}
+    image: ${REVSIGN_IMAGE:-ghcr.io/enzononato/revsign:v2.21.1-revalle.3}
     depends_on:
       database:
         condition: service_healthy
@@ -55,6 +55,8 @@ services:
       NEXT_PUBLIC_DISABLE_SIGNUP: ${NEXT_PUBLIC_DISABLE_SIGNUP:-false}
       # Cadastro e (na Fase 3) signatários só destes domínios. Vazio = qualquer domínio.
       NEXT_PRIVATE_ALLOWED_SIGNUP_DOMAINS: ${NEXT_PRIVATE_ALLOWED_SIGNUP_DOMAINS:-revalle.com.br,revallenordeste.com.br,revallepe.com.br}
+      # Usuário promovido a ADMIN na subida, se já cadastrado.
+      NEXT_PRIVATE_REVALLE_ADMIN_EMAIL: ${NEXT_PRIVATE_REVALLE_ADMIN_EMAIL:-projetos.ti@revalle.com.br}
       DOCUMENSO_DISABLE_TELEMETRY: 'true'
       NEXT_PUBLIC_REVALLE_SOURCE_URL: https://github.com/enzononato/RevSign
       # SMTP: Mailpit no ensaio; no EasyPanel, o SMTP do cPanel (ver env.hml.example).
@@ -73,5 +75,31 @@ services:
     ports:
       - '127.0.0.1:3000:3000'
 
+  # Backup diário cifrado (age) do Postgres, com cópia SFTP/FTPS e retenção.
+  # Sem BACKUP_AGE_RECIPIENT o serviço não sobe (nunca envia dump em texto puro).
+  backup:
+    image: ${REVSIGN_BACKUP_IMAGE:-ghcr.io/enzononato/revsign-backup:v2.21.1-revalle.3}
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      TZ: America/Bahia
+      BACKUP_DATABASE_URL: postgres://documenso:${POSTGRES_PASSWORD}@database:5432/documenso
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?defina BACKUP_AGE_RECIPIENT (chave pública age1...)}
+      BACKUP_CRON: ${BACKUP_CRON:-0 2 * * *}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      BACKUP_RUN_ON_START: ${BACKUP_RUN_ON_START:-false}
+      BACKUP_REMOTE_TYPE: ${BACKUP_REMOTE_TYPE:-none}
+      BACKUP_REMOTE_HOST: ${BACKUP_REMOTE_HOST:-}
+      BACKUP_REMOTE_PORT: ${BACKUP_REMOTE_PORT:-}
+      BACKUP_REMOTE_USER: ${BACKUP_REMOTE_USER:-}
+      BACKUP_REMOTE_PASSWORD: ${BACKUP_REMOTE_PASSWORD:-}
+      BACKUP_REMOTE_PATH: ${BACKUP_REMOTE_PATH:-revsign-backups}
+      # Opcional (SFTP): known_hosts montado no container; ver env.hml.example.
+      BACKUP_REMOTE_KNOWN_HOSTS_FILE: ${BACKUP_REMOTE_KNOWN_HOSTS_FILE:-}
+    volumes:
+      - backups:/backups
+
 volumes:
   database:
+  backups:

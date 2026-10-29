@@ -2,6 +2,7 @@ name: RevSign - imagem Docker
 
 # Tag vX.Y.Z-revalle.N => ghcr.io/enzononato/revsign:vX.Y.Z-revalle.N (+ sha-<curto>).
 # Manual (workflow_dispatch) => só sha-<curto>, para testes.
+# O job backup publica igualmente ghcr.io/enzononato/revsign-backup (testes rodam antes do push).
 # Nunca publica "latest": a VPS sempre fixa a versão.
 
 on:
@@ -16,6 +17,7 @@ permissions:
 
 env:
   IMAGE: ghcr.io/enzononato/revsign
+  BACKUP_IMAGE: ghcr.io/enzononato/revsign-backup
 
 jobs:
   build:
@@ -65,3 +67,61 @@ jobs:
             org.opencontainers.image.licenses=AGPL-3.0
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Definir tags
+        id: tags
+        run: |
+          set -eu
+          short_sha="$(git rev-parse --short=8 HEAD)"
+          tags="${BACKUP_IMAGE}:sha-${short_sha}"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            tags="${BACKUP_IMAGE}:${GITHUB_REF_NAME},${tags}"
+          fi
+          echo "tags=${tags}" >> "$GITHUB_OUTPUT"
+          echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Imagem de teste carregada no daemon local (sem push).
+      - name: Build da imagem de teste
+        uses: docker/build-push-action@v6
+        with:
+          context: revalle/backup
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: revsign-backup:test
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.tags.outputs.version }}
+            org.opencontainers.image.licenses=AGPL-3.0
+          cache-from: type=gha,scope=backup
+          cache-to: type=gha,mode=max,scope=backup
+
+      - name: Testes da imagem de backup
+        run: sh revalle/backup/test/run-tests.sh
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Publica exatamente a imagem testada (sem rebuild).
+      - name: Publicar imagem testada
+        env:
+          TAGS: ${{ steps.tags.outputs.tags }}
+        run: |
+          set -eu
+          for t in $(echo "$TAGS" | tr ',' ' '); do
+            docker tag revsign-backup:test "$t"
+            docker push "$t"
+          done
