@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { isIP } from 'node:net';
 
 import type { CityResponse, Reader } from 'maxmind';
@@ -19,21 +19,34 @@ const DEFAULT_DB_PATH = '/app/geoip/dbip-city-lite.mmdb';
 let readerPromise: Promise<Reader<CityResponse> | null> | null = null;
 let warned = false;
 
+const getDbPath = () => env('NEXT_PRIVATE_REVALLE_GEOIP_DB_PATH') || DEFAULT_DB_PATH;
+
+// Um aviso só por processo (na subida, via bootstrap, ou na primeira consulta).
 const warnOnce = (code: string) => {
   if (!warned) {
     warned = true;
-    logger.warn({ msg: '[RevSign] geolocalização por IP indisponível', code });
+    logger.warn({
+      msg: '[RevSign] geolocalização por IP indisponível: a base DB-IP está ausente, vazia ou ilegível; o certificado mostrará "não identificada" até uma imagem com a base',
+      code,
+      path: getDbPath(),
+    });
   }
 };
 
 const getReader = (): Promise<Reader<CityResponse> | null> => {
   readerPromise ??= (async () => {
-    const path = env('NEXT_PRIVATE_REVALLE_GEOIP_DB_PATH') || DEFAULT_DB_PATH;
+    const path = getDbPath();
 
     try {
-      // Arquivo ausente: segue sem localização. O marcador vazio do build (download falhou) faz o open() falhar, tratado no catch.
+      // Arquivo ausente ou vazio (marcador do build quando o download falhou): segue sem localização.
       if (!existsSync(path)) {
         warnOnce('DB_MISSING');
+
+        return null;
+      }
+
+      if (statSync(path).size === 0) {
+        warnOnce('DB_EMPTY');
 
         return null;
       }
@@ -49,6 +62,21 @@ const getReader = (): Promise<Reader<CityResponse> | null> => {
   })();
 
   return readerPromise;
+};
+
+/**
+ * Abre a base na subida do app: avisa uma vez no log se ela está ausente ou vazia; senão registra a data da base
+ * (DB-IP Lite é mensal e fica congelada na imagem até o próximo build). Nunca lança.
+ */
+export const checkRevalleGeoIpDatabase = async () => {
+  const reader = await getReader();
+
+  if (reader) {
+    logger.info({
+      msg: '[RevSign] base de geolocalização por IP carregada',
+      buildDate: reader.metadata.buildEpoch.toISOString().slice(0, 10),
+    });
+  }
 };
 
 /** Loopback, redes privadas, link-local e outros endereços que nunca estão numa base pública. */

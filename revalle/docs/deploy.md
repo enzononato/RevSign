@@ -212,6 +212,30 @@ Faça estas duas conferências antes de trocar a imagem de uma instalação que 
 
 Depois de atualizar, preencha as variáveis novas (`COLABORADORES_DATABASE_URL` e, se for o caso, `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK`) conforme `verificacao.md`. O `app.env` gerado pelo script do passo 0 já traz as duas linhas: `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK=required` e `COLABORADORES_DATABASE_URL=<preencher>`. Em instalações já existentes, acrescente-as na aba **Environment**.
 
+## Antes de atualizar para esta versão (Fase 4)
+
+Vale para quem atualiza uma instalação que já está em uso, vinda da Fase 3. Numa instalação nova não há nada a conferir no item 1.
+
+1. **Termine os documentos em andamento.** Antes de trocar a imagem, conclua (ou cancele) os documentos que ainda esperam assinatura. Quem assinou na versão anterior não tem prova congelada, e isso não se corrige depois:
+   - no PDF final, essas pessoas não ganham carimbo, e o bloco delas no certificado fica igual ao do Documenso original;
+   - o `/verificar`, aberto pelo código de quem assinou depois, lista só quem tem prova; quem assinou antes não aparece;
+   - o certificado da primeira selagem sai sem a linha `SHA-256 do original` (ela só aparece numa reselagem).
+   Se não der para terminar algum, ele continua válido; só a prova fica parcial.
+2. **Backup antes** (passo 7, item 8). As migrações abaixo rodam sozinhas na subida e só ACRESCENTAM tabelas e colunas; nenhuma apaga dados:
+   - `20261030100000_revalle_document_hashes` (SHA-256 do original e do PDF selado);
+   - `20261030120000_revalle_signature_proof` (prova congelada de cada pessoa);
+   - `20261030130000_revalle_signature_kind` (tipo da assinatura visual, preenchido a partir da prova);
+   - `20261030140000_revalle_sealed_hashes` (histórico das versões seladas: a reselagem acrescenta uma versão e as cópias antigas continuam conferindo no `/verificar`).
+3. **Variáveis novas.** Nenhuma precisa ser definida; os padrões valem. Ver a tabela abaixo:
+   - `NEXT_PRIVATE_REVALLE_ICP_SEAL`: a selagem ICP-Brasil (política AD-RB e DocMDP) fica **ligada por padrão** a partir desta versão (`certificado.md`);
+   - `NEXT_PRIVATE_REVALLE_ICP_PDF_DICT` e `NEXT_PRIVATE_REVALLE_ICP_POLICY_HASH`: só se o validar.iti.gov.br reclamar;
+   - `NEXT_PRIVATE_REVALLE_GEOIP_DB_PATH`: caminho da base de geolocalização por IP; só para usar outro arquivo.
+4. **Base de geolocalização por IP (DB-IP).** A base vem DENTRO da imagem, baixada do db-ip.com no build. O workflow de publicação falha se o download não deu certo (rode-o de novo mais tarde), então uma imagem publicada sempre tem a base. A base fica congelada até a próxima imagem. Depois de atualizar:
+   1. No EasyPanel, abra o serviço `revsign` → **Logs** e procure, logo depois da subida, a linha `base de geolocalização por IP carregada` com a data da base (`buildDate`).
+   2. Se aparecer `geolocalização por IP indisponível`, a base está ausente ou vazia: as assinaturas funcionam, mas o certificado mostra `não identificada` em "Localização aproximada (IP)". Avise o desenvolvedor.
+   3. (Opcional) Teste direto, no **Console** do serviço `revsign`: `cd /app && node -e "require('maxmind').open('/app/geoip/dbip-city-lite.mmdb').then((r) => console.log(r.get('8.8.8.8')?.country?.iso_code, r.metadata.buildEpoch))"`. Esperado: `US` e a data da base.
+5. **Selagem.** Assine um documento de teste e confira o PDF final como em `certificado.md` (painel de assinaturas do leitor de PDF ou `scripts/revalle/inspect-pdf-signature.sh`).
+
 ## Tabela de todas as variáveis
 
 Legenda de "segredo?": **sim** = nunca no repositório, só no EasyPanel e no cofre.
@@ -254,6 +278,7 @@ Legenda de "segredo?": **sim** = nunca no repositório, só no EasyPanel e no co
 | `NEXT_PRIVATE_REVALLE_ICP_SEAL` | Selagem ICP-Brasil: política AD-RB nos atributos assinados e DocMDP P=2 (ver `certificado.md`). `false` volta à selagem do upstream. `NEXT_PRIVATE_USE_LEGACY_SIGNING_SUBFILTER=true` também a desliga | não definir (vale `true`) | não |
 | `NEXT_PRIVATE_REVALLE_ICP_PDF_DICT` | Nomes no dicionário da assinatura: `etsi` (padrão: `Adobe.PPKLite` / `ETSI.CAdES.detached`) ou `pbad` (`PBAD_PAdES` / `PBAD.PAdES`, como a política escreve). Só troque se o validar.iti.gov.br reclamar do dicionário (ver `certificado.md`) | não definir (vale `etsi`) | não |
 | `NEXT_PRIVATE_REVALLE_ICP_POLICY_HASH` | Hash da política no atributo assinado: `policy` (padrão: o hash ETSI que o arquivo da política traz) ou `lpa` (SHA-256 do arquivo, como na LPA). Só troque se o validar.iti.gov.br acusar hash da política diferente (ver `certificado.md`) | não definir (vale `policy`) | não |
+| `NEXT_PRIVATE_REVALLE_GEOIP_DB_PATH` | (Opcional) caminho da base DB-IP Lite City (`.mmdb`) usada para a "Localização aproximada (IP)" do certificado. A imagem já traz a base em `/app/geoip/dbip-city-lite.mmdb`, baixada no build e congelada até a próxima imagem (a DB-IP publica uma base por mês). Só defina para usar outro arquivo (ex.: um volume montado com uma base mais nova). Base ausente ou vazia: o app funciona, o log mostra um aviso na subida e o certificado diz `não identificada` | não definir (vale `/app/geoip/dbip-city-lite.mmdb`) | não |
 
 ### Serviço Postgres (`revsign-db`)
 
