@@ -1351,9 +1351,22 @@ model RevalleDocumentHash {
   envelopeItemId String       @unique
   envelopeItem   EnvelopeItem @relation(fields: [envelopeItemId], references: [id], onDelete: Cascade)
   originalSha256 String
+  /// Versão selada mais recente; o histórico completo fica em `sealedVersions`.
   finalSha256    String?
   sentAt         DateTime     @default(now())
   sealedAt       DateTime?
+  sealedVersions RevalleSealedHash[]
+}
+
+/// REVALLE: histórico dos hashes finais. Uma linha por selagem (a reselagem acrescenta, nunca sobrescreve).
+model RevalleSealedHash {
+  id             String              @id @default(cuid())
+  documentHashId String
+  documentHash   RevalleDocumentHash @relation(fields: [documentHashId], references: [id], onDelete: Cascade)
+  sha256         String
+  sealedAt       DateTime
+
+  @@index([documentHashId])
 }
 
 /// REVALLE: prova congelada por signatário (dados do RH, fatores, termo, IP, aparelho, local). Imutável depois de criada.

@@ -24,8 +24,11 @@ export type RevalleProofLookup = {
   completedAt: Date | null;
   /** SHA-256 final: só quando há um único arquivo e ele já foi selado. */
   finalSha256: string | null;
-  /** Um item por arquivo; `finalSha256` só depois da selagem. */
-  items: { title: string; finalSha256: string | null }[];
+  /**
+   * Um item por arquivo; `finalSha256` (versão atual) só depois da selagem. `sealedVersions`: todas as selagens
+   * do arquivo, da mais antiga para a mais nova (a reselagem acrescenta; cópias antigas continuam conferindo).
+   */
+  items: { title: string; finalSha256: string | null; sealedVersions: { sha256: string; sealedAt: Date }[] }[];
   signers: { nome: string; cpfMasked: string | null; signedAt: Date; role: RecipientRole }[];
 };
 
@@ -53,7 +56,15 @@ export const findRevalleProofByCode = async (code: string): Promise<RevalleProof
               deletedAt: true,
               envelopeItems: {
                 orderBy: { order: 'asc' },
-                select: { title: true, revalleHash: { select: { finalSha256: true } } },
+                select: {
+                  title: true,
+                  revalleHash: {
+                    select: {
+                      finalSha256: true,
+                      sealedVersions: { orderBy: { sealedAt: 'asc' }, select: { sha256: true, sealedAt: true } },
+                    },
+                  },
+                },
               },
               recipients: {
                 select: {
@@ -88,6 +99,7 @@ export const findRevalleProofByCode = async (code: string): Promise<RevalleProof
   const items = envelope.envelopeItems.map((item) => ({
     title: item.title,
     finalSha256: completed ? (item.revalleHash?.finalSha256 ?? null) : null,
+    sealedVersions: completed ? (item.revalleHash?.sealedVersions ?? []) : [],
   }));
 
   const signers = envelope.recipients

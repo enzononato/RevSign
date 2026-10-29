@@ -2,6 +2,11 @@
 
 import { formatRevalleDateTime } from '@documenso/lib/revalle/date-format';
 import { revalleRoleVerb } from '@documenso/lib/revalle/role-verbs';
+import {
+  findSealedVersionMatch,
+  type RevalleSealedMatch,
+  type RevalleSealedVersion,
+} from '@documenso/lib/revalle/sealed-versions';
 import { createRateLimit } from '@documenso/lib/server-only/rate-limit/rate-limit';
 import {
   findRevalleProofByCode,
@@ -33,7 +38,8 @@ type LoaderData =
       documentTitle: string;
       status: 'COMPLETED' | 'REJECTED' | 'PENDING';
       completedAtLabel: string | null;
-      items: { title: string; finalSha256: string | null }[];
+      /** `versions`: todas as selagens do arquivo, da mais antiga para a atual (a última é `finalSha256`). */
+      items: { title: string; finalSha256: string | null; versions: RevalleSealedVersion[] }[];
       signers: { nome: string; cpfMasked: string | null; signedAtLabel: string; verb: string }[];
     };
 
@@ -84,7 +90,14 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
     documentTitle: result.documentTitle,
     status: result.status,
     completedAtLabel: result.completedAt ? formatRevalleDateTime(result.completedAt) : null,
-    items: result.items,
+    items: result.items.map((item) => ({
+      title: item.title,
+      finalSha256: item.finalSha256,
+      versions: item.sealedVersions.map((version) => ({
+        sha256: version.sha256,
+        sealedAtLabel: formatRevalleDateTime(version.sealedAt),
+      })),
+    })),
     signers: result.signers.map((s) => ({
       nome: s.nome,
       cpfMasked: s.cpfMasked,
@@ -101,9 +114,9 @@ type FileCheck =
   | { kind: 'idle' }
   | { kind: 'working' }
   | { kind: 'error'; message: string }
-  | { kind: 'done'; match: boolean };
+  | { kind: 'done'; match: RevalleSealedMatch | null };
 
-const FileChecker = ({ hashes }: { hashes: string[] }) => {
+const FileChecker = ({ items }: { items: { versions: RevalleSealedVersion[] }[] }) => {
   const [check, setCheck] = useState<FileCheck>({ kind: 'idle' });
 
   const onChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -125,7 +138,8 @@ const FileChecker = ({ hashes }: { hashes: string[] }) => {
       // O arquivo nunca sai do aparelho: o hash é calculado aqui, no navegador.
       const digest = toHex(await crypto.subtle.digest('SHA-256', await file.arrayBuffer()));
 
-      setCheck({ kind: 'done', match: hashes.includes(digest) });
+      // Confere com QUALQUER versão selada: uma cópia de antes de uma reselagem continua sendo o documento assinado.
+      setCheck({ kind: 'done', match: findSealedVersionMatch(digest, items) });
     } catch {
       setCheck({ kind: 'error', message: 'Não foi possível ler este arquivo neste navegador.' });
     }
@@ -149,9 +163,17 @@ const FileChecker = ({ hashes }: { hashes: string[] }) => {
         {check.kind === 'working' && <p className="text-sm">Conferindo…</p>}
         {check.kind === 'error' && <p className="text-destructive text-sm">{check.message}</p>}
         {check.kind === 'done' && check.match && (
-          <p className="font-medium text-green-700 dark:text-green-400">
-            Este arquivo é exatamente o documento assinado.
-          </p>
+          <>
+            <p className="font-medium text-green-700 dark:text-green-400">
+              Este arquivo confere com a versão selada em {check.match.sealedAtLabel} (horário de Brasília).
+            </p>
+            {check.match.newerSealedAtLabel && (
+              <p className="text-muted-foreground text-sm">
+                Existe uma versão selada mais recente deste documento, de {check.match.newerSealedAtLabel} (horário de
+                Brasília).
+              </p>
+            )}
+          </>
         )}
         {check.kind === 'done' && !check.match && (
           <p className="font-medium text-destructive">Este arquivo é diferente do documento assinado.</p>
@@ -164,7 +186,7 @@ const FileChecker = ({ hashes }: { hashes: string[] }) => {
 export default function VerificarPage() {
   const result = useLoaderData<typeof loader>() as LoaderData;
   const initial = result.state === 'found' || result.state === 'not-found' ? result.codigo : '';
-  const hashes = result.state === 'found' ? result.items.flatMap((i) => (i.finalSha256 ? [i.finalSha256] : [])) : [];
+  const hasSealedVersions = result.state === 'found' && result.items.some((item) => item.versions.length > 0);
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 text-foreground">
@@ -236,13 +258,23 @@ export default function VerificarPage() {
                     <code className="block break-all rounded bg-muted p-2 text-xs">
                       {item.finalSha256 ?? 'Selagem em andamento'}
                     </code>
+                    {item.versions.length > 1 && (
+                      <div className="mt-2 space-y-1 text-muted-foreground text-xs">
+                        <p>Versões seladas anteriores (substituídas por uma reselagem):</p>
+                        {item.versions.slice(0, -1).map((version, versionIndex) => (
+                          <p className="break-all" key={`${version.sha256}-${versionIndex}`}>
+                            Selada em {version.sealedAtLabel}: <code>{version.sha256}</code>
+                          </p>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             )}
           </section>
 
-          {hashes.length > 0 && <FileChecker hashes={hashes} />}
+          {hasSealedVersions && <FileChecker items={result.items} />}
         </>
       )}
     </div>

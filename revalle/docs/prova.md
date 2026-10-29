@@ -103,10 +103,11 @@ Destinatário de documento assinado antes da Fase 4 não tem prova congelada: o 
    - o título do documento;
    - a situação: `Concluído em <data>`, `Recusado em <data>` ou `Em andamento`;
    - **Participantes**: nome, CPF mascarado e a data em que cada um assinou (ou aprovou, visualizou…);
-   - **SHA-256 do documento final** (só quando concluído).
+   - **SHA-256 do documento final** (só quando concluído). Se o documento foi **reselado** (ex.: troca do certificado da empresa), aparecem também as **versões seladas anteriores**, cada uma com a data da selagem.
 4. Para saber se o PDF que você tem nas mãos é o mesmo que foi assinado, vá em **"Conferir um arquivo"** (aparece quando o documento já foi concluído) e escolha o PDF. A conta é feita no seu próprio navegador: o arquivo **não é enviado** para lugar nenhum. Resultado:
-   - `Este arquivo é exatamente o documento assinado.`: é o PDF final selado, sem nenhuma alteração;
-   - `Este arquivo é diferente do documento assinado.`: o arquivo foi alterado, é uma versão de antes da conclusão ou é outro documento.
+   - `Este arquivo confere com a versão selada em <data> (horário de Brasília).`: é um PDF final selado deste documento, sem nenhuma alteração;
+   - se, além disso, aparecer `Existe uma versão selada mais recente deste documento, de <data>`: a cópia é legítima, mas o documento foi reselado depois (o selo digital foi refeito, por exemplo na troca do certificado da empresa). As assinaturas são as mesmas; quem precisar da versão atual pode baixá-la de novo;
+   - `Este arquivo é diferente do documento assinado.`: o arquivo não confere com nenhuma versão selada: foi alterado, é uma versão de antes da conclusão ou é outro documento.
 
 O que **não** aparece no `/verificar`, de propósito: e-mail, IP, aparelho, localização, CPF completo e o conteúdo do documento.
 
