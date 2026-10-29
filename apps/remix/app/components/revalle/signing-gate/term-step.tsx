@@ -4,9 +4,10 @@ import { Checkbox } from '@documenso/ui/primitives/checkbox';
 import { Trans } from '@lingui/react/macro';
 import { Loader } from 'lucide-react';
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useRevalidator } from 'react-router';
 
 import { GateError } from './gate-error';
+import { StepHeading } from './step-heading';
 
 export type TermStepProps = {
   token: string;
@@ -21,6 +22,8 @@ export const TermStep = ({ token, termVersion, termText, termNotice, onDone }: T
   const [failed, setFailed] = useState(false);
 
   const { mutateAsync, isPending } = trpc.revalle.gate.acceptTerm.useMutation();
+  const { state } = useRevalidator();
+  const isBusy = isPending || state !== 'idle';
 
   const onSubmit = async () => {
     setFailed(false);
@@ -35,9 +38,9 @@ export const TermStep = ({ token, termVersion, termText, termNotice, onDone }: T
 
   return (
     <section className="flex flex-col gap-4">
-      <h1 className="font-bold text-2xl">
+      <StepHeading>
         <Trans>Antes de assinar</Trans>
-      </h1>
+      </StepHeading>
 
       <div
         className="max-h-72 overflow-y-auto whitespace-pre-line rounded-md border bg-muted/30 p-4 text-base leading-relaxed"
@@ -49,7 +52,12 @@ export const TermStep = ({ token, termVersion, termText, termNotice, onDone }: T
 
       <p className="text-muted-foreground text-sm">{termNotice}</p>
 
-      <Link to="/privacidade" target="_blank" className="font-medium text-documenso-700 underline">
+      <Link
+        to="/privacidade"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex min-h-11 items-center font-medium text-documenso-700 underline"
+      >
         <Trans>Política de privacidade</Trans>
       </Link>
 
@@ -73,10 +81,10 @@ export const TermStep = ({ token, termVersion, termText, termNotice, onDone }: T
         type="button"
         size="lg"
         className="h-12 w-full text-base"
-        disabled={!accepted || isPending}
+        disabled={!accepted || isBusy}
         onClick={onSubmit}
       >
-        {isPending && <Loader className="mr-2 h-5 w-5 animate-spin" />}
+        {isBusy && <Loader className="mr-2 h-5 w-5 animate-spin" />}
         <Trans>Continuar</Trans>
       </Button>
     </section>

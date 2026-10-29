@@ -5,9 +5,11 @@ import { Label } from '@documenso/ui/primitives/label';
 import { Plural, Trans } from '@lingui/react/macro';
 import { Loader } from 'lucide-react';
 import { useState } from 'react';
+import { useRevalidator } from 'react-router';
 
 import { GateError } from './gate-error';
 import { maskBirthDate, maskCpf } from './masks';
+import { StepHeading } from './step-heading';
 
 export type IdentityStepProps = {
   token: string;
@@ -23,6 +25,8 @@ export const IdentityStep = ({ token, attemptsLeft, onDone }: IdentityStepProps)
   const [currentAttempts, setCurrentAttempts] = useState(attemptsLeft);
 
   const { mutateAsync, isPending } = trpc.revalle.gate.verifyIdentity.useMutation();
+  const { state } = useRevalidator();
+  const isBusy = isPending || state !== 'idle';
 
   const isComplete = cpf.replace(/\D/g, '').length === 11 && birthDate.replace(/\D/g, '').length === 8;
 
@@ -48,16 +52,23 @@ export const IdentityStep = ({ token, attemptsLeft, onDone }: IdentityStepProps)
       }
 
       onDone();
-    } catch {
+    } catch (error) {
+      if ((error as { data?: { code?: string } }).data?.code === 'BAD_REQUEST') {
+        setFailed(true);
+        setBirthDate('');
+
+        return;
+      }
+
       setUnreachable(true);
     }
   };
 
   return (
     <section className="flex flex-col gap-4">
-      <h1 className="font-bold text-2xl">
+      <StepHeading>
         <Trans>Confirme que é você</Trans>
-      </h1>
+      </StepHeading>
 
       <p>
         <Trans>Na primeira assinatura, precisamos confirmar seus dados com o cadastro de colaboradores.</Trans>
@@ -75,6 +86,8 @@ export const IdentityStep = ({ token, attemptsLeft, onDone }: IdentityStepProps)
             inputMode="numeric"
             autoComplete="off"
             placeholder="000.000.000-00"
+            aria-invalid={failed}
+            aria-describedby={failed ? 'revalle-identity-error' : undefined}
             value={cpf}
             onChange={(event) => setCpf(maskCpf(event.target.value))}
           />
@@ -91,13 +104,15 @@ export const IdentityStep = ({ token, attemptsLeft, onDone }: IdentityStepProps)
             inputMode="numeric"
             autoComplete="off"
             placeholder="dd/mm/aaaa"
+            aria-invalid={failed}
+            aria-describedby={failed ? 'revalle-identity-error' : undefined}
             value={birthDate}
             onChange={(event) => setBirthDate(maskBirthDate(event.target.value))}
           />
         </div>
 
         {failed && (
-          <GateError>
+          <GateError id="revalle-identity-error">
             <Plural
               value={currentAttempts}
               one="CPF ou data de nascimento não conferem. Você tem # tentativa."
@@ -112,8 +127,8 @@ export const IdentityStep = ({ token, attemptsLeft, onDone }: IdentityStepProps)
           </GateError>
         )}
 
-        <Button type="submit" size="lg" className="h-12 w-full text-base" disabled={!isComplete || isPending}>
-          {isPending && <Loader className="mr-2 h-5 w-5 animate-spin" />}
+        <Button type="submit" size="lg" className="h-12 w-full text-base" disabled={!isComplete || isBusy}>
+          {isBusy && <Loader className="mr-2 h-5 w-5 animate-spin" />}
           <Trans>Confirmar</Trans>
         </Button>
       </form>

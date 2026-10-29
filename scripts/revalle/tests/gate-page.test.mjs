@@ -37,6 +37,23 @@ test('gate-page: antes do portão a página não traz documento; depois traz, e 
 
   assert.equal(opened(), '0');
 
+  for (const sub of ['complete', 'rejected']) {
+    const res = await fetch(`${BASE_URL}/sign/${token}/${sub}`, { redirect: 'manual' });
+    const body = await res.text();
+
+    assert.ok(
+      res.status >= 300 && res.status < 400,
+      `/${sub} deve redirecionar antes do portão (status ${res.status})`,
+    );
+    assert.ok(res.headers.get('location')?.endsWith(`/sign/${token}`));
+    assert.ok(!body.includes(title) && !body.includes('/api/files/'));
+  }
+
+  const expired = await fetch(`${BASE_URL}/sign/${token}/expired`, { redirect: 'manual' });
+
+  assert.ok(!(await expired.text()).includes(title), 'o título não pode aparecer em /expired antes do portão');
+  assert.equal(opened(), '0');
+
   assert.equal((await gate('acceptTerm', { token, termVersion: '1' })).status, 200);
 
   const mid = await page(token);
@@ -61,14 +78,14 @@ test('gate-page: antes do portão a página não traz documento; depois traz, e 
   assert.ok(after.includes(title), 'depois do portão a página normal traz o documento');
 
   const firstOpen = db(
-    `select min("createdAt") from "DocumentAuditLog" where "envelopeId" = '${created.id}' and type in ('DOCUMENT_OPENED','DOCUMENT_VIEWED')`,
+    `select min(extract(epoch from "createdAt")) from "DocumentAuditLog" where "envelopeId" = '${created.id}' and type in ('DOCUMENT_OPENED','DOCUMENT_VIEWED')`,
   );
   const gatePassed = db(
-    `select max("createdAt") from "DocumentAuditLog" where "envelopeId" = '${created.id}' and type in ('REVALLE_TERM_ACCEPTED','REVALLE_IDENTITY_CONFIRMED')`,
+    `select max(extract(epoch from "createdAt")) from "DocumentAuditLog" where "envelopeId" = '${created.id}' and type in ('REVALLE_TERM_ACCEPTED','REVALLE_IDENTITY_CONFIRMED')`,
   );
 
   assert.ok(
-    firstOpen && gatePassed && firstOpen >= gatePassed,
+    firstOpen && gatePassed && Number(firstOpen) >= Number(gatePassed),
     `abertura (${firstOpen}) antes do portão (${gatePassed})`,
   );
 });

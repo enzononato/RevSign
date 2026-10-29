@@ -3,8 +3,10 @@ import { Button } from '@documenso/ui/primitives/button';
 import { Trans } from '@lingui/react/macro';
 import { Loader } from 'lucide-react';
 import { useState } from 'react';
+import { useRevalidator } from 'react-router';
 
 import { GateError } from './gate-error';
+import { StepHeading } from './step-heading';
 
 export type ConfirmStepProps = {
   token: string;
@@ -16,6 +18,8 @@ export const ConfirmStep = ({ token, preview, onDone }: ConfirmStepProps) => {
   const [failed, setFailed] = useState(false);
 
   const { mutateAsync, isPending } = trpc.revalle.gate.confirmIdentity.useMutation();
+  const { state } = useRevalidator();
+  const isBusy = isPending || state !== 'idle';
 
   const answer = async (isMe: boolean) => {
     setFailed(false);
@@ -30,11 +34,11 @@ export const ConfirmStep = ({ token, preview, onDone }: ConfirmStepProps) => {
 
   return (
     <section className="flex flex-col gap-4">
-      <h1 className="font-bold text-2xl leading-snug">
+      <StepHeading>
         <Trans>Você é</Trans> <strong>{preview.primeiroNome}</strong>
         {preview.cargo && <em>, {preview.cargo}</em>}
         {preview.unidade && <em>, {preview.unidade}</em>}?
-      </h1>
+      </StepHeading>
 
       {failed && (
         <GateError>
@@ -42,14 +46,8 @@ export const ConfirmStep = ({ token, preview, onDone }: ConfirmStepProps) => {
         </GateError>
       )}
 
-      <Button
-        type="button"
-        size="lg"
-        className="h-12 w-full text-base"
-        disabled={isPending}
-        onClick={() => answer(true)}
-      >
-        {isPending && <Loader className="mr-2 h-5 w-5 animate-spin" />}
+      <Button type="button" size="lg" className="h-12 w-full text-base" disabled={isBusy} onClick={() => answer(true)}>
+        {isBusy && <Loader className="mr-2 h-5 w-5 animate-spin" />}
         <Trans>Sim, sou eu</Trans>
       </Button>
 
@@ -58,7 +56,7 @@ export const ConfirmStep = ({ token, preview, onDone }: ConfirmStepProps) => {
         variant="outline"
         size="lg"
         className="h-12 w-full text-base"
-        disabled={isPending}
+        disabled={isBusy}
         onClick={() => answer(false)}
       >
         <Trans>Não sou eu</Trans>

@@ -4,6 +4,7 @@ import { loadRecipientBrandingByTeamId } from '@documenso/lib/server-only/brandi
 import { getDocumentAndSenderByToken } from '@documenso/lib/server-only/document/get-document-by-token';
 import { isRecipientAuthorized } from '@documenso/lib/server-only/document/is-recipient-authorized';
 import { getRecipientByToken } from '@documenso/lib/server-only/recipient/get-recipient-by-token';
+import { isRevalleGateBlockingToken } from '@documenso/lib/server-only/revalle/gate/get-gate-state-for-loader';
 import { Badge } from '@documenso/ui/primitives/badge';
 import { Button } from '@documenso/ui/primitives/button';
 import { Trans } from '@lingui/react/macro';
@@ -37,7 +38,8 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 
   const branding = await loadRecipientBrandingByTeamId({ teamId: document.teamId });
 
-  const title = document.title;
+  // REVALLE: sem o título enquanto o portão não foi passado.
+  const title = (await isRevalleGateBlockingToken(token)) ? null : document.title;
 
   const recipient = await getRecipientByToken({ token }).catch(() => null);
 
@@ -90,9 +92,11 @@ export default function ExpiredSigningPage({ loaderData }: Route.ComponentProps)
     <>
       <RecipientBranding branding={branding} cspNonce={cspNonce} />
       <div className="flex flex-col items-center pt-24 lg:pt-36 xl:pt-44">
-        <Badge variant="neutral" size="default" title={title} className="mb-6 rounded-xl border bg-transparent">
-          {truncateTitle(title ?? '')}
-        </Badge>
+        {title && (
+          <Badge variant="neutral" size="default" title={title} className="mb-6 rounded-xl border bg-transparent">
+            {truncateTitle(title)}
+          </Badge>
+        )}
 
         <div className="flex flex-col items-center">
           <div className="flex items-center gap-x-4">

@@ -54,3 +54,25 @@ export const getRevalleGateLoaderPayload = async (
     senderName: recipient.envelope.user.name,
   };
 };
+
+/**
+ * Estado do portão para as subrotas da página de assinatura (concluído, recusado, expirado), em qualquer estado do documento.
+ * Devolve true quando há dados do documento que ainda não podem ser mostrados a este destinatário.
+ */
+export const isRevalleGateBlockingToken = async (
+  token: string,
+  requestMetadata?: RequestMetadata,
+): Promise<boolean> => {
+  const recipient = await prisma.recipient.findFirst({
+    where: { token },
+    select: { id: true, email: true, role: true, signingStatus: true },
+  });
+
+  if (!recipient) {
+    return false;
+  }
+
+  const state = await getRevalleGateState(recipient, requestMetadata);
+
+  return state.status !== 'PASSED';
+};
