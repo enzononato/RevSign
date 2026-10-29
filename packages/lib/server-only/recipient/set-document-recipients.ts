@@ -18,6 +18,7 @@ import { canRecipientBeModified, isRecipientEmailValidForSending } from '../../u
 import { assertEnvelopeMutable } from '../envelope/assert-envelope-mutable';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
+import { hasRevalleEmailChanged } from '../revalle/email-change'; // REVALLE:
 import { assertCompatibleRecipientGrouping } from '../signature-level/assert-compatible-recipient-grouping';
 import { assertCompatibleRecipientRole } from '../signature-level/assert-compatible-recipient-role';
 import { resolveReplacedRecipientSigningOrders } from './assign-omitted-recipient-signing-orders';
@@ -174,6 +175,10 @@ export const setDocumentRecipients = async ({
           update: {
             name: recipient.name,
             email: recipient.email,
+            // REVALLE: e-mail trocado ganha link novo; o link antigo (já enviado ao e-mail anterior) deixa de abrir.
+            ...(recipient._persisted && hasRevalleEmailChanged(recipient._persisted.email, recipient.email)
+              ? { token: nanoid() }
+              : {}),
             role: recipient.role,
             signingOrder: recipient.signingOrder,
             envelopeId: envelope.id,

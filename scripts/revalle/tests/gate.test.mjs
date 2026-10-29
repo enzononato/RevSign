@@ -55,6 +55,7 @@ const call = async (procedure, input) => {
 
 const acceptTerm = (token) => call('acceptTerm', { token, termVersion: TERM_VERSION });
 const verify = (token, cpf, birthDate) => call('verifyIdentity', { token, cpf, birthDate });
+const currentToken = (recipientId) => db(`select token from "Recipient" where id = ${recipientId}`);
 const attempts = (recipientId) =>
   Number(db(`select "failedAttempts" from "RevalleRecipientGate" where "recipientId" = ${recipientId}`));
 
@@ -373,10 +374,15 @@ test('trocar o e-mail do destinatário reinicia o portão', async () => {
 
   assert.equal(upd.status, 200, upd.text);
 
-  const res = await verify(r.token, MARIA.cpf, MARIA.birthDate);
+  // O e-mail novo ganha link novo (token trocado); o portão é do destinatário e recomeça.
+  const token = currentToken(r.recipientId);
+
+  assert.notEqual(token, r.token);
+
+  const res = await verify(token, MARIA.cpf, MARIA.birthDate);
 
   assert.equal(res.state.status, 'TERM_REQUIRED');
-  assert.equal((await acceptTerm(r.token)).state.status, 'IDENTITY_REQUIRED');
+  assert.equal((await acceptTerm(token)).state.status, 'IDENTITY_REQUIRED');
   assert.equal(attempts(r.recipientId), 0);
 });
 
@@ -394,7 +400,7 @@ test('trocar o e-mail mantém o bloqueio e as tentativas', async () => {
   });
 
   assert.equal(upd.status, 200, upd.text);
-  assert.equal((await verify(locked.token, MARIA.cpf, MARIA.birthDate)).state.status, 'LOCKED');
+  assert.equal((await verify(currentToken(locked.recipientId), MARIA.cpf, MARIA.birthDate)).state.status, 'LOCKED');
 
   const partial = await newRecipient();
 
@@ -408,8 +414,10 @@ test('trocar o e-mail mantém o bloqueio e as tentativas', async () => {
     data: [{ id: partial.recipientId, email: unique() }],
   });
 
-  assert.equal((await verify(partial.token, MARIA.cpf, MARIA.birthDate)).state.status, 'TERM_REQUIRED');
-  assert.deepEqual((await acceptTerm(partial.token)).state, { status: 'IDENTITY_REQUIRED', attemptsLeft: 2 });
+  const partialToken = currentToken(partial.recipientId);
+
+  assert.equal((await verify(partialToken, MARIA.cpf, MARIA.birthDate)).state.status, 'TERM_REQUIRED');
+  assert.deepEqual((await acceptTerm(partialToken)).state, { status: 'IDENTITY_REQUIRED', attemptsLeft: 2 });
 });
 
 test('envelope rascunho ou concluído devolve 404', async () => {
