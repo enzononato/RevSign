@@ -16,8 +16,8 @@ export type IcpSignaturePolicy = {
  * Validade da política: 2025-07-23 a 2037-10-22. A v1.2 (2.16.76.1.7.1.11.1.2) foi revogada em 2025-07-23;
  * v1.0/v1.1 seguem válidas até 2029-03-02, mas foram substituídas.
  *
- * Dois hashes possíveis no sigPolicyHash (NEXT_PRIVATE_REVALLE_ICP_POLICY_HASH): o ETSI TS 101 733 (padrão, o que o
- * Demoiselle compara via getSignPolicyHash) e o da LPA. O arquivo oficial está em fixtures/ e o teste confere os dois.
+ * Dois hashes possíveis no sigPolicyHash (NEXT_PRIVATE_REVALLE_ICP_POLICY_HASH): o ETSI TS 101 733 (padrão; provavelmente o que o
+ * Demoiselle compara via getSignPolicyHash, não confirmado) e o da LPA. O arquivo oficial está em fixtures/ e o teste confere os dois.
  * Ao trocar de versão, ver revalle/docs/certificado.md ("Política nova na LPA").
  */
 export const ICP_PADES_AD_RB: IcpSignaturePolicy = {
