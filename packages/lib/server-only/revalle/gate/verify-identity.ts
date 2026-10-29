@@ -113,7 +113,12 @@ export const verifyRevalleIdentity = async ({
     });
 
     if (linkedElsewhere || (colaborador.email && normalizeEmail(colaborador.email) !== email)) {
-      await lockRevalleGate({ recipientId, reason: 'CPF_CONFLICT', requestMetadata });
+      await lockRevalleGate({
+        recipientId,
+        reason: 'CPF_CONFLICT',
+        conflictCpf: colaborador.cpf,
+        requestMetadata,
+      });
 
       return { status: 'LOCKED' };
     }

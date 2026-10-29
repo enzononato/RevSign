@@ -7,7 +7,10 @@ export const LockedView = () => (
   <section className="flex flex-col items-center gap-4 text-center">
     <LockKeyhole className="h-12 w-12 text-destructive" />
     <StepHeading>
-      <Trans>Este link foi bloqueado por segurança. Avisamos quem enviou o documento. Peça um novo envio.</Trans>
+      <Trans>
+        Este link foi bloqueado por segurança. Avisamos quem enviou o documento e o TI. Aguarde o desbloqueio ou peça um
+        novo envio para outro e-mail.
+      </Trans>
     </StepHeading>
   </section>
 );

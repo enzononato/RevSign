@@ -10,7 +10,7 @@ import { TemplateFooter } from '../template-components/template-footer';
 export type RevalleGateLockedTemplateProps = {
   documentName: string;
   recipientEmail: string;
-  reason: 'ATTEMPTS' | 'CPF_CONFLICT';
+  reason: 'ATTEMPTS' | 'CPF_CONFLICT' | 'CODE_ATTEMPTS';
   assetBaseUrl: string;
 };
 
@@ -49,15 +49,19 @@ export const RevalleGateLockedTemplate = ({
               </Text>
 
               <Text className="my-1 text-center text-base text-muted-foreground">
-                {reason === 'ATTEMPTS' ? (
-                  <Trans>Motivo: a pessoa errou o CPF ou a data de nascimento 5 vezes.</Trans>
-                ) : (
-                  <Trans>Motivo: o CPF informado já pertence a outro e-mail.</Trans>
+                {reason === 'ATTEMPTS' && <Trans>Motivo: a pessoa errou o CPF ou a data de nascimento 5 vezes.</Trans>}
+                {reason === 'CPF_CONFLICT' && <Trans>Motivo: o CPF informado já pertence a outro e-mail.</Trans>}
+                {reason === 'CODE_ATTEMPTS' && (
+                  <Trans>Motivo: o código enviado por e-mail foi digitado errado 5 vezes.</Trans>
                 )}
               </Text>
 
               <Text className="my-1 text-center text-base text-muted-foreground">
-                <Trans>Para liberar, peça ao TI para desbloquear em Admin → Verificações.</Trans>
+                <Trans>
+                  Quem recebeu o link vê: "Este link foi bloqueado por segurança. Avisamos quem enviou o documento e o
+                  TI. Aguarde o desbloqueio ou peça um novo envio para outro e-mail." Para liberar, o TI desbloqueia em
+                  Admin → Verificações.
+                </Trans>
               </Text>
             </Section>
           </Container>

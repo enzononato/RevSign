@@ -109,6 +109,39 @@ const markLinked = async (
   }
 };
 
+// Homologação sem base (IDENTITY_CHECK=disabled): a etapa fica registrada como não verificada, também na auditoria.
+const markSkipped = async (recipient: RevalleGateRecipient, requestMetadata: RequestMetadata | undefined) => {
+  const updated = await prisma.revalleRecipientGate.updateMany({
+    where: {
+      recipientId: recipient.id,
+      lockedAt: null,
+      identityStatus: { notIn: ['LINKED', 'CONFIRMED', 'SKIPPED'] },
+    },
+    data: { identityStatus: 'SKIPPED', pendingCpf: null },
+  });
+
+  if (updated.count === 0) {
+    return;
+  }
+
+  const row = await prisma.recipient.findUnique({
+    where: { id: recipient.id },
+    select: { envelopeId: true, name: true, email: true },
+  });
+
+  if (row) {
+    await prisma.documentAuditLog.create({
+      data: createDocumentAuditLogData({
+        type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_IDENTITY_SKIPPED,
+        envelopeId: row.envelopeId,
+        data: {},
+        user: { name: row.name, email: row.email },
+        requestMetadata,
+      }),
+    });
+  }
+};
+
 export const getRevalleGateState = async (
   recipient: RevalleGateRecipient,
   requestMetadata?: RequestMetadata,
@@ -138,10 +171,7 @@ export const getRevalleGateState = async (
   }
 
   if (isRevalleIdentityCheckDisabled()) {
-    await prisma.revalleRecipientGate.update({
-      where: { recipientId: recipient.id },
-      data: { identityStatus: 'SKIPPED' },
-    });
+    await markSkipped(recipient, requestMetadata);
 
     return { status: 'PASSED' };
   }

@@ -7,7 +7,11 @@ import { DateTime } from 'luxon';
 import { useEffect, useState } from 'react';
 
 const TIMEZONE = 'America/Bahia';
-const REASONS = { ATTEMPTS: 'Excesso de tentativas', CPF_CONFLICT: 'CPF ligado a outro e-mail' } as const;
+const REASONS = {
+  ATTEMPTS: 'Excesso de tentativas',
+  CPF_CONFLICT: 'CPF ligado a outro e-mail',
+  CODE_ATTEMPTS: 'Excesso de códigos errados',
+} as const;
 
 const formatDate = (date: Date) => DateTime.fromJSDate(new Date(date)).setZone(TIMEZONE).toFormat('dd/MM/yyyy HH:mm');
 
@@ -15,7 +19,8 @@ type LockedItem = {
   id: string;
   documentTitle: string;
   recipientEmail: string;
-  reason: 'ATTEMPTS' | 'CPF_CONFLICT';
+  reason: keyof typeof REASONS;
+  conflictEmail: string | null;
   lockedAt: Date;
 };
 type LinkItem = { id: string; email: string; name: string | null; cpfMasked: string; createdAt: Date };
@@ -73,7 +78,12 @@ const LockedSection = () => {
               <tr key={item.id} className="border-t">
                 <td className="max-w-[16rem] truncate p-3">{item.documentTitle}</td>
                 <td className="p-3">{item.recipientEmail}</td>
-                <td className="p-3">{REASONS[item.reason]}</td>
+                <td className="p-3">
+                  {REASONS[item.reason]}
+                  {item.conflictEmail && (
+                    <span className="block text-muted-foreground text-xs">Vínculo atual: {item.conflictEmail}</span>
+                  )}
+                </td>
                 <td className="whitespace-nowrap p-3">{formatDate(item.lockedAt)}</td>
                 <td className="p-3 text-right">
                   <Button size="sm" variant="outline" disabled={isUnlocking} onClick={() => void onUnlock(item.id)}>
@@ -153,7 +163,7 @@ const LinksSection = () => {
     <section className="mt-12">
       <h3 className="font-semibold text-xl">Vínculos de e-mail</h3>
       <p className="mt-1 text-muted-foreground text-sm">
-        Ao remover um vínculo, a pessoa precisa confirmar CPF e data de nascimento de novo na próxima assinatura.
+        Ao remover um vínculo, a pessoa precisa confirmar CPF e data de nascimento de novo em documentos novos.
       </p>
 
       <Input

@@ -680,16 +680,26 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
       return { anonymous: text, you: text, user: text };
     })
     .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_GATE_LOCKED }, ({ data }) => {
-      const text =
-        data.reason === 'ATTEMPTS'
-          ? msg`Link bloqueado (excesso de tentativas)`
-          : msg`Link bloqueado (CPF vinculado a outro e-mail)`;
+      const text = match(data.reason)
+        .with('ATTEMPTS', () => msg`Link bloqueado (excesso de tentativas)`)
+        .with('CODE_ATTEMPTS', () => msg`Link bloqueado (excesso de códigos errados)`)
+        .otherwise(() =>
+          data.cpfMasked
+            ? msg`Link bloqueado (CPF ${data.cpfMasked} vinculado a outro e-mail)`
+            : msg`Link bloqueado (CPF vinculado a outro e-mail)`,
+        );
 
       return { anonymous: text, you: text, user: text };
     })
     // REVALLE:
     .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_GATE_UNLOCKED }, () => {
       const text = msg`Link desbloqueado pelo administrador`;
+
+      return { anonymous: text, you: text, user: text };
+    })
+    // REVALLE:
+    .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_IDENTITY_SKIPPED }, () => {
+      const text = msg`Verificação de identidade desativada nesta instalação (não verificado)`;
 
       return { anonymous: text, you: text, user: text };
     })

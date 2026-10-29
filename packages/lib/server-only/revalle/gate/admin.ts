@@ -7,6 +7,7 @@ import type { RequestMetadata } from '../../../universal/extract-request-metadat
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { logger } from '../../../utils/logger';
 import { type Colaborador, getColaboradoresRepository } from '../colaboradores/repository';
+import type { RevalleLockReason } from './lock-gate';
 
 type Admin = { id: number; email: string; name: string | null };
 
@@ -20,18 +21,33 @@ export const findLockedRevalleGates = async ({ cursor, limit }: { cursor?: strin
       id: true,
       lockedAt: true,
       lockReason: true,
+      conflictCpf: true,
       recipient: { select: { email: true, envelope: { select: { id: true, title: true } } } },
     },
   });
 
   const page = gates.slice(0, limit);
 
+  // No conflito de CPF, o e-mail que já tem o vínculo desse CPF (se houver) ajuda o TI a achar o vínculo a remover.
+  const conflictCpfs = page.flatMap((gate) => (gate.conflictCpf ? [gate.conflictCpf] : []));
+  const conflictLinks = conflictCpfs.length
+    ? await prisma.revalleEmailLink.findMany({
+        where: { cpf: { in: conflictCpfs } },
+        select: { cpf: true, email: true },
+      })
+    : [];
+  const emailByCpf = new Map(conflictLinks.map((link) => [link.cpf, link.email]));
+
+  const toReason = (reason: string | null): RevalleLockReason =>
+    reason === 'CPF_CONFLICT' || reason === 'CODE_ATTEMPTS' ? reason : 'ATTEMPTS';
+
   return {
     items: page.map((gate) => ({
       id: gate.id,
       documentTitle: gate.recipient.envelope.title,
       recipientEmail: gate.recipient.email,
-      reason: gate.lockReason === 'CPF_CONFLICT' ? ('CPF_CONFLICT' as const) : ('ATTEMPTS' as const),
+      reason: toReason(gate.lockReason),
+      conflictEmail: gate.conflictCpf ? (emailByCpf.get(gate.conflictCpf) ?? null) : null,
       lockedAt: gate.lockedAt as Date,
     })),
     nextCursor: gates.length > limit ? page[page.length - 1].id : null,
@@ -49,7 +65,15 @@ export const unlockRevalleGate = async ({
 }) => {
   const unlocked = await prisma.revalleRecipientGate.updateMany({
     where: { id: gateId, lockedAt: { not: null } },
-    data: { failedAttempts: 0, lockedAt: null, lockReason: null, identityStatus: 'PENDING', pendingCpf: null },
+    data: {
+      failedAttempts: 0,
+      codeFailedAttempts: 0,
+      lockedAt: null,
+      lockReason: null,
+      conflictCpf: null,
+      identityStatus: 'PENDING',
+      pendingCpf: null,
+    },
   });
 
   if (unlocked.count === 0) {

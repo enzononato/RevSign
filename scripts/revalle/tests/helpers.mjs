@@ -47,15 +47,21 @@ export const trpc = async (procedure, input, headers = {}) =>
     }),
   );
 
-// Cria um envelope com um campo de assinatura por destinatário. Devolve { status, ok, body, text, id, envelope }.
-export const createEnvelope = async ({ recipients, pdf = 'assets/example.pdf', title, meta } = {}) => {
+// Cria um envelope (DOCUMENT por padrão) com um campo de assinatura por destinatário. Devolve { status, ok, body, text, id, envelope }.
+export const createEnvelope = async ({
+  recipients,
+  pdf = 'assets/example.pdf',
+  title,
+  meta,
+  type = 'DOCUMENT',
+} = {}) => {
   const form = new FormData();
 
   form.append(
     'payload',
     JSON.stringify({
       title: title ?? `[TESTE] ${new Date().toISOString()}`,
-      type: 'DOCUMENT',
+      type,
       meta: { distributionMethod: 'NONE', ...meta },
       recipients: recipients.map((r) => ({
         role: 'SIGNER',
@@ -122,6 +128,28 @@ export const completeWithCode = async ({ token, documentId, email, extra = {}, h
   );
 };
 
+// Código de 6 dígitos do e-mail calculado DENTRO do container do app (a chave não sai de lá; só o código volta).
+// `periodsAgo`: quantos períodos de 30 s atrás (0 = código atual; a conclusão aceita até 9 atrás, 5 minutos).
+export const computeEmailCode = ({ email, envelopeId, periodsAgo = 0 }) => {
+  const script = `
+    const crypto = require('node:crypto');
+    const [email, envelopeId, periodsAgo] = process.argv.slice(1);
+    const secret = crypto.createHmac('sha256', process.env.NEXT_PRIVATE_ENCRYPTION_KEY)
+      .update('email-2fa|v1|email:' + email + '|id:' + envelopeId).digest();
+    const counter = Buffer.alloc(8);
+    counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30000) - Number(periodsAgo)));
+    const h = crypto.createHmac('sha1', secret).update(counter).digest();
+    const o = h[h.length - 1] & 0xf;
+    process.stdout.write(String((h.readUInt32BE(o) & 0x7fffffff) % 1000000).padStart(6, '0'));
+  `;
+
+  return execFileSync(
+    'docker',
+    ['exec', 'revsign-hml-documenso-1', 'node', '-e', script, email, envelopeId, String(periodsAgo)],
+    { encoding: 'utf8' },
+  ).trim();
+};
+
 // Consulta SQL no banco da stack local (psql -At).
 export const db = (sql) =>
   execFileSync(
@@ -165,10 +193,10 @@ export const signIn = async (email, password) => {
   return cookie();
 };
 
-// tRPC autenticado por sessão. `kind`: 'query' (GET com input na URL) ou 'mutation' (POST).
-export const trpcAs = async (cookie, kind, procedure, input) => {
+// tRPC autenticado por sessão. `kind`: 'query' (GET com input na URL) ou 'mutation' (POST). `extraHeaders` (ex.: x-team-id).
+export const trpcAs = async (cookie, kind, procedure, input, extraHeaders = {}) => {
   const origin = new URL(BASE_URL).origin;
-  const headers = { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json' };
+  const headers = { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json', ...extraHeaders };
 
   const res =
     kind === 'query'

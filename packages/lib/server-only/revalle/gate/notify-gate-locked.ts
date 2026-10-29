@@ -7,13 +7,15 @@ import { env } from '../../../utils/env';
 import { logger } from '../../../utils/logger';
 import { renderEmailWithI18N } from '../../../utils/render-email-with-i18n';
 import { getEmailContext } from '../../email/get-email-context';
+import { revalleErrorCode } from '../error-code';
+import type { RevalleLockReason } from './lock-gate';
 
 export const notifyRevalleGateLocked = async ({
   recipientId,
   reason,
 }: {
   recipientId: number;
-  reason: 'ATTEMPTS' | 'CPF_CONFLICT';
+  reason: RevalleLockReason;
 }): Promise<void> => {
   const recipient = await prisma.recipient.findUniqueOrThrow({
     where: { id: recipientId },
@@ -70,7 +72,7 @@ export const notifyRevalleGateLocked = async ({
         text,
       });
     } catch (error) {
-      logger.error({ msg: '[RevSign] falha ao enviar aviso de bloqueio', recipientId, error: String(error) });
+      logger.error({ msg: '[RevSign] falha ao enviar aviso de bloqueio', recipientId, code: revalleErrorCode(error) });
     }
   }
 };

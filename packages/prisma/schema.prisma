@@ -1334,8 +1334,10 @@ model RevalleRecipientGate {
   cpf                 String?
   identityConfirmedAt DateTime?
   failedAttempts      Int       @default(0)
+  codeFailedAttempts  Int       @default(0)
   lockedAt            DateTime?
-  lockReason          String? // ATTEMPTS | CPF_CONFLICT
+  lockReason          String? // ATTEMPTS | CPF_CONFLICT | CODE_ATTEMPTS
+  conflictCpf         String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 }

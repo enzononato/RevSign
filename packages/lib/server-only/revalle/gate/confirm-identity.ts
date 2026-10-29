@@ -117,7 +117,7 @@ export const confirmRevalleIdentity = async ({
     }
   } catch (error) {
     if (error instanceof ConflictError || isUniqueViolation(error)) {
-      await lockRevalleGate({ recipientId, reason: 'CPF_CONFLICT', requestMetadata });
+      await lockRevalleGate({ recipientId, reason: 'CPF_CONFLICT', conflictCpf: cpf, requestMetadata });
 
       return { status: 'LOCKED' };
     }
