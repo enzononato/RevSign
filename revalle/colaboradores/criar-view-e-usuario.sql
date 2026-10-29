@@ -35,12 +35,14 @@ GRANT CONNECT ON DATABASE <banco> TO revsign_leitura;
 GRANT USAGE ON SCHEMA public TO revsign_leitura;
 GRANT SELECT ON vw_colaboradores_assinatura TO revsign_leitura;
 
--- 3b) Confira que PUBLIC não tem SELECT na tabela (senão o revsign_leitura herdaria o acesso).
---     No psql: \dp <tabela>   (uma linha "=r/..." na coluna de privilégios significa que PUBLIC lê).
---     Ou: deve retornar ZERO linhas.
-SELECT grantee, privilege_type FROM information_schema.role_table_grants
- WHERE table_name = '<tabela>' AND grantee = 'PUBLIC' AND privilege_type = 'SELECT';
---     Se aparecer linha: REVOKE SELECT ON <tabela> FROM PUBLIC;  (avalie antes se outros usuários dependem disso)
+-- 3b) Confira que PUBLIC NÃO pode ler a tabela (senão o revsign_leitura herdaria o acesso).
+--     Verificação principal, no psql:   \dp <tabela>
+--     Olhe a coluna "Access privileges". Uma entrada que COMECE com "=r/" (sinal de igual logo no início,
+--     sem nome antes) significa que PUBLIC pode ler. Isso precisa ser revogado.
+--     Confirmação por SQL (mostra a lista de privilégios da tabela; procure por "=r/"):
+SELECT relname, relacl FROM pg_class WHERE oid = '<tabela>'::regclass;
+--     Se aparecer "=r/": quem é dono da tabela (ou o TI) roda  REVOKE SELECT ON <tabela> FROM PUBLIC;
+--     (avalie antes se outros usuários dependem disso). relacl vazio (NULL) = só o dono acessa.
 
 -- 4) Teste (conectado como revsign_leitura): deve listar pessoas.
 --    Já a mesma consulta na tabela <tabela> deve dar "permission denied".
