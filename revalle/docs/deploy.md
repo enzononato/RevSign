@@ -236,6 +236,30 @@ Vale para quem atualiza uma instalação que já está em uso, vinda da Fase 3. 
    3. (Opcional) Teste direto, no **Console** do serviço `revsign`: `cd /app && node -e "require('maxmind').open('/app/geoip/dbip-city-lite.mmdb').then((r) => console.log(r.get('8.8.8.8')?.country?.iso_code, r.metadata.buildEpoch))"`. Esperado: `US` e a data da base.
 5. **Selagem.** Assine um documento de teste e confira o PDF final como em `certificado.md` (painel de assinaturas do leitor de PDF ou `scripts/revalle/inspect-pdf-signature.sh`).
 
+## Antes de atualizar (Fase 2)
+
+Vale para quem atualiza uma instalação que já está em uso, vinda da Fase 4 (marca RevSign e interface em pt-BR). Numa instalação nova o `app.env` do passo 0 já sai certo e não há contas antigas: nada a fazer.
+
+1. **Variáveis no EasyPanel.** Os padrões novos só valem quando a variável NÃO está definida. Numa instalação antiga, abra o serviço `revsign` → **Environment** e confira (ver a tabela abaixo):
+   - `NEXT_PRIVATE_SMTP_FROM_NAME=RevSign`: o valor antigo (`Revalle Assinaturas`) continua mandando e os e-mails saem com o nome antigo. Troque para `RevSign`;
+   - `NEXT_PRIVATE_SIGNING_REASON=Selado pelo RevSign da Revalle`: troque se estiver com o valor antigo `Selado pelo RevSign (Revalle)` (os parênteses saíam com barras no PDF), ou apague a linha para usar o padrão;
+   - `NEXT_PUBLIC_SUPPORT_EMAIL=projetos.ti@revalle.com.br`: e-mail de suporte das telas e dos e-mails (redefinir senha, conta criada pelo admin). Acrescente, ou ponha o e-mail que a TI quer receber.
+   Salve e faça o **Deploy** com a imagem nova.
+2. **(Opcional) Nome da organização e da equipe pessoais em pt-BR.** Contas novas já nascem com "Organização pessoal" e "Equipe pessoal". As contas antigas continuam com "Personal Organisation" / "Personal Team" no menu até alguém renomear. Para renomear todas de uma vez, faça o backup antes (passo 7, item 8) e, no EasyPanel, abra o serviço do Postgres do RevSign (`revsign-db`) → **Console**, rode `psql -U <usuario> -d <banco>` (como na Fase 3) e cole:
+   ```sql
+   SET client_encoding = 'UTF8';
+   BEGIN;
+   UPDATE "Organisation" SET name = 'Organização pessoal' WHERE name = 'Personal Organisation';
+   UPDATE "Team" SET name = 'Equipe pessoal' WHERE name = 'Personal Team';
+   SELECT name, count(*) FROM "Organisation" WHERE name IN ('Personal Organisation', 'Organização pessoal') GROUP BY name;
+   SELECT name, count(*) FROM "Team" WHERE name IN ('Personal Team', 'Equipe pessoal') GROUP BY name;
+   ```
+   - Só muda as linhas com exatamente o nome antigo; organização ou equipe que alguém renomeou fica como está. Pode rodar de novo: a segunda vez muda 0 linhas.
+   - Confira os dois `UPDATE n` e as duas contagens: nenhuma linha com o nome antigo e os acentos certos (`Organização`, sem `?` ou `Ã§`).
+   - Tudo certo: digite `COMMIT;`. Algo estranho: digite `ROLLBACK;` (nada muda) e avise o desenvolvedor.
+3. **Verificação em duas etapas (2FA) e chave de acesso (passkey).** O nome no aplicativo autenticador e no gerenciador de senhas passou de "Documenso" para "RevSign" só para o que for cadastrado a partir desta versão. Quem já tinha 2FA ou passkey continua vendo "Documenso" no celular, e os códigos continuam valendo normalmente. Para ver "RevSign", basta desativar e cadastrar de novo (ou renomear a entrada no próprio aplicativo).
+4. **Links públicos de compartilhamento.** O RevSign não cria mais link público de compartilhamento (`/share/<código>`, o "Compartilhar" do Documenso), e os links criados antes desta versão param de funcionar. O link do QR do certificado (`/share/qr_…`) continua valendo.
+
 ## Tabela de todas as variáveis
 
 Legenda de "segredo?": **sim** = nunca no repositório, só no EasyPanel e no cofre.
@@ -256,6 +280,8 @@ Legenda de "segredo?": **sim** = nunca no repositório, só no EasyPanel e no co
 | `NEXT_PUBLIC_REVALLE_SOURCE_URL` | Link "Código-fonte" no rodapé (exigência da AGPL) | `https://github.com/enzononato/RevSign` | não |
 | `NEXT_PRIVATE_ALLOWED_SIGNUP_DOMAINS` | Só e-mails destes domínios podem se cadastrar | `revalle.com.br,revallenordeste.com.br,revallepe.com.br` | não |
 | `NEXT_PRIVATE_REVALLE_RATE_LIMITS` | (Opcional) muda limites de tentativas. Sem ela valem os padrões do RevSign (cadastro, login, código por e-mail etc.; tabela em `verificacao.md`) | não definir | não |
+| `NEXT_PRIVATE_SIGNING_REASON` | Motivo gravado na assinatura digital do PDF (aparece no leitor de PDF, no painel de assinaturas) | `Selado pelo RevSign da Revalle`. Um EasyPanel que já tenha o valor antigo `Selado pelo RevSign (Revalle)` precisa ser atualizado (os parênteses saíam com barras no PDF) | não |
+| `NEXT_PUBLIC_SUPPORT_EMAIL` | E-mail de suporte mostrado nas telas (Suporte, avisos) e nos e-mails | `projetos.ti@revalle.com.br` | não |
 | `NEXT_PRIVATE_REVALLE_ADMIN_EMAIL` | Conta promovida a ADMIN quando o app sobe | `projetos.ti@revalle.com.br` | não |
 | `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK` | Confere CPF e data de nascimento na base de colaboradores na primeira assinatura. `required` (padrão) ou `disabled` (pula a etapa; só homologação sem a base, nunca em produção) | não definir (vale `required`) ou `disabled` enquanto não houver base | não |
 | `COLABORADORES_DATABASE_URL` | Conexão SÓ DE LEITURA com a view `vw_colaboradores_assinatura` da base de colaboradores (`postgres://revsign_leitura:<senha>@<host>:5432/<banco>`; ver `verificacao.md`) | URL da base real, ou da base fictícia de ensaio | sim |
@@ -271,7 +297,7 @@ Legenda de "segredo?": **sim** = nunca no repositório, só no EasyPanel e no co
 | `NEXT_PRIVATE_SMTP_SECURE` | `true` para a porta 465, `false` para a 587 | `true` (ou `false`) | não |
 | `NEXT_PRIVATE_SMTP_USERNAME` | Usuário do e-mail (endereço completo) | `assinaturas@revalle.com.br` | não |
 | `NEXT_PRIVATE_SMTP_PASSWORD` | Senha da conta de e-mail | senha da conta no cPanel | sim |
-| `NEXT_PRIVATE_SMTP_FROM_NAME` | Nome do remetente | `Revalle Assinaturas` | não |
+| `NEXT_PRIVATE_SMTP_FROM_NAME` | Nome do remetente dos e-mails | `RevSign` | não |
 | `NEXT_PRIVATE_SMTP_FROM_ADDRESS` | Endereço do remetente | `assinaturas@revalle.com.br` | não |
 | `NEXT_PRIVATE_SIGNING_LOCAL_FILE_CONTENTS` | Certificado `.p12` em base64 (uma linha) | gerado pelo script | sim |
 | `NEXT_PRIVATE_SIGNING_PASSPHRASE` | Senha do certificado | gerada pelo script | sim |

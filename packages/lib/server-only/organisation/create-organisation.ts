@@ -6,6 +6,7 @@ import { OrganisationMemberRole, OrganisationType, Prisma, type SubscriptionClai
 import { IS_BILLING_ENABLED } from '../../constants/app';
 import { ORGANISATION_INTERNAL_GROUPS } from '../../constants/organisations';
 import { AppError, AppErrorCode } from '../../errors/app-error';
+import { REVALLE_PERSONAL_ORGANISATION_NAME, REVALLE_PERSONAL_TEAM_NAME } from '../../revalle/brand';
 import { INTERNAL_CLAIM_ID } from '../../types/subscription';
 import { generateDatabaseId, prefixedId } from '../../universal/id';
 import { generateDefaultOrganisationSettings } from '../../utils/organisations';
@@ -154,7 +155,7 @@ export const createPersonalOrganisation = async ({
   const freeSubscriptionClaim = await getSubscriptionClaim(INTERNAL_CLAIM_ID.FREE);
 
   const organisation = await createOrganisation({
-    name: 'Personal Organisation',
+    name: REVALLE_PERSONAL_ORGANISATION_NAME, // REVALLE: nome em pt-BR
     userId,
     url: orgUrl,
     type,
@@ -172,7 +173,7 @@ export const createPersonalOrganisation = async ({
   if (organisation) {
     await createTeam({
       userId,
-      teamName: 'Personal Team',
+      teamName: REVALLE_PERSONAL_TEAM_NAME, // REVALLE: nome em pt-BR
       teamUrl: prefixedId('personal'),
       organisationId: organisation.id,
       inheritMembers,

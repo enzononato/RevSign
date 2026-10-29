@@ -258,14 +258,15 @@ export const SignaturePadDraw = ({ className, value, onChange, ...props }: Signa
         setSelectedColor={setSelectedColor}
       />
 
+      {/* REVALLE: no celular (< sm) "limpar" e "desfazer" têm 44 px de altura, encostados na borda. */}
       <div
-        className={cn('absolute right-3 bottom-3 flex gap-2 transition-opacity duration-100', {
+        className={cn('absolute right-1 bottom-0 flex gap-2 transition-opacity duration-100 sm:right-3 sm:bottom-3', {
           'pointer-events-none opacity-0': isPressed,
         })}
       >
         <button
           type="button"
-          className="rounded-full p-0 text-[0.688rem] text-muted-foreground/60 ring-offset-background hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-h-11 rounded-full p-0 px-2 text-[0.688rem] text-muted-foreground/60 ring-offset-background hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-0 sm:px-0"
           onClick={() => onClearClick()}
         >
           <Trans>Clear Signature</Trans>
@@ -286,14 +287,14 @@ export const SignaturePadDraw = ({ className, value, onChange, ...props }: Signa
 
       {isSignatureValid && lines.length > 0 && (
         <div
-          className={cn('absolute bottom-4 left-4 flex gap-2 transition-opacity duration-100', {
+          className={cn('absolute bottom-0 left-1 flex gap-2 transition-opacity duration-100 sm:bottom-4 sm:left-4', {
             'pointer-events-none opacity-0': isPressed,
           })}
         >
           <button
             type="button"
             title={t`Undo`}
-            className="rounded-full p-0 text-[0.688rem] text-muted-foreground/60 ring-offset-background hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full p-0 text-[0.688rem] text-muted-foreground/60 ring-offset-background hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:inline-block sm:min-h-0 sm:min-w-0"
             onClick={onUndoClick}
           >
             <Undo2 className="h-4 w-4" />

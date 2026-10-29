@@ -86,6 +86,9 @@ services:
       COLABORADORES_DATABASE_URL: ${COLABORADORES_DATABASE_URL:-postgres://revsign_leitura:revsign_leitura_dev@colaboradores-db:5432/colaboradores}
       DOCUMENSO_DISABLE_TELEMETRY: 'true'
       NEXT_PUBLIC_REVALLE_SOURCE_URL: https://github.com/enzononato/RevSign
+      # Marca: motivo da assinatura no PDF e e-mail de suporte nas telas e nos e-mails.
+      NEXT_PRIVATE_SIGNING_REASON: ${NEXT_PRIVATE_SIGNING_REASON:-Selado pelo RevSign da Revalle}
+      NEXT_PUBLIC_SUPPORT_EMAIL: ${NEXT_PUBLIC_SUPPORT_EMAIL:-projetos.ti@revalle.com.br}
       # SMTP: Mailpit no ensaio; no EasyPanel, o SMTP do cPanel (ver env.hml.example).
       NEXT_PRIVATE_SMTP_TRANSPORT: smtp-auth
       NEXT_PRIVATE_SMTP_HOST: ${NEXT_PRIVATE_SMTP_HOST:-mailpit}
@@ -93,7 +96,7 @@ services:
       NEXT_PRIVATE_SMTP_USERNAME: ${NEXT_PRIVATE_SMTP_USERNAME:-}
       NEXT_PRIVATE_SMTP_PASSWORD: ${NEXT_PRIVATE_SMTP_PASSWORD:-}
       NEXT_PRIVATE_SMTP_SECURE: ${NEXT_PRIVATE_SMTP_SECURE:-false}
-      NEXT_PRIVATE_SMTP_FROM_NAME: ${NEXT_PRIVATE_SMTP_FROM_NAME:-Revalle Assinaturas}
+      NEXT_PRIVATE_SMTP_FROM_NAME: ${NEXT_PRIVATE_SMTP_FROM_NAME:-RevSign}
       NEXT_PRIVATE_SMTP_FROM_ADDRESS: ${NEXT_PRIVATE_SMTP_FROM_ADDRESS:-assinaturas@revalle.com.br}
       # Certificado .p12 em base64 (com senha obrigatória).
       NEXT_PRIVATE_SIGNING_TRANSPORT: local

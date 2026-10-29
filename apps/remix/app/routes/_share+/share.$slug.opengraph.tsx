@@ -1,4 +1,5 @@
 import { NEXT_PUBLIC_WEBAPP_URL } from '@documenso/lib/constants/app';
+import { REVALLE_SHARE_LINKS_DISABLED } from '@documenso/lib/revalle/share-links'; // REVALLE:
 import { getRecipientOrSenderByShareLinkSlug } from '@documenso/lib/server-only/document/get-recipient-or-sender-by-share-link-slug';
 import { svgToPng } from '@documenso/lib/utils/images/svg-to-png';
 import satori from 'satori';
@@ -22,7 +23,8 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
   const { slug } = params;
 
   // QR codes are not supported for OpenGraph images
-  if (slug.startsWith('qr_')) {
+  // REVALLE: nenhum cartão público (o nome/assinatura do destinatário numa imagem aberta); qr_ já era 404 no upstream.
+  if (slug.startsWith('qr_') || REVALLE_SHARE_LINKS_DISABLED) {
     return new Response('Not found', { status: 404 });
   }
 

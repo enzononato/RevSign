@@ -9,8 +9,8 @@
   "scripts": {
     "postinstall": "patch-package --error-on-fail",
     "build": "turbo run build",
-    "dev": "npm run translate:compile && turbo run dev --filter=@documenso/remix",
-    "dev:remix": "npm run translate:compile && turbo run dev --filter=@documenso/remix",
+    "dev": "npm run translate:revalle && turbo run dev --filter=@documenso/remix",
+    "dev:remix": "npm run translate:revalle && turbo run dev --filter=@documenso/remix",
     "dev:docs": "turbo run dev --filter=@documenso/docs",
     "dev:openpage-api": "turbo run dev --filter=@documenso/openpage-api",
     "start": "turbo run start --filter=@documenso/remix --filter=@documenso/docs --filter=@documenso/openpage-api",
@@ -21,7 +21,7 @@
     "prepare": "husky && husky install || true",
     "commitlint": "commitlint --edit",
     "clean": "turbo run clean && rimraf node_modules",
-    "d": "npm run dx && npm run translate:compile && npm run dev",
+    "d": "npm run dx && npm run dev",
     "dx": "npm ci && npm run dx:up && npm run prisma:migrate-dev && npm run prisma:seed",
     "dx:up": "docker compose -f docker/development/compose.yml up -d",
     "dx:down": "docker compose -f docker/development/compose.yml down",
@@ -39,7 +39,8 @@
     "make:version": "npm version --workspace @documenso/remix --include-workspace-root --no-git-tag-version -m \"v%s\"",
     "translate": "npm run translate:extract && npm run translate:compile",
     "translate:extract": "lingui extract --clean",
-    "translate:compile": "lingui compile"
+    "translate:compile": "lingui compile",
+    "translate:revalle": "npm run translate:extract && node scripts/revalle/i18n/apply-overlay.mjs && node scripts/revalle/i18n/check-po.mjs --locale pt-BR --warn-missing && npm run translate:compile"
   },
   "packageManager": "npm@11.19.1",
   "engines": {

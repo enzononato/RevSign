@@ -17,7 +17,8 @@ cd "$WEB_APP_DIR"
 start_time=$(date +%s)
 
 echo "[Build]: Extracting and compiling translations"
-npm run translate --prefix ../../
+# REVALLE: extract, overlay pt-BR + validação, compile (em vez de `npm run translate`); ver translate:revalle
+npm run translate:revalle --prefix ../../
 
 echo "[Build]: Building app"
 npm run build:app

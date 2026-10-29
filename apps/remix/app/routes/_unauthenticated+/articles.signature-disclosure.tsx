@@ -1,7 +1,15 @@
 import { SUPPORT_EMAIL } from '@documenso/lib/constants/app';
 import { Button } from '@documenso/ui/primitives/button';
+import { msg } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { Link } from 'react-router';
+
+import { appMetaTags } from '~/utils/meta';
+
+// REVALLE: título "<Página> · RevSign" (o upstream não define meta nesta página).
+export function meta() {
+  return appMetaTags(msg`Electronic Signature Disclosure`);
+}
 
 export default function SignatureDisclosure() {
   return (

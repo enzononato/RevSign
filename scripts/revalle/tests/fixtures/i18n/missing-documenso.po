@@ -1,0 +1,15 @@
+msgid ""
+msgstr ""
+"Language: pt-BR\n"
+
+#: x.tsx
+msgid "Welcome to Documenso"
+msgstr ""
+
+#: y.tsx
+msgid "Documenso is licensed under the AGPL"
+msgstr ""
+
+#: z.tsx
+msgid "Sign in"
+msgstr ""

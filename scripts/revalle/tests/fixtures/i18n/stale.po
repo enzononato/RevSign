@@ -1,0 +1,8 @@
+msgid ""
+msgstr ""
+
+msgid "Hi {name}"
+msgstr "Oi {name}"
+
+msgid "Gone msgid"
+msgstr "Sumiu"

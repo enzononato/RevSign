@@ -141,6 +141,10 @@ COLABORADORES_DATABASE_URL=<preencher>
 NEXT_PRIVATE_DATABASE_URL=<preencher>
 NEXT_PRIVATE_DIRECT_DATABASE_URL=<preencher>
 
+# --- Marca ---
+NEXT_PRIVATE_SIGNING_REASON=Selado pelo RevSign da Revalle
+NEXT_PUBLIC_SUPPORT_EMAIL=projetos.ti@revalle.com.br
+
 # --- App ---
 NEXT_PUBLIC_WEBAPP_URL=https://assinatura-hml.revalle.com.br
 NEXTAUTH_SECRET=$(openssl rand -hex 32)
@@ -157,7 +161,7 @@ NEXT_PRIVATE_SMTP_PORT=<preencher>
 NEXT_PRIVATE_SMTP_SECURE=<preencher>
 NEXT_PRIVATE_SMTP_USERNAME=<preencher>
 NEXT_PRIVATE_SMTP_PASSWORD=<preencher>
-NEXT_PRIVATE_SMTP_FROM_NAME=Revalle Assinaturas
+NEXT_PRIVATE_SMTP_FROM_NAME=RevSign
 NEXT_PRIVATE_SMTP_FROM_ADDRESS=assinaturas@revalle.com.br
 
 # --- Certificado de assinatura ---

@@ -4,7 +4,8 @@ import { createTOTPKeyURI } from 'oslo/otp';
 
 import { DOCUMENSO_ENCRYPTION_KEY } from '../../../constants/crypto';
 
-const ISSUER = 'Documenso Email 2FA';
+// REVALLE: rótulo do URI; o código vem só do HMAC da identidade, então trocar o nome não muda códigos.
+const ISSUER = 'RevSign Email 2FA';
 
 export type GenerateTwoFactorCredentialsFromEmailOptions = {
   envelopeId: string;

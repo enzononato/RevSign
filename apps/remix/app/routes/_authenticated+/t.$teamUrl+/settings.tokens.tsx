@@ -100,20 +100,8 @@ export default function ApiTokensPage() {
       <SettingsHeader
         hideDivider
         title={<Trans>API Tokens</Trans>}
-        subtitle={
-          <Trans>
-            Create and manage API tokens. See our{' '}
-            <a
-              className="text-primary underline"
-              href={'https://docs.documenso.com/developers/public-api'}
-              target="_blank"
-              rel="noopener"
-            >
-              documentation
-            </a>{' '}
-            for more information.
-          </Trans>
-        }
+        // REVALLE: sem o link para a documentação do Documenso
+        subtitle="Crie e gerencie tokens de API."
       >
         {!isUnauthorized && <TokenCreateDialog />}
       </SettingsHeader>

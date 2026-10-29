@@ -198,7 +198,7 @@ export const EnvelopeDownloadDialog = ({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="text-xs"
+                      className="min-h-11 text-xs sm:min-h-0" // REVALLE: 44 px de área de toque no celular
                       onClick={async () => onDownload(item, 'original')}
                       loading={isDownloadingState[generateDownloadKey(item.id, 'original')]}
                     >
@@ -212,7 +212,7 @@ export const EnvelopeDownloadDialog = ({
                       <Button
                         variant="default"
                         size="sm"
-                        className="text-xs"
+                        className="min-h-11 text-xs sm:min-h-0" // REVALLE: 44 px de área de toque no celular
                         onClick={async () => onDownload(item, secondaryDownload.version)}
                         loading={isDownloadingState[generateDownloadKey(item.id, secondaryDownload.version)]}
                       >

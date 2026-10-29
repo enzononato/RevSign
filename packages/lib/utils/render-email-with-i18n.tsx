@@ -1,8 +1,8 @@
 import type { RenderOptions } from '@documenso/email/render';
 import { renderWithI18N } from '@documenso/email/render';
-
 import { getI18nInstance } from '../client-only/providers/i18n-server';
-import { APP_I18N_OPTIONS, isValidLanguageCode, type SupportedLanguageCodes } from '../constants/i18n';
+import { isValidLanguageCode, type SupportedLanguageCodes } from '../constants/i18n';
+import { REVALLE_DEFAULT_LOCALE } from '../revalle/locale';
 
 export const renderEmailWithI18N = async (
   component: React.ReactElement,
@@ -14,7 +14,7 @@ export const renderEmailWithI18N = async (
   try {
     const { lang: providedLang, ...otherOptions } = options ?? {};
 
-    const lang = isValidLanguageCode(providedLang) ? providedLang : APP_I18N_OPTIONS.sourceLang;
+    const lang = isValidLanguageCode(providedLang) ? providedLang : REVALLE_DEFAULT_LOCALE; // REVALLE: e-mail sem idioma explícito sai em pt-BR
 
     const i18n = await getI18nInstance(lang);
 

@@ -2,10 +2,14 @@ import { getDocumentByAccessToken } from '@documenso/lib/server-only/document/ge
 import { data, redirect, useLoaderData } from 'react-router';
 
 import { DocumentCertificateQRView } from '~/components/general/document/document-certificate-qr-view';
+import { revalleTitle } from '~/utils/meta';
 
 import type { Route } from './+types/share.$slug';
 
-// REVALLE: sem meta/OG: só links qr_ existem (o bloco do Documenso para outros slugs foi removido).
+// REVALLE: sem OG: só links qr_ existem (o bloco do Documenso para outros slugs foi removido). Título "<Página> · RevSign".
+export function meta() {
+  return [{ title: revalleTitle('Documento assinado') }, { name: 'robots', content: 'noindex' }];
+}
 
 export const loader = async ({ params: { slug } }: Route.LoaderArgs) => {
   if (slug.startsWith('qr_')) {

@@ -492,21 +492,12 @@ const SigningPageV1 = ({ data }: { data: Awaited<ReturnType<typeof handleV1Loade
             <Trans>This document has been cancelled by the owner.</Trans>
           </p>
 
+          {/* REVALLE: sem o convite "Check out Documenso" para quem não está logado (divulgação do Documenso) */}
           {user ? (
             <Link to="/" className="mt-36 text-documenso-700 hover:text-documenso-600">
               <Trans>Go Back Home</Trans>
             </Link>
-          ) : (
-            <p className="mt-36 text-muted-foreground/60 text-sm">
-              <Trans>
-                Want to send slick signing links like this one?{' '}
-                <Link to="https://documenso.com" className="text-documenso-700 hover:text-documenso-600">
-                  Check out Documenso
-                </Link>
-                .
-              </Trans>
-            </p>
-          )}
+          ) : null}
         </div>
       </div>
     );
@@ -597,21 +588,12 @@ const SigningPageV2 = ({ data }: { data: Awaited<ReturnType<typeof handleV2Loade
             <Trans>This document has been cancelled by the owner.</Trans>
           </p>
 
+          {/* REVALLE: sem o convite "Check out Documenso" para quem não está logado (divulgação do Documenso) */}
           {user ? (
             <Link to="/" className="mt-36 text-documenso-700 hover:text-documenso-600">
               <Trans>Go Back Home</Trans>
             </Link>
-          ) : (
-            <p className="mt-36 text-muted-foreground/60 text-sm">
-              <Trans>
-                Want to send slick signing links like this one?{' '}
-                <Link to="https://documenso.com" className="text-documenso-700 hover:text-documenso-600">
-                  Check out Documenso
-                </Link>
-                .
-              </Trans>
-            </p>
-          )}
+          ) : null}
         </div>
       </div>
     );

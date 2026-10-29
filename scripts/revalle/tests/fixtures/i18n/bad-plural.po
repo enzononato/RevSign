@@ -1,0 +1,7 @@
+msgid ""
+msgstr ""
+"Language: pt-BR\n"
+
+#: x.tsx
+msgid "{count, plural, one {# item} other {# items}}"
+msgstr "{count, plural, one {# item}}"

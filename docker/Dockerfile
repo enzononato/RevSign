@@ -85,6 +85,9 @@ RUN npm ci
 
 # Then copy all the source code (as it changes more often)
 COPY --from=builder /app/out/full/ .
+# REVALLE: o build.sh do remix roda o overlay pt-BR e o validador (fora do turbo prune). Depois do `npm ci`,
+# para que mudar esses scripts não invalide o cache da instalação.
+COPY --from=builder /app/scripts/revalle/i18n ./scripts/revalle/i18n
 # Finally copy the turbo.json file so that we can run turbo commands
 COPY turbo.json turbo.json
 

@@ -58,9 +58,9 @@ export const RevalleGateLockedTemplate = ({
 
               <Text className="my-1 text-center text-base text-muted-foreground">
                 <Trans>
-                  Quem recebeu o link vê: "Este link foi bloqueado por segurança. Avisamos quem enviou o documento e o
-                  TI. Aguarde o desbloqueio ou peça um novo envio para outro e-mail." Para liberar, o TI desbloqueia em
-                  Admin → Verificações.
+                  Quem recebeu o link vê: "Este link foi bloqueado por segurança. Avisamos quem enviou o documento e a
+                  equipe de TI. Aguarde o desbloqueio ou peça um novo envio para outro e-mail." Para liberar, a equipe
+                  de TI desbloqueia em Admin → Verificações.
                 </Trans>
               </Text>
             </Section>

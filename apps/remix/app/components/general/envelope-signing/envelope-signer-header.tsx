@@ -94,9 +94,13 @@ const MobileDropdownMenu = () => {
   const { allowDocumentRejection } = embedSigningContext || {};
 
   return (
-    <DropdownMenu>
+    // REVALLE: menu não modal. Os diálogos de baixar e de recusar abrem de dentro dele (o item não fecha o menu, senão
+    // o diálogo desmontaria); com o menu modal, ao fechar o diálogo o menu seguia aberto e invisível com o body em
+    // pointer-events: none, e o 1º toque na página se perdia.
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm">
+        {/* REVALLE: h-11 (44 px de área de toque) */}
+        <Button variant="outline" size="sm" className="h-11">
           <Trans>Actions</Trans>
         </Button>
       </DropdownMenuTrigger>

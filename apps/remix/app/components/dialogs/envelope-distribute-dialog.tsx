@@ -359,7 +359,8 @@ export const EnvelopeDistributeDialog = ({
                                             </SelectItem>
                                           ))}
 
-                                          <SelectItem value={'-1'}>Documenso</SelectItem>
+                                          {/* REVALLE: remetente padrão do sistema */}
+                                          <SelectItem value={'-1'}>RevSign</SelectItem>
                                         </SelectContent>
                                       </Select>
                                     </FormControl>

@@ -5,6 +5,8 @@
 @layer base {
   :root,
   .dark-mode-disabled {
+    /* REVALLE: cor da marca RevSign (#1F4E79, HSL 209 59% 30%) em --primary, --ring, --field-card* e --new-primary-*.
+       Branco sobre a primária: 8,6:1. */
     --background: 0 0% 100%;
     --foreground: 222.2 47.4% 11.2%;
 
@@ -19,8 +21,8 @@
     --card-border-tint: 112 205 159;
     --card-foreground: 222.2 47.4% 11.2%;
 
-    --field-card: 95 74% 90%;
-    --field-card-border: 95.08 71.08% 67.45%;
+    --field-card: 209 59% 92%;
+    --field-card-border: 209 59% 30%;
     --field-card-foreground: 222.2 47.4% 11.2%;
 
     --widget: 0 0% 97%;
@@ -29,8 +31,8 @@
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
 
-    --primary: 95.08 71.08% 67.45%;
-    --primary-foreground: 95.08 71.08% 10%;
+    --primary: 209 59% 30%;
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
@@ -41,7 +43,7 @@
     --destructive: 0 100% 50%;
     --destructive-foreground: 210 40% 98%;
 
-    --ring: 95.08 71.08% 67.45%;
+    --ring: 209 59% 30%;
 
     --radius: 0.5rem;
 
@@ -83,17 +85,17 @@
     --new-white-900: 0, 0%, 100%;
 
     /* Primary - Green */
-    --new-primary-50: 98, 73%, 97%;
-    --new-primary-100: 95, 73%, 94%;
-    --new-primary-200: 94, 70%, 87%;
-    --new-primary-300: 95, 71%, 81%;
-    --new-primary-400: 95, 71%, 74%;
-    --new-primary-500: 95, 71%, 67%;
-    --new-primary-600: 95, 71%, 54%;
-    --new-primary-700: 95, 71%, 41%;
-    --new-primary-800: 95, 71%, 27%;
-    --new-primary-900: 95, 72%, 14%;
-    --new-primary-950: 95, 72%, 7%;
+    --new-primary-50: 209, 59%, 97%;
+    --new-primary-100: 209, 59%, 94%;
+    --new-primary-200: 209, 59%, 87%;
+    --new-primary-300: 209, 59%, 78%;
+    --new-primary-400: 209, 59%, 62%;
+    --new-primary-500: 209, 59%, 45%;
+    --new-primary-600: 209, 59%, 38%;
+    --new-primary-700: 209, 59%, 30%;
+    --new-primary-800: 209, 59%, 24%;
+    --new-primary-900: 209, 59%, 15%;
+    --new-primary-950: 209, 59%, 8%;
 
     /* Secondary - Info */
     --new-info-50: 210, 54%, 95%;
@@ -142,6 +144,8 @@
   }
 
   .dark:not(.dark-mode-disabled) {
+    /* REVALLE: mesma matiz, um pouco mais clara (45%): branco sobre a primária 4,8:1 (AA) e a primária sobre o fundo
+       escuro 3,1:1 (AA para texto grande e elementos de interface). Textos secundários/acento em 70% (6,9:1). */
     --background: 0 0% 14.9%;
     --foreground: 0 0% 97%;
 
@@ -164,19 +168,22 @@
 
     --field-border: 214.3 31.8% 91.4%;
 
-    --primary: 95.08 71.08% 67.45%;
-    --primary-foreground: 95.08 71.08% 10%;
+    /* REVALLE: borda dos campos clara o bastante para aparecer no fundo escuro */
+    --field-card-border: 209 59% 60%;
+
+    --primary: 209 59% 45%;
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 0 0% 23.4%;
-    --secondary-foreground: 95.08 71.08% 67.45%;
+    --secondary-foreground: 209 59% 70%;
 
     --accent: 0 0% 27.9%;
-    --accent-foreground: 95.08 71.08% 67.45%;
+    --accent-foreground: 209 59% 70%;
 
     --destructive: 0 87% 62%;
     --destructive-foreground: 0 0% 98%;
 
-    --ring: 95.08 71.08% 67.45%;
+    --ring: 209 59% 45%;
 
     --radius: 0.5rem;
 

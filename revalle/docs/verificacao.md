@@ -57,7 +57,7 @@ O link de assinatura (do destinatário daquele documento) é bloqueado por segur
 - **CPF ligado a outro e-mail**: a pessoa digitou um CPF que já está vinculado a outro e-mail (ou que, na base, tem outro e-mail cadastrado). O log de auditoria do documento registra o CPF digitado só mascarado.
 - **Excesso de códigos errados**: 5 códigos por e-mail errados ou vencidos na hora de concluir, naquele link.
 
-O que a pessoa vê: "Este link foi bloqueado por segurança. Avisamos quem enviou o documento e o TI. Aguarde o desbloqueio ou peça um novo envio para outro e-mail."
+O que a pessoa vê: "Este link foi bloqueado por segurança. Avisamos quem enviou o documento e a equipe de TI. Aguarde o desbloqueio ou peça um novo envio para outro e-mail."
 
 ### Quem recebe o aviso
 

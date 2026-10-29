@@ -252,7 +252,9 @@ const certificateRows = (pages) => {
 
     const columnThreeX = Math.min(...sent.map((word) => word.x)) - 1;
     const columnTwoX = Math.min(...page.words.filter((word) => word.text === 'Endereço').map((word) => word.x)) - 1;
-    const footer = page.words.find((word) => word.text === 'Geolocation' || word.text === 'Envelope:');
+    const footer = page.words.find(
+      (word) => word.text === 'Geolocation' || word.text === 'Envelope:' || word.text === 'documento:',
+    );
     const pageBottom = footer ? footer.y - 2 : page.height;
 
     for (const [index, start] of sent.entries()) {
