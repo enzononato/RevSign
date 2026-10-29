@@ -262,6 +262,7 @@ export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition
           pageWidth,
           pageHeight,
           additionalAuditLogs,
+          revalleEnvelopeItemId: envelopeItem.id, // REVALLE: hash original deste item no cabeçalho do certificado
         };
 
         const makeCertificatePdf = async () =>

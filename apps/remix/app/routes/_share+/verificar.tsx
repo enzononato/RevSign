@@ -1,6 +1,7 @@
 // REVALLE: página pública de verificação de documento assinado (Fase 4).
 
 import { formatRevalleDateTime } from '@documenso/lib/revalle/date-format';
+import { revalleRoleVerb } from '@documenso/lib/revalle/role-verbs';
 import { createRateLimit } from '@documenso/lib/server-only/rate-limit/rate-limit';
 import {
   findRevalleProofByCode,
@@ -9,20 +10,12 @@ import {
 import { getIpAddress } from '@documenso/lib/universal/get-ip-address';
 import { Button } from '@documenso/ui/primitives/button';
 import { Input } from '@documenso/ui/primitives/input';
-import type { RecipientRole } from '@prisma/client';
 import { useState } from 'react';
 import { data, Form, useLoaderData } from 'react-router';
 
 import type { Route } from './+types/verificar';
 
 const verifyRateLimit = createRateLimit({ action: 'revalle.verify', max: 30, window: '15m' });
-
-const ROLE_VERBS: Partial<Record<RecipientRole, string>> = {
-  SIGNER: 'Assinou em',
-  APPROVER: 'Aprovou em',
-  VIEWER: 'Visualizou em',
-  ASSISTANT: 'Preencheu em',
-};
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
 
@@ -96,7 +89,7 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
       nome: s.nome,
       cpfMasked: s.cpfMasked,
       signedAtLabel: formatRevalleDateTime(s.signedAt),
-      verb: ROLE_VERBS[s.role] ?? 'Assinou em',
+      verb: revalleRoleVerb(s.role),
     })),
   });
 };

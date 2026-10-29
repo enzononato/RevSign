@@ -19,6 +19,7 @@ import { RECIPIENT_ROLE_SIGNING_REASONS, RECIPIENT_ROLES_DESCRIPTION } from '../
 import { formatRevalleDateTime, REVALLE_TIME_ZONE_NOTE } from '../../revalle/date-format'; // REVALLE: datas dd/MM/yyyy HH:mm em America/Bahia
 import type { TDocumentAuditLogBaseSchema } from '../../types/document-audit-logs';
 import { svgToPng } from '../../utils/images/svg-to-png';
+import type { RevalleCertificateRecipient } from '../revalle/certificate-data'; // REVALLE:
 import { ensureFontLibrary } from './helpers';
 
 type ColumnWidths = [number, number, number];
@@ -43,6 +44,7 @@ export type CertificateRecipient = {
     completed: BaseAuditLog | null;
     rejected: BaseAuditLog | null;
   };
+  revalle?: RevalleCertificateRecipient | null; // REVALLE: prova congelada (nula em documento anterior à Fase 4)
 };
 
 type GenerateCertificateOptions = {
@@ -57,6 +59,7 @@ type GenerateCertificateOptions = {
   };
   pageWidth: number;
   pageHeight: number;
+  revalleHeaderLines?: string[]; // REVALLE: "SHA-256 do original: <hex>"
 };
 
 // Helper function to get device info from user agent
@@ -99,6 +102,7 @@ type RenderLabelAndTextOptions = {
   y?: number;
   labelFill?: string;
   valueFill?: string;
+  wrap?: 'word' | 'char'; // REVALLE: linhas da prova quebram por palavra
 };
 
 const renderLabelAndText = (options: RenderLabelAndTextOptions) => {
@@ -123,14 +127,17 @@ const renderLabelAndText = (options: RenderLabelAndTextOptions) => {
 
   group.add(label);
 
+  // REVALLE: rótulo longo em coluna estreita leva o valor para a linha de baixo, com a largura toda
+  const isStacked = options.wrap !== undefined && width - label.width() < width * 0.4;
+
   const value = new Konva.Text({
-    x: label.width(),
-    y: 0,
-    width: width - label.width(),
+    x: isStacked ? 0 : label.width(), // REVALLE:
+    y: isStacked ? label.height() : 0, // REVALLE:
+    width: isStacked ? width : width - label.width(), // REVALLE:
     fontFamily: 'Inter',
     text: options.text,
     fill: valueFill,
-    wrap: 'char',
+    wrap: options.wrap ?? 'char', // REVALLE:
     fontSize: textSm,
   });
 
@@ -398,8 +405,9 @@ const renderColumnTwo = (options: RenderColumnOptions) => {
 
   const deviceLabelAndText = renderLabelAndText({
     label: i18n._(msg`Device`),
-    text: getDevice(relevantLog?.userAgent),
+    text: recipient.revalle?.device ?? getDevice(relevantLog?.userAgent), // REVALLE: aparelho congelado na prova
     width,
+    wrap: recipient.revalle ? 'word' : undefined, // REVALLE:
     y: column.getClientRect().height + 6,
   });
   column.add(deviceLabelAndText);
@@ -417,6 +425,8 @@ const renderColumnThree = (options: RenderColumnOptions) => {
     value: string;
     labelFill?: string;
     valueFill?: string;
+    wrap?: 'word' | 'char'; // REVALLE:
+    gap?: number; // REVALLE:
   };
 
   const itemsToRender: DetailItem[] = [
@@ -441,6 +451,12 @@ const renderColumnThree = (options: RenderColumnOptions) => {
       labelFill: textRejectedRed,
       valueFill: textRejectedRed,
     });
+  } else if (recipient.revalle) {
+    // REVALLE: com prova, o verbo do papel (igual ao /verificar) e o horário congelado
+    itemsToRender.push({
+      label: recipient.revalle.signedVerb,
+      value: formatRevalleDateTime(recipient.revalle.signedAt),
+    });
   } else {
     itemsToRender.push({
       label: i18n._(msg`Signed`),
@@ -462,14 +478,20 @@ const renderColumnThree = (options: RenderColumnOptions) => {
           : i18n._(RECIPIENT_ROLE_SIGNING_REASONS[recipient.role]),
   });
 
+  // REVALLE: linhas da prova congelada, só quando ela existe
+  for (const row of recipient.revalle?.rows ?? []) {
+    itemsToRender.push({ ...row, wrap: 'word', gap: 5 });
+  }
+
   for (const [index, item] of itemsToRender.entries()) {
     const labelAndText = renderLabelAndText({
       label: item.label,
       text: item.value,
       width,
-      y: column.getClientRect().height + (index === 0 ? 0 : 8),
+      y: column.getClientRect().height + (index === 0 ? 0 : (item.gap ?? 8)), // REVALLE: gap
       labelFill: item.labelFill,
       valueFill: item.valueFill,
+      wrap: item.wrap, // REVALLE:
     });
     column.add(labelAndText);
   }
@@ -714,6 +736,45 @@ const renderTables = (options: RenderTablesOptions) => {
   return tables;
 };
 
+// REVALLE: SHA-256 do original sob a nota de fuso, quebrando na largura da tabela.
+const revalleHeaderTop = pageTopMargin - 8;
+
+const renderRevalleHeaderLines = (lines: string[], x: number, width: number) => {
+  const group = new Konva.Group({ x, y: revalleHeaderTop });
+  let y = 0;
+
+  for (const line of lines) {
+    const text = new Konva.Text({
+      y,
+      width,
+      text: line,
+      wrap: 'char',
+      fontFamily: 'Inter',
+      fontSize: textXs,
+      lineHeight: 1.2,
+      fill: textMutedForeground,
+    });
+
+    group.add(text);
+    y += text.height();
+  }
+
+  return { group, height: y };
+};
+
+// REVALLE: atribuição exigida pela licença da base DB-IP Lite (mesmo texto do /privacidade).
+const renderRevalleDbIpFooter = (x: number, width: number, pageHeight: number) =>
+  new Konva.Text({
+    x,
+    y: pageHeight - textXs - 10,
+    width,
+    align: 'right',
+    text: 'IP Geolocation by DB-IP (https://db-ip.com)',
+    fontFamily: 'Inter',
+    fontSize: textXs,
+    fill: textMutedForegroundLight,
+  });
+
 export async function renderCertificate({
   recipients,
   envelopeId,
@@ -723,6 +784,7 @@ export async function renderCertificate({
   envelopeOwner,
   pageWidth,
   pageHeight,
+  revalleHeaderLines = [], // REVALLE:
 }: GenerateCertificateOptions) {
   ensureFontLibrary();
 
@@ -741,7 +803,12 @@ export async function renderCertificate({
   // Helper to render a Konva stage to a PNG buffer
   let stage: Konva.Stage | null = new Konva.Stage({ width: pageWidth, height: pageHeight });
 
-  const maxTableHeight = pageHeight - pageTopMargin - pageBottomMargin;
+  // REVALLE: a tabela desce o tanto que as linhas do hash ocupam; sem hash (documento antigo), nada muda
+  const revalleHeaderShift =
+    revalleHeaderLines.length > 0 ? renderRevalleHeaderLines(revalleHeaderLines, margin, tableWidth).height : 0;
+  const hasRevalleProof = recipients.some((recipient) => Boolean(recipient.revalle)); // REVALLE:
+
+  const maxTableHeight = pageHeight - pageTopMargin - pageBottomMargin - revalleHeaderShift; // REVALLE: - revalleHeaderShift
 
   const groupedRows = groupRowsIntoPages({
     recipients,
@@ -783,7 +850,7 @@ export async function renderCertificate({
 
     table.setAttrs({
       x: margin,
-      y: pageTopMargin,
+      y: pageTopMargin + revalleHeaderShift, // REVALLE: + revalleHeaderShift
     } satisfies Partial<Konva.GroupConfig>);
 
     // REVALLE: fuso das datas do certificado.
@@ -799,6 +866,11 @@ export async function renderCertificate({
     group.add(titleText);
     group.add(zoneText);
     group.add(table);
+
+    // REVALLE: SHA-256 do original em todas as páginas da tabela
+    if (revalleHeaderLines.length > 0) {
+      group.add(renderRevalleHeaderLines(revalleHeaderLines, margin, tableWidth).group);
+    }
 
     // Add QR code and branding on the last page if there is space.
     if (index === tables.length - 1 && showBranding) {
@@ -824,6 +896,10 @@ export async function renderCertificate({
       fill: textMutedForegroundLight,
     });
     page.add(footerText);
+
+    if (hasRevalleProof) {
+      page.add(renderRevalleDbIpFooter(margin, tableWidth, pageHeight)); // REVALLE:
+    }
 
     page.add(group);
     stage.add(page);
@@ -852,6 +928,10 @@ export async function renderCertificate({
       fill: textMutedForegroundLight,
     });
     page.add(overflowFooterText);
+
+    if (hasRevalleProof) {
+      page.add(renderRevalleDbIpFooter(margin, tableWidth, pageHeight)); // REVALLE:
+    }
 
     page.add(brandingGroup);
     stage.add(page);
