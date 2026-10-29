@@ -100,3 +100,8 @@ test('qr-always: com hidePoweredBy ligado, o certificado traz imagem (QR) e o ID
   assert.ok(rows.length >= 1, `sem imagens:\n${pages.images}`);
   assert.match(pages.text, /Envelope ID|ID do Envelope/);
 });
+
+test('o certificado declara o fuso e o log mostra America/Bahia', () => {
+  assert.match(pages.text, /Horários em horário de Brasília \(UTC.3\)/);
+  assert.match(pages.text, /America\/Bahia \(horário de Brasília\)/);
+});

@@ -56,7 +56,7 @@ export const DocumentCertificateQRView = ({
   const [isDialogOpen, setIsDialogOpen] = useState(() => !!documentViaUser);
 
   // REVALLE: data dd/MM/yyyy HH:mm em America/Bahia
-  const formattedDate = completedDate ? formatRevalleDateTime(completedDate) : '';
+  const formattedDate = completedDate ? formatRevalleDateTime(completedDate, { withZoneLabel: true }) : '';
 
   useEffect(() => {
     if (documentViaUser) {

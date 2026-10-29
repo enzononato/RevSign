@@ -14,7 +14,7 @@ import { UAParser } from 'ua-parser-js';
 
 import { DOCUMENT_STATUS } from '../../constants/document';
 import { RECIPIENT_ROLES_DESCRIPTION } from '../../constants/recipient-roles';
-import { formatRevalleDateTime } from '../../revalle/date-format'; // REVALLE: datas dd/MM/yyyy HH:mm em America/Bahia
+import { formatRevalleDateTime, REVALLE_TIME_ZONE_LABEL } from '../../revalle/date-format'; // REVALLE: datas dd/MM/yyyy HH:mm em America/Bahia
 import type { TDocumentAuditLog } from '../../types/document-audit-logs';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../types/document-audit-logs';
 import { formatDocumentAuditLogAction } from '../../utils/document-audit-logs';
@@ -222,7 +222,7 @@ const renderOverviewCard = (options: RenderOverviewCardOptions) => {
   });
   const timeZoneLabel = renderOverviewCardLabels({
     label: i18n._(msg`Time Zone`),
-    text: envelope.documentMeta?.timezone || 'N/A',
+    text: REVALLE_TIME_ZONE_LABEL, // REVALLE: as datas são sempre em Brasília
     width: columnWidth,
     groupX: columnWidth + columnSpacing,
   });

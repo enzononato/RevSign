@@ -10,3 +10,6 @@ export const formatRevalleDateTime = (date: Date | string, options: { withZoneLa
 
   return options.withZoneLabel ? `${formatted} (horário de Brasília)` : formatted;
 };
+
+export const REVALLE_TIME_ZONE_LABEL = `${REVALLE_TIME_ZONE} (horário de Brasília)`;
+export const REVALLE_TIME_ZONE_NOTE = 'Horários em horário de Brasília (UTC−3)';

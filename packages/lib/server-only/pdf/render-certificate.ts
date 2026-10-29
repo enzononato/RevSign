@@ -16,7 +16,7 @@ import { renderSVG } from 'uqr';
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../constants/app';
 import { getSignatureFontFamily } from '../../constants/pdf';
 import { RECIPIENT_ROLE_SIGNING_REASONS, RECIPIENT_ROLES_DESCRIPTION } from '../../constants/recipient-roles';
-import { formatRevalleDateTime } from '../../revalle/date-format'; // REVALLE: datas dd/MM/yyyy HH:mm em America/Bahia
+import { formatRevalleDateTime, REVALLE_TIME_ZONE_NOTE } from '../../revalle/date-format'; // REVALLE: datas dd/MM/yyyy HH:mm em America/Bahia
 import type { TDocumentAuditLogBaseSchema } from '../../types/document-audit-logs';
 import { svgToPng } from '../../utils/images/svg-to-png';
 import { ensureFontLibrary } from './helpers';
@@ -614,7 +614,8 @@ const renderBranding = async ({
       image: qrSkiaImage,
       height: qrSize,
       width: qrSize,
-      x: branding.getClientRect().width - qrSize,
+      // REVALLE: sem o logo o grupo está vazio; o QR alinha à direita pela largura do grupo (mínimo = o próprio QR).
+      x: Math.max(branding.getClientRect().width, qrSize) - qrSize,
       y: 0,
     });
 
@@ -785,7 +786,18 @@ export async function renderCertificate({
       y: pageTopMargin,
     } satisfies Partial<Konva.GroupConfig>);
 
+    // REVALLE: fuso das datas do certificado.
+    const zoneText = new Konva.Text({
+      x: margin,
+      y: pageTopMargin - 20,
+      text: REVALLE_TIME_ZONE_NOTE,
+      fontFamily: 'Inter',
+      fontSize: textXs,
+      fill: textMutedForegroundLight,
+    });
+
     group.add(titleText);
+    group.add(zoneText);
     group.add(table);
 
     // Add QR code and branding on the last page if there is space.
