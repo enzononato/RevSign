@@ -20,6 +20,7 @@ import { DateTime } from 'luxon';
 
 import { AppError, AppErrorCode } from '../../errors/app-error';
 import { jobs } from '../../jobs/client';
+import { type RevalleGeolocation, roundGeolocation } from '../../revalle/geolocation'; // REVALLE:
 import type { TRecipientAccessAuth } from '../../types/document-auth';
 import { DocumentAuth } from '../../types/document-auth';
 import { isTspEnvelope } from '../../types/signature-level';
@@ -55,6 +56,7 @@ export type CompleteDocumentWithTokenOptions = {
     email?: string;
     name?: string;
   };
+  revalleGeolocation?: RevalleGeolocation; // REVALLE:
 };
 
 export const completeDocumentWithToken = async ({
@@ -65,6 +67,7 @@ export const completeDocumentWithToken = async ({
   requestMetadata,
   nextSigner: dictatedNextSigner,
   recipientOverride,
+  revalleGeolocation, // REVALLE:
 }: CompleteDocumentWithTokenOptions) => {
   const envelope = await prisma.envelope.findFirst({
     where: {
@@ -407,6 +410,7 @@ export const completeDocumentWithToken = async ({
       requestMetadata,
       tx,
       externals: revalleProofExternals,
+      deviceLocation: revalleGeolocation ? roundGeolocation(revalleGeolocation) : undefined,
     });
 
     const authOptions = extractDocumentAuthMethods({

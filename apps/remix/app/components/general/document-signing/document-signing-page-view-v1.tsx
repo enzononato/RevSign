@@ -27,7 +27,6 @@ import { FieldType, RecipientRole } from '@prisma/client';
 import { LucideChevronDown, LucideChevronUp } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { match, P } from 'ts-pattern';
-
 import { DocumentSigningAttachmentsPopover } from '~/components/general/document-signing/document-signing-attachments-popover';
 import { DocumentSigningAutoSign } from '~/components/general/document-signing/document-signing-auto-sign';
 import { DocumentSigningCheckboxField } from '~/components/general/document-signing/document-signing-checkbox-field';
@@ -43,6 +42,7 @@ import { DocumentSigningRejectDialog } from '~/components/general/document-signi
 import { DocumentSigningSignatureField } from '~/components/general/document-signing/document-signing-signature-field';
 import { DocumentSigningTextField } from '~/components/general/document-signing/document-signing-text-field';
 import PDFViewerLazy from '~/components/general/pdf-viewer/pdf-viewer-lazy';
+import { useDeviceLocation } from '~/components/revalle/use-device-location'; // REVALLE:
 
 import { useRequiredDocumentSigningAuthContext } from './document-signing-auth-provider';
 import { DocumentSigningCompleteDialog } from './document-signing-complete-dialog';
@@ -98,6 +98,8 @@ export const DocumentSigningPageViewV1 = ({
     isSuccess,
   } = trpc.recipient.completeDocumentWithToken.useMutation();
 
+  const { request: requestDeviceLocation } = useDeviceLocation(); // REVALLE:
+
   // Keep the loading state going if successful since the redirect may take some time.
   const isSubmitting = isPending || isSuccess;
 
@@ -120,7 +122,7 @@ export const DocumentSigningPageViewV1 = ({
       ...(nextSigner?.email && nextSigner?.name ? { nextSigner } : {}),
     };
 
-    await completeDocumentWithToken(payload);
+    await completeDocumentWithToken({ ...payload, revalleGeolocation: await requestDeviceLocation() }); // REVALLE:
 
     if (documentMeta?.redirectUrl) {
       window.location.href = documentMeta.redirectUrl;

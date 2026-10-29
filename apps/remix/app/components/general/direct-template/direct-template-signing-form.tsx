@@ -414,6 +414,7 @@ export const DirectTemplateSigningForm = ({
 
           <DocumentSigningCompleteDialog
             isSubmitting={isSubmitting}
+            revalleLocationNotice={false} // REVALLE:
             onSignatureComplete={async (nextSigner) => handleSubmit(nextSigner)}
             documentTitle={template.title}
             fields={localFields}

@@ -36,6 +36,7 @@ import { useRequiredDocumentSigningAuthContext } from './document-signing-auth-p
 
 export type DocumentSigningCompleteDialogProps = {
   isSubmitting: boolean;
+  revalleLocationNotice?: boolean; // REVALLE: false onde a conclusão não pede localização (modelo direto)
   documentTitle: string;
   fields: Field[];
   fieldsValidated: () => void | Promise<void>;
@@ -82,6 +83,7 @@ type TDirectRecipientFormSchema = z.infer<typeof ZDirectRecipientFormSchema>;
 
 export const DocumentSigningCompleteDialog = ({
   isSubmitting,
+  revalleLocationNotice = true, // REVALLE:
   documentTitle,
   fields,
   fieldsValidated,
@@ -278,6 +280,15 @@ export const DocumentSigningCompleteDialog = ({
         <div className="rounded-lg border border-border bg-muted/50 p-4 text-center">
           <p className="font-medium text-muted-foreground text-sm">{documentTitle}</p>
         </div>
+
+        {/* REVALLE: aviso antes do pedido de localização do navegador (feito ao enviar a conclusão) */}
+        {revalleLocationNotice && (
+          <p className="text-center text-muted-foreground text-xs">
+            <Trans>
+              Para reforçar a prova da assinatura, podemos registrar a localização do seu aparelho. É opcional.
+            </Trans>
+          </p>
+        )}
 
         {match({ hasChildren: Boolean(children), showTwoFactorForm })
           .with({ hasChildren: true }, () => children)
