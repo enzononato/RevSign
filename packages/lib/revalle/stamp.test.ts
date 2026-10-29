@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildRevalleStampLines, layoutRevalleStamp } from './stamp';
+import {
+  buildRevalleStampLines,
+  clampRevalleSignatureFieldSize,
+  isRevalleStampOnlySignature,
+  layoutRevalleStamp,
+  REVALLE_SIGNATURE_FIELD_DEFAULT,
+  REVALLE_SIGNATURE_FIELD_MIN,
+} from './stamp';
 
-// Largura aproximada de uma fonte sem serifa: 0,55 em por caractere.
+// Largura aproximada da Noto Sans: 0,55 em por caractere (medida real: 0,45 a 0,57).
 const measure = (text: string, size: number) => text.length * size * 0.55;
 
 const input = {
@@ -14,6 +21,10 @@ const input = {
 };
 
 type Box = { x: number; y: number; width: number; height: number };
+
+const A4 = { width: 595, height: 842 };
+
+const hasCpfLine = (lines: string[]) => lines.some((line) => line.startsWith('CPF'));
 
 const overlaps = (a: Box | null, b: Box) =>
   a !== null && a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
@@ -61,6 +72,41 @@ describe('layoutRevalleStamp', () => {
     expect(layout.lines.length * layout.fontSize * layout.lineHeight).toBeLessThanOrEqual(layout.textBox.height);
     expect(layout.lines.join(' ')).toContain('7KQ2-M9XA');
     expect(layout.lines.join(' ').replace(/\s+/g, '')).toContain('FIGUEIREDOSANTOSX');
+    expect(hasCpfLine(layout.lines)).toBe(true);
+  });
+
+  it('120×40 pt com o endereço de produção (que não cabe inteiro): o CPF continua', () => {
+    const layout = layoutRevalleStamp(buildRevalleStampLines(input), { width: 120, height: 40 }, false, measure);
+
+    expect(hasCpfLine(layout.lines)).toBe(true);
+    expect(layout.lines.join(' ')).toContain('7KQ2-M9XA');
+  });
+
+  it('endereço longo quebra em "/" ou "." antes de cair para menos linhas', () => {
+    const layout = layoutRevalleStamp(buildRevalleStampLines(input), { width: 120, height: 60 }, false, measure);
+
+    expect(layout.level).toBe('FULL');
+    expect(layout.lines.join('')).toContain('https://assinatura.revalle.com.br/verificar');
+    expect(layout.lines.some((line) => /[./]$/.test(line))).toBe(true);
+  });
+
+  it('com desenho em 200×60 pt: o CPF continua', () => {
+    const layout = layoutRevalleStamp(buildRevalleStampLines(input), { width: 200, height: 60 }, true, measure);
+
+    expect(layout.drawingBox).not.toBeNull();
+    expect(hasCpfLine(layout.lines)).toBe(true);
+  });
+
+  it('tamanho mínimo do campo de assinatura em A4: as 5 linhas cabem em 6 pt ou mais, sem desenho', () => {
+    const lines = buildRevalleStampLines({ ...input, nome: 'Maria Aparecida dos Santos Oliveira' });
+
+    for (const size of [REVALLE_SIGNATURE_FIELD_MIN, REVALLE_SIGNATURE_FIELD_DEFAULT]) {
+      const box = { width: (A4.width * size.width) / 100, height: (A4.height * size.height) / 100 };
+      const layout = layoutRevalleStamp(lines, box, false, measure);
+
+      expect(layout.level).toBe('FULL');
+      expect(layout.fontSize).toBeGreaterThanOrEqual(6);
+    }
   });
 
   it('campo de 60×15 pt: só as linhas 1, 3 e 4 (sem CPF nem endereço), em 5 pt', () => {
@@ -68,6 +114,7 @@ describe('layoutRevalleStamp', () => {
     const layout = layoutRevalleStamp(lines, { width: 60, height: 15 }, false, measure);
     const text = layout.lines.join(' ');
 
+    expect(layout.level).toBe('ESSENTIAL');
     expect(layout.fontSize).toBe(5);
     expect(text).toContain('Assinado');
     expect(text).toContain('29/10/2026');
@@ -93,5 +140,43 @@ describe('layoutRevalleStamp', () => {
     expect(layout.drawingBox?.height).toBeCloseTo(80);
     expect(layout.drawingBox?.width).toBe(100);
     expect(overlaps(layout.drawingBox, layout.textBox)).toBe(false);
+  });
+});
+
+describe('isRevalleStampOnlySignature', () => {
+  const field = { type: 'SIGNATURE' as const, inserted: true };
+
+  it('assinatura inserida sem imagem e sem texto é "só carimbo"', () => {
+    expect(
+      isRevalleStampOnlySignature({ ...field, signature: { signatureImageAsBase64: null, typedSignature: null } }),
+    ).toBe(true);
+    expect(
+      isRevalleStampOnlySignature({ ...field, signature: { signatureImageAsBase64: '', typedSignature: '  ' } }),
+    ).toBe(true);
+  });
+
+  it('desenho, texto, campo não inserido ou outro tipo não são', () => {
+    expect(
+      isRevalleStampOnlySignature({ ...field, signature: { signatureImageAsBase64: 'data:x', typedSignature: null } }),
+    ).toBe(false);
+    expect(
+      isRevalleStampOnlySignature({ ...field, signature: { signatureImageAsBase64: null, typedSignature: 'Ana' } }),
+    ).toBe(false);
+    expect(isRevalleStampOnlySignature({ ...field, inserted: false, signature: null })).toBe(false);
+    expect(isRevalleStampOnlySignature({ ...field, signature: null })).toBe(false);
+    expect(
+      isRevalleStampOnlySignature({
+        type: 'NAME',
+        inserted: true,
+        signature: { signatureImageAsBase64: null, typedSignature: null },
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('clampRevalleSignatureFieldSize', () => {
+  it('campo pequeno sobe para o mínimo; campo maior fica como está', () => {
+    expect(clampRevalleSignatureFieldSize({ width: 5, height: 2 })).toEqual(REVALLE_SIGNATURE_FIELD_MIN);
+    expect(clampRevalleSignatureFieldSize({ width: 50, height: 20 })).toEqual({ width: 50, height: 20 });
   });
 });

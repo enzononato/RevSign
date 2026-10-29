@@ -2,11 +2,14 @@ import type { FieldWithSignature } from '@documenso/prisma/types/field-with-sign
 import { PDF } from '@libpdf/core';
 import { groupBy } from 'remeda';
 
+import type { RevalleStamp } from '../../revalle/stamp'; // REVALLE:
+
 import { insertFieldInPDFV2 } from './insert-field-in-pdf-v2';
 
 type GeneratePartialSignedPdfOptions = {
   pdfData: Uint8Array;
   fields: FieldWithSignature[];
+  revalleStamps?: Map<number, RevalleStamp>; // REVALLE: carimbo de quem já concluiu
 };
 
 /**
@@ -17,7 +20,11 @@ type GeneratePartialSignedPdfOptions = {
  * No PKI signature, no certificate page, no audit log appendix - this is a
  * preview of the in-progress envelope, not a final executed document.
  */
-export const generatePartialSignedPdf = async ({ pdfData, fields }: GeneratePartialSignedPdfOptions) => {
+export const generatePartialSignedPdf = async ({
+  pdfData,
+  fields,
+  revalleStamps, // REVALLE:
+}: GeneratePartialSignedPdfOptions) => {
   const pdfDoc = await PDF.load(pdfData);
 
   pdfDoc.flattenAll();
@@ -38,6 +45,7 @@ export const generatePartialSignedPdf = async ({ pdfData, fields }: GeneratePart
       pageWidth,
       pageHeight,
       fields: pageFields,
+      revalleStamps, // REVALLE:
     });
 
     const overlayPdf = await PDF.load(overlayBytes);

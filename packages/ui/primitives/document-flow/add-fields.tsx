@@ -1,7 +1,9 @@
 import { getBoundingClientRect } from '@documenso/lib/client-only/get-bounding-client-rect';
 import { useAutoSave } from '@documenso/lib/client-only/hooks/use-autosave';
 import { useDocumentElement } from '@documenso/lib/client-only/hooks/use-document-element';
+import { getRevalleSignatureFieldPixels } from '@documenso/lib/client-only/revalle/signature-field-size'; // REVALLE:
 import { getPdfPagesCount, PDF_VIEWER_PAGE_SELECTOR } from '@documenso/lib/constants/pdf-viewer';
+import { clampRevalleSignatureFieldSize } from '@documenso/lib/revalle/stamp'; // REVALLE:
 import { type TFieldMetaSchema as FieldMeta, ZFieldMetaSchema } from '@documenso/lib/types/field-meta';
 import type { TRecipientLite } from '@documenso/lib/types/recipient';
 import { nanoid } from '@documenso/lib/universal/id';
@@ -246,6 +248,13 @@ export const AddFieldsFormPartial = ({
 
   const onMouseMove = useCallback(
     (event: MouseEvent) => {
+      // REVALLE: assinatura nasce no tamanho do carimbo, proporcional à página
+      const revalleBounds = getRevalleSignatureFieldPixels(selectedField, 'default');
+
+      if (revalleBounds) {
+        fieldBounds.current = revalleBounds;
+      }
+
       setIsFieldWithinBounds(
         isWithinPageBounds(event, PDF_VIEWER_PAGE_SELECTOR, fieldBounds.current.width, fieldBounds.current.height),
       );
@@ -255,7 +264,7 @@ export const AddFieldsFormPartial = ({
         y: event.clientY - fieldBounds.current.height / 2,
       });
     },
-    [isWithinPageBounds],
+    [isWithinPageBounds, selectedField], // REVALLE: selectedField
   );
 
   const onMouseClick = useCallback(
@@ -283,8 +292,13 @@ export const AddFieldsFormPartial = ({
       let pageY = ((event.pageY - top) / height) * 100;
 
       // Get the bounds as a percentage of the page width and height
-      const fieldPageWidth = (fieldBounds.current.width / width) * 100;
-      const fieldPageHeight = (fieldBounds.current.height / height) * 100;
+      // REVALLE: assinatura nunca abaixo do mínimo do carimbo
+      const droppedSize = {
+        width: (fieldBounds.current.width / width) * 100,
+        height: (fieldBounds.current.height / height) * 100,
+      };
+      const { width: fieldPageWidth, height: fieldPageHeight } =
+        selectedField === FieldType.SIGNATURE ? clampRevalleSignatureFieldSize(droppedSize) : droppedSize;
 
       // And center it based on the bounds
       pageX -= fieldPageWidth / 2;
@@ -613,8 +627,8 @@ export const AddFieldsFormPartial = ({
                       disabled={
                         selectedSigner?.email !== field.signerEmail || !canRecipientBeModified(selectedSigner, fields)
                       }
-                      minHeight={MIN_HEIGHT_PX}
-                      minWidth={MIN_WIDTH_PX}
+                      minHeight={getRevalleSignatureFieldPixels(field.type, 'min')?.height ?? MIN_HEIGHT_PX} // REVALLE:
+                      minWidth={getRevalleSignatureFieldPixels(field.type, 'min')?.width ?? MIN_WIDTH_PX} // REVALLE:
                       defaultHeight={DEFAULT_HEIGHT_PX}
                       defaultWidth={DEFAULT_WIDTH_PX}
                       passive={isFieldWithinBounds && !!selectedField}

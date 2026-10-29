@@ -237,7 +237,7 @@ Legenda de "segredo?": **sim** = nunca no repositório, só no EasyPanel e no co
 | `COLABORADORES_DATABASE_URL` | Conexão SÓ DE LEITURA com a view `vw_colaboradores_assinatura` da base de colaboradores (`postgres://revsign_leitura:<senha>@<host>:5432/<banco>`; ver `verificacao.md`) | URL da base real, ou da base fictícia de ensaio | sim |
 | `NEXT_PRIVATE_DATABASE_URL` | Conexão com o banco | Internal Connection URL do passo 2 | sim |
 | `NEXT_PRIVATE_DIRECT_DATABASE_URL` | Conexão direta com o banco (igual à anterior) | o mesmo valor | sim |
-| `NEXT_PUBLIC_WEBAPP_URL` | Endereço público do site (links dos e-mails) | `https://assinatura-hml.revalle.com.br` | não |
+| `NEXT_PUBLIC_WEBAPP_URL` | Endereço público do site (links dos e-mails). A linha 5 do carimbo ("Confira em …/verificar") usa o valor no momento da selagem: trocar o endereço depois só muda PDFs selados ou reselados a partir daí | `https://assinatura-hml.revalle.com.br` | não |
 | `NEXTAUTH_SECRET` | Protege o login | gerado pelo script | sim |
 | `NEXT_PRIVATE_ENCRYPTION_KEY` | Cifra dados sensíveis no banco | gerado pelo script | sim |
 | `NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY` | Segunda chave de cifra | gerado pelo script | sim |

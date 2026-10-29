@@ -13,7 +13,13 @@ export type RevalleStamp = { lines: string[] };
 
 export type RevalleStampBox = { x: number; y: number; width: number; height: number };
 
+/**
+ * FULL: as 5 linhas. WITHOUT_URL: linhas 1–4. ESSENTIAL: linhas 1, 3 e 4 (último recurso; pode passar da altura).
+ */
+export type RevalleStampLevel = 'FULL' | 'WITHOUT_URL' | 'ESSENTIAL';
+
 export type RevalleStampLayout = {
+  level: RevalleStampLevel;
   fontSize: number;
   lineHeight: number;
   lines: string[];
@@ -30,7 +36,20 @@ export const REVALLE_STAMP_LINE_HEIGHT = 1.15;
 const FONT_SIZE_STEP = 0.5;
 const PADDING = 1;
 const DRAWING_SHARE = 0.4;
-const SHORT_LINE_INDEXES = [0, 2, 3];
+const ESSENTIAL_LINE_INDEXES = [0, 2, 3];
+
+// Tamanho do campo de assinatura em % da página. Em A4, o mínimo comporta as 5 linhas em 6 pt sem desenho
+// (nome em 2 linhas e endereço em 2); o padrão sai em ~7 pt.
+export const REVALLE_SIGNATURE_FIELD_MIN = { width: 26, height: 6.5 };
+export const REVALLE_SIGNATURE_FIELD_DEFAULT = { width: 30, height: 8 };
+
+/** Tamanho (em % da página) de um campo de assinatura, nunca abaixo do mínimo do carimbo. */
+export const clampRevalleSignatureFieldSize = (size: { width: number; height: number }) => ({
+  width: Math.max(size.width, REVALLE_SIGNATURE_FIELD_MIN.width),
+  height: Math.max(size.height, REVALLE_SIGNATURE_FIELD_MIN.height),
+});
+
+type WrapMode = 'words' | 'soft';
 
 const FONT_SIZES = Array.from(
   { length: (REVALLE_STAMP_MAX_FONT_SIZE - REVALLE_STAMP_MIN_FONT_SIZE) / FONT_SIZE_STEP + 1 },
@@ -98,12 +117,52 @@ const breakWord = (word: string, maxWidth: number, size: number, measure: Revall
   return pieces;
 };
 
+/** Quebra um token longo (o endereço) depois de "/" e "."; letra a letra só se um pedaço ainda não couber. */
+const appendSoftBroken = (
+  current: string,
+  word: string,
+  maxWidth: number,
+  size: number,
+  measure: RevalleMeasureText,
+) => {
+  const done: string[] = [];
+  let line = current;
+  let separator = current ? ' ' : '';
+
+  for (const segment of word.split(/(?<=[./])/)) {
+    const candidate = line + separator + segment;
+
+    separator = '';
+
+    if (measure(candidate, size) <= maxWidth) {
+      line = candidate;
+      continue;
+    }
+
+    if (line) {
+      done.push(line);
+    }
+
+    if (measure(segment, size) <= maxWidth) {
+      line = segment;
+      continue;
+    }
+
+    const pieces = breakWord(segment, maxWidth, size, measure);
+
+    done.push(...pieces.slice(0, -1));
+    line = pieces[pieces.length - 1];
+  }
+
+  return { done, line };
+};
+
 const wrapLine = (
   line: string,
   maxWidth: number,
   size: number,
   measure: RevalleMeasureText,
-  allowWordBreak: boolean,
+  mode: WrapMode,
 ): string[] | null => {
   const wrapped: string[] = [];
   let current = '';
@@ -116,23 +175,23 @@ const wrapLine = (
       continue;
     }
 
-    if (current) {
-      wrapped.push(current);
-    }
-
     if (measure(word, size) <= maxWidth) {
+      if (current) {
+        wrapped.push(current);
+      }
+
       current = word;
       continue;
     }
 
-    if (!allowWordBreak) {
+    if (mode === 'words') {
       return null;
     }
 
-    const pieces = breakWord(word, maxWidth, size, measure);
+    const { done, line: rest } = appendSoftBroken(current, word, maxWidth, size, measure);
 
-    wrapped.push(...pieces.slice(0, -1));
-    current = pieces[pieces.length - 1];
+    wrapped.push(...done);
+    current = rest;
   }
 
   if (current) {
@@ -147,12 +206,12 @@ const wrapLines = (
   maxWidth: number,
   size: number,
   measure: RevalleMeasureText,
-  allowWordBreak: boolean,
+  mode: WrapMode,
 ): string[] | null => {
   const wrapped: string[] = [];
 
   for (const line of lines) {
-    const result = wrapLine(line, maxWidth, size, measure, allowWordBreak);
+    const result = wrapLine(line, maxWidth, size, measure, mode);
 
     if (!result) {
       return null;
@@ -165,8 +224,9 @@ const wrapLines = (
 };
 
 /**
- * Distribui o carimbo no campo. Prefere fonte menor (até 5 pt) a quebrar uma palavra no meio; se nem assim couber,
- * usa só as linhas 1, 3 e 4. No último caso (campo minúsculo) a altura pode passar do campo, mas o texto nunca some.
+ * Distribui o carimbo no campo, de 9 até 5 pt. Ordem: 5 linhas sem quebrar palavra; 5 linhas quebrando o endereço
+ * em "/" e "."; linhas 1–4 (sem o endereço); linhas 1, 3 e 4. No último caso (campo minúsculo) a altura pode passar
+ * do campo, mas o texto nunca some.
  */
 export const layoutRevalleStamp = (
   lines: string[],
@@ -176,29 +236,48 @@ export const layoutRevalleStamp = (
 ): RevalleStampLayout => {
   const { drawingBox, textArea } = splitField(box, hasDrawing);
   const textBox = inset(textArea);
-  const shortLines = SHORT_LINE_INDEXES.flatMap((index) => (lines[index] === undefined ? [] : [lines[index]]));
+  const essentialLines = ESSENTIAL_LINE_INDEXES.flatMap((index) => (lines[index] === undefined ? [] : [lines[index]]));
 
-  const attempts: Array<[string[], boolean]> = [
-    [lines, false],
-    [shortLines, false],
-    [shortLines, true],
+  const attempts: Array<[RevalleStampLevel, string[], WrapMode]> = [
+    ['FULL', lines, 'words'],
+    ['FULL', lines, 'soft'],
+    ['WITHOUT_URL', lines.slice(0, 4), 'soft'],
+    ['ESSENTIAL', essentialLines, 'soft'],
   ];
 
-  for (const [candidate, allowWordBreak] of attempts) {
+  for (const [level, candidate, mode] of attempts) {
     for (const fontSize of FONT_SIZES) {
-      const wrapped = wrapLines(candidate, textBox.width, fontSize, measure, allowWordBreak);
+      const wrapped = wrapLines(candidate, textBox.width, fontSize, measure, mode);
 
       if (wrapped && wrapped.length * fontSize * REVALLE_STAMP_LINE_HEIGHT <= textBox.height) {
-        return { fontSize, lineHeight: REVALLE_STAMP_LINE_HEIGHT, lines: wrapped, drawingBox, textBox };
+        return { level, fontSize, lineHeight: REVALLE_STAMP_LINE_HEIGHT, lines: wrapped, drawingBox, textBox };
       }
     }
   }
 
   return {
+    level: 'ESSENTIAL',
     fontSize: REVALLE_STAMP_MIN_FONT_SIZE,
     lineHeight: REVALLE_STAMP_LINE_HEIGHT,
-    lines: wrapLines(shortLines, textBox.width, REVALLE_STAMP_MIN_FONT_SIZE, measure, true) ?? shortLines,
+    lines: wrapLines(essentialLines, textBox.width, REVALLE_STAMP_MIN_FONT_SIZE, measure, 'soft') ?? essentialLines,
     drawingBox,
     textBox,
   };
 };
+
+/** Rótulo neutro de uma assinatura "só carimbo" nas telas (o carimbo completo sai no PDF final). */
+export const REVALLE_STAMP_ONLY_LABEL = 'Assinado eletronicamente (carimbo)';
+
+type StampOnlyCandidate = {
+  type: string;
+  inserted?: boolean;
+  signature?: { signatureImageAsBase64?: string | null; typedSignature?: string | null } | null;
+};
+
+/** Campo SIGNATURE inserido sem desenho nem texto: a marca dele no PDF é só o carimbo. */
+export const isRevalleStampOnlySignature = (field: StampOnlyCandidate) =>
+  field.type === 'SIGNATURE' &&
+  Boolean(field.inserted) &&
+  Boolean(field.signature) &&
+  !field.signature?.signatureImageAsBase64 &&
+  !field.signature?.typedSignature?.trim();

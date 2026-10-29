@@ -13,12 +13,26 @@ type AdjustPositionForRotation = (
   pageRotationInDegrees: number,
 ) => { xPos: number; yPos: number };
 
+// O V1 chama a inserção uma vez por campo; a fonte do carimbo é embutida uma vez só por documento.
+const stampFonts = new WeakMap<PDFDocument, Promise<PDFFont>>();
+
+const getStampFont = (pdf: PDFDocument, fontBytes: ArrayBuffer) => {
+  let font = stampFonts.get(pdf);
+
+  if (!font) {
+    font = pdf.embedFont(fontBytes);
+    stampFonts.set(pdf, font);
+  }
+
+  return font;
+};
+
 type DrawRevalleStampPdfLibOptions = {
   pdf: PDFDocument;
   page: PDFPage;
   stamp: RevalleStamp;
   signature: Pick<Signature, 'signatureImageAsBase64' | 'typedSignature'> | null | undefined;
-  stampFont: PDFFont;
+  stampFontBytes: ArrayBuffer;
   signatureFont: PDFFont;
   fieldX: number;
   fieldY: number;
@@ -39,7 +53,7 @@ export const drawRevalleStampPdfLib = async ({
   page,
   stamp,
   signature,
-  stampFont,
+  stampFontBytes,
   signatureFont,
   fieldX,
   fieldY,
@@ -50,6 +64,7 @@ export const drawRevalleStampPdfLib = async ({
   pageRotationInDegrees,
   adjustPositionForRotation,
 }: DrawRevalleStampPdfLibOptions) => {
+  const stampFont = await getStampFont(pdf, stampFontBytes);
   const imageSignature = signature?.signatureImageAsBase64 || null;
   const typedSignature = signature?.typedSignature?.trim() || null;
 

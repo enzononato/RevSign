@@ -142,7 +142,7 @@ export const insertFieldInPDFV1 = async (
             page,
             stamp: revalleStamp,
             signature: field.signature,
-            stampFont: await pdf.embedFont(fontNoto),
+            stampFontBytes: fontNoto,
             signatureFont: font,
             fieldX,
             fieldY,

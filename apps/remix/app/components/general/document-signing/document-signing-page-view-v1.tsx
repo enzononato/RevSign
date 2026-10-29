@@ -103,7 +103,10 @@ export const DocumentSigningPageViewV1 = ({
   // Keep the loading state going if successful since the redirect may take some time.
   const isSubmitting = isLocating || isPending || isSuccess; // REVALLE: isLocating
 
-  const fieldsRequiringValidation = useMemo(() => fields.filter(isFieldUnsignedAndRequired), [fields]);
+  const fieldsRequiringValidation = useMemo(
+    () => fields.filter((field) => isFieldUnsignedAndRequired(field, recipient.role)), // REVALLE: papel
+    [fields, recipient.role],
+  );
 
   const fieldsValidated = () => {
     validateFieldsInserted(fieldsRequiringValidation);

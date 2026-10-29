@@ -9,14 +9,7 @@ import { prisma } from '@documenso/prisma';
 import { signPdf } from '@documenso/signing';
 import { PDF } from '@libpdf/core';
 import type { DocumentData, Envelope, EnvelopeItem, Field } from '@prisma/client';
-import {
-  DocumentStatus,
-  EnvelopeType,
-  FieldType, // REVALLE:
-  RecipientRole,
-  SigningStatus,
-  WebhookTriggerEvents,
-} from '@prisma/client';
+import { DocumentStatus, EnvelopeType, RecipientRole, SigningStatus, WebhookTriggerEvents } from '@prisma/client';
 import { nanoid } from 'nanoid';
 import { groupBy } from 'remeda';
 
@@ -439,7 +432,7 @@ const decorateAndSignPdf = async ({
     for (const field of envelopeItemFields) {
       if (field.inserted) {
         // REVALLE: com prova, o carimbo sai sempre (inclusive em envelope com inserção legada).
-        const revalleStamp = field.type === FieldType.SIGNATURE ? revalleStamps.get(field.recipientId) : undefined;
+        const revalleStamp = field.type === 'SIGNATURE' ? revalleStamps.get(field.recipientId) : undefined;
 
         if (envelope.useLegacyFieldInsertion && !revalleStamp) {
           await legacy_insertFieldInPDF(legacy_pdfLibDoc, field);

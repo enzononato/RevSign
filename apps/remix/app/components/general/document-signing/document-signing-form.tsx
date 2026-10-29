@@ -77,7 +77,10 @@ export const DocumentSigningForm = ({
     },
   });
 
-  const fieldsRequiringValidation = useMemo(() => fields.filter(isFieldUnsignedAndRequired), [fields]);
+  const fieldsRequiringValidation = useMemo(
+    () => fields.filter((field) => isFieldUnsignedAndRequired(field, recipient.role)), // REVALLE: papel
+    [fields, recipient.role],
+  );
 
   const hasSignatureField = fields.some((field) => isSignatureFieldType(field.type));
 

@@ -1,15 +1,16 @@
 import { prisma } from '@documenso/prisma';
+import { RecipientRole } from '@prisma/client';
 
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../../constants/app';
 import { buildRevalleStampLines, type RevalleStamp } from '../../../revalle/stamp';
 
 /**
- * Carimbos por recipientId, montados só a partir da prova congelada. Destinatário sem prova (documento anterior
- * à Fase 4) fica fora do mapa e o campo sai como no upstream.
+ * Carimbos por recipientId, montados só a partir da prova congelada. Só SIGNER tem carimbo; APPROVER/ASSISTANT e
+ * destinatário sem prova (documento anterior à Fase 4) ficam fora do mapa e o campo sai como no upstream.
  */
 export const loadRevalleStamps = async (envelopeId: string): Promise<Map<number, RevalleStamp>> => {
   const recipients = await prisma.recipient.findMany({
-    where: { envelopeId, revalleProof: { isNot: null } },
+    where: { envelopeId, role: RecipientRole.SIGNER, revalleProof: { isNot: null } },
     select: {
       id: true,
       name: true,

@@ -133,7 +133,10 @@ export const DocumentSigningCompleteDialog = ({
 
   const canRequestLocation = useCanRequestDeviceLocation(); // REVALLE:
 
-  const isComplete = useMemo(() => !fieldsContainUnsignedRequiredField(fields), [fields]);
+  const isComplete = useMemo(
+    () => !fieldsContainUnsignedRequiredField(fields, recipient.role), // REVALLE: papel
+    [fields, recipient.role],
+  );
 
   const completionRequires2FA = useMemo(
     () => derivedRecipientAccessAuth.includes('TWO_FACTOR_AUTH'),

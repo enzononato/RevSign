@@ -334,7 +334,8 @@ export const completeDocumentWithToken = async ({
     });
   }
 
-  if (fieldsContainUnsignedRequiredField(fields)) {
+  // REVALLE: papel do destinatário (SIGNATURE só é opcional para SIGNER)
+  if (fieldsContainUnsignedRequiredField(fields, recipient.role)) {
     throw new AppError(AppErrorCode.RECIPIENT_HAS_UNSIGNED_FIELDS, {
       message: `Recipient ${recipient.id} has unsigned fields`,
       statusCode: 400,
@@ -405,8 +406,11 @@ export const completeDocumentWithToken = async ({
       });
     }
 
-    // REVALLE: SIGNATURE sem desenho vira "só carimbo" antes de congelar a prova (drewSignature/signatureKind corretos)
-    await insertRevalleStampOnlySignatures(tx, recipient.id);
+    // REVALLE: SIGNATURE sem desenho vira "só carimbo" antes de congelar a prova (drewSignature/signatureKind corretos).
+    // Só para SIGNER; APPROVER/ASSISTANT já foram barrados acima se deixaram o campo vazio.
+    if (recipient.role === RecipientRole.SIGNER) {
+      await insertRevalleStampOnlySignatures(tx, recipient.id);
+    }
 
     // REVALLE: prova congelada na mesma transação que marca o destinatário como assinado (sem prova órfã)
     const revalleProof = await createRevalleSignatureProof({
@@ -417,8 +421,8 @@ export const completeDocumentWithToken = async ({
       deviceLocation: revalleGeolocation ? roundGeolocation(revalleGeolocation) : undefined,
     });
 
-    // REVALLE: desenhou ou não fica no log (só para quem tem campo de assinatura)
-    if (fields.some((field) => field.type === FieldType.SIGNATURE)) {
+    // REVALLE: desenhou ou não fica no log (só SIGNER com campo de assinatura, os únicos com carimbo)
+    if (recipient.role === RecipientRole.SIGNER && fields.some((field) => field.type === FieldType.SIGNATURE)) {
       await tx.documentAuditLog.create({
         data: createDocumentAuditLogData({
           type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_SIGNATURE_STAMPED,

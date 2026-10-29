@@ -1,4 +1,4 @@
-import { isBase64Image } from '@documenso/lib/constants/signatures';
+import { isBase64Image, isPngSignatureDataUrl } from '@documenso/lib/constants/signatures'; // REVALLE: isPngSignatureDataUrl
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
 import { validateFieldAuth } from '@documenso/lib/server-only/document/validate-field-auth';
 import { assertRevalleGatePassed } from '@documenso/lib/server-only/revalle/gate/assert-gate-passed'; // REVALLE:
@@ -134,6 +134,17 @@ export const signEnvelopeFieldRoute = procedure
     if (fieldValue.type === FieldType.SIGNATURE && fieldValue.value !== null && !fieldValue.value.trim()) {
       throw new AppError(AppErrorCode.INVALID_BODY, {
         message: 'Signature field must have a signature',
+      });
+    }
+
+    // REVALLE: imagem só se for PNG de verdade; um "data:" inválido também não pode virar texto digitado.
+    if (
+      fieldValue.type === FieldType.SIGNATURE &&
+      fieldValue.value?.startsWith('data:') &&
+      !isPngSignatureDataUrl(fieldValue.value)
+    ) {
+      throw new AppError(AppErrorCode.INVALID_BODY, {
+        message: 'Signature image must be a valid PNG',
       });
     }
 

@@ -152,7 +152,9 @@ export const EnvelopeSignerPageRenderer = ({ pageData }: { pageData: PageRenderD
 
     const fieldToRender = ZFullFieldSchema.parse(unparsedField);
 
-    const isValidating = showPendingFieldTooltip && isFieldUnsignedAndRequired(fieldToRender);
+    // REVALLE: papel do dono do campo (SIGNATURE só é opcional para SIGNER)
+    const fieldOwnerRole = envelope.recipients.find((r) => r.id === fieldToRender.recipientId)?.role;
+    const isValidating = showPendingFieldTooltip && isFieldUnsignedAndRequired(fieldToRender, fieldOwnerRole);
 
     const color = fieldToRender.fieldMeta?.readOnly ? 'readOnly' : isValidating ? 'orange' : 'green';
 
