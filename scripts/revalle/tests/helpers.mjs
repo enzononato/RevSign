@@ -1,6 +1,6 @@
 // Ajudantes dos testes de integração do RevSign (rodam contra a stack local; Node 24+, sem dependências).
 // Variáveis: REVSIGN_URL (padrão http://localhost:3000), REVSIGN_API_TOKEN (token de API do time).
-// Uso: node --test scripts/revalle/tests/
+// Uso: node --test --test-concurrency=1 scripts/revalle/tests/*.test.mjs (ver revalle/docs/testes.md)
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';

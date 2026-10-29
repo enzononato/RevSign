@@ -79,6 +79,13 @@ Toda edição em arquivo do upstream é marcada com `REVALLE:` no código e list
 | `apps/remix/app/components/general/envelope-editor/recipient-row.tsx` | Hook `useRevalleUnlinkedHint` (consulta `revalle.recipientLinkStatus` com debounce de 400 ms) e aviso abaixo do e-mail da empresa ainda não vinculado: "Na primeira assinatura, esta pessoa vai confirmar CPF e data de nascimento." (marcado `// REVALLE:`) | 3 |
 | `apps/remix/app/routes/_authenticated+/admin+/_layout.tsx` | Link "Verificações" no menu do admin, para `revalle-verificacoes.tsx` (marcado `// REVALLE:`) | 3 |
 | `packages/lib/types/document-audit-logs.ts`, `packages/lib/utils/document-audit-logs.ts` | Evento `REVALLE_GATE_UNLOCKED` (enum, schema `{ unlockedBy }`, união e texto "Link desbloqueado pelo administrador") (marcado `// REVALLE:`) | 3 |
+| `revalle/docs/verificacao.md` | Guia da verificação: telas de quem assina, link bloqueado, remover vínculo, ligar a base real, homologação sem base, limites, termo e política | 3 |
+| `revalle/docs/testes.md` | Como rodar a suíte de integração, o smoke e a verificação do PDF | 3 |
+| `revalle/docs/deploy.md` | Variáveis da Fase 3 na tabela e caixa "Antes de atualizar para esta versão" (CPF repetido; IP real no proxy) | 3 |
+| `revalle/colaboradores/criar-view-e-usuario.sql`, `revalle/colaboradores/dev-seed.sql` | Modelo da view `vw_colaboradores_assinatura` com usuário somente leitura e base fictícia de desenvolvimento | 3 |
+| `packages/lib/server-only/revalle/colaboradores/` | Leitura da view de colaboradores (`COLABORADORES_DATABASE_URL`) e mapeamento das colunas | 3 |
+| `packages/lib/revalle/{cpf,birth-date,email-domain}.ts` (e testes) | CPF (validação, máscara), data de nascimento e normalização de e-mail/domínio | 3 |
+| `revalle/deploy/env.hml.example`, `revalle/deploy/compose.hml.yml` | Variáveis da Fase 3 (`COLABORADORES_DATABASE_URL`, `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK`) e base fictícia na stack local | 3 |
 
 ## Checklist de atualização do upstream
 

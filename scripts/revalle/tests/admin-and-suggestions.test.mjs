@@ -1,6 +1,7 @@
 // Task 9 (Fase 3): sugestões pelos vínculos, status de vínculo e tela de admin.
 // Precisa de uma sessão comum (REVSIGN_USER_EMAIL / REVSIGN_USER_PASSWORD, dono do token de API) e,
-// para as rotas de admin, do admin da stack (REVSIGN_ADMIN_EMAIL / REVSIGN_ADMIN_PASSWORD, igual a NEXT_PRIVATE_REVALLE_ADMIN_EMAIL).
+// para as rotas de admin, de uma conta com o papel ADMIN (REVSIGN_ADMIN_EMAIL / REVSIGN_ADMIN_PASSWORD). A permissão é por papel, não por e-mail;
+// a subida do app promove a ADMIN a conta de NEXT_PRIVATE_REVALLE_ADMIN_EMAIL, que é uma das formas de ter essa conta.
 import assert from 'node:assert/strict';
 import { before, beforeEach, test } from 'node:test';
 
