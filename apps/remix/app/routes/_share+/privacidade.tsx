@@ -33,7 +33,8 @@ export default function PrivacidadePage() {
           <li>localização aproximada pelo IP e, se você autorizar, a localização do seu aparelho.</li>
         </ul>
         <p>
-          Não coletamos nada além disso. A data de nascimento só é usada para conferir; não é guardada no documento.
+          Não coletamos nada além disso. A data de nascimento é usada apenas para conferir com o cadastro de
+          colaboradores e não é gravada pelo RevSign.
         </p>
       </section>
 
@@ -60,14 +61,16 @@ export default function PrivacidadePage() {
         <h2 className="font-semibold text-xl">Com quem compartilhamos</h2>
         <p>
           Não compartilhamos seus dados com terceiros, exceto quando a lei ou uma ordem de autoridade competente exigir.
+          Os provedores de hospedagem e de envio de e-mail atuam como operadores, em nome da Revalle, e não como
+          terceiros que recebem os dados para uso próprio.
         </p>
       </section>
 
       <section className="space-y-2">
         <h2 className="font-semibold text-xl">Por quanto tempo guardamos</h2>
         <p>
-          Guardamos os dados enquanto o documento assinado for necessário para a Revalle e pelos prazos que a lei
-          exigir. Depois disso, eles são apagados ou anonimizados.
+          Os documentos e as provas de assinatura são guardados pelo tempo necessário para comprovar a assinatura e
+          pelos prazos que a lei exigir. A política de retenção será definida pela Revalle: [a preencher pela Revalle].
         </p>
       </section>
 
@@ -75,7 +78,10 @@ export default function PrivacidadePage() {
         <h2 className="font-semibold text-xl">Segurança</h2>
         <p>
           Usamos medidas técnicas e administrativas para proteger os dados: acesso restrito, comunicação protegida e
-          registro das ações feitas no sistema. O CPF aparece mascarado nos registros internos.
+          registro das ações feitas no sistema. O CPF digitado não é gravado nos registros de auditoria e aparece
+          mascarado no certificado anexado ao documento. O vínculo entre o seu e-mail e o seu CPF fica guardado no banco
+          de dados do sistema para que você não precise confirmar seus dados a cada assinatura; ele pode ser removido
+          pelo administrador.
         </p>
       </section>
 
