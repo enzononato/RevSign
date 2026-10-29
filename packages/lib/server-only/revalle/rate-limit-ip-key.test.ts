@@ -19,6 +19,11 @@ describe('revalleRateLimitIpKey', () => {
     expect(revalleRateLimitIpKey('fe80::1%eth0')).toBe('fe80:0:0:0::/64');
   });
 
+  it('final IPv4 com pontos conta como dois grupos', () => {
+    expect(revalleRateLimitIpKey('2001:db8::5:6:7:1.2.3.4')).toBe('2001:db8:0:5::/64');
+    expect(revalleRateLimitIpKey('2001:db8:1:2:3:4:1.2.3.4')).toBe('2001:db8:1:2::/64');
+  });
+
   it('IPv4 mapeado em IPv6 conta como o IPv4', () => {
     expect(revalleRateLimitIpKey('::ffff:203.0.113.7')).toBe('203.0.113.7');
   });

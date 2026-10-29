@@ -41,7 +41,7 @@ type LoaderData =
       completedAtLabel: string | null;
       /** `versions`: todas as selagens do arquivo, da mais antiga para a atual (a última é `finalSha256`). */
       items: { title: string; finalSha256: string | null; versions: RevalleSealedVersion[] }[];
-      signers: { nome: string; cpfMasked: string | null; signedAtLabel: string; verb: string }[];
+      signers: { nome: string; cpfMasked: string | null; showCpf: boolean; signedAtLabel: string; verb: string }[];
     };
 
 export const loader = async ({ request }: Route.LoaderArgs) => {
@@ -102,6 +102,8 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
     signers: result.signers.map((s) => ({
       nome: s.nome,
       cpfMasked: s.cpfMasked,
+      // Leitor (VIEWER/CC) não passa pelo portão: nunca informa CPF, então "não verificado" sugeriria uma falha.
+      showCpf: s.role !== 'VIEWER' && s.role !== 'CC',
       signedAtLabel: formatRevalleDateTime(s.signedAt),
       verb: revalleRoleVerb(s.role),
     })),
@@ -241,7 +243,7 @@ export default function VerificarPage() {
                 {result.signers.map((s, index) => (
                   <li className="rounded-md bg-muted/40 p-3 text-sm" key={`${s.nome}-${index}`}>
                     <p className="font-medium">{s.nome}</p>
-                    <p>CPF {s.cpfMasked ?? 'não verificado'}</p>
+                    {s.showCpf && <p>CPF {s.cpfMasked ?? 'não verificado'}</p>}
                     <p>
                       {s.verb} {s.signedAtLabel} (horário de Brasília)
                     </p>

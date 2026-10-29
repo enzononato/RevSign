@@ -230,6 +230,8 @@ test('participante VIEWER aparece com o nome do destinatário e "Visualizou em"'
   assert.ok(html.includes(VIEWER_NAME), 'nome do VIEWER ausente');
   assert.ok(!html.includes('Signatário'), 'rótulo genérico "Signatário" no lugar do nome');
   assert.ok(!html.includes(fx.viewer.b.email), 'e-mail do VIEWER na página');
+  // VIEWER nunca informa CPF: a linha "CPF não verificado" sugeriria uma checagem que falhou.
+  assert.ok(!/CPF (<!-- -->)?não verificado/.test(html), 'linha de CPF para o VIEWER');
 });
 
 test('envelope excluído (deletedAt) vira "Código não encontrado."', async () => {

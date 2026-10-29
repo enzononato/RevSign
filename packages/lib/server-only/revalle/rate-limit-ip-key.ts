@@ -3,6 +3,20 @@ import { isIP } from 'node:net';
 // REVALLE: chave de IP para limites por endereço (Fase 4, /verificar). Um cliente IPv6 costuma ter uma /64 inteira;
 // contar cada /128 separado deixaria o limite sem efeito. IPv4 (e IPv4 mapeado em IPv6) fica como está.
 
+// Um final IPv4 com pontos (a:b::1.2.3.4) ocupa dois grupos de 16 bits.
+const splitGroups = (part: string): string[] => {
+  const groups = part.split(':');
+  const last = groups[groups.length - 1];
+
+  if (!last.includes('.')) {
+    return groups;
+  }
+
+  const [a, b, c, d] = last.split('.').map(Number);
+
+  return [...groups.slice(0, -1), ((a << 8) | b).toString(16), ((c << 8) | d).toString(16)];
+};
+
 const expandIpv6 = (ip: string): string[] | null => {
   const halves = ip.split('::');
 
@@ -10,8 +24,8 @@ const expandIpv6 = (ip: string): string[] | null => {
     return null;
   }
 
-  const head = halves[0] ? halves[0].split(':') : [];
-  const tail = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  const head = halves[0] ? splitGroups(halves[0]) : [];
+  const tail = halves.length === 2 && halves[1] ? splitGroups(halves[1]) : [];
   const missing = 8 - head.length - tail.length;
 
   if (missing < 0 || (halves.length === 1 && missing !== 0)) {
