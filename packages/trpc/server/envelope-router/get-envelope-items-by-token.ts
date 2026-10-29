@@ -50,7 +50,7 @@ export const getEnvelopeItemsByTokenRoute = maybeAuthenticatedProcedure
     const { envelopeItems: data } = await handleGetEnvelopeItemsByToken({
       envelopeId,
       token: access.token,
-      requestMetadata: ctx.metadata.requestMetadata,
+      requestMetadata: ctx.metadata.requestMetadata, // REVALLE:
     });
 
     return {
@@ -58,6 +58,7 @@ export const getEnvelopeItemsByTokenRoute = maybeAuthenticatedProcedure
     };
   });
 
+// REVALLE: recebe requestMetadata (IP e navegador nos eventos do portão).
 const handleGetEnvelopeItemsByToken = async ({
   envelopeId,
   token,

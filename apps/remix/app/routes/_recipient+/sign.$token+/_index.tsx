@@ -22,7 +22,7 @@ import { getNextPendingRecipient } from '@documenso/lib/server-only/recipient/ge
 import { getRecipientByToken } from '@documenso/lib/server-only/recipient/get-recipient-by-token';
 import { getRecipientSignatures } from '@documenso/lib/server-only/recipient/get-recipient-signatures';
 import { getRecipientsForAssistant } from '@documenso/lib/server-only/recipient/get-recipients-for-assistant';
-import { getRevalleGateLoaderPayload } from '@documenso/lib/server-only/revalle/gate/get-gate-state-for-loader';
+import { getRevalleGateLoaderPayload } from '@documenso/lib/server-only/revalle/gate/get-gate-state-for-loader'; // REVALLE:
 import { getTeamSettings } from '@documenso/lib/server-only/team/get-team-settings';
 import { assertSenderNotDisabled } from '@documenso/lib/server-only/user/assert-user-not-disabled';
 import { getUserByEmail } from '@documenso/lib/server-only/user/get-user-by-email';
@@ -50,7 +50,7 @@ import { DocumentSigningProvider } from '~/components/general/document-signing/d
 import { DocumentSigningSenderDisabledPage } from '~/components/general/document-signing/document-signing-sender-disabled-page';
 import { EnvelopeSigningProvider } from '~/components/general/document-signing/envelope-signing-provider';
 import { RecipientBranding } from '~/components/general/recipient-branding';
-import { RevalleSigningGate } from '~/components/revalle/signing-gate/signing-gate';
+import { RevalleSigningGate } from '~/components/revalle/signing-gate/signing-gate'; // REVALLE:
 import { useCspNonce } from '~/utils/nonce';
 import { superLoaderJson, useSuperLoaderData } from '~/utils/super-json-loader';
 

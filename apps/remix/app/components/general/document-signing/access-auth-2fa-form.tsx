@@ -10,7 +10,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { msg } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
-import { MailIcon } from 'lucide-react';
+import { MailIcon } from 'lucide-react'; // REVALLE: sem ArrowLeftIcon/KeyIcon (sem escolha de método)
 import { DateTime } from 'luxon';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';

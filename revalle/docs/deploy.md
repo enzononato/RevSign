@@ -200,6 +200,15 @@ Faça estas duas conferências antes de trocar a imagem de uma instalação que 
    2. No site, abra o documento → **Logs** e olhe o IP dos eventos do termo e do código.
    3. Esperado: o IP público do celular (confira em https://meuip.com.br no mesmo celular).
    4. Se aparecer um IP interno (`10.`, `172.` ou `192.168.`) ou um IP que não é do celular, avise o desenvolvedor: o proxy não está repassando o IP real, e os limites e a auditoria perdem o valor.
+   5. **Teste do cabeçalho falso.** Confirme que o proxy não aceita um `X-Forwarded-For` mandado pelo cliente. Num terminal (de qualquer computador), com o link de um documento de teste ainda NÃO assinado (o `<token>` é a parte final do link `/sign/<token>`):
+      ```
+      curl -s -X POST 'https://assinatura-hml.revalle.com.br/api/trpc/document.accessAuth.request2FAEmail' \
+        -H 'Origin: https://assinatura-hml.revalle.com.br' -H 'Content-Type: application/json' \
+        -H 'X-Forwarded-For: 1.2.3.4' -d '{"json":{"token":"<token>"}}'
+      ```
+      Depois, no site, abra o documento → **Logs** e olhe o evento mais recente de pedido de código.
+      - Esperado: o IP público do computador que rodou o `curl` (confira em https://meuip.com.br), **nunca** `1.2.3.4`.
+      - Se aparecer `1.2.3.4`, PARE e avise o desenvolvedor: qualquer pessoa escolheria o IP gravado na auditoria e fugiria dos limites por IP. O proxy precisa sobrescrever o `X-Forwarded-For`.
 
 Depois de atualizar, preencha as variáveis novas (`COLABORADORES_DATABASE_URL` e, se for o caso, `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK`) conforme `verificacao.md`. O `app.env` gerado pelo script do passo 0 já traz as duas linhas: `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK=required` e `COLABORADORES_DATABASE_URL=<preencher>`. Em instalações já existentes, acrescente-as na aba **Environment**.
 

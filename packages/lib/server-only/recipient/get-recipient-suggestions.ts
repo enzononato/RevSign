@@ -9,6 +9,7 @@ export type GetRecipientSuggestionsOptions = {
   query: string;
 };
 
+// REVALLE: era `getRecipientSuggestions` (exportada); agora é a parte do upstream, chamada abaixo.
 const getUpstreamRecipientSuggestions = async ({ userId, teamId, query }: GetRecipientSuggestionsOptions) => {
   const trimmedQuery = query.trim();
 
