@@ -80,7 +80,7 @@ Cada pessoa ocupa um bloco com três colunas. Em ordem, para cada uma:
 | Termo aceito | Versão do termo de assinatura eletrônica e quando foi aceito, ex.: `Versão 1 em 29/10/2026 14:30` | Portão |
 | Ordem de assinatura | Só em documento com ordem definida: a posição da pessoa, ex.: `2º de 3`. Pessoas de um mesmo grupo (podem assinar em qualquer ordem entre si) têm a mesma posição | Ordem do documento |
 | Localização aproximada (IP) | Cidade/UF e país estimados pelo endereço IP, ex.: `Juazeiro/BA, Brasil`. A consulta é feita numa base dentro do próprio servidor; o IP não é enviado a ninguém. `não identificada` quando não dá para saber (rede interna, IP de teste) | Base DB-IP offline |
-| Localização do aparelho | Latitude, longitude e precisão, ex.: `-9,4167, -40,5033 (±25 m)`, **se a pessoa autorizou** no navegador. Senão: `não autorizada` (recusou), `indisponível` (o aparelho não respondeu a tempo) ou `não solicitada` (a tela não pediu, ex.: assinatura dentro de outro site) | Navegador, opcional |
+| Localização do aparelho | Latitude, longitude e precisão, ex.: `-9,4167, -40,5033 (±25 m)`, **se a pessoa autorizou** no navegador. Senão: `não autorizada` (recusou), `indisponível` (o aparelho não respondeu a tempo, ou a assinatura foi feita dentro de outro site, onde o navegador não deixa perguntar) ou `não solicitada` (nada foi pedido: quem só visualiza ou recebe cópia não passa pelo termo, então a localização do aparelho nunca é pedida a essas pessoas) | Navegador, opcional |
 | Assinatura visual | `imagem (desenho/arquivo)`, `texto digitado` ou `somente carimbo`. Só para quem assina | Prova congelada |
 | Código de verificação | O mesmo código do carimbo | Prova congelada |
 
@@ -102,7 +102,7 @@ Destinatário de documento assinado antes da Fase 4 não tem prova congelada: o 
 3. A página mostra:
    - o título do documento;
    - a situação: `Concluído em <data>`, `Recusado em <data>` ou `Em andamento`;
-   - **Participantes**: nome, CPF mascarado e a data em que cada um assinou (ou aprovou, visualizou…);
+   - **Participantes**: nome (o da base de RH; sem ele, por exemplo para quem só visualiza, o nome cadastrado no documento), CPF mascarado e a data em que cada um assinou (ou aprovou, visualizou…);
    - **SHA-256 do documento final** (só quando concluído). Se o documento foi **reselado** (ex.: troca do certificado da empresa), aparecem também as **versões seladas anteriores**, cada uma com a data da selagem.
 4. Para saber se o PDF que você tem nas mãos é o mesmo que foi assinado, vá em **"Conferir um arquivo"** (aparece quando o documento já foi concluído) e escolha o PDF. A conta é feita no seu próprio navegador: o arquivo **não é enviado** para lugar nenhum. Resultado:
    - `Este arquivo confere com a versão selada em <data> (horário de Brasília).`: é um PDF final selado deste documento, sem nenhuma alteração;

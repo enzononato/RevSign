@@ -52,7 +52,7 @@ export const EnvelopeSignerCompleteDialog = () => {
 
   const isFramed = useIsFramed();
 
-  const { request: requestDeviceLocation, isLocating } = useDeviceLocation(); // REVALLE:
+  const { request: requestDeviceLocation, isLocating } = useDeviceLocation(recipient.role); // REVALLE: papel
 
   const { mutateAsync: completeDocument, isPending } = trpc.recipient.completeDocumentWithToken.useMutation();
 

@@ -1,3 +1,4 @@
+import type { RecipientRole } from '@prisma/client';
 import { z } from 'zod';
 
 // REVALLE: localização opcional do aparelho na conclusão (Fase 4, spec 7.3). Compartilhado cliente/servidor.
@@ -33,3 +34,9 @@ export const canRequestDeviceLocation = ({
   hasEmbedContext: boolean;
   isFramed: boolean;
 }) => !hasEmbedContext && !isFramed;
+
+/**
+ * VIEWER e CC não passam pelo portão e nunca aceitam o termo, que é o que anuncia a coleta da localização do
+ * aparelho: para eles nada é pedido (o cliente esconde o aviso; o servidor grava NOT_REQUESTED de qualquer forma).
+ */
+export const revalleRoleRequestsDeviceLocation = (role: RecipientRole) => role !== 'VIEWER' && role !== 'CC';

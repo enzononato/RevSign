@@ -98,7 +98,7 @@ export const DocumentSigningPageViewV1 = ({
     isSuccess,
   } = trpc.recipient.completeDocumentWithToken.useMutation();
 
-  const { request: requestDeviceLocation, isLocating } = useDeviceLocation(); // REVALLE:
+  const { request: requestDeviceLocation, isLocating } = useDeviceLocation(recipient.role); // REVALLE: papel
 
   // Keep the loading state going if successful since the redirect may take some time.
   const isSubmitting = isLocating || isPending || isSuccess; // REVALLE: isLocating

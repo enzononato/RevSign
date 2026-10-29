@@ -68,6 +68,7 @@ export const findRevalleProofByCode = async (code: string): Promise<RevalleProof
               },
               recipients: {
                 select: {
+                  name: true,
                   role: true,
                   signingStatus: true,
                   signedAt: true,
@@ -103,12 +104,21 @@ export const findRevalleProofByCode = async (code: string): Promise<RevalleProof
   }));
 
   const signers = envelope.recipients
-    .flatMap((recipient) => (recipient.revalleProof ? [{ ...recipient.revalleProof, role: recipient.role }] : []))
+    .flatMap((recipient) =>
+      recipient.revalleProof
+        ? [{ ...recipient.revalleProof, role: recipient.role, recipientName: recipient.name }]
+        : [],
+    )
     .map((p) => {
       const employee = (p.employee ?? null) as { nome?: unknown; cpfMasked?: unknown } | null;
 
       return {
-        nome: typeof employee?.nome === 'string' ? employee.nome : 'Signatário',
+        // Mesma regra do carimbo e do certificado: nome do RH; sem ele (VIEWER, checagem desligada), o nome do
+        // destinatário. Nunca o e-mail (a página é pública).
+        nome:
+          typeof employee?.nome === 'string' && employee.nome.trim()
+            ? employee.nome
+            : p.recipientName.trim() || 'Participante',
         cpfMasked: typeof employee?.cpfMasked === 'string' ? employee.cpfMasked : null,
         signedAt: p.signedAt,
         role: p.role,

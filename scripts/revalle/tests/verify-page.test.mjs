@@ -5,6 +5,7 @@ import { before, beforeEach, test } from 'node:test';
 import { BASE_URL, completeWithCode, createEnvelope, db, distribute, trpc } from './helpers.mjs';
 
 const MARIA = { cpf: '39053344705', birthDate: '07/03/1990' };
+const VIEWER_NAME = 'Vera Visualizadora Teste';
 const title = `[TESTE] verificar ${Date.now()}`;
 const email = `verificar-${Date.now()}@revalle.com.br`;
 let code;
@@ -33,13 +34,16 @@ const waitStatus = async (envelopeId, status) => {
 };
 
 // Envelope com um signatário que conclui + um segundo participante (`second`).
-const twoParty = async ({ role, action }) => {
+const twoParty = async ({ role, action, name }) => {
   const t = `[TESTE] verificar-${role}-${action} ${Date.now()}`;
   const first = unique('a');
   const other = unique('b');
   const created = await createEnvelope({
     title: t,
-    recipients: [{ email: first }, { email: other, role, ...(role === 'SIGNER' ? {} : { fields: [] }) }],
+    recipients: [
+      { email: first },
+      { email: other, role, ...(name ? { name } : {}), ...(role === 'SIGNER' ? {} : { fields: [] }) },
+    ],
   });
 
   assert.equal(created.status, 200, created.text);
@@ -105,7 +109,7 @@ before(async () => {
 
   fx.rejected = await twoParty({ role: 'SIGNER', action: 'reject' });
   fx.pending = await twoParty({ role: 'SIGNER', action: 'none' });
-  fx.viewer = await twoParty({ role: 'VIEWER', action: 'complete' });
+  fx.viewer = await twoParty({ role: 'VIEWER', action: 'complete', name: VIEWER_NAME });
   fx.deleted = await twoParty({ role: 'SIGNER', action: 'none' });
 });
 
@@ -186,11 +190,15 @@ test('envelope em andamento mostra "Em andamento" e nenhum hash final', async ()
   assert.ok(!/[0-9a-f]{64}/.test(html));
 });
 
-test('participante VIEWER aparece com "Visualizou em"', async () => {
+test('participante VIEWER aparece com o nome do destinatário e "Visualizou em"', async () => {
   const { html } = await page(codeOf(fx.viewer.id, fx.viewer.b.id));
 
   assert.ok(html.includes('Visualizou em'), 'rótulo do VIEWER ausente');
   assert.ok(html.includes('Participantes'));
+  // Sem dados do RH (VIEWER não passa pelo portão): vale o nome do destinatário, como no carimbo e no certificado.
+  assert.ok(html.includes(VIEWER_NAME), 'nome do VIEWER ausente');
+  assert.ok(!html.includes('Signatário'), 'rótulo genérico "Signatário" no lugar do nome');
+  assert.ok(!html.includes(fx.viewer.b.email), 'e-mail do VIEWER na página');
 });
 
 test('envelope excluído (deletedAt) vira "Código não encontrado."', async () => {

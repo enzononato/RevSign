@@ -131,7 +131,7 @@ export const DocumentSigningCompleteDialog = ({
     },
   });
 
-  const canRequestLocation = useCanRequestDeviceLocation(); // REVALLE:
+  const canRequestLocation = useCanRequestDeviceLocation(recipient.role); // REVALLE: papel
 
   const isComplete = useMemo(
     () => !fieldsContainUnsignedRequiredField(fields, recipient.role), // REVALLE: papel

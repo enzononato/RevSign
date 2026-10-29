@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { canRequestDeviceLocation, roundGeolocation, ZRevalleGeolocationSchema } from './geolocation';
+import {
+  canRequestDeviceLocation,
+  revalleRoleRequestsDeviceLocation,
+  roundGeolocation,
+  ZRevalleGeolocationSchema,
+} from './geolocation';
 
 describe('ZRevalleGeolocationSchema', () => {
   it('aceita os três estados', () => {
@@ -46,5 +51,15 @@ describe('canRequestDeviceLocation', () => {
     expect(canRequestDeviceLocation({ hasEmbedContext: false, isFramed: false })).toBe(true);
     expect(canRequestDeviceLocation({ hasEmbedContext: true, isFramed: false })).toBe(false);
     expect(canRequestDeviceLocation({ hasEmbedContext: false, isFramed: true })).toBe(false);
+  });
+});
+
+describe('revalleRoleRequestsDeviceLocation', () => {
+  it('só quem passa pelo portão (e aceita o termo) tem a localização pedida; VIEWER e CC nunca', () => {
+    expect(revalleRoleRequestsDeviceLocation('SIGNER')).toBe(true);
+    expect(revalleRoleRequestsDeviceLocation('APPROVER')).toBe(true);
+    expect(revalleRoleRequestsDeviceLocation('ASSISTANT')).toBe(true);
+    expect(revalleRoleRequestsDeviceLocation('VIEWER')).toBe(false);
+    expect(revalleRoleRequestsDeviceLocation('CC')).toBe(false);
   });
 });

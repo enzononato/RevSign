@@ -2,8 +2,10 @@ import { useIsFramed } from '@documenso/lib/client-only/hooks/use-is-framed';
 import {
   canRequestDeviceLocation,
   type RevalleGeolocation,
+  revalleRoleRequestsDeviceLocation,
   roundGeolocation,
 } from '@documenso/lib/revalle/geolocation';
+import type { RecipientRole } from '@prisma/client';
 import { useCallback, useRef, useState } from 'react';
 import { useEmbedSigningContext } from '~/components/embed/embed-signing-context';
 
@@ -45,21 +47,32 @@ const getLocation = (): Promise<RevalleGeolocation> =>
     }
   });
 
-/** false em embed/iframe: o aviso some e nada é pedido. */
-export const useCanRequestDeviceLocation = () => {
+/** false em embed/iframe e para VIEWER/CC (sem portão nem termo): o aviso some e nada é pedido. */
+export const useCanRequestDeviceLocation = (role: RecipientRole) => {
   const isFramed = useIsFramed();
   const embed = useEmbedSigningContext();
 
-  return canRequestDeviceLocation({ hasEmbedContext: Boolean(embed), isFramed });
+  return (
+    revalleRoleRequestsDeviceLocation(role) && canRequestDeviceLocation({ hasEmbedContext: Boolean(embed), isFramed })
+  );
 };
 
-export const useDeviceLocation = () => {
+/**
+ * `request()` devolve a localização a enviar na conclusão. VIEWER/CC: `undefined` (o servidor grava NOT_REQUESTED);
+ * embed/iframe: `UNAVAILABLE`, sem perguntar ao navegador.
+ */
+export const useDeviceLocation = (role: RecipientRole) => {
   const inFlight = useRef<Promise<RevalleGeolocation> | null>(null);
   const [isLocating, setIsLocating] = useState(false);
-  const canRequest = useCanRequestDeviceLocation();
+  const roleAsks = revalleRoleRequestsDeviceLocation(role);
+  const canRequest = useCanRequestDeviceLocation(role);
 
   // Cliques repetidos compartilham a mesma consulta (um só pedido ao navegador).
-  const request = useCallback((): Promise<RevalleGeolocation> => {
+  const request = useCallback((): Promise<RevalleGeolocation | undefined> => {
+    if (!roleAsks) {
+      return Promise.resolve(undefined);
+    }
+
     if (!canRequest) {
       return Promise.resolve({ status: 'UNAVAILABLE' });
     }
@@ -73,7 +86,7 @@ export const useDeviceLocation = () => {
     }
 
     return inFlight.current;
-  }, [canRequest]);
+  }, [roleAsks, canRequest]);
 
   return { request, isLocating };
 };

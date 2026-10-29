@@ -75,3 +75,31 @@ test('malformado (lat 200) dá 400 e o destinatário segue NOT_SIGNED', async ()
   assert.equal(recipientStatus(id), 'NOT_SIGNED');
   assert.equal(readProof(id), null);
 });
+
+test('VIEWER (sem portão nem termo) que manda GRANTED fica com NOT_REQUESTED', async () => {
+  const signer = `geo-s-${Date.now()}-${Math.floor(Math.random() * 1e6)}@revalle.com.br`;
+  const viewer = `geo-v-${Date.now()}-${Math.floor(Math.random() * 1e6)}@revalle.com.br`;
+  const created = await createEnvelope({
+    recipients: [{ email: signer }, { email: viewer, role: 'VIEWER', fields: [] }],
+  });
+
+  assert.equal(created.status, 200, created.text);
+
+  const recipients = await distribute(created.id);
+  const documentId = Number.parseInt(created.envelope.secondaryId.split('_')[1], 10);
+  const v = recipients.find((r) => r.email === viewer);
+  const res = await completeWithCode({
+    token: v.token,
+    documentId,
+    email: viewer,
+    extra: { revalleGeolocation: { status: 'GRANTED', lat: -12.9714159, lon: -38.5014199, accuracyM: 19.6 } },
+  });
+
+  assert.equal(res.status, 200, res.text);
+
+  const proof = JSON.parse(
+    db(`select row_to_json(p) from "RevalleSignatureProof" p where p."recipientId" = ${v.id}`) || 'null',
+  );
+
+  assert.deepEqual(proof.deviceLocation, { status: 'NOT_REQUESTED' });
+});

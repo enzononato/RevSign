@@ -20,7 +20,11 @@ import { DateTime } from 'luxon';
 
 import { AppError, AppErrorCode } from '../../errors/app-error';
 import { jobs } from '../../jobs/client';
-import { type RevalleGeolocation, roundGeolocation } from '../../revalle/geolocation'; // REVALLE:
+import {
+  type RevalleGeolocation,
+  revalleRoleRequestsDeviceLocation,
+  roundGeolocation,
+} from '../../revalle/geolocation'; // REVALLE:
 import type { TRecipientAccessAuth } from '../../types/document-auth';
 import { DocumentAuth } from '../../types/document-auth';
 import { isTspEnvelope } from '../../types/signature-level';
@@ -418,7 +422,11 @@ export const completeDocumentWithToken = async ({
       requestMetadata,
       tx,
       externals: revalleProofExternals,
-      deviceLocation: revalleGeolocation ? roundGeolocation(revalleGeolocation) : undefined,
+      // VIEWER/CC não aceitam o termo: localização do aparelho nunca é gravada (NOT_REQUESTED), venha o que vier.
+      deviceLocation:
+        revalleGeolocation && revalleRoleRequestsDeviceLocation(recipient.role)
+          ? roundGeolocation(revalleGeolocation)
+          : undefined,
     });
 
     // REVALLE: desenhou ou não fica no log (só SIGNER com campo de assinatura, os únicos com carimbo)
