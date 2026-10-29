@@ -9,12 +9,20 @@ import {
 import { getIpAddress } from '@documenso/lib/universal/get-ip-address';
 import { Button } from '@documenso/ui/primitives/button';
 import { Input } from '@documenso/ui/primitives/input';
+import type { RecipientRole } from '@prisma/client';
 import { useState } from 'react';
 import { data, Form, useLoaderData } from 'react-router';
 
 import type { Route } from './+types/verificar';
 
 const verifyRateLimit = createRateLimit({ action: 'revalle.verify', max: 30, window: '15m' });
+
+const ROLE_VERBS: Partial<Record<RecipientRole, string>> = {
+  SIGNER: 'Assinou em',
+  APPROVER: 'Aprovou em',
+  VIEWER: 'Visualizou em',
+  ASSISTANT: 'Preencheu em',
+};
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
 
@@ -30,10 +38,10 @@ type LoaderData =
       state: 'found';
       codigo: string;
       documentTitle: string;
-      completed: boolean;
+      status: 'COMPLETED' | 'REJECTED' | 'PENDING';
       completedAtLabel: string | null;
       items: { title: string; finalSha256: string | null }[];
-      signers: { nome: string; cpfMasked: string | null; signedAtLabel: string }[];
+      signers: { nome: string; cpfMasked: string | null; signedAtLabel: string; verb: string }[];
     };
 
 export const loader = async ({ request }: Route.LoaderArgs) => {
@@ -50,6 +58,7 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
     return data<LoaderData>({ state: 'not-found', codigo: '' });
   }
 
+  // Sem IP legível, todos caem no mesmo balde 'unknown' (e dividem o limite).
   let ip = 'unknown';
 
   try {
@@ -80,13 +89,14 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
     state: 'found',
     codigo,
     documentTitle: result.documentTitle,
-    completed: result.status === 'COMPLETED',
+    status: result.status,
     completedAtLabel: result.completedAt ? formatRevalleDateTime(result.completedAt) : null,
     items: result.items,
     signers: result.signers.map((s) => ({
       nome: s.nome,
       cpfMasked: s.cpfMasked,
       signedAtLabel: formatRevalleDateTime(s.signedAt),
+      verb: ROLE_VERBS[s.role] ?? 'Assinou em',
     })),
   });
 };
@@ -204,25 +214,27 @@ export default function VerificarPage() {
             </div>
 
             <p className="font-medium">
-              {result.completed
-                ? `Concluído em ${result.completedAtLabel ?? ''} (horário de Brasília)`
-                : 'Em andamento'}
+              {result.status === 'COMPLETED' && `Concluído em ${result.completedAtLabel ?? ''} (horário de Brasília)`}
+              {result.status === 'REJECTED' && `Recusado em ${result.completedAtLabel ?? ''} (horário de Brasília)`}
+              {result.status === 'PENDING' && 'Em andamento'}
             </p>
 
             <div>
-              <h3 className="mb-2 font-medium">Assinaturas</h3>
+              <h3 className="mb-2 font-medium">Participantes</h3>
               <ul className="space-y-2">
                 {result.signers.map((s, index) => (
                   <li className="rounded-md bg-muted/40 p-3 text-sm" key={`${s.nome}-${index}`}>
                     <p className="font-medium">{s.nome}</p>
                     <p>CPF {s.cpfMasked ?? 'não verificado'}</p>
-                    <p>Assinou em {s.signedAtLabel} (horário de Brasília)</p>
+                    <p>
+                      {s.verb} {s.signedAtLabel} (horário de Brasília)
+                    </p>
                   </li>
                 ))}
               </ul>
             </div>
 
-            {result.completed && (
+            {result.status === 'COMPLETED' && (
               <div className="space-y-2">
                 <h3 className="font-medium">SHA-256 do documento final</h3>
                 {result.items.map((item, index) => (

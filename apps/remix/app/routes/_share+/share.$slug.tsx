@@ -1,4 +1,3 @@
-import { NEXT_PUBLIC_WEBAPP_URL } from '@documenso/lib/constants/app';
 import { getDocumentByAccessToken } from '@documenso/lib/server-only/document/get-document-by-access-token';
 import { data, redirect, useLoaderData } from 'react-router';
 
@@ -6,48 +5,7 @@ import { DocumentCertificateQRView } from '~/components/general/document/documen
 
 import type { Route } from './+types/share.$slug';
 
-export function meta({ params: { slug } }: Route.MetaArgs) {
-  if (slug.startsWith('qr_')) {
-    return undefined;
-  }
-
-  return [
-    { title: 'Documenso - Share' },
-    { description: 'I just signed a document in style with Documenso!' },
-    {
-      property: 'og:title',
-      content: 'Documenso - Join the open source signing revolution',
-    },
-    {
-      property: 'og:description',
-      content: 'I just signed with Documenso!',
-    },
-    {
-      property: 'og:type',
-      content: 'website',
-    },
-    {
-      property: 'og:image',
-      content: `${NEXT_PUBLIC_WEBAPP_URL()}/share/${slug}/opengraph`,
-    },
-    {
-      name: 'twitter:site',
-      content: '@documenso',
-    },
-    {
-      name: 'twitter:card',
-      content: 'summary_large_image',
-    },
-    {
-      name: 'twitter:image',
-      content: `${NEXT_PUBLIC_WEBAPP_URL()}/share/${slug}/opengraph`,
-    },
-    {
-      name: 'twitter:description',
-      content: 'I just signed with Documenso!',
-    },
-  ];
-}
+// REVALLE: sem meta/OG: só links qr_ existem (o bloco do Documenso para outros slugs foi removido).
 
 export const loader = async ({ params: { slug } }: Route.LoaderArgs) => {
   if (slug.startsWith('qr_')) {

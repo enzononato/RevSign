@@ -8,6 +8,69 @@ const MARIA = { cpf: '39053344705', birthDate: '07/03/1990' };
 const title = `[TESTE] verificar ${Date.now()}`;
 const email = `verificar-${Date.now()}@revalle.com.br`;
 let code;
+const fx = {};
+
+const gate = async (token) => {
+  // Um CPF só vale para um e-mail: solta o vínculo anterior (a prova e o portão ficam).
+  db(`delete from "RevalleEmailLink" where cpf = '${MARIA.cpf}'`);
+  db('delete from "RateLimit"');
+  await trpc('revalle.gate.acceptTerm', { token, termVersion: '1' });
+  await trpc('revalle.gate.verifyIdentity', { token, ...MARIA });
+  await trpc('revalle.gate.confirmIdentity', { token, isMe: true });
+};
+
+const unique = (label) => `${label}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@revalle.com.br`;
+
+const codeOf = (envelopeId, recipientId) =>
+  db(
+    `select p."verificationCode" from "RevalleSignatureProof" p join "Recipient" r on r.id = p."recipientId" where r."envelopeId" = '${envelopeId}'${recipientId ? ` and r.id = ${recipientId}` : ''} limit 1`,
+  );
+
+const waitStatus = async (envelopeId, status) => {
+  for (let i = 0; i < 40 && db(`select status from "Envelope" where id = '${envelopeId}'`) !== status; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+};
+
+// Envelope com um signatário que conclui + um segundo participante (`second`).
+const twoParty = async ({ role, action }) => {
+  const t = `[TESTE] verificar-${role}-${action} ${Date.now()}`;
+  const first = unique('a');
+  const other = unique('b');
+  const created = await createEnvelope({
+    title: t,
+    recipients: [{ email: first }, { email: other, role, ...(role === 'SIGNER' ? {} : { fields: [] }) }],
+  });
+
+  assert.equal(created.status, 200, created.text);
+
+  const recipients = await distribute(created.id);
+  const documentId = Number.parseInt(created.envelope.secondaryId.split('_')[1], 10);
+  const a = recipients.find((r) => r.email === first);
+  const b = recipients.find((r) => r.email === other);
+  const field = created.envelope.fields.find((f) => f.recipientId === a.id && f.type === 'SIGNATURE');
+
+  await gate(a.token);
+  await trpc('envelope.field.sign', {
+    token: a.token,
+    fieldId: field.id,
+    fieldValue: { type: 'SIGNATURE', value: 'Teste' },
+  });
+  assert.equal((await completeWithCode({ token: a.token, documentId, email: first })).status, 200);
+
+  if (action === 'reject') {
+    await gate(b.token);
+    const res = await trpc('recipient.rejectDocumentWithToken', { token: b.token, documentId, reason: 'Teste' });
+
+    assert.equal(res.status, 200, res.text);
+    await waitStatus(created.id, 'REJECTED');
+  } else if (action === 'complete') {
+    await gate(b.token);
+    assert.equal((await completeWithCode({ token: b.token, documentId, email: other })).status, 200);
+  }
+
+  return { title: t, id: created.id, a, b };
+};
 
 const page = (codigo, headers = {}) =>
   fetch(`${BASE_URL}/verificar?codigo=${encodeURIComponent(codigo)}`, { headers }).then(async (res) => ({
@@ -38,6 +101,12 @@ before(async () => {
     `select p."verificationCode" from "RevalleSignatureProof" p join "Recipient" r on r.id = p."recipientId" where r."envelopeId" = '${created.id}'`,
   );
   assert.match(code, /^[2-9A-Z]{4}-[2-9A-Z]{4}$/);
+  fx.main = created.id;
+
+  fx.rejected = await twoParty({ role: 'SIGNER', action: 'reject' });
+  fx.pending = await twoParty({ role: 'SIGNER', action: 'none' });
+  fx.viewer = await twoParty({ role: 'VIEWER', action: 'complete' });
+  fx.deleted = await twoParty({ role: 'SIGNER', action: 'none' });
 });
 
 beforeEach(() => {
@@ -99,4 +168,39 @@ test('/share/<slug> que não é qr_ vira 404, sem redirecionar', async () => {
   const res = await fetch(`${BASE_URL}/share/abc123`, { redirect: 'manual' });
 
   assert.equal(res.status, 404);
+});
+
+test('envelope recusado mostra "Recusado em" e o participante que assinou', async () => {
+  const { html } = await page(codeOf(fx.rejected.id));
+
+  assert.ok(html.includes(fx.rejected.title));
+  assert.match(html, /Recusado em \d{2}\/\d{2}\/\d{4} \d{2}:\d{2} \(horário de Brasília\)/);
+  assert.ok(!html.includes('Concluído em'));
+});
+
+test('envelope em andamento mostra "Em andamento" e nenhum hash final', async () => {
+  const { html } = await page(codeOf(fx.pending.id));
+
+  assert.ok(html.includes('Em andamento'));
+  assert.ok(!html.includes('SHA-256 do documento final'));
+  assert.ok(!/[0-9a-f]{64}/.test(html));
+});
+
+test('participante VIEWER aparece com "Visualizou em"', async () => {
+  const { html } = await page(codeOf(fx.viewer.id, fx.viewer.b.id));
+
+  assert.ok(html.includes('Visualizou em'), 'rótulo do VIEWER ausente');
+  assert.ok(html.includes('Participantes'));
+});
+
+test('envelope excluído (deletedAt) vira "Código não encontrado."', async () => {
+  const c = codeOf(fx.deleted.id);
+
+  assert.ok((await page(c)).html.includes(fx.deleted.title));
+  db(`update "Envelope" set "deletedAt" = now() where id = '${fx.deleted.id}'`);
+
+  const { html } = await page(c);
+
+  assert.ok(html.includes('Código não encontrado.'));
+  assert.ok(!html.includes(fx.deleted.title));
 });
