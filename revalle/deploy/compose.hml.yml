@@ -53,6 +53,8 @@ services:
       NEXT_PUBLIC_UPLOAD_TRANSPORT: database
       NEXT_PRIVATE_JOBS_PROVIDER: local
       NEXT_PUBLIC_DISABLE_SIGNUP: ${NEXT_PUBLIC_DISABLE_SIGNUP:-false}
+      # Cadastro e (na Fase 3) signatários só destes domínios. Vazio = qualquer domínio.
+      NEXT_PRIVATE_ALLOWED_SIGNUP_DOMAINS: ${NEXT_PRIVATE_ALLOWED_SIGNUP_DOMAINS:-revalle.com.br,revallenordeste.com.br,revallepe.com.br}
       DOCUMENSO_DISABLE_TELEMETRY: 'true'
       NEXT_PUBLIC_REVALLE_SOURCE_URL: https://github.com/enzononato/RevSign
       # SMTP: Mailpit no ensaio; no EasyPanel, o SMTP do cPanel (ver env.hml.example).
