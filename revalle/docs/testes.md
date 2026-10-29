@@ -5,10 +5,10 @@ Os testes rodam contra a stack local do RevSign (`revalle/deploy/compose.hml.yml
 ## O que precisa estar de pé
 
 1. Docker com a stack local no ar (app, `revsign-hml-database-1`, `revsign-hml-colaboradores-db-1` e `revsign-hml-mailpit-1`).
-2. Imagem reconstruída com o código atual: `docker build -f docker/Dockerfile -t revsign:local-f3 .` (~6 min) e `REVSIGN_IMAGE=revsign:local-f3` na stack.
+2. Imagem reconstruída com o código atual: `docker build -f docker/Dockerfile -t revsign:local-f4 .` (~6 min) e `REVSIGN_IMAGE=revsign:local-f4` na stack. Depois de reconstruir, recrie só o app: `docker compose -f revalle/deploy/compose.hml.yml --env-file ../local-hml/hml.env up -d --force-recreate documenso`.
 3. Node 24 ou mais novo (sem dependências). No WSL: `export PATH="$HOME/.local/node/bin:$HOME/.local/bin:$PATH"`.
 4. Um token de API do time (Configurações → API no site).
-5. A base de colaboradores é a FICTÍCIA da stack (`revalle/colaboradores/dev-seed.sql`). Nunca rode estes testes contra produção.
+5. A base de colaboradores é a FICTÍCIA da stack (`revalle/colaboradores/dev-seed.sql`). Nunca rode estes testes contra produção. Numa base criada antes da Fase 4, carregue os colaboradores do aceite (seção "Aceite da Fase 4").
 
 ## Rodar a suíte completa
 
@@ -28,6 +28,7 @@ Variáveis:
 | `REVSIGN_URL` | Endereço do app | `http://localhost:3000` |
 | `REVSIGN_USER_EMAIL`, `REVSIGN_USER_PASSWORD` | (Opcional) sessão de usuário comum, dono do token de API. Liga os testes de sugestões em `admin-and-suggestions.test.mjs` | sem elas, esses testes são pulados |
 | `REVSIGN_ADMIN_EMAIL`, `REVSIGN_ADMIN_PASSWORD` | (Opcional) sessão de uma conta com o papel ADMIN. Liga os testes das rotas de admin (desbloquear, vínculos) e os que precisam de uma sessão com e-mail da empresa como destinatário (`getDocumentByToken`, `ACCOUNT` na conclusão); use uma conta com e-mail da empresa. A permissão é por papel; a subida do app promove a ADMIN a conta de `NEXT_PRIVATE_REVALLE_ADMIN_EMAIL`, uma das formas de ter essa conta | sem elas, esses testes são pulados |
+| `REVSIGN_SENDER_API_TOKEN`, `REVSIGN_SENDER_EMAIL` | (Opcional) token de API do time pessoal de uma conta com e-mail da empresa, e o e-mail dessa conta (padrão: `REVSIGN_ADMIN_EMAIL`). Ligam o aceite da Fase 4 (`acceptance-f4.test.mjs`), em que o remetente é também o 1º signatário | sem elas, o aceite é pulado |
 | `REVSIGN_IDENTITY_CHECK_DISABLED` | (Opcional) `1` liga `identity-skip.test.mjs`, que só faz sentido com a stack subida com `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK=disabled` (ex.: `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK=disabled docker compose ... up -d documenso`; depois suba de novo sem a variável) | sem ela, o teste é pulado |
 | `REVSIGN_ICP_SEAL_MODE` | (Opcional) como a stack foi subida, para `icp-seal.test.mjs`: `etsi` (padrão, variáveis ICP sem definir), `pbad` (`NEXT_PRIVATE_REVALLE_ICP_PDF_DICT=pbad`) ou `off` (`NEXT_PRIVATE_REVALLE_ICP_SEAL=false`). Os testes de outro modo aparecem como pulados. Ex.: `NEXT_PRIVATE_REVALLE_ICP_PDF_DICT=pbad docker compose ... up -d documenso`, rodar com `REVSIGN_ICP_SEAL_MODE=pbad` e depois subir de novo sem a variável | `etsi` |
 | `REVSIGN_ICP_POLICY_HASH_MODE` | (Opcional) `policy` (padrão) ou `lpa`, quando a stack sobe com `NEXT_PRIVATE_REVALLE_ICP_POLICY_HASH=lpa`: diz a `icp-seal.test.mjs` qual hash da política esperar | `policy` |
@@ -37,6 +38,32 @@ Variáveis:
 Pulados aparecem como `skipped` no resumo. "Tudo verde" de verdade é: `fail 0`. Confira também o número de `skipped`.
 
 Os testes usam `docker exec revsign-hml-database-1 psql` (nome fixo do container), o Mailpit em `http://localhost:8025` e, para simular código vencido, `docker exec revsign-hml-documenso-1 node` (o código é calculado dentro do container; a chave não sai de lá).
+
+Conexões ociosas: o app fecha conexões keep-alive paradas. Depois de uma espera longa (selagem, reselagem), o próximo pedido pode cair numa conexão já fechada (`EPIPE`, `ECONNRESET` ou `UND_ERR_SOCKET` "other side closed"). Os ajudantes (`helpers.mjs`) repetem **uma vez** os pedidos que podem ser repetidos sem efeito colateral (GET: API, downloads, Mailpit, consultas tRPC) com `fetchIdempotent`/`retryOnStaleSocket`. Pedidos POST não são repetidos, exceto a criação de documento nos testes que já faziam isso.
+
+## Aceite da Fase 4
+
+`scripts/revalle/tests/acceptance-f4.test.mjs` é o aceite da spec §7.3: um documento com três signatários em ordem (o próprio remetente, um colaborador já vinculado e um na primeira assinatura), conferido no PDF final, no `/verificar` e na selagem. O que ele confere, em linguagem simples: `prova.md`, seção 4.
+
+Antes da primeira vez:
+
+1. **Colaboradores do aceite na base.** São os fictícios 7 a 9 do `dev-seed.sql` (`Teste Aceite F4 1/2/3`), exclusivos deste teste. Uma base nova já os carrega. Numa base criada antes, rode só o bloco deles (pode repetir, não duplica):
+   ```sh
+   sed -n '/aceite-f4:inicio/,/aceite-f4:fim/p' revalle/colaboradores/dev-seed.sql \
+     | docker exec -i revsign-hml-colaboradores-db-1 psql -U postgres -d colaboradores -v ON_ERROR_STOP=1
+   ```
+2. **Token de API do remetente.** Entre no site com a conta de e-mail da empresa que será o remetente (em homologação, a de `REVSIGN_ADMIN_EMAIL`), abra **Configurações → API** e crie um token para o time pessoal. Guarde-o fora do repositório. Nunca crie token por SQL.
+
+Rodar (só o aceite; a suíte inteira o inclui quando as variáveis estão definidas):
+
+```sh
+REVSIGN_API_TOKEN=api_... REVSIGN_SENDER_API_TOKEN=api_... REVSIGN_SENDER_EMAIL=remetente@revalle.com.br \
+node --test --test-concurrency=1 scripts/revalle/tests/acceptance-f4.test.mjs
+```
+
+- Leva cerca de 1 minuto (três conclusões, a selagem e o poppler).
+- Vínculos: o vínculo e-mail ↔ CPF é permanente e o CPF é único. Por isso cada execução usa e-mails novos para os signatários 2 e 3 e solta antes os vínculos dos CPFs fictícios 8 e 9. O remetente fica vinculado ao CPF fictício 7; se outro teste soltar esse vínculo, o aceite o refaz com um documento descartável (que ele mesmo exclui).
+- Esperado: todos os testes `ok`, nenhum `skipped` no arquivo do aceite.
 
 ## Teste de fumaça (smoke)
 
