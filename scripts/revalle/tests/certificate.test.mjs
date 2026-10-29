@@ -212,6 +212,16 @@ test('cada destinatário tem as linhas da prova com CPF mascarado e o código de
   assert.match(text, /Situação:\s+ativo/);
 });
 
+test('a caixa de assinatura de quem assinou só com o carimbo diz "Assinado eletronicamente (carimbo)"', () => {
+  const stampOnly = signers.filter((signer) => signer.role === 'SIGNER' && !signer.typed).length;
+  // Na caixa estreita o rótulo quebra em linhas; cada pedaço é contado à parte.
+  const count = (piece) => pages.certificateText.split(piece).length - 1;
+
+  assert.equal(stampOnly, 1);
+  assert.equal(count('eletronicamente'), stampOnly);
+  assert.equal(count('(carimbo)'), stampOnly);
+});
+
 test('nenhum destinatário é cortado entre páginas: nome, CPF e código ficam na mesma página', () => {
   for (const signer of signers) {
     const withName = pages.certificate.filter((page) => page.includes(signer.name));

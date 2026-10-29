@@ -17,6 +17,7 @@ import { NEXT_PUBLIC_WEBAPP_URL } from '../../constants/app';
 import { getSignatureFontFamily } from '../../constants/pdf';
 import { RECIPIENT_ROLE_SIGNING_REASONS, RECIPIENT_ROLES_DESCRIPTION } from '../../constants/recipient-roles';
 import { formatRevalleDateTime, REVALLE_TIME_ZONE_NOTE } from '../../revalle/date-format'; // REVALLE: datas dd/MM/yyyy HH:mm em America/Bahia
+import { REVALLE_STAMP_ONLY_LABEL } from '../../revalle/stamp'; // REVALLE:
 import type { TDocumentAuditLogBaseSchema } from '../../types/document-audit-logs';
 import { svgToPng } from '../../utils/images/svg-to-png';
 import type { RevalleCertificateRecipient } from '../revalle/certificate-data'; // REVALLE:
@@ -325,6 +326,26 @@ const renderColumnTwo = (options: RenderColumnOptions) => {
       }
 
       signatureContainer.add(typedSig);
+    } else if (recipient.revalle?.isStampOnly) {
+      // REVALLE: sem desenho nem texto, a caixa diz que a marca no documento é o carimbo (não fica vazia)
+      const stampOnlyLabel = new Konva.Text({
+        x: 2,
+        text: REVALLE_STAMP_ONLY_LABEL,
+        padding: 4,
+        fontFamily: 'Inter',
+        fontSize: textSm,
+        fill: textMutedForeground,
+        align: 'center',
+        verticalAlign: 'middle',
+        wrap: 'word',
+        width: maxSignatureWidth,
+      });
+
+      if (stampOnlyLabel.getClientRect().height < minSignatureHeight) {
+        stampOnlyLabel.setAttrs({ height: minSignatureHeight });
+      }
+
+      signatureContainer.add(stampOnlyLabel);
     }
 
     // Do not add the signature container for rejected recipients.
@@ -675,7 +696,8 @@ const groupRowsIntoPages = (options: GroupRowsIntoPagesOptions) => {
 
     const rowHeight = row.getClientRect().height;
 
-    if (rowHeight > availablePageHeight) {
+    // REVALLE: linha mais alta que a página fica na página atual se ela ainda está vazia (sem página de tabela vazia)
+    if (rowHeight > availablePageHeight && groupedRows[currentGroupedRowIndex].length > 0) {
       currentGroupedRowIndex++;
       groupedRows[currentGroupedRowIndex] = [row];
       availablePageHeight = maxHeight - rowHeaderHeight;

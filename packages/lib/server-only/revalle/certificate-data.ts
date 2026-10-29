@@ -9,6 +9,8 @@ export type RevalleCertificateRecipient = {
   device: string | null;
   signedAt: Date;
   signedVerb: string;
+  /** SIGNER que concluiu sem desenho nem texto: a marca no documento é só o carimbo. */
+  isStampOnly: boolean;
 };
 
 export type RevalleCertificateData = {
@@ -53,6 +55,7 @@ export const loadRevalleCertificateData = async ({
       device: proof.device,
       signedAt: proof.signedAt,
       signedVerb: revalleRoleVerb(role),
+      isStampOnly: role === 'SIGNER' && proof.signatureKind === 'NONE',
     });
   }
 
