@@ -31,6 +31,10 @@ Toda edição em arquivo do upstream é marcada com `REVALLE:` no código e list
 | `apps/remix/app/components/revalle/` | Componentes próprios | 1 |
 | `packages/lib/server-only/revalle/` | Código próprio do servidor (limites de tentativas) e testes | 1 |
 | `revalle/` | Deploy, backup e documentação de operação | 1 |
+| `revalle/docs/deploy.md` | Passo a passo do deploy no EasyPanel e tabela de variáveis | 1 |
+| `revalle/docs/certificado.md` | Certificado de homologação, troca pelo e-CNPJ A1 e renovação | 1 |
+| `revalle/docs/backup.md` | Backup, conta FTP/SFTP no cPanel, chave `age` e teste de restauração | 1 |
+| `revalle/docs/aceite-fase1.md` | Roteiro de aceite da Fase 1 | 1 |
 
 ## Checklist de atualização do upstream
 
