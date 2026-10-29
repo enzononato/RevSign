@@ -16,6 +16,11 @@ export const ADVANCED_FIELD_TYPES_WITH_OPTIONAL_SETTING: FieldType[] = [
  * Whether a field is required to be inserted.
  */
 export const isRequiredField = (field: Field) => {
+  // REVALLE: desenhar é opcional; o servidor insere o carimbo nos campos de assinatura não assinados ao concluir.
+  if (field.type === FieldType.SIGNATURE) {
+    return false;
+  }
+
   // All fields without the optional metadata are assumed to be required.
   if (!ADVANCED_FIELD_TYPES_WITH_OPTIONAL_SETTING.includes(field.type)) {
     return true;

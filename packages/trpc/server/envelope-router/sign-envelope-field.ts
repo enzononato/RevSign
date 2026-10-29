@@ -129,6 +129,14 @@ export const signEnvelopeFieldRoute = procedure
       throw new Error(`Field ${fieldId} has no recipientId`);
     }
 
+    // REVALLE: assinatura vazia só nasce na inserção automática da conclusão (carimbo); do cliente, é recusada.
+    // `null` continua sendo "desfazer a inserção".
+    if (fieldValue.type === FieldType.SIGNATURE && fieldValue.value !== null && !fieldValue.value.trim()) {
+      throw new AppError(AppErrorCode.INVALID_BODY, {
+        message: 'Signature field must have a signature',
+      });
+    }
+
     const insertionValues = extractFieldInsertionValues({ fieldValue, field, documentMeta });
 
     // Early return for uninserting fields.

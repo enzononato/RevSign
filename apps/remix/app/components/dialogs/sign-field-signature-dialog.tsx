@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { createCallable } from 'react-call';
 
 import { DocumentSigningDisclosure } from '../general/document-signing/document-signing-disclosure';
+import { RevalleOptionalDrawingNote } from '../revalle/optional-drawing-note'; // REVALLE:
 
 export type SignFieldSignatureDialogProps = {
   initialSignature?: string;
@@ -37,6 +38,8 @@ export const SignFieldSignatureDialog = createCallable<SignFieldSignatureDialogP
               uploadSignatureEnabled={uploadSignatureEnabled}
               drawSignatureEnabled={drawSignatureEnabled}
             />
+
+            <RevalleOptionalDrawingNote />
           </div>
 
           <DocumentSigningDisclosure />

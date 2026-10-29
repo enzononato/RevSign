@@ -208,7 +208,8 @@ export const signFieldWithToken = async ({
       .toFormat(documentMeta?.dateFormat ?? DEFAULT_DOCUMENT_DATE_FORMAT);
   }
 
-  if (isSignatureField && !signatureImageAsBase64 && !typedSignature) {
+  // REVALLE: texto só com espaços também conta como vazio (assinatura vazia só pela conclusão, com carimbo)
+  if (isSignatureField && !signatureImageAsBase64 && !typedSignature?.trim()) {
     throw new Error('Signature field must have a signature');
   }
 

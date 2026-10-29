@@ -9,19 +9,28 @@ import { prisma } from '@documenso/prisma';
 import { signPdf } from '@documenso/signing';
 import { PDF } from '@libpdf/core';
 import type { DocumentData, Envelope, EnvelopeItem, Field } from '@prisma/client';
-import { DocumentStatus, EnvelopeType, RecipientRole, SigningStatus, WebhookTriggerEvents } from '@prisma/client';
+import {
+  DocumentStatus,
+  EnvelopeType,
+  FieldType, // REVALLE:
+  RecipientRole,
+  SigningStatus,
+  WebhookTriggerEvents,
+} from '@prisma/client';
 import { nanoid } from 'nanoid';
 import { groupBy } from 'remeda';
 
 import { NEXT_PRIVATE_USE_PLAYWRIGHT_PDF } from '../../../constants/app';
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { sha256Hex } from '../../../revalle/sha256';
+import type { RevalleStamp } from '../../../revalle/stamp'; // REVALLE:
 import { getAuditLogsPdf } from '../../../server-only/htmltopdf/get-audit-logs-pdf';
 import { getCertificatePdf } from '../../../server-only/htmltopdf/get-certificate-pdf';
 import { insertFieldInPDFV1 } from '../../../server-only/pdf/insert-field-in-pdf-v1';
 import { insertFieldInPDFV2 } from '../../../server-only/pdf/insert-field-in-pdf-v2';
 import { legacy_insertFieldInPDF } from '../../../server-only/pdf/legacy-insert-field-in-pdf';
 import { recordFinalHash } from '../../../server-only/revalle/document-hashes';
+import { loadRevalleStamps } from '../../../server-only/revalle/proof/load-stamps'; // REVALLE:
 import { getTeamSettings } from '../../../server-only/team/get-team-settings';
 import { triggerWebhook } from '../../../server-only/webhooks/trigger/trigger-webhook';
 import { DOCUMENT_AUDIT_LOG_TYPE, type TDocumentAuditLog } from '../../../types/document-audit-logs';
@@ -207,6 +216,9 @@ export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition
 
     const usePlaywrightPdf = NEXT_PRIVATE_USE_PLAYWRIGHT_PDF();
 
+    // REVALLE: carimbo de texto montado a partir da prova congelada de cada destinatário.
+    const revalleStamps = await loadRevalleStamps(envelope.id);
+
     const needsCertificate = settings.includeSigningCertificate;
     const needsAuditLog = settings.includeAuditLog;
 
@@ -290,6 +302,7 @@ export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition
         pdfData,
         certificateDoc,
         auditLogDoc,
+        revalleStamps, // REVALLE:
       });
 
       newDocumentData.push(result);
@@ -376,6 +389,7 @@ type DecorateAndSignPdfOptions = {
   pdfData: Uint8Array;
   certificateDoc: PDF | null;
   auditLogDoc: PDF | null;
+  revalleStamps: Map<number, RevalleStamp>; // REVALLE:
 };
 
 /**
@@ -390,6 +404,7 @@ const decorateAndSignPdf = async ({
   pdfData,
   certificateDoc,
   auditLogDoc,
+  revalleStamps, // REVALLE:
 }: DecorateAndSignPdfOptions) => {
   let pdfDoc = await PDF.load(pdfData);
 
@@ -423,10 +438,13 @@ const decorateAndSignPdf = async ({
 
     for (const field of envelopeItemFields) {
       if (field.inserted) {
-        if (envelope.useLegacyFieldInsertion) {
+        // REVALLE: com prova, o carimbo sai sempre (inclusive em envelope com inserção legada).
+        const revalleStamp = field.type === FieldType.SIGNATURE ? revalleStamps.get(field.recipientId) : undefined;
+
+        if (envelope.useLegacyFieldInsertion && !revalleStamp) {
           await legacy_insertFieldInPDF(legacy_pdfLibDoc, field);
         } else {
-          await insertFieldInPDFV1(legacy_pdfLibDoc, field);
+          await insertFieldInPDFV1(legacy_pdfLibDoc, field, revalleStamp);
         }
       }
     }
@@ -456,6 +474,7 @@ const decorateAndSignPdf = async ({
         pageWidth,
         pageHeight,
         fields,
+        revalleStamps, // REVALLE:
       });
 
       const overlayPdf = await PDF.load(overlayBytes);

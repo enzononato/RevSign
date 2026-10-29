@@ -34,6 +34,7 @@ import { getIsRecipientsTurnToSign } from '../recipient/get-is-recipient-turn';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { assertRevalleAccessCode } from '../revalle/gate/access-code'; // REVALLE:
 import { createRevalleSignatureProof, loadProofExternals } from '../revalle/proof/create-signature-proof'; // REVALLE:
+import { insertRevalleStampOnlySignatures } from '../revalle/proof/insert-stamp-only-signatures'; // REVALLE:
 import { assertSenderNotDisabled } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
 import { isRecipientAuthorized } from './is-recipient-authorized';
@@ -404,14 +405,36 @@ export const completeDocumentWithToken = async ({
       });
     }
 
+    // REVALLE: SIGNATURE sem desenho vira "só carimbo" antes de congelar a prova (drewSignature/signatureKind corretos)
+    await insertRevalleStampOnlySignatures(tx, recipient.id);
+
     // REVALLE: prova congelada na mesma transação que marca o destinatário como assinado (sem prova órfã)
-    await createRevalleSignatureProof({
+    const revalleProof = await createRevalleSignatureProof({
       recipientId: recipient.id,
       requestMetadata,
       tx,
       externals: revalleProofExternals,
       deviceLocation: revalleGeolocation ? roundGeolocation(revalleGeolocation) : undefined,
     });
+
+    // REVALLE: desenhou ou não fica no log (só para quem tem campo de assinatura)
+    if (fields.some((field) => field.type === FieldType.SIGNATURE)) {
+      await tx.documentAuditLog.create({
+        data: createDocumentAuditLogData({
+          type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_SIGNATURE_STAMPED,
+          envelopeId: envelope.id,
+          user: { name: recipientName, email: recipientEmail },
+          requestMetadata,
+          data: {
+            recipientId: recipient.id,
+            signatureKind:
+              revalleProof.signatureKind === 'IMAGE' || revalleProof.signatureKind === 'TYPED'
+                ? revalleProof.signatureKind
+                : 'NONE',
+          },
+        }),
+      });
+    }
 
     const authOptions = extractDocumentAuthMethods({
       documentAuth: envelope.authOptions,

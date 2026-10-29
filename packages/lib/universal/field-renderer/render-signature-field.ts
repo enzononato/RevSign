@@ -8,6 +8,7 @@ import { calculateOverflowLayout } from './calculate-overflow-layout';
 import { createFieldHoverInteraction, upsertFieldGroup, upsertFieldRect } from './field-generic-items';
 import type { FieldToRender, RenderFieldElementOptions } from './field-renderer';
 import { calculateFieldPosition } from './field-renderer';
+import { createRevalleStampGroup } from './render-revalle-stamp'; // REVALLE:
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let SkiaImage: any;
@@ -236,6 +237,26 @@ export const renderSignatureFieldElement = (field: FieldToRender, options: Rende
 
   // Render the field background and text.
   const fieldRect = upsertFieldRect(field, options);
+
+  // REVALLE: no PDF final, a assinatura de quem tem prova vira o carimbo de texto (com o desenho, se houver).
+  if (mode === 'export' && field.revalleStamp) {
+    const { fieldWidth, fieldHeight } = calculateFieldPosition(field, pageWidth, pageHeight);
+
+    fieldRect.opacity(0);
+    fieldGroup.add(fieldRect);
+    fieldGroup.add(
+      createRevalleStampGroup({
+        stamp: field.revalleStamp,
+        signature: field.signature,
+        fieldWidth,
+        fieldHeight,
+        createImage: createSignatureImage,
+      }),
+    );
+
+    return { fieldGroup, isFirstRender };
+  }
+
   const { node: fieldSignature, isImageSignature, isLabel } = createFieldSignature(field, options);
 
   fieldGroup.add(fieldRect);

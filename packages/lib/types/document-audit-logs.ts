@@ -71,6 +71,7 @@ export const ZDocumentAuditLogTypeSchema = z.enum([
   'REVALLE_GATE_LOCKED',
   'REVALLE_GATE_UNLOCKED',
   'REVALLE_IDENTITY_SKIPPED',
+  'REVALLE_SIGNATURE_STAMPED', // REVALLE: desenhou ou não (carimbo sempre)
 ]);
 
 export const ZDocumentAuditLogEmailTypeSchema = z.enum([
@@ -876,6 +877,12 @@ export const ZDocumentAuditLogEventRevalleIdentitySkippedSchema = z.object({
   data: z.object({}),
 });
 
+// REVALLE: a marca da assinatura no PDF é sempre o carimbo; aqui fica se veio com desenho/imagem, texto ou nada.
+export const ZDocumentAuditLogEventRevalleSignatureStampedSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_SIGNATURE_STAMPED),
+  data: z.object({ recipientId: z.number(), signatureKind: z.enum(['IMAGE', 'TYPED', 'NONE']) }),
+});
+
 export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
   z.union([
     ZDocumentAuditLogEventEnvelopeItemCreatedSchema,
@@ -926,6 +933,7 @@ export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
     ZDocumentAuditLogEventRevalleGateLockedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleGateUnlockedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleIdentitySkippedSchema, // REVALLE:
+    ZDocumentAuditLogEventRevalleSignatureStampedSchema, // REVALLE:
   ]),
 );
 

@@ -20,6 +20,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useRevalidator } from 'react-router';
 
 import { DocumentSigningDisclosure } from '~/components/general/document-signing/document-signing-disclosure';
+import { RevalleOptionalDrawingNote } from '~/components/revalle/optional-drawing-note'; // REVALLE:
 
 import { useRequiredDocumentSigningAuthContext } from './document-signing-auth-provider';
 import { DocumentSigningFieldContainer } from './document-signing-field-container';
@@ -299,6 +300,8 @@ export const DocumentSigningSignatureField = ({
             uploadSignatureEnabled={uploadSignatureEnabled}
             drawSignatureEnabled={drawSignatureEnabled}
           />
+
+          <RevalleOptionalDrawingNote />
 
           <DocumentSigningDisclosure />
 

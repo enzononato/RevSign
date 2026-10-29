@@ -20,6 +20,7 @@ import { useId, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router';
 
+import { RevalleOptionalDrawingNote } from '~/components/revalle/optional-drawing-note'; // REVALLE:
 import { getSigningCompletionErrorMessage } from '~/utils/toast-error-messages';
 
 import { AssistantConfirmationDialog, type NextSigner } from '../../dialogs/assistant-confirmation-dialog';
@@ -267,6 +268,8 @@ export const DocumentSigningForm = ({
                         uploadSignatureEnabled={document.documentMeta?.uploadSignatureEnabled}
                         drawSignatureEnabled={document.documentMeta?.drawSignatureEnabled}
                       />
+
+                      <RevalleOptionalDrawingNote />
                     </div>
                   )}
                 </div>

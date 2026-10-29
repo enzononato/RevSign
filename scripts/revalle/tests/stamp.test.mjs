@@ -1,0 +1,487 @@
+// Carimbo de texto no PDF final, com desenho opcional (Task 6, Fase 4). Roda contra a stack local.
+// Extrai texto, fontes e imagens do PDF final com poppler num container alpine (como certificate.test.mjs).
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { before, beforeEach, test } from 'node:test';
+import { crc32, deflateSync } from 'node:zlib';
+
+import { api, BASE_URL, completeWithCode, createEnvelope, db, distribute, signIn, trpc, trpcAs } from './helpers.mjs';
+
+const MARIA = { cpf: '39053344705', birthDate: '07/03/1990' };
+const admin = { email: process.env.REVSIGN_ADMIN_EMAIL, password: process.env.REVSIGN_ADMIN_PASSWORD };
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const unique = (label) => `stamp-${label}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@revalle.com.br`;
+const flat = (text) => text.replace(/\s+/g, ' ');
+const count = (text, needle) => text.split(needle).length - 1;
+
+const poppler = (dir, script) =>
+  execFileSync(
+    'docker',
+    [
+      'run',
+      '--rm',
+      '-v',
+      `${dir}:/pdf:ro`,
+      'alpine:3.22',
+      'sh',
+      '-c',
+      `apk add --no-cache -q poppler-utils >/dev/null && ${script}`,
+    ],
+    { encoding: 'utf8' },
+  );
+
+// PNG 60×20 com um traço (um "desenho" pequeno de verdade, sem depender de arquivo).
+const drawingPng = () => {
+  const width = 60;
+  const height = 20;
+  const rows = [];
+
+  for (let y = 0; y < height; y += 1) {
+    const row = Buffer.alloc(1 + width * 4, 0);
+
+    for (let x = 0; x < width; x += 1) {
+      const isInk = Math.abs(y - Math.round((x * (height - 1)) / (width - 1))) <= 1;
+
+      row.writeUInt32BE(isInk ? 0x000000ff : 0x00000000, 1 + x * 4);
+    }
+
+    rows.push(row);
+  }
+
+  const chunk = (type, data) => {
+    const length = Buffer.alloc(4);
+    const crc = Buffer.alloc(4);
+    const body = Buffer.concat([Buffer.from(type), data]);
+
+    length.writeUInt32BE(data.length);
+    crc.writeUInt32BE(crc32(body));
+
+    return Buffer.concat([length, body, crc]);
+  };
+
+  const header = Buffer.alloc(13);
+
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.set([8, 6, 0, 0, 0], 8);
+
+  const png = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(Buffer.concat(rows))),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+
+  return `data:image/png;base64,${png.toString('base64')}`;
+};
+
+const brasilia = (date) => {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Bahia',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(date)
+      .map((part) => [part.type, part.value]),
+  );
+
+  return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}`;
+};
+
+const gate = async (token) => {
+  db(`delete from "RevalleEmailLink" where cpf = '${MARIA.cpf}'`);
+  db('delete from "RateLimit"');
+  await trpc('revalle.gate.acceptTerm', { token, termVersion: '1' });
+  await trpc('revalle.gate.verifyIdentity', { token, ...MARIA });
+  await trpc('revalle.gate.confirmIdentity', { token, isMe: true });
+};
+
+const waitStatus = async (envelopeId, status) => {
+  for (let i = 0; i < 60 && db(`select status from "Envelope" where id = '${envelopeId}'`) !== status; i += 1) {
+    await sleep(2000);
+  }
+
+  return db(`select status from "Envelope" where id = '${envelopeId}'`);
+};
+
+const readProof = (recipientId) => {
+  const proof = JSON.parse(
+    db(`select row_to_json(p) from "RevalleSignatureProof" p where p."recipientId" = ${recipientId}`) || 'null',
+  );
+
+  if (proof && !/[zZ]|[+-]\d\d:?\d\d$/.test(proof.signedAt)) {
+    proof.signedAt = `${proof.signedAt}Z`;
+  }
+
+  return proof;
+};
+
+const stampAudit = (envelopeId) =>
+  db(
+    `select data->>'signatureKind' from "DocumentAuditLog" where "envelopeId" = '${envelopeId}' and type = 'REVALLE_SIGNATURE_STAMPED'`,
+  );
+
+const imageRows = (list) => list.split('\n').filter((line) => /^\s*\d+\s+\d+\s+(image|smask)/.test(line)).length;
+
+const download = async (itemId, version) => {
+  const res = await fetch(`${BASE_URL}/api/v2-beta/envelope/item/${itemId}/download?version=${version}`, {
+    headers: { Authorization: `Bearer ${process.env.REVSIGN_API_TOKEN}` },
+  });
+
+  assert.equal(res.status, 200, `download ${version}`);
+
+  return Buffer.from(await res.arrayBuffer());
+};
+
+// O servidor fecha conexões ociosas (keep-alive); um POST com corpo em stream pode cair num socket já fechado
+// depois de uma espera longa. A escrita falha antes de chegar ao servidor, então repetir é seguro.
+const retryOnStaleSocket = async (fn) => {
+  try {
+    return await fn();
+  } catch (error) {
+    if (!['EPIPE', 'ECONNRESET'].includes(error?.cause?.code)) {
+      throw error;
+    }
+
+    return fn();
+  }
+};
+
+const create = (options) => retryOnStaleSocket(() => createEnvelope(options));
+
+// Baixa original e final do primeiro item (a extração com poppler fica para depois dos fluxos).
+const fetchPdfs = async (envelope) => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'stamp-'));
+  const itemId = envelope.envelopeItems[0].id;
+
+  writeFileSync(path.join(dir, 'original.pdf'), await download(itemId, 'original'));
+  writeFileSync(path.join(dir, 'signed.pdf'), await download(itemId, 'signed'));
+
+  return dir;
+};
+
+// Página 1 (onde estão os campos): texto, fontes e imagens; e o texto do PDF inteiro. Um container só.
+const extract = (dir) => {
+  const [page1, all, fonts, images, originalImages] = poppler(
+    dir,
+    [
+      'pdftotext -f 1 -l 1 /pdf/signed.pdf -',
+      'pdftotext /pdf/signed.pdf -',
+      'pdffonts -f 1 -l 1 /pdf/signed.pdf',
+      'pdfimages -f 1 -l 1 -list /pdf/signed.pdf',
+      'pdfimages -f 1 -l 1 -list /pdf/original.pdf',
+    ].join(' && echo @@@@ && '),
+  ).split('@@@@');
+
+  return {
+    dir,
+    page1: flat(page1),
+    all: flat(all),
+    fonts,
+    images: imageRows(images),
+    originalImages: imageRows(originalImages),
+  };
+};
+
+const verifySigned = (dir) =>
+  execFileSync(
+    'sh',
+    [
+      path.resolve('scripts/revalle/verify-signed-pdf.sh'),
+      path.join(dir, 'signed.pdf'),
+      path.join(dir, 'original.pdf'),
+    ],
+    { encoding: 'utf8' },
+  );
+
+const fx = {};
+
+beforeEach(() => {
+  db('delete from "RateLimit"');
+});
+
+before(async () => {
+  // (a) dois campos SIGNATURE, conclui sem assinar nenhum.
+  {
+    const email = unique('none');
+    const created = await create({
+      recipients: [
+        {
+          email,
+          fields: [
+            { type: 'SIGNATURE', page: 1, positionX: 10, positionY: 80, width: 30, height: 8 },
+            { type: 'SIGNATURE', page: 1, positionX: 10, positionY: 90, width: 30, height: 8 },
+          ],
+        },
+      ],
+    });
+
+    assert.equal(created.status, 200, created.text);
+
+    const [recipient] = await distribute(created.id);
+    const documentId = Number.parseInt(created.envelope.secondaryId.split('_')[1], 10);
+
+    await gate(recipient.token);
+    fx.none = {
+      completion: await completeWithCode({ token: recipient.token, documentId, email }),
+      status: await waitStatus(created.id, 'COMPLETED'),
+      proof: readProof(recipient.id),
+      audit: stampAudit(created.id),
+      fields: db(
+        `select f.inserted::text || ':' || coalesce(s."signatureImageAsBase64", '') || coalesce(s."typedSignature", '') from "Field" f left join "Signature" s on s."fieldId" = f.id where f."recipientId" = ${recipient.id} and f.type = 'SIGNATURE'`,
+      ).split('\n'),
+    };
+    fx.none.dir = await fetchPdfs(created.envelope);
+  }
+
+  // (b) assina com desenho (imagem) e conclui.
+  {
+    const email = unique('drawn');
+    const created = await create({ recipients: [{ email }] });
+
+    assert.equal(created.status, 200, created.text);
+
+    const [recipient] = await distribute(created.id);
+    const documentId = Number.parseInt(created.envelope.secondaryId.split('_')[1], 10);
+    const field = created.envelope.fields.find((f) => f.recipientId === recipient.id && f.type === 'SIGNATURE');
+
+    await gate(recipient.token);
+
+    const signed = await trpc('envelope.field.sign', {
+      token: recipient.token,
+      fieldId: field.id,
+      fieldValue: { type: 'SIGNATURE', value: drawingPng() },
+    });
+
+    assert.equal(signed.status, 200, signed.text);
+    fx.drawn = {
+      completion: await completeWithCode({ token: recipient.token, documentId, email }),
+      status: await waitStatus(created.id, 'COMPLETED'),
+      proof: readProof(recipient.id),
+      audit: stampAudit(created.id),
+    };
+    fx.drawn.dir = await fetchPdfs(created.envelope);
+  }
+
+  // (d) documento V1 (rota antiga /document/create, inserção com pdf-lib), concluído sem assinar.
+  {
+    const email = unique('v1');
+    const form = new FormData();
+
+    form.append(
+      'payload',
+      JSON.stringify({
+        title: `[TESTE] carimbo v1 ${Date.now()}`,
+        meta: { distributionMethod: 'NONE' },
+        recipients: [
+          {
+            email,
+            name: 'Teste',
+            role: 'SIGNER',
+            fields: [{ type: 'SIGNATURE', pageNumber: 1, pageX: 10, pageY: 80, width: 30, height: 8 }],
+          },
+        ],
+      }),
+    );
+    form.append('file', new File([readFileSync('assets/example.pdf')], 'example.pdf', { type: 'application/pdf' }));
+
+    const res = await retryOnStaleSocket(() =>
+      fetch(`${BASE_URL}/api/v2-beta/document/create`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.REVSIGN_API_TOKEN}` },
+        body: form,
+      }),
+    );
+    const body = await res.json();
+
+    assert.equal(res.status, 200, JSON.stringify(body));
+
+    const [recipient] = await distribute(body.envelopeId);
+    const envelope = (await api('GET', `/envelope/${body.envelopeId}`)).body;
+
+    await gate(recipient.token);
+    fx.v1 = {
+      internalVersion: db(`select "internalVersion" from "Envelope" where id = '${body.envelopeId}'`),
+      completion: await completeWithCode({ token: recipient.token, documentId: body.id, email }),
+      status: await waitStatus(body.envelopeId, 'COMPLETED'),
+      proof: readProof(recipient.id),
+    };
+    fx.v1.dir = await fetchPdfs(envelope);
+  }
+
+  for (const flow of [fx.none, fx.drawn, fx.v1]) {
+    flow.pdf = extract(flow.dir);
+  }
+});
+
+test('(a) sem assinar o campo: conclui, todo campo SIGNATURE ganha o carimbo com os dados da prova', () => {
+  const { completion, status, proof, pdf } = fx.none;
+
+  assert.equal(completion.status, 200, completion.text);
+  assert.equal(status, 'COMPLETED');
+  assert.ok(proof, 'prova ausente');
+
+  const lines = [
+    'Assinado eletronicamente por MARIA TESTE DA SILVA',
+    `CPF ${proof.employee.cpfMasked}`,
+    `em ${brasilia(new Date(proof.signedAt))} (horário de Brasília)`,
+    `Código de verificação: ${proof.verificationCode}`,
+  ];
+
+  for (const line of lines) {
+    assert.equal(count(pdf.page1, line), 2, `"${line}" deveria aparecer nos 2 campos:\n${pdf.page1}`);
+  }
+
+  assert.match(proof.employee.cpfMasked, /^\*\*\*\.\d{3}\.\d{3}-\*\*$/);
+  assert.equal(count(pdf.page1, '/verificar'), 2);
+  assert.match(pdf.page1, /Confira em https?:\/\/\S+\/verificar/);
+  assert.ok(!pdf.all.includes(MARIA.cpf), 'CPF completo no PDF');
+});
+
+test('(a) o carimbo é texto real em Noto Sans (fonte com acentos), não Caveat nem imagem', () => {
+  assert.match(fx.none.pdf.fonts, /NotoSans/);
+  assert.doesNotMatch(fx.none.pdf.fonts, /Caveat/i);
+  assert.equal(fx.none.pdf.images, fx.none.pdf.originalImages);
+});
+
+test('(a) a prova e o log registram que não desenhou; os campos ficam inseridos sem imagem nem texto', () => {
+  assert.equal(fx.none.proof.drewSignature, false);
+  assert.equal(fx.none.proof.signatureKind, 'NONE');
+  assert.equal(fx.none.audit, 'NONE');
+  assert.deepEqual(fx.none.fields, ['true:', 'true:']);
+  assert.ok(
+    fx.none.pdf.all.includes('Assinatura registrada pelo carimbo, sem desenho'),
+    'evento ausente no log do PDF',
+  );
+});
+
+test('(b) com desenho: o carimbo continua, o desenho entra como imagem e drewSignature=true', () => {
+  const { completion, status, proof, pdf, audit } = fx.drawn;
+
+  assert.equal(completion.status, 200, completion.text);
+  assert.equal(status, 'COMPLETED');
+  assert.equal(proof.drewSignature, true);
+  assert.equal(proof.signatureKind, 'IMAGE');
+  assert.equal(audit, 'IMAGE');
+  assert.ok(pdf.page1.includes('Assinado eletronicamente por MARIA TESTE DA SILVA'), pdf.page1);
+  assert.ok(pdf.page1.includes(`Código de verificação: ${proof.verificationCode}`));
+  assert.ok(pdf.images > pdf.originalImages, 'desenho ausente na página 1');
+});
+
+test('(c) verify-signed-pdf.sh passa nos dois PDFs', () => {
+  for (const { pdf } of [fx.none, fx.drawn]) {
+    const out = verifySigned(pdf.dir);
+
+    assert.match(out, /OK {4}assinatura íntegra/);
+    assert.match(out, /OK {4}assinatura cobre o documento inteiro/);
+  }
+});
+
+test('(d) documento V1 (pdf-lib): concluído sem assinar, o carimbo sai como texto', () => {
+  const { internalVersion, completion, status, proof, pdf } = fx.v1;
+
+  assert.equal(internalVersion, '1');
+  assert.equal(completion.status, 200, completion.text);
+  assert.equal(status, 'COMPLETED');
+  assert.equal(proof.signatureKind, 'NONE');
+
+  for (const line of [
+    'Assinado eletronicamente por MARIA TESTE DA SILVA',
+    `CPF ${proof.employee.cpfMasked}`,
+    `em ${brasilia(new Date(proof.signedAt))} (horário de Brasília)`,
+    `Código de verificação: ${proof.verificationCode}`,
+  ]) {
+    assert.ok(pdf.page1.includes(line), `"${line}" ausente:\n${pdf.page1}`);
+  }
+
+  assert.match(pdf.fonts, /NotoSans/);
+  verifySigned(pdf.dir);
+});
+
+test('adversarial: assinatura vazia ou só com espaços pela rota do cliente é recusada', async () => {
+  const email = unique('empty');
+  const created = await create({ recipients: [{ email }] });
+
+  assert.equal(created.status, 200, created.text);
+
+  const [recipient] = await distribute(created.id);
+  const field = created.envelope.fields.find((f) => f.recipientId === recipient.id && f.type === 'SIGNATURE');
+
+  await gate(recipient.token);
+
+  for (const value of ['', '   ']) {
+    const res = await trpc('envelope.field.sign', {
+      token: recipient.token,
+      fieldId: field.id,
+      fieldValue: { type: 'SIGNATURE', value },
+    });
+
+    assert.notEqual(res.status, 200, `valor ${JSON.stringify(value)} aceito`);
+  }
+
+  assert.equal(db(`select inserted::text from "Field" where id = ${field.id}`), 'false');
+  assert.equal(db(`select count(*) from "Signature" where "fieldId" = ${field.id}`), '0');
+});
+
+test('sem prova (documento anterior à Fase 4): a reselagem não inventa carimbo', async (t) => {
+  if (!admin.email || !admin.password) {
+    t.skip('sem credenciais de admin');
+
+    return;
+  }
+
+  const email = unique('legacy');
+  const created = await create({ recipients: [{ email }] });
+
+  assert.equal(created.status, 200, created.text);
+
+  const [recipient] = await distribute(created.id);
+  const documentId = Number.parseInt(created.envelope.secondaryId.split('_')[1], 10);
+  const field = created.envelope.fields.find((f) => f.recipientId === recipient.id && f.type === 'SIGNATURE');
+
+  await gate(recipient.token);
+  await trpc('envelope.field.sign', {
+    token: recipient.token,
+    fieldId: field.id,
+    fieldValue: { type: 'SIGNATURE', value: 'Teste' },
+  });
+  assert.equal((await completeWithCode({ token: recipient.token, documentId, email })).status, 200);
+  assert.equal(await waitStatus(created.id, 'COMPLETED'), 'COMPLETED');
+
+  const itemId = created.envelope.envelopeItems[0].id;
+  const sealedDataId = db(`select "documentDataId" from "EnvelopeItem" where id = '${itemId}'`);
+
+  db(`delete from "RevalleSignatureProof" where "recipientId" = ${recipient.id}`);
+
+  const cookie = await signIn(admin.email, admin.password);
+  const resealed = await trpcAs(cookie, 'mutation', 'admin.document.reseal', { id: created.id });
+
+  assert.ok(resealed.ok, resealed.text);
+
+  for (
+    let i = 0;
+    i < 60 && db(`select "documentDataId" from "EnvelopeItem" where id = '${itemId}'`) === sealedDataId;
+    i += 1
+  ) {
+    await sleep(1000);
+  }
+
+  assert.notEqual(
+    db(`select "documentDataId" from "EnvelopeItem" where id = '${itemId}'`),
+    sealedDataId,
+    'reselagem não terminou',
+  );
+
+  const pdf = extract(await fetchPdfs(created.envelope));
+
+  assert.ok(!pdf.page1.includes('Assinado eletronicamente'), pdf.page1);
+  assert.ok(pdf.page1.includes('Teste'), pdf.page1);
+});

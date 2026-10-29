@@ -703,6 +703,15 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
 
       return { anonymous: text, you: text, user: text };
     })
+    // REVALLE:
+    .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_SIGNATURE_STAMPED }, ({ data }) => {
+      const text = match(data.signatureKind)
+        .with('IMAGE', () => msg`Assinatura registrada pelo carimbo, com desenho ou imagem`)
+        .with('TYPED', () => msg`Assinatura registrada pelo carimbo, com nome digitado`)
+        .otherwise(() => msg`Assinatura registrada pelo carimbo, sem desenho`);
+
+      return { anonymous: text, you: text, user: text };
+    })
     .exhaustive();
 
   let selectedDescription = description.anonymous;
