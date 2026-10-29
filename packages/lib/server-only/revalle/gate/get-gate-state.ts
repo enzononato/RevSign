@@ -23,7 +23,7 @@ export const logRevalleBaseUnavailable = (error?: unknown) => {
 
 /**
  * Devolve a linha do portão. Se o e-mail do destinatário mudou desde a última vez, o portão volta ao início
- * (termo e identidade; tentativas e bloqueio ficam), para que quem recebe o link depois não herde o que foi feito pelo e-mail anterior.
+ * (termo, identidade e tentativas de código; tentativas de identidade e bloqueio ficam), para que quem recebe o link depois não herde o que foi feito pelo e-mail anterior.
  */
 export const ensureRevalleGate = async (recipient: RevalleGateRecipient): Promise<RevalleRecipientGate> => {
   const email = normalizeEmail(recipient.email);
@@ -57,6 +57,7 @@ export const ensureRevalleGate = async (recipient: RevalleGateRecipient): Promis
         pendingCpf: null,
         cpf: null,
         identityConfirmedAt: null,
+        codeFailedAttempts: 0,
       },
     });
   }
