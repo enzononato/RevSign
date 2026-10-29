@@ -34,10 +34,10 @@ msgid "Accept team email request for {teamName} on Documenso"
 msgstr "Aceitar solicitação de e-mail da equipe para {teamName} no RevSign"
 
 msgid "By proceeding to use the electronic signature service provided by Documenso, you affirm that you have read and understood this disclosure. You agree to all terms and conditions related to the use of electronic signatures and electronic transactions as outlined herein."
-msgstr "Ao prosseguir com o uso do serviço de assinatura eletrônica fornecido pela RevSign, você afirma que leu e compreendeu esta divulgação. Você concorda com todos os termos e condições relacionados ao uso de assinaturas eletrônicas e transações eletrônicas conforme descrito aqui."
+msgstr "Ao prosseguir com o uso do serviço de assinatura eletrônica fornecido pelo RevSign, você afirma que leu e compreendeu esta divulgação. Você concorda com todos os termos e condições relacionados ao uso de assinaturas eletrônicas e transações eletrônicas conforme descrito aqui."
 
 msgid "Documenso will delete <0>all of your documents</0>, along with all of your completed documents, signatures, and all other resources belonging to your Account."
-msgstr "A RevSign excluirá <0>todos os seus documentos</0>, juntamente com todos os seus documentos concluídos, assinaturas e todos os outros recursos pertencentes à sua conta."
+msgstr "O RevSign excluirá <0>todos os seus documentos</0>, juntamente com todos os seus documentos concluídos, assinaturas e todos os outros recursos pertencentes à sua conta."
 
 msgid "Join {organisationName} on Documenso"
 msgstr "Junte-se a {organisationName} no RevSign"
@@ -58,7 +58,7 @@ msgid "Team email removed for {teamName} on Documenso"
 msgstr "E-mail da equipe removido para {teamName} no RevSign"
 
 msgid "Thank you for using Documenso to perform your electronic document signing. The purpose of this disclosure is to inform you about the process, legality, and your rights regarding the use of electronic signatures on our platform. By opting to use an electronic signature, you are agreeing to the terms and conditions outlined below."
-msgstr "Obrigado por usar o RevSign para realizar sua assinatura eletrônica de documentos. O objetivo desta divulgação é informá-lo sobre o processo, legalidade e seus direitos em relação ao uso de assinaturas eletrônicas em nossa plataforma. Ao optar por usar uma assinatura eletrônica, você concorda com os termos e condições descritos abaixo."
+msgstr "Obrigado por usar o RevSign para realizar sua assinatura eletrônica de documentos. O objetivo desta divulgação é informar você sobre o processo, legalidade e seus direitos em relação ao uso de assinaturas eletrônicas em nossa plataforma. Ao optar por usar uma assinatura eletrônica, você concorda com os termos e condições descritos abaixo."
 
 msgid "The URL for Documenso to send webhook events to."
 msgstr "A URL para o RevSign enviar eventos de webhook."
@@ -67,13 +67,13 @@ msgid "This document is available in your Documenso account. You can view more d
 msgstr "Este documento está disponível em sua conta RevSign. Você pode ver mais detalhes, destinatários e logs de auditoria lá."
 
 msgid "Welcome to Documenso!"
-msgstr "Bem-vindo ao RevSign!"
+msgstr "Boas-vindas ao RevSign!"
 
 msgid "While waiting for them to do so you can create your own Documenso account and get started with document signing right away."
 msgstr "Enquanto espera que eles façam isso, você pode criar sua própria conta RevSign e começar a assinar documentos imediatamente."
 
 msgid "You have been invited to join {0} on Documenso"
-msgstr "Você foi convidado para participar de {0} no RevSign"
+msgstr "Você recebeu um convite para participar de {0} no RevSign"
 
 msgid "Your email has already been confirmed. You can now use all features of Documenso."
 msgstr "Seu e-mail já foi confirmado. Agora você pode usar todos os recursos do RevSign."
@@ -106,7 +106,7 @@ msgid "delete {organisationName}"
 msgstr "excluir {organisationName}"
 
 msgid "Member has been removed from the organisation."
-msgstr "O membro foi removido da organização."
+msgstr "Membro removido da organização."
 
 msgid "Remove Organisation Member"
 msgstr "Remover membro da organização"
@@ -136,7 +136,7 @@ msgid "Sync Stripe subscription"
 msgstr "Sincronizar assinatura do Stripe"
 
 msgid "Sync claims. This will overwrite the current claim with the one resolved from the Stripe subscription."
-msgstr "Sincronizar permissões do plano. Isso substituirá as atuais pelas obtidas da assinatura do Stripe."
+msgstr "Sincronizar pacote. Isso substituirá o pacote atual pelo obtido da assinatura do Stripe."
 
 msgid "The organisation subscription has been synced with Stripe."
 msgstr "A assinatura do plano da organização foi sincronizada com o Stripe."
@@ -163,7 +163,7 @@ msgid "We encountered an unknown error while removing the recipient."
 msgstr "Ocorreu um erro desconhecido ao remover o destinatário."
 
 msgid "e.g. Removed at the sender's request"
-msgstr "Ex.: Removido a pedido do remetente"
+msgstr "ex.: Removido a pedido do remetente"
 
 msgid "Failed to move subscription. Please try again."
 msgstr "Falha ao mover a assinatura do plano. Tente novamente."
@@ -190,7 +190,7 @@ msgid "This will move the subscription from \"{sourceOrganisationName}\" to \"{0
 msgstr "A assinatura do plano será movida de \"{sourceOrganisationName}\" para \"{0}\". A organização de origem voltará para o plano gratuito."
 
 msgid "Member has been removed from the team."
-msgstr "O membro foi removido da equipe."
+msgstr "Membro removido da equipe."
 
 msgid "Remove Team Member"
 msgstr "Remover membro da equipe"
@@ -337,10 +337,10 @@ msgid "Warning, this email transport is currently being used by:"
 msgstr "Atenção, este servidor de e-mail está em uso por:"
 
 msgid "{organisationClaimCount, plural, one {# Organisation claim} other {# Organisation claims}}"
-msgstr "{organisationClaimCount, plural, one {# permissão de organização} other {# permissões de organização}}"
+msgstr "{organisationClaimCount, plural, one {# pacote da organização} other {# pacotes da organização}}"
 
 msgid "{subscriptionClaimCount, plural, one {# Subscription claim} other {# Subscription claims}}"
-msgstr "{subscriptionClaimCount, plural, one {# permissão de assinatura do plano} other {# permissões de assinatura do plano}}"
+msgstr "{subscriptionClaimCount, plural, one {# pacote de assinatura} other {# pacotes de assinatura}}"
 
 msgid "Send Test Email"
 msgstr "Enviar e-mail de teste"
@@ -919,7 +919,7 @@ msgid "Your browser is blocking the cookies needed to keep you signed in inside 
 msgstr "Seu navegador está bloqueando os cookies necessários para manter você conectado nesta incorporação. Abra este documento em uma nova aba."
 
 msgid "Your browser needs permission to keep you signed in inside this embed. Press Continue and allow access when Safari asks."
-msgstr "Seu navegador precisa de permissão para manter você conectado nesta incorporação. Clique em Continuar e permita o acesso quando o Safari pedir."
+msgstr "Seu navegador precisa de permissão para manter você conectado nesta incorporação. Toque ou clique em Continuar e permita o acesso quando o Safari pedir."
 
 msgid "Signing Window Expired"
 msgstr "Prazo de assinatura expirado"
@@ -934,7 +934,7 @@ msgid "This document is no longer available to sign because the account that sen
 msgstr "Este documento não está mais disponível para assinatura porque a conta que o enviou foi desativada, provavelmente por spam ou abuso."
 
 msgid "Enter one of your backup codes to continue."
-msgstr "Digite um dos seus códigos de recuperação para continuar."
+msgstr "Digite um dos seus códigos de backup para continuar."
 
 msgid "Enter the code from your authenticator app to continue."
 msgstr "Digite o código do seu aplicativo autenticador para continuar."
@@ -985,7 +985,7 @@ msgid "Focus ring colour."
 msgstr "Cor do anel de foco."
 
 msgid "Foreground"
-msgstr "Primeiro plano"
+msgstr "Texto"
 
 msgid "Only .jpg, .png, and .webp files are accepted"
 msgstr "Somente arquivos .jpg, .png e .webp são aceitos"
@@ -997,7 +997,7 @@ msgid "Primary"
 msgstr "Primária"
 
 msgid "Primary Foreground"
-msgstr "Primeiro plano primário"
+msgstr "Texto primário"
 
 msgid "Primary action colour."
 msgstr "Cor da ação principal."
@@ -1057,10 +1057,10 @@ msgid "Port"
 msgstr "Porta"
 
 msgid "Transport type"
-msgstr "Tipo de transporte"
+msgstr "Tipo de servidor"
 
 msgid "Transport type cannot be changed after creation."
-msgstr "O tipo de transporte não pode ser alterado após a criação."
+msgstr "O tipo de servidor não pode ser alterado após a criação."
 
 msgid "Username"
 msgstr "Nome de usuário"
@@ -1156,13 +1156,13 @@ msgid "Imprint"
 msgstr "Aviso legal"
 
 msgid "Privacy Policy"
-msgstr "Política de Privacidade"
+msgstr "Política de privacidade"
 
 msgid "Signup is currently disabled or not available for your email domain."
 msgstr "O cadastro está desativado no momento ou não está disponível para o domínio do seu e-mail."
 
 msgid "Terms of Service"
-msgstr "Termos de Serviço"
+msgstr "Termos de serviço"
 
 msgid "We were unable to create your account. If you already have an account, try signing in instead."
 msgstr "Não foi possível criar sua conta. Se você já tem uma conta, tente entrar."
@@ -1174,7 +1174,7 @@ msgid "Default (system mailer)"
 msgstr "Padrão (e-mail do sistema)"
 
 msgid "Email transport"
-msgstr "Transporte de e-mail"
+msgstr "Servidor de e-mail"
 
 msgid "Learn more"
 msgstr "Saiba mais"
@@ -1183,7 +1183,7 @@ msgid "Maximum number of recipients per document allowed. 0 = Unlimited"
 msgstr "Número máximo de destinatários permitido por documento. 0 = ilimitado"
 
 msgid "Plans without a transport use the system default mailer."
-msgstr "Planos sem transporte usam o serviço de e-mail padrão do sistema."
+msgstr "Pacotes sem servidor de e-mail próprio usam o padrão do sistema."
 
 msgid "Recipient Count"
 msgstr "Número de destinatários"
@@ -1580,7 +1580,7 @@ msgid "Signing certificate is invalid"
 msgstr "O certificado de assinatura é inválido"
 
 msgid "Something went wrong while preparing the remote signature. Please try again."
-msgstr "Algo deu errado ao preparar a assinatura remota. Tente de novo."
+msgstr "Algo deu errado ao preparar a assinatura remota. Tente novamente."
 
 msgid "Unable to start the signing flow"
 msgstr "Não foi possível iniciar a assinatura"
@@ -1601,19 +1601,19 @@ msgid "Please don't close this tab. The signing provider is finalising your sign
 msgstr "Não feche esta aba. O provedor de assinatura está finalizando sua assinatura."
 
 msgid "Reauthorise and retry"
-msgstr "Autorizar de novo e tentar novamente"
+msgstr "Autorizar novamente"
 
 msgid "Signing failed"
 msgstr "Falha ao assinar"
 
 msgid "Something went wrong while applying your signature. Please retry."
-msgstr "Algo deu errado ao aplicar sua assinatura. Tente de novo."
+msgstr "Algo deu errado ao aplicar sua assinatura. Tente novamente."
 
 msgid "The signing provider did not respond in time. Please retry."
-msgstr "O provedor de assinatura não respondeu a tempo. Tente de novo."
+msgstr "O provedor de assinatura não respondeu a tempo. Tente novamente."
 
 msgid "Your signing authorisation expired before the signature could be applied. Please reauthorise to retry."
-msgstr "Sua autorização de assinatura expirou antes de a assinatura ser aplicada. Autorize de novo para tentar novamente."
+msgstr "Sua autorização de assinatura expirou antes de a assinatura ser aplicada. Autorize novamente para tentar outra vez."
 
 msgid "2FA token"
 msgstr "Código 2FA"
@@ -1625,10 +1625,10 @@ msgid "You need to setup 2FA to approve this field."
 msgstr "Você precisa configurar a verificação em duas etapas (2FA) para aprovar este campo."
 
 msgid "You need to setup 2FA to assist with this document."
-msgstr "Você precisa configurar a verificação em duas etapas (2FA) para auxiliar em este documento."
+msgstr "Você precisa configurar a verificação em duas etapas (2FA) para auxiliar neste documento."
 
 msgid "You need to setup 2FA to assist with this field."
-msgstr "Você precisa configurar a verificação em duas etapas (2FA) para auxiliar em este campo."
+msgstr "Você precisa configurar a verificação em duas etapas (2FA) para auxiliar neste campo."
 
 msgid "You need to setup 2FA to sign this document."
 msgstr "Você precisa configurar a verificação em duas etapas (2FA) para assinar este documento."
@@ -1655,16 +1655,16 @@ msgid "To approve this field, you need to be logged in."
 msgstr "Para aprovar este campo, você precisa estar conectado."
 
 msgid "To assist with this document, you need to be logged in as <0>{0}</0>"
-msgstr "Para auxiliar em este documento, você precisa estar conectado como <0>{0}</0>"
+msgstr "Para auxiliar neste documento, você precisa estar conectado como <0>{0}</0>"
 
 msgid "To assist with this document, you need to be logged in."
-msgstr "Para auxiliar em este documento, você precisa estar conectado."
+msgstr "Para auxiliar neste documento, você precisa estar conectado."
 
 msgid "To assist with this field, you need to be logged in as <0>{0}</0>"
-msgstr "Para auxiliar em este campo, você precisa estar conectado como <0>{0}</0>"
+msgstr "Para auxiliar neste campo, você precisa estar conectado como <0>{0}</0>"
 
 msgid "To assist with this field, you need to be logged in."
-msgstr "Para auxiliar em este campo, você precisa estar conectado."
+msgstr "Para auxiliar neste campo, você precisa estar conectado."
 
 msgid "To sign this document, you need to be logged in as <0>{0}</0>"
 msgstr "Para assinar este documento, você precisa estar conectado como <0>{0}</0>"
@@ -1700,10 +1700,10 @@ msgid "You need to setup a passkey to approve this field."
 msgstr "Você precisa configurar uma chave de acesso (passkey) para aprovar este campo."
 
 msgid "You need to setup a passkey to assist with this document."
-msgstr "Você precisa configurar uma chave de acesso (passkey) para auxiliar em este documento."
+msgstr "Você precisa configurar uma chave de acesso (passkey) para auxiliar neste documento."
 
 msgid "You need to setup a passkey to assist with this field."
-msgstr "Você precisa configurar uma chave de acesso (passkey) para auxiliar em este campo."
+msgstr "Você precisa configurar uma chave de acesso (passkey) para auxiliar neste campo."
 
 msgid "You need to setup a passkey to mark this document as viewed."
 msgstr "Você precisa configurar uma chave de acesso (passkey) para marcar este documento como visualizado."
@@ -1727,10 +1727,10 @@ msgid "Your browser does not support passkeys, which is required to approve this
 msgstr "Seu navegador não é compatível com chaves de acesso (passkeys), necessárias para aprovar este campo."
 
 msgid "Your browser does not support passkeys, which is required to assist with this document."
-msgstr "Seu navegador não é compatível com chaves de acesso (passkeys), necessárias para auxiliar em este documento."
+msgstr "Seu navegador não é compatível com chaves de acesso (passkeys), necessárias para auxiliar neste documento."
 
 msgid "Your browser does not support passkeys, which is required to assist with this field."
-msgstr "Seu navegador não é compatível com chaves de acesso (passkeys), necessárias para auxiliar em este campo."
+msgstr "Seu navegador não é compatível com chaves de acesso (passkeys), necessárias para auxiliar neste campo."
 
 msgid "Your browser does not support passkeys, which is required to mark this document as viewed."
 msgstr "Seu navegador não é compatível com chaves de acesso (passkeys), necessárias para marcar este documento como visualizado."
@@ -1781,7 +1781,7 @@ msgid "Return Home"
 msgstr "Voltar ao início"
 
 msgid "Expires {0}"
-msgstr "Expira {0}"
+msgstr "Expira em {0}"
 
 msgid "Document expired"
 msgstr "Documento expirado"
@@ -2289,10 +2289,10 @@ msgid "Send test"
 msgstr "Enviar teste"
 
 msgid "Used by claims"
-msgstr "Usado por planos"
+msgstr "Usado por pacotes"
 
 msgid "Claim"
-msgstr "Plano"
+msgstr "Pacote"
 
 msgid "Period"
 msgstr "Período"
@@ -2304,7 +2304,7 @@ msgid "No expired documents"
 msgstr "Nenhum documento expirado"
 
 msgid "No rejected documents"
-msgstr "Nenhum documento recusado"
+msgstr "Nenhum documento rejeitado"
 
 msgid "Nothing cancelled"
 msgstr "Nada cancelado"
@@ -2316,7 +2316,7 @@ msgid "There are no documents with expired signing links. You can redistribute a
 msgstr "Não há documentos com link de assinatura expirado. Você pode reenviar um documento para renovar a validade."
 
 msgid "There are no rejected documents. Documents that a recipient declines to sign will appear here."
-msgstr "Não há documentos recusados. Os documentos que um destinatário recusar assinar aparecerão aqui."
+msgstr "Não há documentos rejeitados. Os documentos que um destinatário rejeitar aparecerão aqui."
 
 msgid "Search members..."
 msgstr "Buscar membros..."
@@ -2340,7 +2340,7 @@ msgid "Documents that have been cancelled will appear here"
 msgstr "Os documentos cancelados aparecerão aqui"
 
 msgid "Documents that have been rejected will appear here"
-msgstr "Os documentos recusados aparecerão aqui"
+msgstr "Os documentos rejeitados aparecerão aqui"
 
 msgid "Documents that you have completed will appear here"
 msgstr "Os documentos que você concluir aparecerão aqui"
@@ -2356,7 +2356,7 @@ msgid "Free (Pending)"
 msgstr "Gratuito (pendente)"
 
 msgid "Email Transports"
-msgstr "Transportes de e-mail"
+msgstr "Servidores de e-mail"
 
 msgid "Organisation Stats"
 msgstr "Estatísticas da organização"
@@ -2422,16 +2422,16 @@ msgid "Search by domain or organisation name"
 msgstr "Busque por domínio ou nome da organização"
 
 msgid "Manage all email transports"
-msgstr "Gerencie todos os transportes de e-mail"
+msgstr "Gerencie todos os servidores de e-mail"
 
 msgid "Search by name or from address"
 msgstr "Busque por nome ou endereço de remetente"
 
 msgid "All claims"
-msgstr "Todos os planos"
+msgstr "Todos os pacotes"
 
 msgid "Documents, emails and api values may not be accurate since they record the amount of times the action was attempted. Meaning these values may go over the actual quota, get rejected, and will still be recorded."
-msgstr "Os valores de documentos, e-mails e API podem não ser exatos, pois registram o número de vezes que a ação foi tentada. Ou seja, podem passar da cota real, ser recusados e mesmo assim ficar registrados."
+msgstr "Os valores de documentos, e-mails e API podem não ser exatos, pois registram o número de vezes que a ação foi tentada. Ou seja, podem passar da cota real, ser rejeitados e mesmo assim ficar registrados."
 
 msgid "Search by organisation name, URL or ID"
 msgstr "Busque por nome, URL ou ID da organização"
@@ -2470,7 +2470,7 @@ msgid "Irreversible actions for this organisation"
 msgstr "Ações irreversíveis para esta organização"
 
 msgid "No inherited claim"
-msgstr "Nenhum plano herdado"
+msgstr "Nenhum pacote herdado"
 
 msgid "No subscription found"
 msgstr "Nenhuma assinatura de plano encontrada"
@@ -2488,7 +2488,7 @@ msgid "Organisation usage"
 msgstr "Uso da organização"
 
 msgid "Organisations without a transport use the system default mailer."
-msgstr "Organizações sem transporte usam o remetente de e-mail padrão do sistema."
+msgstr "Organizações sem servidor de e-mail próprio usam o padrão do sistema."
 
 msgid "People with access to this organisation."
 msgstr "Pessoas com acesso a esta organização."
@@ -2803,10 +2803,10 @@ msgid "You have accepted an invitation from <0>{organisationName}</0> to join th
 msgstr "Você aceitou o convite de <0>{organisationName}</0> para entrar na organização."
 
 msgid "You have been invited by <0>{organisationName}</0> to join their organisation."
-msgstr "Você foi convidado por <0>{organisationName}</0> para entrar na organização."
+msgstr "Você recebeu um convite de <0>{organisationName}</0> para entrar na organização."
 
 msgid "You have been invited to join <0>{organisationName}</0> on Documenso."
-msgstr "Você foi convidado para entrar em <0>{organisationName}</0> no RevSign."
+msgstr "Você recebeu um convite para entrar em <0>{organisationName}</0> no RevSign."
 
 msgid "You have declined the invitation from <0>{organisationName}</0> to join their organisation."
 msgstr "Você recusou o convite de <0>{organisationName}</0> para entrar na organização."
@@ -3028,7 +3028,7 @@ msgid "This document has been cancelled by the sender and can no longer be signe
 msgstr "Este documento foi cancelado pelo remetente e não pode mais ser assinado. Fale com o remetente se acha que isso foi um engano."
 
 msgid "This document has been rejected by a recipient and can no longer be signed."
-msgstr "Este documento foi recusado por um destinatário e não pode mais ser assinado."
+msgstr "Este documento foi rejeitado por um destinatário e não pode mais ser assinado."
 
 msgid "This document has not been sent for signing yet. Please wait for the sender to send it before signing."
 msgstr "Este documento ainda não foi enviado para assinatura. Espere o remetente enviá-lo antes de assinar."
@@ -3091,10 +3091,10 @@ msgid "Hi {recipientName},"
 msgstr "Olá, {recipientName},"
 
 msgid "Reminder: Please {0} your document<0/>\"{documentName}\""
-msgstr "Lembrete: por favor, {0} seu documento<0/>\"{documentName}\""
+msgstr "Lembrete: você precisa {0} seu documento<0/>\"{documentName}\""
 
 msgid "Did not expect this email? <0>Click here to report the sender</0>. Never sign a document you don't recognize or weren't expecting."
-msgstr "Não esperava este e-mail? <0>Clique aqui para denunciar o remetente</0>. Nunca assine um documento que você não reconhece ou não estava esperando."
+msgstr "Não esperava este e-mail? <0>Toque ou clique aqui para denunciar o remetente</0>. Nunca assine um documento que você não reconhece ou não estava esperando."
 
 msgid "This document was sent using <0>Documenso</0>."
 msgstr "Este documento foi enviado pelo <0>RevSign</0>."
@@ -3124,10 +3124,10 @@ msgid "There is no action required on your side. If you believe this was a mista
 msgstr "Você não precisa fazer nada. Se acha que isso foi um engano, fale com o seu administrador."
 
 msgid "You have been removed from the document \"{documentName}\" by an administrator, typically at the request of the document sender."
-msgstr "Você foi removido do documento \"{documentName}\" por um administrador, normalmente a pedido do remetente do documento."
+msgstr "Sua participação no documento \"{documentName}\" foi removida por um administrador, normalmente a pedido do remetente do documento."
 
 msgid "{recipientLabel} has been removed from the document \"{documentName}\" by an administrator, typically at the request of the document sender."
-msgstr "{recipientLabel} foi removido do documento \"{documentName}\" por um administrador, normalmente a pedido do remetente do documento."
+msgstr "A participação de {recipientLabel} no documento \"{documentName}\" foi removida por um administrador, normalmente a pedido do remetente do documento."
 
 msgid "Your Documenso account has been disabled"
 msgstr "Sua conta do RevSign foi desativada"
@@ -3205,10 +3205,10 @@ msgid "The signing window for \"{recipientName}\" on document \"{documentName}\"
 msgstr "O prazo de assinatura de \"{recipientName}\" no documento \"{documentName}\" expirou."
 
 msgid "You have been removed from the document \"{documentName}\" by an administrator."
-msgstr "Você foi removido do documento \"{documentName}\" por um administrador."
+msgstr "Sua participação no documento \"{documentName}\" foi removida por um administrador."
 
 msgid "{recipientName} has been removed from the document \"{documentName}\" by an administrator."
-msgstr "{recipientName} foi removido do documento \"{documentName}\" por um administrador."
+msgstr "A participação de {recipientName} no documento \"{documentName}\" foi removida por um administrador."
 
 msgid "Didn't request a password change? We are here to help you secure your account, just <0>contact us</0>."
 msgstr "Não pediu a troca de senha? Estamos aqui para ajudar a proteger sua conta, é só <0>falar conosco</0>."
@@ -3313,7 +3313,7 @@ msgid "Signing window expired for \"{0}\" on \"{1}\""
 msgstr "Prazo de assinatura expirou para \"{0}\" em \"{1}\""
 
 msgid "Reminder: Please {recipientActionVerb} the document \"{0}\""
-msgstr "Lembrete: por favor, {recipientActionVerb} o documento \"{0}\""
+msgstr "Lembrete: você precisa {recipientActionVerb} o documento \"{0}\""
 
 msgid "Password Reset Success!"
 msgstr "Senha redefinida com sucesso!"
@@ -3400,10 +3400,10 @@ msgid "Recipient failed to validate a 2FA token for the document"
 msgstr "Destinatário não conseguiu validar um código 2FA do documento"
 
 msgid "Recipient rejected the document"
-msgstr "Destinatário recusou o documento"
+msgstr "Destinatário rejeitou o documento"
 
 msgid "Recipient rejected the document externally"
-msgstr "Destinatário recusou o documento externamente"
+msgstr "Destinatário rejeitou o documento externamente"
 
 msgid "Recipient requested a 2FA token for the document"
 msgstr "Destinatário pediu um código 2FA para o documento"
@@ -3441,16 +3441,16 @@ msgid "The document ownership was delegated to {0} on behalf of {1}"
 msgstr "A propriedade do documento foi delegada a {0} em nome de {1}"
 
 msgid "The document was rejected externally by {onBehalfOf} on behalf of the recipient"
-msgstr "O documento foi recusado externamente por {onBehalfOf} em nome do destinatário"
+msgstr "O documento foi rejeitado externamente por {onBehalfOf} em nome do destinatário"
 
 msgid "The document was rejected externally by {onBehalfOf} on behalf of {user}"
-msgstr "O documento foi recusado externamente por {onBehalfOf} em nome de {user}"
+msgstr "O documento foi rejeitado externamente por {onBehalfOf} em nome de {user}"
 
 msgid "The document was rejected externally on behalf of the recipient"
-msgstr "O documento foi recusado externamente em nome do destinatário"
+msgstr "O documento foi rejeitado externamente em nome do destinatário"
 
 msgid "The document was rejected externally on behalf of {user}"
-msgstr "O documento foi recusado externamente em nome de {user}"
+msgstr "O documento foi rejeitado externamente em nome de {user}"
 
 msgid "Verificação de identidade desativada nesta instalação (não verificado)"
 msgstr "Verificação de identidade desativada nesta instalação (não verificado)"
@@ -3504,7 +3504,7 @@ msgid "You prefilled a field"
 msgstr "Você preencheu um campo antecipadamente"
 
 msgid "You rejected the document"
-msgstr "Você recusou o documento"
+msgstr "Você rejeitou o documento"
 
 msgid "You removed a field"
 msgstr "Você removeu um campo"
@@ -3630,7 +3630,7 @@ msgid "{user} prefilled a field"
 msgstr "{user} preencheu um campo antecipadamente"
 
 msgid "{user} rejected the document"
-msgstr "{user} recusou o documento"
+msgstr "{user} rejeitou o documento"
 
 msgid "{user} removed a field"
 msgstr "{user} removeu um campo"
@@ -3888,3 +3888,6 @@ msgstr "Seu documento foi enviado."
 
 msgid "Your envelope has been resent successfully."
 msgstr "Seu documento foi reenviado."
+
+msgid "Sign up"
+msgstr "Criar conta"
