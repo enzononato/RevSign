@@ -251,8 +251,9 @@ Legenda de "segredo?": **sim** = nunca no repositório, só no EasyPanel e no co
 | `NEXT_PRIVATE_SMTP_FROM_ADDRESS` | Endereço do remetente | `assinaturas@revalle.com.br` | não |
 | `NEXT_PRIVATE_SIGNING_LOCAL_FILE_CONTENTS` | Certificado `.p12` em base64 (uma linha) | gerado pelo script | sim |
 | `NEXT_PRIVATE_SIGNING_PASSPHRASE` | Senha do certificado | gerada pelo script | sim |
-| `NEXT_PRIVATE_REVALLE_ICP_SEAL` | Selagem ICP-Brasil: política AD-RB nos atributos assinados e DocMDP P=2 (ver `certificado.md`). `false` volta à selagem do upstream | não definir (vale `true`) | não |
+| `NEXT_PRIVATE_REVALLE_ICP_SEAL` | Selagem ICP-Brasil: política AD-RB nos atributos assinados e DocMDP P=2 (ver `certificado.md`). `false` volta à selagem do upstream. `NEXT_PRIVATE_USE_LEGACY_SIGNING_SUBFILTER=true` também a desliga | não definir (vale `true`) | não |
 | `NEXT_PRIVATE_REVALLE_ICP_PDF_DICT` | Nomes no dicionário da assinatura: `etsi` (padrão: `Adobe.PPKLite` / `ETSI.CAdES.detached`) ou `pbad` (`PBAD_PAdES` / `PBAD.PAdES`, como a política escreve). Só troque se o validar.iti.gov.br reclamar do dicionário (ver `certificado.md`) | não definir (vale `etsi`) | não |
+| `NEXT_PRIVATE_REVALLE_ICP_POLICY_HASH` | Hash da política no atributo assinado: `policy` (padrão: o hash ETSI que o arquivo da política traz) ou `lpa` (SHA-256 do arquivo, como na LPA). Só troque se o validar.iti.gov.br acusar hash da política diferente (ver `certificado.md`) | não definir (vale `policy`) | não |
 
 ### Serviço Postgres (`revsign-db`)
 

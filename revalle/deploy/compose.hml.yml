@@ -81,6 +81,8 @@ services:
       NEXT_PRIVATE_REVALLE_ICP_SEAL: ${NEXT_PRIVATE_REVALLE_ICP_SEAL:-true}
       # Dicionário da assinatura: etsi (Adobe.PPKLite / ETSI.CAdES.detached) ou pbad (PBAD_PAdES / PBAD.PAdES).
       NEXT_PRIVATE_REVALLE_ICP_PDF_DICT: ${NEXT_PRIVATE_REVALLE_ICP_PDF_DICT:-etsi}
+      # Hash da política no atributo assinado: policy (ETSI, o que o arquivo da política traz) ou lpa (SHA-256 do arquivo).
+      NEXT_PRIVATE_REVALLE_ICP_POLICY_HASH: ${NEXT_PRIVATE_REVALLE_ICP_POLICY_HASH:-policy}
       COLABORADORES_DATABASE_URL: ${COLABORADORES_DATABASE_URL:-postgres://revsign_leitura:revsign_leitura_dev@colaboradores-db:5432/colaboradores}
       DOCUMENSO_DISABLE_TELEMETRY: 'true'
       NEXT_PUBLIC_REVALLE_SOURCE_URL: https://github.com/enzononato/RevSign

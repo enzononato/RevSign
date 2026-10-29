@@ -4,6 +4,7 @@
 //   etsi (padrão): NEXT_PRIVATE_REVALLE_ICP_SEAL e NEXT_PRIVATE_REVALLE_ICP_PDF_DICT sem definir;
 //   pbad: NEXT_PRIVATE_REVALLE_ICP_PDF_DICT=pbad;
 //   off: NEXT_PRIVATE_REVALLE_ICP_SEAL=false.
+// REVSIGN_ICP_POLICY_HASH_MODE: policy (padrão, hash ETSI da política) ou lpa (NEXT_PRIVATE_REVALLE_ICP_POLICY_HASH=lpa).
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
@@ -14,12 +15,17 @@ import { before, test } from 'node:test';
 import { BASE_URL, completeWithCode, createEnvelope, db, distribute, trpc } from './helpers.mjs';
 
 const MODE = process.env.REVSIGN_ICP_SEAL_MODE ?? 'etsi';
+const HASH_MODE = process.env.REVSIGN_ICP_POLICY_HASH_MODE ?? 'policy';
 const MARIA = { cpf: '39053344705', birthDate: '07/03/1990' };
 const POLICY = {
   oid: '2.16.76.1.7.1.11.1.3',
   uri: 'http://politicas.icpbrasil.gov.br/PA_PAdES_AD_RB_v1_3.der',
-  sha256: '23DA544AEF71F7A75DC85FA6E17A83875741E4BAEF41EC178258A5C86ACE54DD',
+  hash: {
+    policy: '23E4BE4B9B362172E4EBB0E72B86A133ECE5AAD843D8651C6E38A0BA3F08FC60',
+    lpa: '23DA544AEF71F7A75DC85FA6E17A83875741E4BAEF41EC178258A5C86ACE54DD',
+  },
 };
+const OTHER_HASH_MODE = HASH_MODE === 'lpa' ? 'policy' : 'lpa';
 const SIG_POLICY_ID = '1.2.840.113549.1.9.16.2.15';
 const SIGNING_CERTIFICATE_V2 = '1.2.840.113549.1.9.16.2.47';
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -140,7 +146,8 @@ test(
     assert.ok(report.includes(`(${SIG_POLICY_ID})`), report);
     assert.ok(report.includes(`(${SIGNING_CERTIFICATE_V2})`), report);
     assert.ok(report.includes(`:${POLICY.oid}`), report);
-    assert.ok(report.includes(POLICY.sha256), report);
+    assert.ok(report.includes(POLICY.hash[HASH_MODE]), `hash ${HASH_MODE} ausente:\n${report}`);
+    assert.ok(!report.includes(POLICY.hash[OTHER_HASH_MODE]), `hash ${OTHER_HASH_MODE} presente:\n${report}`);
     assert.ok(report.includes(`:${POLICY.uri}`), report);
     assert.ok(report.includes(':id-smime-spq-ets-sqt-uri'), `qualificador SPuri ausente:\n${report}`);
     assert.equal(line(report, 'signedAttrs DER order'), 'OK', report);
@@ -196,17 +203,19 @@ test(
 );
 
 test(
-  'PDF enviado já selado (com /Perms /DocMDP): a nova selagem leva a política, mas não certifica de novo',
+  'PDF enviado já selado: o achatamento apaga a assinatura antiga; o /Perms velho sai e a selagem nova certifica',
   MODE === 'off' ? { skip: 'stack com NEXT_PRIVATE_REVALLE_ICP_SEAL=false' } : {},
   () => {
     const { report } = fx.preSigned;
 
     assert.ok(report.includes(`(${SIG_POLICY_ID})`), report);
     assert.ok(report.includes(`:${POLICY.oid}`), report);
-    assert.equal(line(report, 'DocMDP'), 'none', report);
-    assert.notEqual(line(report, 'Perms/DocMDP'), 'this-signature', report);
+    assert.equal(line(report, 'signature'), 'Signature_1 (last of 1)', report);
+    assert.equal(line(report, 'DocMDP'), 'P=2', report);
+    assert.equal(line(report, 'Perms/DocMDP'), 'this-signature', report);
     assert.equal(line(report, 'signedAttrs DER order'), 'OK', report);
-    assert.match(fx.preSigned.logs, /\[revalle\] selagem ICP: DocMDP omitido/);
+    assert.match(fx.preSigned.logs, /\[revalle\] selagem ICP: \/Perms sem assinatura removido do catálogo/);
+    assert.doesNotMatch(fx.preSigned.logs, /DocMDP omitido/);
 
     if (MODE === 'etsi') {
       assert.ok(fx.preSigned.verify.ok, fx.preSigned.verify.output);
