@@ -4,6 +4,7 @@ Quem faz: Enzo. Onde: `https://assinatura-hml.revalle.com.br`. Marque cada item 
 
 ## Antes de começar
 
+- [ ] As duas imagens (`revsign` e `revsign-backup`) existem no GHCR para a tag que está no ar.
 - [ ] `/api/health` mostra `"status":"ok"` (banco e certificado `ok`).
 - [ ] `/api/certificate-status` mostra `"isAvailable":true`.
 - [ ] Conta `projetos.ti@revalle.com.br` entra no `/admin` (admin promovido após o Restart).

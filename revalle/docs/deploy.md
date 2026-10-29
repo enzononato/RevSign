@@ -144,13 +144,13 @@ Por quê: é o e-mail que envia os convites de assinatura.
 
 ## Passo 7 — Serviço de backup
 
-Por quê: copia o banco todo dia, cifrado, para fora da VPS. Detalhes em `backup.md`; crie antes a conta FTP lá descrita (ou deixe `BACKUP_REMOTE_TYPE=none` por enquanto e volte depois).
+Por quê: copia o banco todo dia, cifrado, para fora da VPS. Detalhes em `backup.md`; crie antes a conta FTP lá descrita (ou deixe `BACKUP_REMOTE_TYPE=none` por enquanto e volte depois). Com `none`, cada backup mostra no log `AVISO: cópia remota desativada` e grava `"remote":"disabled"` e `"warning"` no `last-run.json`, porque os backups ficam só na VPS e não protegem contra a perda do servidor.
 
 1. No projeto, clique em **+ Service** e depois **App**. Nome: `revsign-backup`.
 2. Aba **Source** → **Docker Image** → `ghcr.io/enzononato/revsign-backup:v2.21.1-revalle.3` → **Save**.
 3. Abra `backup.env` (do passo 0) no bloco de notas e:
    - Troque `BACKUP_DATABASE_URL=<preencher>` pela mesma Internal Connection URL do passo 2.
-   - Para a cópia fora da VPS (recomendada), tire o `#` do começo das linhas `BACKUP_REMOTE_*` do exemplo FTPS e preencha host, usuário e senha da conta FTP (veja `backup.md`). Deixe `BACKUP_REMOTE_KNOWN_HOSTS_FILE` comentada (só se usa em SFTP).
+   - Para a cópia fora da VPS (recomendada), tire o `#` do começo das linhas `BACKUP_REMOTE_*` do exemplo FTPS e preencha host, usuário e senha da conta FTP (veja `backup.md`). Atenção à pasta: se a conta FTP está presa na pasta `revsign-backups`, use `BACKUP_REMOTE_PATH=/`; se vê a pasta pessoal inteira, mantenha `revsign-backups` (senão cria `revsign-backups/revsign-backups`). Deixe `BACKUP_REMOTE_KNOWN_HOSTS_FILE` comentada (só se usa em SFTP).
    - Nenhuma linha SEM `#` pode ficar com `<preencher>`.
 4. Aba **Environment** do serviço `revsign-backup`: cole o conteúdo de `backup.env`.
    Clique em **Save**. (`BACKUP_RUN_ON_START` é opcional; veja a tabela.)
@@ -160,6 +160,7 @@ Por quê: copia o banco todo dia, cifrado, para fora da VPS. Detalhes em `backup
    - Clique em **Save**. Por quê: a cópia local e o arquivo `last-run.json` ficam guardados mesmo se o serviço reiniciar.
 6. Não crie domínio para este serviço (ele não tem site).
 7. Clique em **Deploy**.
+   Se o log do `revsign-backup` mostrar `ERRO: a pasta /backups não permite gravação`, o mount não é um Volume (ou a permissão está errada): refaça o item 5 com tipo **Volume**.
 8. Para testar já, coloque `BACKUP_RUN_ON_START=true`, salve e reinicie. Abra a aba **Logs** e procure `backup concluido`. Depois volte para `false` (ou apague a linha).
 
 ## Passo 8 — Criar a conta do administrador
@@ -169,7 +170,8 @@ Por quê: copia o banco todo dia, cifrado, para fora da VPS. Detalhes em `backup
 3. Preencha com o e-mail `projetos.ti@revalle.com.br`, um nome e uma senha forte.
 4. Abra sua caixa de e-mail e clique no link de confirmação.
 5. No EasyPanel, abra o serviço `revsign` e clique em **Restart**.
-6. Por quê: ao subir, o RevSign promove a ADMIN a conta cujo e-mail é o de `NEXT_PRIVATE_REVALLE_ADMIN_EMAIL`. Isso só acontece na subida. Na mesma subida, ele também ajusta o plano gratuito (usuários, times e documentos ilimitados, sem marca "Powered by").
+6. Por quê: ao subir, o RevSign promove a ADMIN a conta cujo e-mail é o de `NEXT_PRIVATE_REVALLE_ADMIN_EMAIL`. Isso só acontece na subida. Só contas com o e-mail já confirmado são promovidas; se o log mostrar `conta admin ainda não confirmada`, confirme o e-mail e reinicie. Na mesma subida, ele também ajusta o plano gratuito (usuários, times e documentos ilimitados, sem marca "Powered by"). Isso se repete a CADA reinício: edições manuais nesse plano em Admin → Claims são desfeitas na próxima subida.
+   Se um dia trocar `NEXT_PRIVATE_REVALLE_ADMIN_EMAIL`, a conta antiga continua ADMIN; remova o papel dela em Admin → Users.
 7. Entre de novo no site e abra `/admin` (`https://assinatura-hml.revalle.com.br/admin`). Se o painel abrir, deu certo.
 
 ## Passo 9 — Checagens
@@ -243,13 +245,14 @@ Legenda de "segredo?": **sim** = nunca no repositório, só no EasyPanel e no co
 | `BACKUP_REMOTE_USER` | Usuário da conta FTP/SFTP | usuário criado no cPanel | não |
 | `BACKUP_REMOTE_PASSWORD` | Senha da conta FTP/SFTP | senha da conta | sim |
 | `BACKUP_REMOTE_PATH` | Pasta de destino na hospedagem | `revsign-backups` | não |
-| `BACKUP_REMOTE_KNOWN_HOSTS_FILE` | comentada | Só SFTP com arquivo `known_hosts` montado: caminho dele (`/known_hosts`). No FTPS, deixe comentada | não |
+| `BACKUP_REMOTE_KNOWN_HOSTS_FILE` | Só SFTP com arquivo `known_hosts` montado: caminho dele (`/known_hosts`). No FTPS, deixe a linha comentada | (comentada) | não |
 | `BACKUP_REMOTE_INSECURE_TLS` | (Só testes) aceita certificado FTPS inválido | não definir (padrão `false`) | não |
 
 Variáveis só do ensaio local (não use no EasyPanel): `REVSIGN_IMAGE`, `REVSIGN_BACKUP_IMAGE`.
 
 ## Atualizar a versão depois
 
+0. Antes de trocar a versão, confirme que as DUAS imagens existem para a tag nova: `ghcr.io/enzononato/revsign:<tag>` e `ghcr.io/enzononato/revsign-backup:<tag>` (GitHub → Packages; os dois jobs de publicação são independentes e um pode falhar sozinho).
 1. Em **Source**, troque o número da versão na imagem (`...:v2.21.1-revalle.N`).
 2. Clique em **Deploy**.
 3. Rode as checagens do passo 9. Faça o backup antes (passo 7, item 8).

@@ -132,18 +132,36 @@ LAST="$(BACKUP_REMOTE_TYPE=none run --entrypoint cat backup /backups/last-run.js
 [ $rc != 0 ] && ! grep -Eq 'revsign-|\.tmp|pgdump-rc' "$TMP/l.out" && grep -q 'pg_dump falhou' "$TMP/o.out" \
   && printf '%s' "$LAST" | grep -q '"status":"error"'; report pg-dump-fail $?
 
-# remote-down: host inexistente -> erro, dump local do dia mantido, nada apagado (prune não roda).
+# remote-down: host inexistente -> erro (rc!=0, status error), dump do dia mantido, retenção LOCAL
+# ainda roda (o de 40 dias some; o de 10 dias e o novo ficam). O remoto não é tocado.
 reset
 seed_local
+seed_remote sftp
 BACKUP_AGE_RECIPIENT="$RECIPIENT" BACKUP_REMOTE_TYPE=sftp BACKUP_REMOTE_HOST=host-inexistente.invalid \
   runv --entrypoint backup.sh backup >"$TMP/o.out"
 rc=$?
 list_local >"$TMP/l.out"
+list_remote sftp >"$TMP/r.out"
 LAST="$(BACKUP_REMOTE_TYPE=none run --entrypoint cat backup /backups/last-run.json)"
-# 3 dumps locais: o falso de 40 dias, o de 10 dias e o novo do dia; o de 40 dias sobreviveu.
-[ $rc != 0 ] && grep -q 20000101 "$TMP/l.out" && grep -q 20000201 "$TMP/l.out" \
-  && [ "$(grep -c 'revsign-' "$TMP/l.out")" = 3 ] && grep -q 'destino remoto' "$TMP/o.out" \
+[ $rc != 0 ] && ! grep -q 20000101 "$TMP/l.out" && grep -q 20000201 "$TMP/l.out" \
+  && [ "$(grep -c 'revsign-' "$TMP/l.out")" = 2 ] && grep -q 'destino remoto' "$TMP/o.out" \
+  && grep -q 20000101 "$TMP/r.out" && grep -q 20000201 "$TMP/r.out" \
   && printf '%s' "$LAST" | grep -q '"status":"error"'; report remote-down $?
+
+# none-warning: sem destino remoto o backup passa (ok), mas avisa na saída e no last-run.json.
+reset
+BACKUP_AGE_RECIPIENT="$RECIPIENT" BACKUP_REMOTE_TYPE=none runv --entrypoint backup.sh backup >"$TMP/o.out"
+rc=$?
+LAST="$(BACKUP_REMOTE_TYPE=none run --entrypoint cat backup /backups/last-run.json)"
+[ $rc = 0 ] && grep -q 'AVISO: cópia remota desativada (BACKUP_REMOTE_TYPE=none)' "$TMP/o.out" \
+  && printf '%s' "$LAST" | grep -q '"status":"ok"' && printf '%s' "$LAST" | grep -q '"remote":"disabled"' \
+  && printf '%s' "$LAST" | grep -q '"warning"'; report none-warning $?
+
+# backups-readonly: /backups sem permissão de gravação -> o container recusa subir, com mensagem clara.
+docker run --rm --tmpfs /backups:ro -e BACKUP_DATABASE_URL=postgres://x -e BACKUP_AGE_RECIPIENT="$RECIPIENT" \
+  "$IMAGE" >"$TMP/o.out" 2>&1
+rc=$?
+[ $rc != 0 ] && grep -q 'não permite gravação' "$TMP/o.out" && grep -q 'UID 1001' "$TMP/o.out"; report backups-readonly $?
 
 # remote-wrong-password: remoto alcançável mas senha errada -> erro e nada apagado no remoto.
 reset

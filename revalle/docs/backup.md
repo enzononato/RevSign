@@ -32,7 +32,7 @@
    - `BACKUP_REMOTE_PORT=21`
    - `BACKUP_REMOTE_USER=` o login completo mostrado pelo cPanel (costuma ser `revsignbkp@revalle.com.br`)
    - `BACKUP_REMOTE_PASSWORD=` a senha
-   - `BACKUP_REMOTE_PATH=revsign-backups` (se o cPanel já prende a conta na pasta, a pasta aparece como raiz; se o backup der erro de pasta, tente `BACKUP_REMOTE_PATH=/`)
+   - `BACKUP_REMOTE_PATH=revsign-backups` se a conta FTP vê a sua pasta pessoal inteira. Se a conta FTP está presa (travada) na pasta `revsign-backups` (campo Directory do passo 4), use `BACKUP_REMOTE_PATH=/`. Com `revsign-backups` numa conta presa, o backup não dá erro: ele cria uma pasta `revsign-backups` dentro de `revsign-backups`, o que confunde na hora de achar os arquivos.
 10. Salve e reinicie. Se o log reclamar de certificado, use no `BACKUP_REMOTE_HOST` o nome que está no certificado do servidor (o cPanel mostra o nome do servidor em **Configure FTP Client**).
 
 ## Alternativa: SFTP (se a hospedagem liberar SSH)
@@ -65,6 +65,19 @@
 | `BACKUP_REMOTE_KNOWN_HOSTS_FILE` | comentada | Só SFTP com arquivo montado: caminho do `known_hosts`. No FTPS, deixe comentada |
 | `BACKUP_REMOTE_INSECURE_TLS` | `false` | Só testes: aceita certificado FTPS inválido |
 
+## Espaço na hospedagem (cota do cPanel)
+
+A retenção padrão é de 30 dias e o backup mais novo nunca é apagado. Reserve na conta do cPanel pelo menos 35 vezes o tamanho de um backup (arquivo `.dump.age`). Se o espaço acabar, a cópia remota falha: o backup do dia fica só na VPS, o `last-run.json` mostra `error` e a retenção local continua rodando, mas nada é apagado na hospedagem.
+
+## Cópia remota desativada
+
+Com `BACKUP_REMOTE_TYPE=none` o backup funciona, mas nada sai da VPS. A cada execução o log mostra `AVISO: cópia remota desativada (BACKUP_REMOTE_TYPE=none) — os backups estão só na VPS.` e o `last-run.json` traz `"remote":"disabled"` e um campo `"warning"` (o status continua `ok`). Use `none` só provisoriamente.
+
+## Se der erro
+
+- `ERRO: a pasta /backups não permite gravação pelo usuário do backup (UID 1001)`: no EasyPanel, aba **Mounts** do serviço `revsign-backup`, use um **Volume** (não um bind de pasta do host) em `/backups`, ou ajuste a permissão da pasta para o UID 1001.
+- `last-run.json` com `error` e mensagem sobre destino remoto: confira host, usuário, senha, pasta e cota da hospedagem.
+
 ## Conferir que o backup está rodando
 
 1. No EasyPanel, serviço `revsign-backup` → aba **Logs**: deve aparecer `backup concluido` depois das 02:00.
@@ -76,6 +89,7 @@ Por quê: backup que nunca foi restaurado não é backup. O teste baixa o arquiv
 
 Pré-requisitos:
 
+- Pelo menos um documento **concluído** (COMPLETED, com assinatura de todos) no banco; sem isso o teste falha.
 - WSL com Docker funcionando (`docker ps` sem erro).
 - O arquivo `backup-age-identity.txt` (chave privada) no WSL.
 - O repositório clonado (o script usa `scripts/revalle/verify-signed-pdf.sh`).
@@ -96,6 +110,8 @@ Para um arquivo já baixado: `sh revalle/backup/restore-test.sh /caminho/revsign
 Resultado esperado: a última linha é `RESUMO: restauração OK, N envelope(s) concluído(s), PDF selado íntegro`. Qualquer linha começando com `FALHA` significa que o teste não passou. O teste exige pelo menos um documento concluído no banco; antes de ter um, ele falha com `FALHA nenhum envelope COMPLETED no backup`.
 
 Faça o teste ao final da homologação, a cada mudança de versão e uma vez por trimestre. Anote cada teste na tabela abaixo.
+
+Se você usar o Postgres existente (Opção B do `deploy.md`), a versão dele precisa ser 17 ou menor: o backup usa o `pg_dump` 17, que recusa bancos de versão mais nova.
 
 ## Registro de testes de restauração
 

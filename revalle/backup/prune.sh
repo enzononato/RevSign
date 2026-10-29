@@ -1,5 +1,6 @@
 #!/bin/sh
-# Apaga revsign-*.dump.age mais velhos que BACKUP_RETENTION_DAYS, local e remoto.
+# Uso: prune.sh [local|remote|both]  (padrão: both)
+# Apaga revsign-*.dump.age mais velhos que BACKUP_RETENTION_DAYS, local e/ou remoto.
 # Em cada lado, o arquivo mais novo é SEMPRE preservado.
 set -eu
 . /usr/local/lib/revsign/common.sh
@@ -21,9 +22,14 @@ prune_side() {
   done
 }
 
-prune_side "$BACKUP_DIR"
+SIDE="${1:-both}"
+case "$SIDE" in local|remote|both) ;; *) echo "uso: prune.sh [local|remote|both]" >&2; exit 1 ;; esac
 
-if [ "${BACKUP_REMOTE_TYPE:-none}" != none ]; then
+if [ "$SIDE" != remote ]; then
+  prune_side "$BACKUP_DIR"
+fi
+
+if [ "$SIDE" != local ] && [ "${BACKUP_REMOTE_TYPE:-none}" != none ]; then
   setup_remote
   prune_side "$(remote_base)"
 fi

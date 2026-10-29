@@ -6,11 +6,16 @@ set -eu
 
 STATUS="$BACKUP_DIR/last-run.json"
 FILE=""
+REMOTE=""   # "", "ok" ou "disabled"
+WARNING=""
 
 write_status() { # status mensagem
   now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  printf '{"status":"%s","finishedAt":"%s","file":"%s","message":"%s"}\n' \
-    "$1" "$now" "$FILE" "$2" >"$STATUS.tmp" 2>/dev/null && mv "$STATUS.tmp" "$STATUS" || true
+  extra=""
+  [ -z "$REMOTE" ] || extra="$extra,\"remote\":\"$REMOTE\""
+  [ -z "$WARNING" ] || extra="$extra,\"warning\":\"$WARNING\""
+  printf '{"status":"%s","finishedAt":"%s","file":"%s","message":"%s"%s}\n' \
+    "$1" "$now" "$FILE" "$2" "$extra" >"$STATUS.tmp" 2>/dev/null && mv "$STATUS.tmp" "$STATUS" || true
 }
 
 fail() {
@@ -39,13 +44,23 @@ mv "$TMPF" "$FILE"
 echo "dump cifrado: $NAME"
 
 if [ "${BACKUP_REMOTE_TYPE:-none}" != none ]; then
-  rclone copy "$FILE" "$(remote_base)" --retries 1 --low-level-retries 2 \
-    --contimeout 20s --timeout 120s \
-    || fail "falha ao copiar para o destino remoto (dump local mantido)"
+  if ! rclone copy "$FILE" "$(remote_base)" --retries 1 --low-level-retries 2 \
+    --contimeout 20s --timeout 120s; then
+    # Falha remota: ainda aplica a retenção LOCAL (mantém sempre o mais novo, o de hoje),
+    # para o disco da VPS não encher; o remoto nunca é tocado.
+    /usr/local/bin/prune.sh local || true
+    REMOTE=failed
+    fail "falha ao copiar para o destino remoto (dump local mantido)"
+  fi
+  REMOTE=ok
   echo "copiado para o destino remoto"
+else
+  REMOTE=disabled
+  WARNING="copia remota desativada (BACKUP_REMOTE_TYPE=none): os backups estao so na VPS"
+  echo "AVISO: cópia remota desativada (BACKUP_REMOTE_TYPE=none) — os backups estão só na VPS."
 fi
 
-/usr/local/bin/prune.sh || fail "backup feito, mas a retencao falhou"
+/usr/local/bin/prune.sh both || fail "backup feito, mas a retencao falhou"
 
 write_status ok "backup concluido"
 echo "backup concluido"

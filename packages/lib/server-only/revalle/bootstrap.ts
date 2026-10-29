@@ -43,22 +43,32 @@ const applyFreePlanDefaults = async () => {
   });
 };
 
-const promoteMainAdmin = async (email: string) => {
+type PromoteResult = 'promoted' | 'unchanged' | 'unverified';
+
+const promoteMainAdmin = async (email: string): Promise<PromoteResult> => {
+  // Só contas com e-mail confirmado podem virar ADMIN: evita que alguém registre
+  // antes o e-mail do administrador e herde o papel.
   const user = await prisma.user.findFirst({
-    where: { email: { equals: email, mode: 'insensitive' } },
-    select: { id: true, roles: true },
+    where: { email: { equals: email, mode: 'insensitive' }, emailVerified: { not: null } },
+    select: { id: true },
   });
 
-  if (!user || user.roles.includes('ADMIN')) {
-    return false;
+  if (!user) {
+    const unverified = await prisma.user.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
+      select: { id: true },
+    });
+
+    return unverified ? 'unverified' : 'unchanged';
   }
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { roles: { set: [...user.roles, 'ADMIN'] } },
+  // Atômico: só acrescenta ADMIN se ainda não existir.
+  const { count } = await prisma.user.updateMany({
+    where: { id: user.id, NOT: { roles: { has: 'ADMIN' } } },
+    data: { roles: { push: 'ADMIN' } },
   });
 
-  return true;
+  return count > 0 ? 'promoted' : 'unchanged';
 };
 
 export const runRevalleBootstrap = async () => {
@@ -74,7 +84,13 @@ export const runRevalleBootstrap = async () => {
     if (adminEmail) {
       const promoted = await promoteMainAdmin(adminEmail);
 
-      console.log(`[RevSign] bootstrap: admin ${adminEmail} ${promoted ? 'promovido' : 'sem alteração'}`);
+      if (promoted === 'unverified') {
+        console.log('[RevSign] bootstrap: conta admin ainda não confirmada; confirme o e-mail e reinicie');
+      } else {
+        console.log(
+          `[RevSign] bootstrap: admin ${adminEmail} ${promoted === 'promoted' ? 'promovido' : 'sem alteração'}`,
+        );
+      }
     }
   } catch (err) {
     console.error('[RevSign] bootstrap falhou', err);
