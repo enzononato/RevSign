@@ -1374,5 +1374,6 @@ model RevalleSignatureProof {
   ipLocation       Json?
   deviceLocation   Json
   drewSignature    Boolean
+  signatureKind    String // IMAGE | TYPED | NONE
   createdAt        DateTime  @default(now())
 }

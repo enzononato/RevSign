@@ -5,8 +5,14 @@ import type { CityResponse, Reader } from 'maxmind';
 
 import { env } from '../../utils/env';
 import { logger } from '../../utils/logger';
+import { toBrazilianStateCode } from './br-states';
 
-export type IpLocation = { city: string | null; region: string | null; country: string | null };
+export type IpLocation = {
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  countryIso: string | null;
+};
 
 const DEFAULT_DB_PATH = '/app/geoip/dbip-city-lite.mmdb';
 
@@ -25,7 +31,7 @@ const getReader = (): Promise<Reader<CityResponse> | null> => {
     const path = env('NEXT_PRIVATE_REVALLE_GEOIP_DB_PATH') || DEFAULT_DB_PATH;
 
     try {
-      // Arquivo ausente ou o marcador vazio do build (download falhou): segue sem localização.
+      // Arquivo ausente: segue sem localização. O marcador vazio do build (download falhou) faz o open() falhar, tratado no catch.
       if (!existsSync(path)) {
         warnOnce('DB_MISSING');
 
@@ -99,10 +105,14 @@ export const lookupIpLocation = async (ip: string | undefined): Promise<IpLocati
     }
 
     const subdivision = result.subdivisions?.[0];
+    const countryIso = result.country?.iso_code ?? null;
+    const rawRegion = subdivision?.iso_code ?? pickName(subdivision?.names);
     const location: IpLocation = {
       city: pickName(result.city?.names),
-      region: subdivision?.iso_code ?? pickName(subdivision?.names),
-      country: pickName(result.country?.names) ?? result.country?.iso_code ?? null,
+      // No Brasil a base traz o nome do estado; o certificado usa a sigla (UF).
+      region: countryIso === 'BR' && rawRegion ? toBrazilianStateCode(rawRegion) : rawRegion,
+      country: pickName(result.country?.names) ?? countryIso,
+      countryIso,
     };
 
     return location.city || location.region || location.country ? location : null;

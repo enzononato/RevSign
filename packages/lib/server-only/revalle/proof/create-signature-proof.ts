@@ -1,12 +1,14 @@
 import { prisma } from '@documenso/prisma';
 import { FieldType, Prisma } from '@prisma/client';
 
+import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { maskCpf } from '../../../revalle/cpf';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { RequestMetadata } from '../../../universal/extract-request-metadata';
 import { logger } from '../../../utils/logger';
 import { getColaboradoresRepository } from '../colaboradores/repository';
 import { type IpLocation, lookupIpLocation } from '../geoip';
+import { classifySignature } from './signature-kind';
 import { describeUserAgent } from './user-agent';
 import { generateVerificationCode } from './verification-code';
 
@@ -31,9 +33,12 @@ export type ProofFactor = {
   at: string;
 };
 
+/** Dados do RH lidos fora da transação; null quando a base está fora do ar ou não achou o CPF. */
+export type BaseEmployee = Omit<ProofEmployee, 'cpfMasked'>;
+
 /** Consultas lentas (base de colaboradores, GeoIP) que não devem rodar dentro da transação. */
 export type ProofExternals = {
-  employee: ProofEmployee | null;
+  baseEmployee: BaseEmployee | null;
   ipLocation: IpLocation | null;
 };
 
@@ -45,7 +50,7 @@ const logCode = (msg: string, error: unknown) => {
   logger.error({ msg, code });
 };
 
-const loadEmployee = async (cpf: string | null): Promise<ProofEmployee | null> => {
+const loadBaseEmployee = async (cpf: string | null): Promise<BaseEmployee | null> => {
   if (!cpf) {
     return null;
   }
@@ -59,7 +64,6 @@ const loadEmployee = async (cpf: string | null): Promise<ProofEmployee | null> =
 
     return {
       nome: colaborador.nome,
-      cpfMasked: maskCpf(cpf),
       matricula: colaborador.matricula ?? null,
       cargo: colaborador.cargo ?? null,
       setor: colaborador.setor ?? null,
@@ -67,7 +71,7 @@ const loadEmployee = async (cpf: string | null): Promise<ProofEmployee | null> =
       situacao: colaborador.situacao ?? null,
     };
   } catch (error) {
-    // A base fora do ar não impede a conclusão: a prova fica sem os dados do RH.
+    // A base fora do ar não impede a conclusão: o CPF mascarado continua na prova, os dados do RH ficam nulos.
     logCode('[RevSign] base de colaboradores indisponível ao congelar a prova', error);
 
     return null;
@@ -79,12 +83,12 @@ export const loadProofExternals = async (
   requestMetadata?: RequestMetadata,
 ): Promise<ProofExternals> => {
   const gate = await prisma.revalleRecipientGate.findUnique({ where: { recipientId }, select: { cpf: true } });
-  const [employee, ipLocation] = await Promise.all([
-    loadEmployee(gate?.cpf ?? null),
+  const [baseEmployee, ipLocation] = await Promise.all([
+    loadBaseEmployee(gate?.cpf ?? null),
     lookupIpLocation(requestMetadata?.ipAddress),
   ]);
 
-  return { employee, ipLocation };
+  return { baseEmployee, ipLocation };
 };
 
 export type CreateRevalleSignatureProofOptions = {
@@ -109,14 +113,17 @@ export const createRevalleSignatureProof = async ({
   const existing = await tx.revalleSignatureProof.findUnique({ where: { recipientId } });
 
   if (existing) {
+    // Reconclusão: a prova original é mantida (imutável).
+    logger.warn({ msg: '[RevSign] prova já existente reutilizada', recipientId });
+
     return existing;
   }
 
-  const { employee, ipLocation } = externals ?? (await loadProofExternals(recipientId, requestMetadata));
+  const { baseEmployee, ipLocation } = externals ?? (await loadProofExternals(recipientId, requestMetadata));
 
   const recipient = await tx.recipient.findUniqueOrThrow({
     where: { id: recipientId },
-    select: { email: true, envelopeId: true, signedAt: true },
+    select: { email: true, name: true, envelopeId: true, signedAt: true },
   });
   const gate = await tx.revalleRecipientGate.findUnique({ where: { recipientId } });
 
@@ -160,25 +167,34 @@ export const createRevalleSignatureProof = async ({
     factors.push({ factor: 'EMAIL_CODE', at: codeAt.toISOString() });
   }
 
-  if (gate?.identityStatus === 'CONFIRMED') {
-    factors.push({
-      factor: 'EMPLOYEE_CONFIRMATION',
-      at: (confirmedAt ?? gate.identityConfirmedAt ?? signedAt).toISOString(),
-    });
-  } else if (gate?.identityStatus === 'LINKED') {
-    factors.push({ factor: 'EMPLOYEE_LINKED', at: (linkedAt ?? gate.identityConfirmedAt ?? signedAt).toISOString() });
+  // Sem horário real do fator, ele fica de fora (não se inventa com a hora da assinatura).
+  const confirmationAt = gate?.identityConfirmedAt ?? confirmedAt;
+  const linkedFactorAt = gate?.identityConfirmedAt ?? linkedAt;
+
+  if (gate?.identityStatus === 'CONFIRMED' && confirmationAt) {
+    factors.push({ factor: 'EMPLOYEE_CONFIRMATION', at: confirmationAt.toISOString() });
+  } else if (gate?.identityStatus === 'LINKED' && linkedFactorAt) {
+    factors.push({ factor: 'EMPLOYEE_LINKED', at: linkedFactorAt.toISOString() });
   }
 
   const signatureFields = await tx.field.findMany({
     where: { recipientId, type: FieldType.SIGNATURE },
-    select: { customText: true, signature: { select: { signatureImageAsBase64: true, typedSignature: true } } },
+    select: { signature: { select: { signatureImageAsBase64: true, typedSignature: true } } },
   });
-  const drewSignature = signatureFields.some(
-    (field) =>
-      Boolean(field.signature?.signatureImageAsBase64) ||
-      Boolean(field.signature?.typedSignature) ||
-      Boolean(field.customText),
-  );
+  const signatureKind = classifySignature(signatureFields.map((field) => field.signature));
+
+  // O CPF mascarado vem sempre do portão; sem a base, os demais dados do RH ficam nulos.
+  const employee: ProofEmployee | null = gate?.cpf
+    ? {
+        nome: baseEmployee?.nome ?? recipient.name,
+        cpfMasked: maskCpf(gate.cpf),
+        matricula: baseEmployee?.matricula ?? null,
+        cargo: baseEmployee?.cargo ?? null,
+        setor: baseEmployee?.setor ?? null,
+        unidade: baseEmployee?.unidade ?? null,
+        situacao: baseEmployee?.situacao ?? null,
+      }
+    : null;
 
   const data = {
     recipientId,
@@ -193,7 +209,8 @@ export const createRevalleSignatureProof = async ({
     device: describeUserAgent(requestMetadata?.userAgent),
     ipLocation: ipLocation ?? Prisma.JsonNull,
     deviceLocation,
-    drewSignature,
+    drewSignature: signatureKind === 'IMAGE',
+    signatureKind,
   };
 
   // O código é aleatório e único. Dentro da transação um erro de unicidade abortaria tudo,
@@ -207,5 +224,5 @@ export const createRevalleSignatureProof = async ({
     }
   }
 
-  throw new Error('Não foi possível gerar um código de verificação único.');
+  throw new AppError(AppErrorCode.UNKNOWN_ERROR, { message: 'Não foi possível gerar um código de verificação único.' });
 };

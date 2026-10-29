@@ -97,13 +97,13 @@ RUN npx turbo run build --filter=@documenso/remix...
 # (o app funciona sem a base: ipLocation fica nulo).
 FROM alpine:3.22 AS geoip
 ARG DBIP_MONTH=""
-RUN apk add --no-cache curl && mkdir -p /geoip && \
+RUN mkdir -p /geoip && \
     month="${DBIP_MONTH:-$(date -u +%Y-%m)}" && \
     prev="$(date -u -d "@$(( $(date -u -d "${month}-01" +%s 2>/dev/null || echo 0) - 86400 ))" +%Y-%m 2>/dev/null || true)" && \
     ok=0 && \
     for m in "$month" "$prev"; do \
       [ -n "$m" ] || continue; \
-      if curl -fsSL --retry 2 --max-time 120 -o /tmp/dbip.mmdb.gz "https://download.db-ip.com/free/dbip-city-lite-${m}.mmdb.gz" \
+      if wget -q -T 120 -O /tmp/dbip.mmdb.gz "https://download.db-ip.com/free/dbip-city-lite-${m}.mmdb.gz" \
         && gunzip -c /tmp/dbip.mmdb.gz > /geoip/dbip-city-lite.mmdb && [ -s /geoip/dbip-city-lite.mmdb ]; then ok=1; break; fi; \
     done; \
     if [ "$ok" != 1 ]; then echo "AVISO: base DB-IP indisponivel, seguindo sem geolocalizacao"; : > /geoip/dbip-city-lite.mmdb; fi; \

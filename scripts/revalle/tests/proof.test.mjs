@@ -17,11 +17,37 @@ const baseSql = (sql) =>
     { encoding: 'utf8' },
   ).trim();
 
+const signerFlow = async ({ beforeComplete } = {}) => {
+  const email = `proof-${Date.now()}@revalle.com.br`;
+  const created = await createEnvelope({ recipients: [{ email }] });
+
+  assert.equal(created.status, 200, created.text);
+
+  const [recipient] = await distribute(created.id);
+  const documentId = Number.parseInt(created.envelope.secondaryId.split('_')[1], 10);
+  const field = created.envelope.fields.find((f) => f.recipientId === recipient.id && f.type === 'SIGNATURE');
+  const { token } = recipient;
+
+  await trpc('revalle.gate.acceptTerm', { token, termVersion: '1' });
+  await trpc('revalle.gate.verifyIdentity', { token, ...MARIA });
+  await trpc('revalle.gate.confirmIdentity', { token, isMe: true });
+  assert.equal(
+    (await trpc('envelope.field.sign', { token, fieldId: field.id, fieldValue: { type: 'SIGNATURE', value: 'Teste' } }))
+      .status,
+    200,
+  );
+  await beforeComplete?.();
+  assert.equal((await completeWithCode({ token, documentId, email })).status, 200);
+
+  return { envelopeId: created.id };
+};
+
 let envelopeId;
 let proof;
 let proofAfterBaseChange;
 let originalCargo;
 let resealed = false;
+let proofBaseDown;
 
 const readProof = (id) =>
   JSON.parse(
@@ -40,33 +66,38 @@ before(async () => {
   db(`delete from "RevalleEmailLink" where cpf = '${MARIA.cpf}'`);
   originalCargo = baseSql(`select cargo_nome from rh_colaboradores where cpf_completo = '${MARIA.cpf}'`);
 
-  const email = `proof-${Date.now()}@revalle.com.br`;
-  const created = await createEnvelope({ recipients: [{ email }] });
+  const first = await signerFlow();
 
-  assert.equal(created.status, 200, created.text);
-  envelopeId = created.id;
-
-  const [recipient] = await distribute(created.id);
-  const documentId = Number.parseInt(created.envelope.secondaryId.split('_')[1], 10);
-  const field = created.envelope.fields.find((f) => f.recipientId === recipient.id && f.type === 'SIGNATURE');
-  const { token } = recipient;
-
-  await trpc('revalle.gate.acceptTerm', { token, termVersion: '1' });
-  await trpc('revalle.gate.verifyIdentity', { token, ...MARIA });
-  await trpc('revalle.gate.confirmIdentity', { token, isMe: true });
-  assert.equal(
-    (await trpc('envelope.field.sign', { token, fieldId: field.id, fieldValue: { type: 'SIGNATURE', value: 'Teste' } }))
-      .status,
-    200,
-  );
-  assert.equal((await completeWithCode({ token, documentId, email })).status, 200);
-
+  envelopeId = first.envelopeId;
   proof = readProof(envelopeId);
+
+  // Base do RH fora do ar no momento da conclusão: a prova ainda sai, com CPF mascarado e dados do RH nulos.
+  db('delete from "RateLimit"');
+  db(`delete from "RevalleEmailLink" where cpf = '${MARIA.cpf}'`);
+
+  try {
+    const down = await signerFlow({
+      beforeComplete: () => execFileSync('docker', ['stop', 'revsign-hml-colaboradores-db-1'], { stdio: 'ignore' }),
+    });
+
+    proofBaseDown = readProof(down.envelopeId);
+  } finally {
+    execFileSync('docker', ['start', 'revsign-hml-colaboradores-db-1'], { stdio: 'ignore' });
+
+    for (let i = 0; i < 60; i += 1) {
+      try {
+        baseSql('select 1');
+        break;
+      } catch {
+        await sleep(1000);
+      }
+    }
+  }
 
   // O RH muda o cargo depois da assinatura.
   baseSql(`update rh_colaboradores set cargo_nome = 'Cargo Alterado Depois' where cpf_completo = '${MARIA.cpf}'`);
 
-  // Reselagem pela rota admin quando há credenciais; sem elas, vale a prova de que a linha não muda.
+  // Reselagem pela rota admin quando há credenciais; sem elas a perna da reselagem é pulada.
   if (admin.email && admin.password) {
     for (let i = 0; i < 60; i += 1) {
       if ((await api('GET', `/envelope/${envelopeId}`)).body.status === 'COMPLETED') {
@@ -123,7 +154,29 @@ test('termo, aparelho, local e desenho', () => {
   assert.deepEqual(proof.deviceLocation, { status: 'NOT_REQUESTED' });
   // IP privado/de teste não localiza: aceita nulo, mas se vier deve ter o formato certo.
   assert.ok(proof.ipLocation === null || typeof proof.ipLocation === 'object');
-  assert.equal(proof.drewSignature, true);
+  assert.equal(proof.drewSignature, proof.signatureKind === 'IMAGE');
+});
+
+test('base do RH fora do ar na conclusão: CPF mascarado presente, dados do RH nulos, identidade verificada', () => {
+  assert.ok(proofBaseDown, 'prova ausente');
+  assert.match(proofBaseDown.employee.cpfMasked, /^\*\*\*\.\d{3}\.\d{3}-\*\*$/);
+  assert.equal(proofBaseDown.employee.cargo, null);
+  assert.equal(proofBaseDown.employee.matricula, null);
+  assert.equal(proofBaseDown.identityVerified, true);
+});
+
+test('o tipo de assinatura é registrado', () => {
+  assert.ok(['IMAGE', 'TYPED', 'NONE'].includes(proof.signatureKind));
+});
+
+test('reselagem admin executada', (t) => {
+  if (!admin.email || !admin.password) {
+    t.skip('sem credenciais de admin');
+
+    return;
+  }
+
+  assert.equal(resealed, true);
 });
 
 test('frozen: mudar o cargo na base depois da assinatura não altera a prova', () => {
@@ -134,5 +187,4 @@ test('frozen: mudar o cargo na base depois da assinatura não altera a prova', (
   assert.equal(proofAfterBaseChange.employee.cargo, originalCargo);
   assert.equal(proofAfterBaseChange.verificationCode, proof.verificationCode);
   assert.deepEqual(proofAfterBaseChange.employee, proof.employee);
-  console.log(`# reselagem admin executada: ${resealed}`);
 });
