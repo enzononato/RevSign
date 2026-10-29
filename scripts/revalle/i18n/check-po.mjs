@@ -232,4 +232,6 @@ const main = () => {
   process.exit(totalErrors > 0 ? 1 : 0);
 };
 
-main();
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main();
+}

@@ -137,7 +137,7 @@ test('qr-always: com hidePoweredBy ligado, o certificado traz imagem (QR) e o ID
   const rows = pages.images.split('\n').filter((l) => /^\s*\d+\s+\d+\s+image/.test(l));
 
   assert.ok(rows.length >= 1, `sem imagens:\n${pages.images}`);
-  assert.match(pages.text, /Envelope ID|ID do Envelope/);
+  assert.match(pages.text, /Envelope ID|ID do Envelope|ID do documento/);
 });
 
 test('o certificado declara o fuso e o log mostra America/Bahia', () => {

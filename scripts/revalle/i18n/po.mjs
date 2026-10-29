@@ -68,6 +68,11 @@ export const parsePo = (text) => {
       return;
     }
 
+    // O Lingui usa plural ICU; msgid_plural/msgstr[n] não é suportado aqui e não pode passar em silêncio.
+    if (/^(msgid_plural|msgstr\[)/.test(line)) {
+      throw new Error(`formato de plural gettext não suportado: ${line.slice(0, 40)}`);
+    }
+
     if (/^msg(ctxt|id|str)\s/.test(line)) {
       const key = line.match(/^msg(ctxt|id|str)/)[0];
 

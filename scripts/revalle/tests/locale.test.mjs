@@ -46,7 +46,11 @@ test('o e-mail de confirmação do cadastro sai com o catálogo pt-BR', async ()
 
   const res = await fetch(`${BASE_URL}/api/auth/email-password/signup`, {
     method: 'POST',
-    headers: { Origin: origin, 'Content-Type': 'application/json', 'X-Forwarded-For': '203.0.113.21' },
+    headers: {
+      Origin: origin,
+      'Content-Type': 'application/json',
+      'X-Forwarded-For': `203.0.113.${Math.floor(Math.random() * 250) + 1}`,
+    },
     body: JSON.stringify({ name: 'Teste Locale', email, password: 'Senha-Forte-123!' }),
   });
 
@@ -56,7 +60,10 @@ test('o e-mail de confirmação do cadastro sai com o catálogo pt-BR', async ()
 
   for (let i = 0; i < 20 && !mail; i++) {
     mail = await latestMail(email);
-    mail ?? (await new Promise((resolve) => setTimeout(resolve, 500)));
+
+    if (!mail) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
   }
 
   assert.ok(mail, 'e-mail de confirmação não chegou ao Mailpit');
@@ -65,5 +72,6 @@ test('o e-mail de confirmação do cadastro sai com o catálogo pt-BR', async ()
   // O corpo (HTML) também vem do catálogo pt-BR do upstream: botão e título já estão traduzidos lá.
   assert.ok(mail.HTML.includes('Confirmar e-mail'), 'botão do corpo não está em português');
   assert.ok(!mail.HTML.includes('Confirm email'), 'corpo ainda em inglês');
-  // TODO(F2 Task 2): se alguma frase do corpo ficar sem msgstr no upstream, a sobreposição de tradução a habilita aqui.
+  // Com o catálogo completo (sobreposição da Revalle), nenhuma frase do corpo fica em inglês.
+  assert.ok(!/\b(Please|your email|Welcome)\b/.test(mail.HTML), 'frase em inglês no corpo do e-mail');
 });

@@ -1,5 +1,6 @@
 import { DEFAULT_DOCUMENT_DATE_FORMAT } from '@documenso/lib/constants/date-formats';
 import { DEFAULT_DOCUMENT_TIME_ZONE } from '@documenso/lib/constants/time-zones';
+import { REVALLE_DEFAULT_LOCALE } from '@documenso/lib/revalle/locale'; // REVALLE:
 import { ZDocumentEmailSettingsSchema } from '@documenso/lib/types/document-email';
 import { Button } from '@documenso/ui/primitives/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@documenso/ui/primitives/form/form';
@@ -58,7 +59,7 @@ export const ConfigureDocumentView = ({
         dateFormat: defaultValues?.meta?.dateFormat || DEFAULT_DOCUMENT_DATE_FORMAT,
         timezone: defaultValues?.meta?.timezone || DEFAULT_DOCUMENT_TIME_ZONE,
         redirectUrl: defaultValues?.meta?.redirectUrl || '',
-        language: defaultValues?.meta?.language || 'en',
+        language: defaultValues?.meta?.language || REVALLE_DEFAULT_LOCALE, // REVALLE: pt-BR como padrão
         signatureTypes: defaultValues?.meta?.signatureTypes || [],
         signingOrder: defaultValues?.meta?.signingOrder || DocumentSigningOrder.PARALLEL,
         allowDictateNextSigner: defaultValues?.meta?.allowDictateNextSigner || false,
