@@ -2,8 +2,6 @@ import { TWO_FACTOR_EMAIL_EXPIRATION_MINUTES } from '@documenso/lib/server-only/
 import { send2FATokenEmail } from '@documenso/lib/server-only/2fa/email/send-2fa-token-email';
 import { assertRateLimit } from '@documenso/lib/server-only/rate-limit/rate-limit-middleware';
 import { request2FAEmailRateLimit } from '@documenso/lib/server-only/rate-limit/rate-limits';
-import { DocumentAuth } from '@documenso/lib/types/document-auth';
-import { extractDocumentAuthMethods } from '@documenso/lib/utils/document-auth';
 import { prisma } from '@documenso/prisma';
 import { EnvelopeType } from '@prisma/client';
 import { TRPCError } from '@trpc/server';
@@ -59,17 +57,7 @@ export const accessAuthRequest2FAEmailRoute = procedure
 
       const [recipient] = envelope.recipients;
 
-      const { derivedRecipientAccessAuth } = extractDocumentAuthMethods({
-        documentAuth: envelope.authOptions,
-        recipientAuth: recipient.authOptions,
-      });
-
-      if (!derivedRecipientAccessAuth.includes(DocumentAuth.TWO_FACTOR_AUTH)) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: '2FA is not required for this document',
-        });
-      }
+      // REVALLE: o código por e-mail vale para qualquer documento (a conclusão o exige sempre), então não há recusa aqui.
 
       // if (user && recipient.email !== user.email) {
       //   throw new TRPCError({

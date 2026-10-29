@@ -29,6 +29,7 @@ import type { EnvelopeIdOptions } from '../../utils/envelope';
 import { mapSecondaryIdToDocumentId, unsafeBuildEnvelopeIdQuery } from '../../utils/envelope';
 import { getRecipientsInActiveSigningStep, isRecipientTurnBySigningOrder } from '../../utils/recipient-groups';
 import { assertRecipientNotExpired, isRecipientBefore } from '../../utils/recipients';
+import { validateTwoFactorTokenFromEmail } from '../2fa/email/validate-2fa-token-from-email'; // REVALLE:
 import { getIsRecipientsTurnToSign } from '../recipient/get-is-recipient-turn';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { assertSenderNotDisabled } from '../user/assert-user-not-disabled';
@@ -166,7 +167,13 @@ export const completeDocumentWithToken = async ({
     recipientAuth: recipient.authOptions,
   });
 
-  if (derivedRecipientAccessAuth.includes(DocumentAuth.TWO_FACTOR_AUTH)) {
+  // REVALLE: quem age (nem CC nem VIEWER) sempre precisa do código por e-mail, seja qual for o authOptions gravado.
+  const revalleCodeRequired =
+    !derivedRecipientAccessAuth.includes(DocumentAuth.TWO_FACTOR_AUTH) &&
+    recipient.role !== RecipientRole.CC &&
+    recipient.role !== RecipientRole.VIEWER;
+
+  if (derivedRecipientAccessAuth.includes(DocumentAuth.TWO_FACTOR_AUTH) || revalleCodeRequired) {
     if (!accessAuthOptions) {
       throw new AppError(AppErrorCode.UNAUTHORIZED, {
         message: 'Access authentication required',
@@ -179,13 +186,22 @@ export const completeDocumentWithToken = async ({
       });
     }
 
-    const isValid = await isRecipientAuthorized({
-      type: 'ACCESS_2FA',
-      documentAuthOptions: envelope.authOptions,
-      recipient: recipient,
-      userId, // Can be undefined for non-account recipients
-      authOptions: accessAuthOptions,
-    });
+    const isValid = revalleCodeRequired
+      ? accessAuthOptions.type === DocumentAuth.TWO_FACTOR_AUTH &&
+        accessAuthOptions.method === 'email' &&
+        (await validateTwoFactorTokenFromEmail({
+          envelopeId: recipient.envelopeId,
+          email: recipient.email,
+          code: accessAuthOptions.token,
+          window: 10,
+        }))
+      : await isRecipientAuthorized({
+          type: 'ACCESS_2FA',
+          documentAuthOptions: envelope.authOptions,
+          recipient: recipient,
+          userId, // Can be undefined for non-account recipients
+          authOptions: accessAuthOptions,
+        });
 
     if (!isValid) {
       await prisma.documentAuditLog.create({

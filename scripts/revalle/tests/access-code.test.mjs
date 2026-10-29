@@ -20,10 +20,12 @@ const passGate = async (token) => {
   assert.equal(confirmed.body?.result?.data?.json?.status, 'PASSED', confirmed.text);
 };
 
-const setup = async () => {
-  const created = await createEnvelope({ recipients: [{ email: unique('r') }] });
+const setup = async ({ recipient: extra = {}, tamper } = {}) => {
+  const created = await createEnvelope({ recipients: [{ email: unique('r'), ...extra }] });
 
   assert.equal(created.status, 200, created.text);
+
+  tamper?.(created);
 
   const [recipient] = await distribute(created.id);
   const documentId = Number.parseInt(created.envelope.secondaryId.split('_')[1], 10);
@@ -61,16 +63,59 @@ test('o envelope criado sem autenticação sai com o código por e-mail exigido'
   assert.match(db(`select "authOptions"::text from "Envelope" where id = '${created.id}'`), /TWO_FACTOR_AUTH/);
 });
 
-test('o backstop do envio recoloca o código se a opção tiver sido apagada', async () => {
-  const created = await createEnvelope({ recipients: [{ email: unique('back') }] });
+const noCode = (s) =>
+  trpc('recipient.completeDocumentWithToken', { token: s.recipient.token, documentId: s.documentId });
 
+test('o backstop do envio recoloca o código apagado; sem código a conclusão é recusada, com código passa', async () => {
+  const s = await setup({
+    tamper: (c) =>
+      db(`update "Envelope" set "authOptions" = '{"globalAccessAuth":[],"globalActionAuth":[]}' where id = '${c.id}'`),
+  });
+
+  assert.match(db(`select "authOptions"::text from "Envelope" where id = '${s.id}'`), /TWO_FACTOR_AUTH/);
+  assert.notEqual((await noCode(s)).status, 200);
+
+  const done = await completeWithCode({ token: s.recipient.token, documentId: s.documentId, email: s.recipient.email });
+
+  assert.equal(done.status, 200, done.text);
+});
+
+test('accessAuth do destinatário sem código é corrigido no envio e a conclusão exige o código', async () => {
+  const created = await createEnvelope({ recipients: [{ email: unique('acc'), accessAuth: ['ACCOUNT'] }] });
+
+  assert.equal(created.status, 200, created.text);
+  assert.match(
+    db(`select "authOptions"::text from "Recipient" where "envelopeId" = '${created.id}'`),
+    /TWO_FACTOR_AUTH/,
+  );
+});
+
+test('override gravado direto no banco (accessAuth ACCOUNT): o envio corrige e sem código é recusado', async () => {
+  const s = await setup({
+    tamper: (c) =>
+      db(
+        `update "Recipient" set "authOptions" = '{"accessAuth":["ACCOUNT"],"actionAuth":[]}' where "envelopeId" = '${c.id}'`,
+      ),
+  });
+
+  assert.match(db(`select "authOptions"::text from "Recipient" where id = ${s.recipient.id}`), /TWO_FACTOR_AUTH/);
+  assert.notEqual((await noCode(s)).status, 200);
+});
+
+test('override com lista vazia no banco depois do envio: a conclusão ainda exige o código', async () => {
+  const s = await setup();
+
+  db(`update "Envelope" set "authOptions" = '{"globalAccessAuth":[],"globalActionAuth":[]}' where id = '${s.id}'`);
   db(
-    `update "Envelope" set "authOptions" = '{"globalAccessAuth":[],"globalActionAuth":[]}' where id = '${created.id}'`,
+    `update "Recipient" set "authOptions" = '{"accessAuth":["ACCOUNT"],"actionAuth":[]}' where id = ${s.recipient.id}`,
   );
 
-  await distribute(created.id);
+  assert.notEqual((await noCode(s)).status, 200);
+  assert.equal(db(`select "signingStatus" from "Recipient" where id = ${s.recipient.id}`), 'NOT_SIGNED');
 
-  assert.match(db(`select "authOptions"::text from "Envelope" where id = '${created.id}'`), /TWO_FACTOR_AUTH/);
+  const done = await completeWithCode({ token: s.recipient.token, documentId: s.documentId, email: s.recipient.email });
+
+  assert.equal(done.status, 200, done.text);
 });
 
 test('concluir sem código ou com código errado é recusado', async () => {

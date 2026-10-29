@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { withRevalleAccessAuth } from './access-auth';
+import { withRevalleAccessAuth, withRevalleRecipientAccessAuth } from './access-auth';
 
 describe('withRevalleAccessAuth', () => {
   it('adds the e-mail code requirement to empty options', () => {
@@ -22,5 +22,27 @@ describe('withRevalleAccessAuth', () => {
 
     expect(once.globalAccessAuth).toEqual(['TWO_FACTOR_AUTH']);
     expect(withRevalleAccessAuth(once)).toEqual(once);
+  });
+});
+
+describe('withRevalleRecipientAccessAuth', () => {
+  it('leaves an empty access auth alone (the document one applies)', () => {
+    expect(withRevalleRecipientAccessAuth({ accessAuth: [], actionAuth: [] })).toEqual({
+      accessAuth: [],
+      actionAuth: [],
+    });
+  });
+
+  it('appends the e-mail code to a non-empty list without it', () => {
+    expect(withRevalleRecipientAccessAuth({ accessAuth: ['ACCOUNT'], actionAuth: ['PASSWORD'] })).toEqual({
+      accessAuth: ['ACCOUNT', 'TWO_FACTOR_AUTH'],
+      actionAuth: ['PASSWORD'],
+    });
+  });
+
+  it('is idempotent', () => {
+    const once = withRevalleRecipientAccessAuth({ accessAuth: ['ACCOUNT'], actionAuth: [] });
+
+    expect(withRevalleRecipientAccessAuth(once)).toEqual(once);
   });
 });
