@@ -150,7 +150,12 @@ test('export-missing: vazios e Documenso, ordenados, com lotes', () => {
 });
 
 // Guarda do pre-commit (check-secrets.sh --staged): catálogo do upstream no stage só passa num merge ou com a variável.
-test('check-secrets: bloqueia web.po do upstream no stage; overlay, merge e REVALLE_ALLOW_UPSTREAM_PO=1 passam', () => {
+// check-secrets.sh sai antes da guarda quando o gitleaks não está instalado.
+const hasGitleaks = spawnSync('sh', ['-c', 'command -v gitleaks'], { encoding: 'utf8' }).status === 0;
+
+test('check-secrets: bloqueia web.po do upstream no stage; overlay, merge e REVALLE_ALLOW_UPSTREAM_PO=1 passam', {
+  skip: hasGitleaks ? false : 'gitleaks não instalado',
+}, () => {
   const repo = mkdtempSync(join(tmpdir(), 'guard-'));
   const git = (...args) => spawnSync('git', args, { cwd: repo, encoding: 'utf8' });
   const guard = (env = {}) =>
@@ -170,7 +175,7 @@ test('check-secrets: bloqueia web.po do upstream no stage; overlay, merge e REVA
   git('config', 'user.name', 'Teste');
   write('README', 'x\n');
   git('add', 'README');
-  git('commit', '-q', '-m', 'init');
+  git('-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'init');
 
   write('packages/lib/translations/revalle/pt-BR.po', 'msgid ""\nmsgstr ""\n');
   git('add', '.');
