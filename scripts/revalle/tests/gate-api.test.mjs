@@ -219,7 +219,8 @@ test('sequencial: o segundo não assina antes do primeiro; cada um passa pelo pr
     ],
     { distributionMethod: 'NONE', signingOrder: 'SEQUENTIAL' },
   );
-  const [first, second] = s.recipients;
+  // A resposta do envio não garante a ordem: escolhe pelo signingOrder.
+  const [first, second] = [1, 2].map((n) => s.recipients.find((r) => r.signingOrder === n));
 
   await passGate(second.token, ANA);
 
