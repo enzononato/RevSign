@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { api, createEnvelope, db } from './helpers.mjs';
+import { api, createEnvelope, db, distribute, trpc } from './helpers.mjs';
 
 const MENSAGEM = 'não é de um domínio da empresa';
 
@@ -44,4 +44,37 @@ test('adicionar destinatário fora da empresa a envelope existente é recusado',
 
   assert.equal(res.status, 400, res.text);
   assert.match(res.text, new RegExp(MENSAGEM));
+});
+
+test('próximo assinante ditado fora da empresa é recusado e nada é gravado', async () => {
+  const res = await createEnvelope({
+    recipients: [
+      { email: 'a@revalle.com.br', signingOrder: 1 },
+      { email: 'b@revalle.com.br', signingOrder: 2 },
+    ],
+    meta: { allowDictateNextSigner: true, signingOrder: 'SEQUENTIAL' },
+  });
+
+  assert.equal(res.status, 200, res.text);
+
+  const [first] = (await distribute(res.id)).filter((r) => r.email === 'a@revalle.com.br');
+  const envelope = (await api('GET', `/envelope/${res.id}`)).body;
+  const field = envelope.fields.find((f) => f.recipientId === first.id && f.type === 'SIGNATURE');
+  const documentId = Number.parseInt(envelope.secondaryId.split('_')[1], 10);
+
+  await trpc('envelope.field.sign', {
+    token: first.token,
+    fieldId: field.id,
+    fieldValue: { type: 'SIGNATURE', value: 'Teste' },
+  });
+
+  const done = await trpc('recipient.completeDocumentWithToken', {
+    token: first.token,
+    documentId,
+    nextSigner: { email: 'x@gmail.com', name: 'X' },
+  });
+
+  assert.equal(done.ok, false, done.text);
+  assert.match(done.text, new RegExp(MENSAGEM));
+  assert.equal(db(`select "signingStatus" from "Recipient" where id = ${first.id}`), 'NOT_SIGNED');
 });

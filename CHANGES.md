@@ -25,6 +25,7 @@ Toda edição em arquivo do upstream é marcada com `REVALLE:` no código e list
 | `packages/lib/utils/env.ts` | 1 linha em `createPublicEnv`: `NEXT_PUBLIC_REVALLE_ALLOWED_DOMAINS` derivada de `NEXT_PRIVATE_ALLOWED_SIGNUP_DOMAINS` | O formulário avisa cedo, sem segunda variável para manter | 3 |
 | `packages/lib/client-only/hooks/use-editor-recipients.ts` | Import + `.superRefine(refineRecipientDomains)` no fim do schema | Erro no campo de e-mail do editor v2 para e-mail fora da empresa | 3 |
 | `packages/ui/primitives/document-flow/add-signers.types.ts` | Import + `.superRefine(refineRecipientDomains)`; schema reindentado pelo formatter | Idem no formulário v1 | 3 |
+| `packages/lib/server-only/document/complete-document-with-token.ts` | Import + 1 chamada `assertRecipientEmailsAllowed([dictatedNextSigner?.email])` logo após `assertSenderNotDisabled` | O próximo assinante ditado também precisa ser de domínio da empresa; a recusa vem antes de gravar qualquer coisa | 3 |
 
 ## Arquivos novos (não conflitam com o upstream)
 

@@ -29,6 +29,7 @@ import { mapSecondaryIdToDocumentId, unsafeBuildEnvelopeIdQuery } from '../../ut
 import { getRecipientsInActiveSigningStep, isRecipientTurnBySigningOrder } from '../../utils/recipient-groups';
 import { assertRecipientNotExpired, isRecipientBefore } from '../../utils/recipients';
 import { getIsRecipientsTurnToSign } from '../recipient/get-is-recipient-turn';
+import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { assertSenderNotDisabled } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
 import { isRecipientAuthorized } from './is-recipient-authorized';
@@ -92,6 +93,8 @@ export const completeDocumentWithToken = async ({
   }
 
   await assertSenderNotDisabled({ userId: envelope.userId });
+
+  assertRecipientEmailsAllowed([dictatedNextSigner?.email]); // REVALLE:
 
   const legacyDocumentId = mapSecondaryIdToDocumentId(envelope.secondaryId);
 

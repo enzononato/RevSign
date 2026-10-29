@@ -42,7 +42,7 @@ export const trpc = async (procedure, input) =>
   );
 
 // Cria um envelope com um campo de assinatura por destinatário. Devolve { status, ok, body, text, id, envelope }.
-export const createEnvelope = async ({ recipients, pdf = 'assets/example.pdf', title } = {}) => {
+export const createEnvelope = async ({ recipients, pdf = 'assets/example.pdf', title, meta } = {}) => {
   const form = new FormData();
 
   form.append(
@@ -50,7 +50,7 @@ export const createEnvelope = async ({ recipients, pdf = 'assets/example.pdf', t
     JSON.stringify({
       title: title ?? `[TESTE] ${new Date().toISOString()}`,
       type: 'DOCUMENT',
-      meta: { distributionMethod: 'NONE' },
+      meta: { distributionMethod: 'NONE', ...meta },
       recipients: recipients.map((r) => ({
         role: 'SIGNER',
         name: 'Teste',
