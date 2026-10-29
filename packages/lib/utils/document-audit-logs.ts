@@ -658,6 +658,35 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
       you: msg`Your remote signature was applied`,
       user: msg`${user}'s remote signature was applied`,
     }))
+    // REVALLE: portão de verificação do destinatário.
+    .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_TERM_ACCEPTED }, ({ data }) => {
+      const text = msg`Termo de assinatura eletrônica aceito (versão ${data.termVersion})`;
+
+      return { anonymous: text, you: text, user: text };
+    })
+    .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_IDENTITY_FAILED }, ({ data }) => {
+      const text = msg`Confirmação de identidade falhou (tentativa ${data.attempt} de 5)`;
+
+      return { anonymous: text, you: text, user: text };
+    })
+    .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_IDENTITY_CONFIRMED }, ({ data }) => {
+      const text = msg`Identidade confirmada (CPF ${data.cpfMasked})`;
+
+      return { anonymous: text, you: text, user: text };
+    })
+    .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_IDENTITY_LINKED }, () => {
+      const text = msg`E-mail reconhecido como colaborador`;
+
+      return { anonymous: text, you: text, user: text };
+    })
+    .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_GATE_LOCKED }, ({ data }) => {
+      const text =
+        data.reason === 'ATTEMPTS'
+          ? msg`Link bloqueado (excesso de tentativas)`
+          : msg`Link bloqueado (CPF vinculado a outro e-mail)`;
+
+      return { anonymous: text, you: text, user: text };
+    })
     .exhaustive();
 
   let selectedDescription = description.anonymous;

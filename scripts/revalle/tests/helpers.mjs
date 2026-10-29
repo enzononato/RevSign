@@ -31,12 +31,18 @@ export const api = async (method, route, body) =>
     }),
   );
 
-// Rota tRPC pública (POST), como a página de assinatura chama.
-export const trpc = async (procedure, input) =>
+// Rota tRPC pública (POST), como a página de assinatura chama. O IP vem do proxy em produção; aqui é simulado.
+export const trpc = async (procedure, input, headers = {}) =>
   parse(
     await fetch(`${BASE_URL}/api/trpc/${procedure}`, {
       method: 'POST',
-      headers: { Origin: new URL(BASE_URL).origin, 'Content-Type': 'application/json' },
+      headers: {
+        Origin: new URL(BASE_URL).origin,
+        'Content-Type': 'application/json',
+        'X-Forwarded-For': '203.0.113.7',
+        'User-Agent': 'revsign-gate-test',
+        ...headers,
+      },
       body: JSON.stringify({ json: input }),
     }),
   );

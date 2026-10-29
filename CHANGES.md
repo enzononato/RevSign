@@ -51,6 +51,9 @@ Toda edição em arquivo do upstream é marcada com `REVALLE:` no código e list
 | `packages/prisma/migrations/20261029120000_revalle_verification/migration.sql` | Tabelas `RevalleEmailLink` e `RevalleRecipientGate` | 3 |
 | `packages/lib/revalle/term.ts` | Termo de assinatura eletrônica (versão 1, provisória) | 3 |
 | `apps/remix/app/routes/_share+/privacidade.tsx` | Página pública `/privacidade` | 3 |
+| `packages/lib/server-only/revalle/gate/`, `packages/trpc/server/revalle-router/`, `packages/email/templates/revalle-gate-locked.tsx` | Núcleo do portão: termo, identidade (CPF + data), bloqueio e aviso por e-mail | 3 |
+| `packages/trpc/server/router.ts` | Monta `revalle: revalleRouter` (marcado `// REVALLE:`) | 3 |
+| `packages/lib/types/document-audit-logs.ts`, `packages/lib/utils/document-audit-logs.ts` | Eventos de auditoria `REVALLE_*` (enum, schemas, união e texto em pt-BR; marcados `// REVALLE:`) | 3 |
 
 ## Checklist de atualização do upstream
 
