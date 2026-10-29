@@ -9,6 +9,7 @@ import { isDeepEqual } from 'remeda';
 
 import { TEAM_DOCUMENT_VISIBILITY_MAP } from '../../constants/teams';
 import { AppError, AppErrorCode } from '../../errors/app-error';
+import { withRevalleAccessAuth } from '../../revalle/access-auth'; // REVALLE:
 import type { TDocumentAccessAuthTypes, TDocumentActionAuthTypes } from '../../types/document-auth';
 import { mapEnvelopeToWebhookDocumentPayload, ZWebhookDocumentSchema } from '../../types/webhook-payload';
 import { createDocumentAuthOptions, extractDocumentAuthMethods } from '../../utils/document-auth';
@@ -133,10 +134,12 @@ export const updateEnvelope = async ({
     });
   }
 
-  const authOptions = createDocumentAuthOptions({
-    globalAccessAuth: newGlobalAccessAuth,
-    globalActionAuth: newGlobalActionAuth,
-  });
+  const authOptions = withRevalleAccessAuth(
+    createDocumentAuthOptions({
+      globalAccessAuth: newGlobalAccessAuth,
+      globalActionAuth: newGlobalActionAuth,
+    }),
+  ); // REVALLE:
 
   const emailId = meta.emailId;
 

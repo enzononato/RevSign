@@ -1,7 +1,10 @@
 import type { TEditorRecipientsFormSchema } from '@documenso/lib/client-only/hooks/use-editor-recipients';
 import { useCurrentEnvelopeEditor } from '@documenso/lib/client-only/providers/envelope-editor-provider';
 import { useCurrentOrganisation } from '@documenso/lib/client-only/providers/organisation';
+import { isEmailDomainAllowed } from '@documenso/lib/revalle/email-domain'; // REVALLE:
+import { getClientAllowedDomains, isTemplateDraftEmailExempt } from '@documenso/lib/revalle/recipient-domains'; // REVALLE:
 import { isCcRecipient } from '@documenso/lib/utils/recipients';
+import { trpc } from '@documenso/trpc/react'; // REVALLE:
 import { RecipientActionAuthSelect } from '@documenso/ui/components/recipient/recipient-action-auth-select';
 import {
   RecipientAutoCompleteInput,
@@ -15,8 +18,28 @@ import type { DraggableProvidedDragHandleProps } from '@hello-pangea/dnd';
 import { useLingui } from '@lingui/react/macro';
 import { EnvelopeType, type RecipientRole } from '@prisma/client';
 import { GripVerticalIcon, TrashIcon } from 'lucide-react';
-import { memo } from 'react';
+import { memo, useEffect, useState } from 'react'; // REVALLE: useEffect, useState
 import { useFormContext } from 'react-hook-form';
+
+// REVALLE: aviso quando o e-mail da empresa ainda não tem vínculo com um CPF.
+const useRevalleUnlinkedHint = (email: string) => {
+  const [debounced, setDebounced] = useState('');
+
+  useEffect(() => {
+    const normalized = email.trim().toLowerCase();
+    const timer = setTimeout(() => setDebounced(normalized), 400);
+
+    return () => clearTimeout(timer);
+  }, [email]);
+
+  const domains = getClientAllowedDomains();
+  const eligible =
+    debounced.includes('@') && !isTemplateDraftEmailExempt(debounced) && isEmailDomainAllowed(debounced, domains);
+
+  const { data } = trpc.revalle.recipientLinkStatus.useQuery({ emails: [debounced] }, { enabled: eligible });
+
+  return eligible && data?.[0]?.isLinked === false && debounced === email.trim().toLowerCase();
+};
 
 type TEditorSigner = TEditorRecipientsFormSchema['signers'][number];
 
@@ -71,6 +94,8 @@ const RecipientRowInner = ({
 
   const rowErrors = form.formState.errors.signers?.[signerIndex];
 
+  const showUnlinkedHint = useRevalleUnlinkedHint(signer.email); // REVALLE:
+
   return (
     <fieldset data-native-id={signer.id} disabled={isSubmitting || !canBeModified} className="py-1">
       <div className="flex flex-row items-center gap-x-2">
@@ -121,6 +146,13 @@ const RecipientRowInner = ({
                   maxLength={254}
                 />
               </FormControl>
+
+              {/* REVALLE: */}
+              {showUnlinkedHint && !rowErrors?.email && (
+                <p className="text-muted-foreground text-xs" data-testid="revalle-unlinked-hint">
+                  Na primeira assinatura, esta pessoa vai confirmar CPF e data de nascimento.
+                </p>
+              )}
 
               <FormMessage />
             </FormItem>

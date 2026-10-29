@@ -62,6 +62,15 @@ export const ZDocumentAuditLogTypeSchema = z.enum([
   'DOCUMENT_RECIPIENT_CSC_SIGN_REQUESTED', // Recipient clicked Sign; CSC session created with captured per-item hashes.
   'DOCUMENT_RECIPIENT_CSC_AUTHORIZED', // Credential-scope OAuth complete; SAD attached to the CSC session.
   'DOCUMENT_RECIPIENT_CSC_SIGNED', // TSP returned signatures and they were embedded into the recipient's PDF bytes.
+
+  // REVALLE: portão de verificação do destinatário (termo, identidade, bloqueio).
+  'REVALLE_TERM_ACCEPTED',
+  'REVALLE_IDENTITY_FAILED',
+  'REVALLE_IDENTITY_CONFIRMED',
+  'REVALLE_IDENTITY_LINKED',
+  'REVALLE_GATE_LOCKED',
+  'REVALLE_GATE_UNLOCKED',
+  'REVALLE_IDENTITY_SKIPPED',
 ]);
 
 export const ZDocumentAuditLogEmailTypeSchema = z.enum([
@@ -831,6 +840,42 @@ export const ZDocumentAuditLogBaseSchema = z.object({
   ipAddress: z.string().optional().nullable(),
 });
 
+// REVALLE: eventos do portão de verificação. Nunca gravar CPF completo nem data de nascimento.
+export const ZDocumentAuditLogEventRevalleTermAcceptedSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_TERM_ACCEPTED),
+  data: z.object({ termVersion: z.string() }),
+});
+
+export const ZDocumentAuditLogEventRevalleIdentityFailedSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_IDENTITY_FAILED),
+  data: z.object({ attempt: z.number(), cpfMasked: z.string() }),
+});
+
+export const ZDocumentAuditLogEventRevalleIdentityConfirmedSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_IDENTITY_CONFIRMED),
+  data: z.object({ cpfMasked: z.string() }),
+});
+
+export const ZDocumentAuditLogEventRevalleIdentityLinkedSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_IDENTITY_LINKED),
+  data: z.object({ cpfMasked: z.string() }),
+});
+
+export const ZDocumentAuditLogEventRevalleGateLockedSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_GATE_LOCKED),
+  data: z.object({ reason: z.enum(['ATTEMPTS', 'CPF_CONFLICT', 'CODE_ATTEMPTS']), cpfMasked: z.string().optional() }),
+});
+
+export const ZDocumentAuditLogEventRevalleGateUnlockedSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_GATE_UNLOCKED),
+  data: z.object({ unlockedBy: z.string() }),
+});
+
+export const ZDocumentAuditLogEventRevalleIdentitySkippedSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_IDENTITY_SKIPPED),
+  data: z.object({}),
+});
+
 export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
   z.union([
     ZDocumentAuditLogEventEnvelopeItemCreatedSchema,
@@ -874,6 +919,13 @@ export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
     ZDocumentAuditLogEventDocumentRecipientCscSignRequestedSchema,
     ZDocumentAuditLogEventDocumentRecipientCscAuthorizedSchema,
     ZDocumentAuditLogEventDocumentRecipientCscSignedSchema,
+    ZDocumentAuditLogEventRevalleTermAcceptedSchema, // REVALLE:
+    ZDocumentAuditLogEventRevalleIdentityFailedSchema, // REVALLE:
+    ZDocumentAuditLogEventRevalleIdentityConfirmedSchema, // REVALLE:
+    ZDocumentAuditLogEventRevalleIdentityLinkedSchema, // REVALLE:
+    ZDocumentAuditLogEventRevalleGateLockedSchema, // REVALLE:
+    ZDocumentAuditLogEventRevalleGateUnlockedSchema, // REVALLE:
+    ZDocumentAuditLogEventRevalleIdentitySkippedSchema, // REVALLE:
   ]),
 );
 

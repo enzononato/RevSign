@@ -10,6 +10,15 @@ describe('resolveRateLimitOverrides', () => {
     expect(invalidEntries).toEqual([]);
   });
 
+  it('sizes the defaults for a whole unit behind one IP', () => {
+    const { overrides } = resolveRateLimitOverrides(undefined);
+
+    expect(overrides['auth.request-2fa-email']).toEqual({ max: 5, globalMax: 200, window: '15m' });
+    expect(overrides['auth.login']).toEqual({ max: 10, globalMax: 200, window: '15m' });
+    expect(overrides['api.trpc']).toEqual({ max: 3000, window: '1m' });
+    expect(overrides['api.file-upload']).toEqual({ max: 300, window: '1m' });
+  });
+
   it('parses per-identifier and per-IP limits and lets the env override the default', () => {
     const { overrides } = resolveRateLimitOverrides(' auth.login=10:200/15m , auth.signup=50/2h ');
 
@@ -29,6 +38,8 @@ describe('resolveRateLimitOverrides', () => {
       'auth.passkey=5/0m',
       'nonsense',
     ]);
-    expect(Object.keys(overrides)).toEqual(['auth.signup']);
+    expect(Object.keys(overrides).sort()).toEqual(
+      ['api.file-upload', 'api.trpc', 'auth.login', 'auth.request-2fa-email', 'auth.signup'].sort(),
+    );
   });
 });

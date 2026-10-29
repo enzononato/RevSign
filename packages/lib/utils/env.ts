@@ -71,4 +71,5 @@ export const createPublicEnv = () => ({
       ? 'true'
       : 'false',
   NEXT_PUBLIC_OIDC_PROVIDER_LABEL: process.env.NEXT_PRIVATE_OIDC_PROVIDER_LABEL ?? '',
+  NEXT_PUBLIC_REVALLE_ALLOWED_DOMAINS: process.env.NEXT_PRIVATE_ALLOWED_SIGNUP_DOMAINS ?? '', // REVALLE:
 });

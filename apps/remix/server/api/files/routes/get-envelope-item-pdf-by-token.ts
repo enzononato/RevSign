@@ -1,3 +1,5 @@
+import { isRevalleGateBlockingToken } from '@documenso/lib/server-only/revalle/gate/is-gate-blocking-token'; // REVALLE:
+import { extractRequestMetadata } from '@documenso/lib/universal/extract-request-metadata'; // REVALLE:
 import { prisma } from '@documenso/prisma';
 import { sValidator } from '@hono/standard-validator';
 import type { Prisma } from '@prisma/client';
@@ -54,6 +56,11 @@ route.get(
           qrToken: token,
         },
       };
+    }
+
+    // REVALLE: o portão (termo + identidade) vale também no PDF; tokens qr_ (documento concluído) seguem livres
+    if (await isRevalleGateBlockingToken(token, extractRequestMetadata(c.req.raw))) {
+      return c.json({ error: 'Conclua a verificação antes de continuar.' }, 403);
     }
 
     // Validate envelope access.

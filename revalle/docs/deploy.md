@@ -111,6 +111,7 @@ Por quê: o navegador precisa achar o endereço `assinatura-hml.revalle.com.br`.
 2. Troque cada `<preencher>` restante pelo valor real (tabela abaixo, "valor na homologação").
    - `NEXT_PRIVATE_DATABASE_URL` e `NEXT_PRIVATE_DIRECT_DATABASE_URL`: cole a **Internal Connection URL** do passo 2, as duas iguais.
    - `NEXT_PRIVATE_SMTP_*`: veja a seção "SMTP do cPanel" abaixo.
+   - `COLABORADORES_DATABASE_URL`: a URL da base de colaboradores (ver `verificacao.md`). Enquanto a base real não existe, troque a linha `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK=required` por `disabled` (só homologação) e apague a linha da URL.
 3. No EasyPanel, abra o serviço `revsign` e clique na aba **Environment**.
 4. Cole TODO o conteúdo do arquivo na caixa de texto (uma variável por linha, no formato `NOME=valor`, sem aspas).
 5. Clique em **Save**.
@@ -186,6 +187,31 @@ Por quê: copia o banco todo dia, cifrado, para fora da VPS. Detalhes em `backup
    - Esperado: o IP público do celular (confira em https://meuip.com.br no mesmo celular).
    - Se aparecer um IP interno (começa com `10.`, `172.` ou `192.168.`), o proxy do EasyPanel não está repassando o IP real. Avise o desenvolvedor.
 
+## Antes de atualizar para esta versão (Fase 3)
+
+Faça estas duas conferências antes de trocar a imagem de uma instalação que já está em uso. Numa instalação nova (sem dados) não há nada a conferir na primeira.
+
+1. **CPF repetido nos vínculos.** A migração `20261029130000_revalle_link_cpf_unique` torna o CPF único na tabela `RevalleEmailLink`. Se houver CPF repetido, ela falha e o app não sobe. Antes de atualizar:
+   1. No EasyPanel, abra o serviço do Postgres do RevSign (`revsign-db`) → **Console** e rode `psql -U <usuario> -d <banco>` (usuário e banco da Internal Connection URL; no passo 2 sugerimos `revsign` e `revsign`).
+   2. Rode: `SELECT cpf, count(*) FROM "RevalleEmailLink" GROUP BY cpf HAVING count(*) > 1;`
+   3. O resultado precisa ser VAZIO. Se aparecer alguma linha, avise o desenvolvedor antes de atualizar. Numa instalação nova a tabela ainda não existe (ou está vazia); não há o que conferir.
+2. **IP real no proxy.** O IP que vai para o log de auditoria e para os limites de tentativas vem do cabeçalho `X-Forwarded-For`, preenchido pelo proxy do EasyPanel (Traefik). O proxy precisa SOBRESCREVER o valor que o cliente manda (é o comportamento padrão). Para conferir:
+   1. Com o celular no 4G (Wi-Fi desligado), abra o link de um documento de teste e assine (aceite o termo e conclua com o código por e-mail).
+   2. No site, abra o documento → **Logs** e olhe o IP dos eventos do termo e do código.
+   3. Esperado: o IP público do celular (confira em https://meuip.com.br no mesmo celular).
+   4. Se aparecer um IP interno (`10.`, `172.` ou `192.168.`) ou um IP que não é do celular, avise o desenvolvedor: o proxy não está repassando o IP real, e os limites e a auditoria perdem o valor.
+   5. **Teste do cabeçalho falso.** Confirme que o proxy não aceita um `X-Forwarded-For` mandado pelo cliente. Num terminal (de qualquer computador), com o link de um documento de teste ainda NÃO assinado (o `<token>` é a parte final do link `/sign/<token>`):
+      ```
+      curl -s -X POST 'https://assinatura-hml.revalle.com.br/api/trpc/document.accessAuth.request2FAEmail' \
+        -H 'Origin: https://assinatura-hml.revalle.com.br' -H 'Content-Type: application/json' \
+        -H 'X-Forwarded-For: 1.2.3.4' -d '{"json":{"token":"<token>"}}'
+      ```
+      Depois, no site, abra o documento → **Logs** e olhe o evento mais recente de pedido de código.
+      - Esperado: o IP público do computador que rodou o `curl` (confira em https://meuip.com.br), **nunca** `1.2.3.4`.
+      - Se aparecer `1.2.3.4`, PARE e avise o desenvolvedor: qualquer pessoa escolheria o IP gravado na auditoria e fugiria dos limites por IP. O proxy precisa sobrescrever o `X-Forwarded-For`.
+
+Depois de atualizar, preencha as variáveis novas (`COLABORADORES_DATABASE_URL` e, se for o caso, `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK`) conforme `verificacao.md`. O `app.env` gerado pelo script do passo 0 já traz as duas linhas: `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK=required` e `COLABORADORES_DATABASE_URL=<preencher>`. Em instalações já existentes, acrescente-as na aba **Environment**.
+
 ## Tabela de todas as variáveis
 
 Legenda de "segredo?": **sim** = nunca no repositório, só no EasyPanel e no cofre.
@@ -205,8 +231,10 @@ Legenda de "segredo?": **sim** = nunca no repositório, só no EasyPanel e no co
 | `DOCUMENSO_DISABLE_TELEMETRY` | Desliga o envio de estatísticas ao upstream | `true` | não |
 | `NEXT_PUBLIC_REVALLE_SOURCE_URL` | Link "Código-fonte" no rodapé (exigência da AGPL) | `https://github.com/enzononato/RevSign` | não |
 | `NEXT_PRIVATE_ALLOWED_SIGNUP_DOMAINS` | Só e-mails destes domínios podem se cadastrar | `revalle.com.br,revallenordeste.com.br,revallepe.com.br` | não |
-| `NEXT_PRIVATE_REVALLE_RATE_LIMITS` | (Opcional) muda limites de tentativas. Sem ela vale `auth.signup=30/1h` | não definir | não |
+| `NEXT_PRIVATE_REVALLE_RATE_LIMITS` | (Opcional) muda limites de tentativas. Sem ela valem os padrões do RevSign (cadastro, login, código por e-mail etc.; tabela em `verificacao.md`) | não definir | não |
 | `NEXT_PRIVATE_REVALLE_ADMIN_EMAIL` | Conta promovida a ADMIN quando o app sobe | `projetos.ti@revalle.com.br` | não |
+| `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK` | Confere CPF e data de nascimento na base de colaboradores na primeira assinatura. `required` (padrão) ou `disabled` (pula a etapa; só homologação sem a base, nunca em produção) | não definir (vale `required`) ou `disabled` enquanto não houver base | não |
+| `COLABORADORES_DATABASE_URL` | Conexão SÓ DE LEITURA com a view `vw_colaboradores_assinatura` da base de colaboradores (`postgres://revsign_leitura:<senha>@<host>:5432/<banco>`; ver `verificacao.md`) | URL da base real, ou da base fictícia de ensaio | sim |
 | `NEXT_PRIVATE_DATABASE_URL` | Conexão com o banco | Internal Connection URL do passo 2 | sim |
 | `NEXT_PRIVATE_DIRECT_DATABASE_URL` | Conexão direta com o banco (igual à anterior) | o mesmo valor | sim |
 | `NEXT_PUBLIC_WEBAPP_URL` | Endereço público do site (links dos e-mails) | `https://assinatura-hml.revalle.com.br` | não |

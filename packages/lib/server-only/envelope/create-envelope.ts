@@ -19,7 +19,7 @@ import {
   SigningStatus,
   WebhookTriggerEvents,
 } from '@prisma/client';
-
+import { withRevalleAccessAuth } from '../../revalle/access-auth'; // REVALLE:
 import type {
   TDocumentAccessAuthTypes,
   TDocumentActionAuthTypes,
@@ -39,6 +39,7 @@ import { buildTeamWhereQuery } from '../../utils/teams';
 import { incrementDocumentId, incrementTemplateId } from '../envelope/increment-id';
 import { assertOrganisationRatesAndLimits } from '../rate-limit/assert-organisation-rates-and-limits';
 import { assignOmittedRecipientSigningOrders } from '../recipient/assign-omitted-recipient-signing-orders';
+import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { assertCompatibleRecipientGrouping } from '../signature-level/assert-compatible-recipient-grouping';
 import { assertCompatibleRecipientRole } from '../signature-level/assert-compatible-recipient-role';
 import { resolveSignatureLevel } from '../signature-level/resolve-signature-level';
@@ -259,10 +260,12 @@ export const createEnvelope = async ({
     );
   }
 
-  const authOptions = createDocumentAuthOptions({
-    globalAccessAuth: globalAccessAuth || [],
-    globalActionAuth: globalActionAuth || [],
-  });
+  const authOptions = withRevalleAccessAuth(
+    createDocumentAuthOptions({
+      globalAccessAuth: globalAccessAuth || [],
+      globalActionAuth: globalActionAuth || [],
+    }),
+  ); // REVALLE:
 
   const recipientsHaveActionAuth = data.recipients?.some(
     (recipient) => recipient.actionAuth && recipient.actionAuth.length > 0,
@@ -294,6 +297,11 @@ export const createEnvelope = async ({
   }));
 
   const requestedRecipients = [...(data.recipients ?? []), ...defaultRecipients];
+
+  assertRecipientEmailsAllowed(
+    requestedRecipients.map((r) => r.email),
+    { allowTemplatePlaceholders: type === EnvelopeType.TEMPLATE },
+  ); // REVALLE:
 
   assertCompatibleRecipientGrouping({ signatureLevel, recipients: requestedRecipients });
 

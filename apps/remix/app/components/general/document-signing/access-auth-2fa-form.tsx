@@ -10,16 +10,14 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { msg } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
-import { ArrowLeftIcon, KeyIcon, MailIcon } from 'lucide-react';
+import { MailIcon } from 'lucide-react'; // REVALLE: sem ArrowLeftIcon/KeyIcon (sem escolha de método)
 import { DateTime } from 'luxon';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
-import { useRequiredDocumentSigningAuthContext } from './document-signing-auth-provider';
-
-type FormStep = 'method-selection' | 'code-input';
-type TwoFactorMethod = 'email' | 'authenticator';
+// REVALLE: sempre por e-mail, sem escolha de método.
+type FormStep = 'request-code' | 'code-input';
 
 const ZAccessAuth2FAFormSchema = z.object({
   token: z.string().length(6, { message: 'Token must be 6 characters long' }),
@@ -34,16 +32,13 @@ export type AccessAuth2FAFormProps = {
 };
 
 export const AccessAuth2FAForm = ({ onSubmit, token, error }: AccessAuth2FAFormProps) => {
-  const [step, setStep] = useState<FormStep>('method-selection');
-  const [selectedMethod, setSelectedMethod] = useState<TwoFactorMethod | null>(null);
+  const [step, setStep] = useState<FormStep>('request-code');
 
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
   const [millisecondsRemaining, setMillisecondsRemaining] = useState<number | null>(null);
 
   const { _ } = useLingui();
   const { toast } = useToast();
-
-  const { user } = useRequiredDocumentSigningAuthContext();
 
   const { mutateAsync: request2FAEmail, isPending: isRequesting2FAEmail } =
     trpc.document.accessAuth.request2FAEmail.useMutation();
@@ -55,64 +50,7 @@ export const AccessAuth2FAForm = ({ onSubmit, token, error }: AccessAuth2FAFormP
     },
   });
 
-  const hasAuthenticatorEnabled = user?.twoFactorEnabled === true;
-
-  const onMethodSelect = async (method: TwoFactorMethod) => {
-    setSelectedMethod(method);
-
-    if (method === 'email') {
-      try {
-        const result = await request2FAEmail({
-          token: token,
-        });
-
-        setExpiresAt(result.expiresAt);
-        setMillisecondsRemaining(result.expiresAt.valueOf() - Date.now());
-
-        setStep('code-input');
-      } catch (error) {
-        toast({
-          title: _(msg`An error occurred`),
-          description: _(
-            msg`We encountered an unknown error while attempting to request the two-factor authentication code. Please try again later.`,
-          ),
-          variant: 'destructive',
-        });
-
-        return;
-      }
-    }
-
-    setStep('code-input');
-  };
-
-  const onFormSubmit = (data: TAccessAuth2FAFormSchema) => {
-    if (!selectedMethod) {
-      return;
-    }
-
-    // Prepare the auth options for the completion attempt
-    const accessAuthOptions: TRecipientAccessAuth = {
-      type: 'TWO_FACTOR_AUTH',
-      token: data.token, // Just the user's code - backend will validate using method type
-      method: selectedMethod,
-    };
-
-    onSubmit(accessAuthOptions);
-  };
-
-  const onGoBack = () => {
-    setStep('method-selection');
-    setSelectedMethod(null);
-    setExpiresAt(null);
-    setMillisecondsRemaining(null);
-  };
-
-  const onResendEmail = async () => {
-    if (selectedMethod !== 'email') {
-      return;
-    }
-
+  const requestCode = async () => {
     try {
       const result = await request2FAEmail({
         token: token,
@@ -120,15 +58,25 @@ export const AccessAuth2FAForm = ({ onSubmit, token, error }: AccessAuth2FAFormP
 
       setExpiresAt(result.expiresAt);
       setMillisecondsRemaining(result.expiresAt.valueOf() - Date.now());
+
+      setStep('code-input');
     } catch (error) {
       toast({
-        title: _(msg`An error occurred`),
-        description: _(
-          msg`We encountered an unknown error while attempting to request the two-factor authentication code. Please try again later.`,
-        ),
+        title: _(msg`Não foi possível enviar o código`),
+        description: _(msg`Aguarde um pouco e tente de novo.`),
         variant: 'destructive',
       });
     }
+  };
+
+  const onFormSubmit = (data: TAccessAuth2FAFormSchema) => {
+    const accessAuthOptions: TRecipientAccessAuth = {
+      type: 'TWO_FACTOR_AUTH',
+      token: data.token,
+      method: 'email',
+    };
+
+    onSubmit(accessAuthOptions);
   };
 
   useEffect(() => {
@@ -143,14 +91,16 @@ export const AccessAuth2FAForm = ({ onSubmit, token, error }: AccessAuth2FAFormP
 
   return (
     <div className="py-4">
-      {step === 'method-selection' && (
+      {step === 'request-code' && (
         <div className="space-y-4">
           <div>
             <h3 className="font-semibold text-lg">
-              <Trans>Choose verification method</Trans>
+              <Trans>Confirme que você é o destinatário</Trans>
             </h3>
             <p className="text-muted-foreground text-sm">
-              <Trans>Please select how you'd like to receive your verification code.</Trans>
+              <Trans>
+                Vamos enviar um código de 6 dígitos para seu e-mail. Ele é necessário para concluir o documento.
+              </Trans>
             </p>
           </div>
 
@@ -160,69 +110,28 @@ export const AccessAuth2FAForm = ({ onSubmit, token, error }: AccessAuth2FAFormP
             </Alert>
           )}
 
-          <div className="space-y-3">
-            <Button
-              type="button"
-              variant="outline"
-              className="flex h-auto w-full justify-start gap-3 p-4"
-              onClick={async () => onMethodSelect('email')}
-              disabled={isRequesting2FAEmail}
-            >
-              <MailIcon className="h-5 w-5" />
-              <div className="text-left">
-                <div className="font-medium">
-                  <Trans>Email verification</Trans>
-                </div>
-                <div className="text-muted-foreground text-sm">
-                  <Trans>We'll send a 6-digit code to your email</Trans>
-                </div>
-              </div>
-            </Button>
-
-            {hasAuthenticatorEnabled && (
-              <Button
-                type="button"
-                variant="outline"
-                className="flex h-auto w-full justify-start gap-3 p-4"
-                onClick={async () => onMethodSelect('authenticator')}
-                disabled={isRequesting2FAEmail}
-              >
-                <KeyIcon className="h-5 w-5" />
-                <div className="text-left">
-                  <div className="font-medium">
-                    <Trans>Authenticator app</Trans>
-                  </div>
-                  <div className="text-muted-foreground text-sm">
-                    <Trans>Use your authenticator app to generate a code</Trans>
-                  </div>
-                </div>
-              </Button>
-            )}
-          </div>
+          <Button type="button" size="lg" className="w-full" onClick={requestCode} loading={isRequesting2FAEmail}>
+            <MailIcon className="mr-2 h-5 w-5" />
+            <Trans>Enviar código para meu e-mail</Trans>
+          </Button>
         </div>
       )}
 
       {step === 'code-input' && (
         <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="ghost" size="sm" onClick={onGoBack}>
-              <ArrowLeftIcon className="h-4 w-4" />
-            </Button>
-
-            <h3 className="font-semibold text-lg">
-              <Trans>Enter verification code</Trans>
-            </h3>
-          </div>
+          <h3 className="font-semibold text-lg">
+            <Trans>Digite o código</Trans>
+          </h3>
 
           <div className="text-muted-foreground text-sm">
-            {selectedMethod === 'email' ? (
-              <Trans>
-                We've sent a 6-digit verification code to your email. Please enter it below to complete the document.
-              </Trans>
-            ) : (
-              <Trans>Please open your authenticator app and enter the 6-digit code for this document.</Trans>
-            )}
+            <Trans>Enviamos um código de 6 dígitos para seu e-mail. Digite-o abaixo para concluir o documento.</Trans>
           </div>
+
+          {error && (
+            <Alert variant="destructive" padding="tight" className="text-sm">
+              {error}
+            </Alert>
+          )}
 
           <Form {...form}>
             <form id="access-auth-2fa-form" className="space-y-4" onSubmit={form.handleSubmit(onFormSubmit)}>
@@ -237,8 +146,9 @@ export const AccessAuth2FAForm = ({ onSubmit, token, error }: AccessAuth2FAFormP
                         maxLength={6}
                         autoFocus
                         inputMode="numeric"
+                        autoComplete="one-time-code"
                         pattern="^\d+$"
-                        aria-label="2FA code"
+                        aria-label="Código de 6 dígitos"
                         containerClassName="h-12 justify-center"
                       >
                         <PinInputGroup>
@@ -258,7 +168,8 @@ export const AccessAuth2FAForm = ({ onSubmit, token, error }: AccessAuth2FAFormP
                           })}
                         >
                           <Trans>
-                            Expires in {DateTime.fromMillis(Math.max(millisecondsRemaining, 0)).toFormat('mm:ss')}
+                            O código vale por{' '}
+                            {DateTime.fromMillis(Math.max(millisecondsRemaining, 0)).toFormat('mm:ss')}
                           </Trans>
                         </div>
                       )}
@@ -274,21 +185,19 @@ export const AccessAuth2FAForm = ({ onSubmit, token, error }: AccessAuth2FAFormP
                     disabled={!form.formState.isValid}
                     loading={isRequesting2FAEmail || form.formState.isSubmitting}
                   >
-                    <Trans>Verify & Complete</Trans>
+                    <Trans>Confirmar e concluir</Trans>
                   </Button>
 
-                  {selectedMethod === 'email' && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="w-full"
-                      onClick={onResendEmail}
-                      loading={isRequesting2FAEmail}
-                    >
-                      <Trans>Resend code</Trans>
-                    </Button>
-                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="w-full"
+                    onClick={requestCode}
+                    loading={isRequesting2FAEmail}
+                  >
+                    <Trans>Reenviar código</Trans>
+                  </Button>
                 </div>
               </fieldset>
             </form>

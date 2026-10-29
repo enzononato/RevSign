@@ -8,12 +8,14 @@ import { prisma } from '@documenso/prisma';
 import { EnvelopeType, RecipientRole, SendStatus, SigningStatus } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../errors/app-error';
-import { extractLegacyIds } from '../../universal/id';
+import { extractLegacyIds, nanoid } from '../../universal/id'; // REVALLE: nanoid
 import type { EnvelopeIdOptions } from '../../utils/envelope';
 import { mapFieldToLegacyField } from '../../utils/fields';
 import { canRecipientBeModified } from '../../utils/recipients';
 import { assertEnvelopeMutable } from '../envelope/assert-envelope-mutable';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
+import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
+import { hasRevalleEmailChanged } from '../revalle/email-change'; // REVALLE:
 import { assertCompatibleRecipientGrouping } from '../signature-level/assert-compatible-recipient-grouping';
 import { assertCompatibleRecipientRole } from '../signature-level/assert-compatible-recipient-role';
 
@@ -71,6 +73,11 @@ export const updateEnvelopeRecipients = async ({
   }
 
   assertEnvelopeMutable(envelope);
+
+  assertRecipientEmailsAllowed(
+    recipients.map((r) => r.email),
+    { allowTemplatePlaceholders: envelope.type === EnvelopeType.TEMPLATE },
+  ); // REVALLE:
 
   if (envelope.completedAt) {
     throw new AppError(AppErrorCode.INVALID_REQUEST, {
@@ -166,6 +173,8 @@ export const updateEnvelopeRecipients = async ({
           data: {
             name: mergedRecipient.name,
             email: mergedRecipient.email,
+            // REVALLE: e-mail trocado ganha link novo; o link antigo (já enviado ao e-mail anterior) deixa de abrir.
+            ...(hasRevalleEmailChanged(originalRecipient.email, mergedRecipient.email) ? { token: nanoid() } : {}),
             role: mergedRecipient.role,
             signingOrder: mergedRecipient.signingOrder,
             envelopeId: envelope.id,

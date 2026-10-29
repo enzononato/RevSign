@@ -1,5 +1,5 @@
 import type { Envelope, Recipient } from '@prisma/client';
-
+import { withRevalleRecipientAccessAuth } from '../revalle/access-auth'; // REVALLE:
 import type {
   TDocumentAuthOptions,
   TRecipientAccessAuthTypes,
@@ -58,8 +58,8 @@ export const createDocumentAuthOptions = (options: TDocumentAuthOptions): TDocum
  * Create recipient auth options in a type safe way.
  */
 export const createRecipientAuthOptions = (options: TRecipientAuthOptions): TRecipientAuthOptions => {
-  return {
+  return withRevalleRecipientAccessAuth({
     accessAuth: options?.accessAuth ?? [],
     actionAuth: options?.actionAuth ?? [],
-  };
+  }); // REVALLE:
 };

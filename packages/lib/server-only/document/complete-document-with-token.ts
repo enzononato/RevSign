@@ -1,5 +1,6 @@
 import { DEFAULT_DOCUMENT_DATE_FORMAT } from '@documenso/lib/constants/date-formats';
 import { DEFAULT_DOCUMENT_TIME_ZONE } from '@documenso/lib/constants/time-zones';
+import { assertRevalleGatePassed } from '@documenso/lib/server-only/revalle/gate/assert-gate-passed'; // REVALLE:
 import { DOCUMENT_AUDIT_LOG_TYPE, RECIPIENT_DIFF_TYPE } from '@documenso/lib/types/document-audit-logs';
 import type { RequestMetadata } from '@documenso/lib/universal/extract-request-metadata';
 import { fieldsContainUnsignedRequiredField } from '@documenso/lib/utils/advanced-fields-helpers';
@@ -29,6 +30,8 @@ import { mapSecondaryIdToDocumentId, unsafeBuildEnvelopeIdQuery } from '../../ut
 import { getRecipientsInActiveSigningStep, isRecipientTurnBySigningOrder } from '../../utils/recipient-groups';
 import { assertRecipientNotExpired, isRecipientBefore } from '../../utils/recipients';
 import { getIsRecipientsTurnToSign } from '../recipient/get-is-recipient-turn';
+import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
+import { assertRevalleAccessCode } from '../revalle/gate/access-code'; // REVALLE:
 import { assertSenderNotDisabled } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
 import { isRecipientAuthorized } from './is-recipient-authorized';
@@ -93,6 +96,8 @@ export const completeDocumentWithToken = async ({
 
   await assertSenderNotDisabled({ userId: envelope.userId });
 
+  assertRecipientEmailsAllowed([dictatedNextSigner?.email, recipientOverride?.email]); // REVALLE:
+
   const legacyDocumentId = mapSecondaryIdToDocumentId(envelope.secondaryId);
 
   if (envelope.recipients.length === 0) {
@@ -103,6 +108,9 @@ export const completeDocumentWithToken = async ({
   }
 
   const [recipient] = envelope.recipients;
+
+  // REVALLE: o portão (termo + identidade) vale também na API; sem isso a tela seria contornável
+  await assertRevalleGatePassed(recipient, requestMetadata);
 
   // A retried or duplicate completion request for an already signed
   // recipient throws a code the router resolves idempotently. This must be
@@ -159,7 +167,15 @@ export const completeDocumentWithToken = async ({
     recipientAuth: recipient.authOptions,
   });
 
-  if (derivedRecipientAccessAuth.includes(DocumentAuth.TWO_FACTOR_AUTH)) {
+  // REVALLE: quem age (nem CC nem VIEWER) só conclui com o código enviado ao próprio e-mail, seja qual for o authOptions gravado
+  // (nenhum outro fator vale; código errado conta tentativa e bloqueia no 5º). O bloco do upstream fica só para CC/VIEWER.
+  const isRevalleActingRecipient = recipient.role !== RecipientRole.CC && recipient.role !== RecipientRole.VIEWER;
+
+  if (isRevalleActingRecipient) {
+    await assertRevalleAccessCode({ recipient, accessAuthOptions, requestMetadata });
+  }
+
+  if (!isRevalleActingRecipient && derivedRecipientAccessAuth.includes(DocumentAuth.TWO_FACTOR_AUTH)) {
     if (!accessAuthOptions) {
       throw new AppError(AppErrorCode.UNAUTHORIZED, {
         message: 'Access authentication required',
@@ -185,6 +201,7 @@ export const completeDocumentWithToken = async ({
         data: createDocumentAuditLogData({
           type: DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_ACCESS_AUTH_2FA_FAILED,
           envelopeId: envelope.id,
+          requestMetadata, // REVALLE:
           data: {
             recipientId: recipient.id,
             recipientName: recipient.name,
@@ -202,6 +219,7 @@ export const completeDocumentWithToken = async ({
       data: createDocumentAuditLogData({
         type: DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_ACCESS_AUTH_2FA_VALIDATED,
         envelopeId: envelope.id,
+        requestMetadata, // REVALLE:
         data: {
           recipientId: recipient.id,
           recipientName: recipient.name,

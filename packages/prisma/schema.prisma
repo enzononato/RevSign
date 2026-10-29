@@ -671,6 +671,7 @@ model Recipient {
 
   cscCredential CscCredential?
   cscSession    CscSession?
+  revalleGate   RevalleRecipientGate? // REVALLE:
 
   @@index([token])
   @@index([email])
@@ -1309,4 +1310,34 @@ model RateLimit {
 
   @@id([key, action, bucket])
   @@index([createdAt])
+}
+
+model RevalleEmailLink {
+  id                   String   @id @default(cuid())
+  email                String   @unique
+  cpf                  String   @unique
+  createdAt            DateTime @default(now())
+  createdByRecipientId Int?
+}
+
+model RevalleRecipientGate {
+  id                  String    @id @default(cuid())
+  recipientId         Int       @unique
+  recipient           Recipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  email               String?
+  termVersion         String?
+  termAcceptedAt      DateTime?
+  termIpAddress       String?
+  termUserAgent       String?
+  identityStatus      String    @default("PENDING") // PENDING | VERIFIED | CONFIRMED | LINKED | SKIPPED
+  pendingCpf          String?
+  cpf                 String?
+  identityConfirmedAt DateTime?
+  failedAttempts      Int       @default(0)
+  codeFailedAttempts  Int       @default(0)
+  lockedAt            DateTime?
+  lockReason          String? // ATTEMPTS | CPF_CONFLICT | CODE_ATTEMPTS
+  conflictCpf         String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 }

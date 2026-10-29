@@ -27,6 +27,24 @@ services:
       - database:/var/lib/postgresql/data
     # Sem "ports": o banco não fica acessível fora da rede do compose.
 
+  # Base FICTÍCIA de colaboradores (só a view vw_colaboradores_assinatura é legível
+  # pelo usuário revsign_leitura). Em produção, troque pela base real via
+  # COLABORADORES_DATABASE_URL. O app NÃO depende dela para subir.
+  colaboradores-db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${COLABORADORES_ADMIN_PASSWORD:-dev-admin-colaboradores}
+      POSTGRES_DB: colaboradores
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d colaboradores']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - ../colaboradores/dev-seed.sql:/docker-entrypoint-initdb.d/dev-seed.sql:ro
+    # Sem "ports".
+
   mailpit:
     image: axllent/mailpit:v1.31.5
     ports:
@@ -57,6 +75,9 @@ services:
       NEXT_PRIVATE_ALLOWED_SIGNUP_DOMAINS: ${NEXT_PRIVATE_ALLOWED_SIGNUP_DOMAINS:-revalle.com.br,revallenordeste.com.br,revallepe.com.br}
       # Usuário promovido a ADMIN na subida, se já cadastrado.
       NEXT_PRIVATE_REVALLE_ADMIN_EMAIL: ${NEXT_PRIVATE_REVALLE_ADMIN_EMAIL:-projetos.ti@revalle.com.br}
+      # required (padrão) confere CPF + data de nascimento na base; disabled pula a etapa (só homologação sem a base).
+      NEXT_PRIVATE_REVALLE_IDENTITY_CHECK: ${NEXT_PRIVATE_REVALLE_IDENTITY_CHECK:-required}
+      COLABORADORES_DATABASE_URL: ${COLABORADORES_DATABASE_URL:-postgres://revsign_leitura:revsign_leitura_dev@colaboradores-db:5432/colaboradores}
       DOCUMENSO_DISABLE_TELEMETRY: 'true'
       NEXT_PUBLIC_REVALLE_SOURCE_URL: https://github.com/enzononato/RevSign
       # SMTP: Mailpit no ensaio; no EasyPanel, o SMTP do cPanel (ver env.hml.example).

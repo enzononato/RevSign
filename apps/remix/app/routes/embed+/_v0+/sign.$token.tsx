@@ -15,6 +15,7 @@ import { getOrganisationClaimByTeamId } from '@documenso/lib/server-only/organis
 import { getIsRecipientsTurnToSign } from '@documenso/lib/server-only/recipient/get-is-recipient-turn';
 import { getRecipientByToken } from '@documenso/lib/server-only/recipient/get-recipient-by-token';
 import { getRecipientsForAssistant } from '@documenso/lib/server-only/recipient/get-recipients-for-assistant';
+import { assertRevalleGatePassed } from '@documenso/lib/server-only/revalle/gate/assert-gate-passed'; // REVALLE:
 import { assertSenderNotDisabled } from '@documenso/lib/server-only/user/assert-user-not-disabled';
 import { DocumentAccessAuth } from '@documenso/lib/types/document-auth';
 import { fireAndForget } from '@documenso/lib/universal/fire-and-forget';
@@ -135,6 +136,11 @@ async function handleV1Loader({ params, request }: Route.LoaderArgs) {
       },
     );
   }
+
+  // REVALLE: o portão (termo + identidade) vale também no embed
+  await assertRevalleGatePassed(recipient, requestMetadata).catch(() => {
+    throw data({ type: 'embed-gate-pending' }, { status: 403 });
+  });
 
   await viewedDocument({
     token,
@@ -320,6 +326,11 @@ async function handleV2Loader({ params, request }: Route.LoaderArgs) {
       },
     );
   }
+
+  // REVALLE: o portão (termo + identidade) vale também no embed
+  await assertRevalleGatePassed(recipient, requestMetadata).catch(() => {
+    throw data({ type: 'embed-gate-pending' }, { status: 403 });
+  });
 
   await viewedDocument({
     token,

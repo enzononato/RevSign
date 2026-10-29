@@ -1,6 +1,7 @@
 import { isBase64Image } from '@documenso/lib/constants/signatures';
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
 import { validateFieldAuth } from '@documenso/lib/server-only/document/validate-field-auth';
+import { assertRevalleGatePassed } from '@documenso/lib/server-only/revalle/gate/assert-gate-passed'; // REVALLE:
 import { assertSenderNotDisabled } from '@documenso/lib/server-only/user/assert-user-not-disabled';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '@documenso/lib/types/document-audit-logs';
 import { createDocumentAuditLogData } from '@documenso/lib/utils/document-audit-logs';
@@ -67,6 +68,9 @@ export const signEnvelopeFieldRoute = procedure
     const { documentMeta } = envelope;
 
     await assertSenderNotDisabled({ userId: envelope.userId });
+
+    // REVALLE: o portão (termo + identidade) vale também na API; sem isso a tela seria contornável
+    await assertRevalleGatePassed(recipient, metadata.requestMetadata);
 
     if (envelope.internalVersion !== 2) {
       throw new AppError(AppErrorCode.NOT_FOUND, {

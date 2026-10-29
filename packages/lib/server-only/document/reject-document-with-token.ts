@@ -7,6 +7,7 @@
 // Code changes in one should probably be mirrored to the other, particularly in
 // relation to the jobs triggered after a rejection.
 import { jobs } from '@documenso/lib/jobs/client';
+import { assertRevalleGatePassed } from '@documenso/lib/server-only/revalle/gate/assert-gate-passed'; // REVALLE:
 import { prisma } from '@documenso/prisma';
 import { DocumentStatus, EnvelopeType, SigningStatus } from '@prisma/client';
 
@@ -47,6 +48,9 @@ export async function rejectDocumentWithToken({ token, id, reason, requestMetada
   }
 
   await assertSenderNotDisabled({ userId: envelope.userId });
+
+  // REVALLE: o portão (termo + identidade) vale também na API; sem isso a tela seria contornável
+  await assertRevalleGatePassed(recipient, requestMetadata);
 
   if (envelope.status !== DocumentStatus.PENDING) {
     throw new AppError(AppErrorCode.INVALID_REQUEST, {

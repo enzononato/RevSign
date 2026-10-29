@@ -9,6 +9,13 @@
 //   REVSIGN_URL=http://localhost:3000 REVSIGN_API_TOKEN=api_... \
 //   SIGNER_EMAIL=teste@exemplo.com node scripts/revalle/smoke-test.mjs [saida/]
 //
+// O portão de assinatura é obrigatório no servidor: antes de assinar, o script aceita o termo e, se o portão pedir
+// identidade, informa SMOKE_CPF e SMOKE_BIRTH_DATE (dd/MM/yyyy) de um colaborador da base e confirma "sou eu".
+// Obrigatórias nesse caso (sem elas o script falha com mensagem clara). Em homologação com
+// NEXT_PRIVATE_REVALLE_IDENTITY_CHECK=disabled nada é pedido. O vínculo CPF-e-mail é permanente: use um
+// CPF ainda sem vínculo ou um SIGNER_EMAIL que já esteja vinculado a ele. A conclusão exige o código de 6 dígitos
+// do e-mail: o script o pede e o lê no Mailpit local (SMOKE_MAILPIT_URL, padrão http://localhost:8025/api/v1).
+//
 // Variáveis opcionais: SIGNER_NAME, PDF_PATH (padrão: assets/example.pdf),
 // SEND_EMAIL=false (só gera o link, sem e-mail).
 
@@ -55,10 +62,71 @@ const api = async (method, route, data) => {
 
 // Rotas públicas do signatário (autenticadas só pelo token do link).
 const trpcMutation = async (procedure, input) => {
-  await request('POST', `${BASE_URL}/api/trpc/${procedure}`, {
+  const res = await request('POST', `${BASE_URL}/api/trpc/${procedure}`, {
     headers: { Origin: new URL(BASE_URL).origin, 'Content-Type': 'application/json' },
     body: JSON.stringify({ json: input }),
   });
+
+  return (await res.json()).result?.data?.json;
+};
+
+// Mailpit da stack local (SMOKE_MAILPIT_URL muda o endereço): ID do e-mail mais recente enviado a `to`.
+const MAILPIT = process.env.SMOKE_MAILPIT_URL ?? 'http://localhost:8025/api/v1';
+
+const latestMailId = async (to) =>
+  (await (await fetch(`${MAILPIT}/search?query=${encodeURIComponent(`to:${to}`)}`)).json()).messages?.[0]?.ID;
+
+// Código de 6 dígitos do primeiro e-mail novo (ID diferente de `previousId`) enviado a `to`.
+const readEmailCode = async (to, previousId) => {
+  for (let i = 0; i < 30; i += 1) {
+    const id = await latestMailId(to);
+
+    if (id && id !== previousId) {
+      const mail = await (await fetch(`${MAILPIT}/message/${id}`)).json();
+      const code = mail.Text?.match(/\b(\d{6})\b/)?.[1];
+
+      if (code) {
+        return code;
+      }
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+
+  throw new Error(`Código de acesso não chegou ao Mailpit para ${to}`);
+};
+
+const gateMutation = async (procedure, input) => {
+  try {
+    return await trpcMutation(procedure, input);
+  } catch (error) {
+    throw new Error(`Portão: ${procedure} falhou. ${error.message}`);
+  }
+};
+
+const passGate = async (token) => {
+  let state = await gateMutation('revalle.gate.acceptTerm', { token, termVersion: '1' });
+
+  if (state.status === 'IDENTITY_REQUIRED') {
+    const cpf = process.env.SMOKE_CPF;
+    const birthDate = process.env.SMOKE_BIRTH_DATE;
+
+    if (!cpf || !birthDate) {
+      throw new Error(
+        'O portão pede identidade: defina SMOKE_CPF e SMOKE_BIRTH_DATE (dd/MM/yyyy) de um colaborador da base.',
+      );
+    }
+
+    state = await gateMutation('revalle.gate.verifyIdentity', { token, cpf, birthDate });
+  }
+
+  if (state.status === 'IDENTITY_CONFIRM') {
+    state = await gateMutation('revalle.gate.confirmIdentity', { token, isMe: true });
+  }
+
+  if (state.status !== 'PASSED') {
+    throw new Error(`Portão não concluído (estado: ${state.status})`);
+  }
 };
 
 const download = async (envelopeItemId, version) => {
@@ -116,6 +184,10 @@ const main = async () => {
 
   console.log(`  link de assinatura: ${recipient.signingUrl}`);
 
+  step('passando pelo portão (termo e identidade)');
+
+  await passGate(recipient.token);
+
   step('assinando como destinatário');
 
   await trpcMutation('envelope.field.sign', {
@@ -123,7 +195,17 @@ const main = async () => {
     fieldId: field.id,
     fieldValue: { type: 'SIGNATURE', value: SIGNER_NAME },
   });
-  await trpcMutation('recipient.completeDocumentWithToken', { token: recipient.token, documentId });
+  const previousMailId = await latestMailId(recipient.email);
+
+  await trpcMutation('document.accessAuth.request2FAEmail', { token: recipient.token });
+
+  const code = await readEmailCode(recipient.email, previousMailId);
+
+  await trpcMutation('recipient.completeDocumentWithToken', {
+    token: recipient.token,
+    documentId,
+    accessAuthOptions: { type: 'TWO_FACTOR_AUTH', method: 'email', token: code },
+  });
 
   step('aguardando selagem');
 

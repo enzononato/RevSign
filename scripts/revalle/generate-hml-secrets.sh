@@ -128,6 +128,13 @@ NEXT_PRIVATE_ALLOWED_SIGNUP_DOMAINS=revalle.com.br,revallenordeste.com.br,revall
 # Administrador principal: promovido a ADMIN na subida, se já cadastrado.
 NEXT_PRIVATE_REVALLE_ADMIN_EMAIL=projetos.ti@revalle.com.br
 
+# --- Base de colaboradores (verificação de identidade) ---
+# required (padrão): confere CPF + data de nascimento na base. "disabled" só em homologação sem base
+# (a etapa é pulada e registrada como não verificado); nesse caso apague a linha COLABORADORES_DATABASE_URL.
+NEXT_PRIVATE_REVALLE_IDENTITY_CHECK=required
+# Só leitura, só a view vw_colaboradores_assinatura. Formato: postgres://revsign_leitura:<senha>@<host>:5432/<banco>
+COLABORADORES_DATABASE_URL=<preencher>
+
 # --- Banco (serviço Postgres dedicado no EasyPanel) ---
 # Formato: postgres://revsign:<senha>@<host-interno>:5432/revsign
 # O host interno é o nome do serviço Postgres no EasyPanel (<projeto>_<servico-postgres>).
@@ -199,6 +206,8 @@ O que cada arquivo é e para onde vai:
 
 1. app.env  (serviço do site, "revsign")
    - Abra o arquivo, troque cada <preencher> pelo valor real.
+   - COLABORADORES_DATABASE_URL: ver revalle/docs/verificacao.md. Sem a base real ainda, use
+     NEXT_PRIVATE_REVALLE_IDENTITY_CHECK=disabled (só homologação) e apague essa linha.
    - Cole o conteúdo na aba "Environment" do serviço no EasyPanel.
    - Depois de colar, guarde uma cópia no cofre de senhas e apague a cópia solta.
 

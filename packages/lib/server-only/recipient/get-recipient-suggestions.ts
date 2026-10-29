@@ -1,6 +1,7 @@
 import { buildTeamWhereQuery } from '@documenso/lib/utils/teams';
 import { prisma } from '@documenso/prisma';
 import { EnvelopeType, Prisma } from '@prisma/client';
+import { mergeRevalleRecipientSuggestions } from '../revalle/merge-recipient-suggestions'; // REVALLE:
 
 export type GetRecipientSuggestionsOptions = {
   userId: number;
@@ -8,7 +9,8 @@ export type GetRecipientSuggestionsOptions = {
   query: string;
 };
 
-export const getRecipientSuggestions = async ({ userId, teamId, query }: GetRecipientSuggestionsOptions) => {
+// REVALLE: era `getRecipientSuggestions` (exportada); agora é a parte do upstream, chamada abaixo.
+const getUpstreamRecipientSuggestions = async ({ userId, teamId, query }: GetRecipientSuggestionsOptions) => {
   const trimmedQuery = query.trim();
 
   const nameEmailFilter = trimmedQuery
@@ -100,3 +102,7 @@ export const getRecipientSuggestions = async ({ userId, teamId, query }: GetReci
 
   return recipients;
 };
+
+// REVALLE: junta as sugestões pelos vínculos (e-mail ↔ CPF) às do upstream, sem repetir e-mail, máx. 8.
+export const getRecipientSuggestions = async (options: GetRecipientSuggestionsOptions) =>
+  mergeRevalleRecipientSuggestions(await getUpstreamRecipientSuggestions(options), options.query);

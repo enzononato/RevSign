@@ -5,13 +5,18 @@ import { getDocumentAndSenderByToken } from '@documenso/lib/server-only/document
 import { isRecipientAuthorized } from '@documenso/lib/server-only/document/is-recipient-authorized';
 import { getFieldsForToken } from '@documenso/lib/server-only/field/get-fields-for-token';
 import { getRecipientByToken } from '@documenso/lib/server-only/recipient/get-recipient-by-token';
+import {
+  getRevalleGateLoaderPayload, // REVALLE:
+  isRevalleGatePendingForToken, // REVALLE:
+} from '@documenso/lib/server-only/revalle/gate/get-gate-state-for-loader'; // REVALLE:
 import { Badge } from '@documenso/ui/primitives/badge';
 import { Button } from '@documenso/ui/primitives/button';
 import { Trans } from '@lingui/react/macro';
 import { FieldType } from '@prisma/client';
 import { XCircle } from 'lucide-react';
-import { Link } from 'react-router';
+import { Link, redirect } from 'react-router'; // REVALLE: redirect
 
+import { getOptionalLoaderContext } from 'server/utils/get-loader-session'; // REVALLE:
 import { DocumentSigningAuthPageView } from '~/components/general/document-signing/document-signing-auth-page';
 import { RecipientBranding } from '~/components/general/recipient-branding';
 import { useCspNonce } from '~/utils/nonce';
@@ -25,6 +30,17 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   const { token } = params;
 
   if (!token) {
+    throw new Response('Not Found', { status: 404 });
+  }
+
+  // REVALLE: nada do documento antes do portão; a tela do portão fica em /sign/<token>.
+  const { requestMetadata } = getOptionalLoaderContext();
+
+  if (await isRevalleGatePendingForToken(token, requestMetadata)) {
+    if (await getRevalleGateLoaderPayload(token, requestMetadata)) {
+      throw redirect(`/sign/${token}`);
+    }
+
     throw new Response('Not Found', { status: 404 });
   }
 

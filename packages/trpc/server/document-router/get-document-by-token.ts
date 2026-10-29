@@ -1,4 +1,5 @@
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
+import { assertRevalleGatePassed } from '@documenso/lib/server-only/revalle/gate/assert-gate-passed'; // REVALLE:
 import { prisma } from '@documenso/prisma';
 import { EnvelopeType } from '@prisma/client';
 
@@ -27,6 +28,11 @@ export const getDocumentByTokenRoute = authenticatedProcedure
             documentData: true,
           },
         },
+        // REVALLE: destinatário do token, para o portão
+        recipients: {
+          where: { token, email: ctx.user.email },
+          select: { id: true, email: true, role: true, signingStatus: true },
+        },
       },
     });
 
@@ -37,6 +43,9 @@ export const getDocumentByTokenRoute = authenticatedProcedure
         message: 'Document not found',
       });
     }
+
+    // REVALLE: o PDF por token só depois do portão (termo + identidade), como nas demais rotas por token.
+    await assertRevalleGatePassed(envelope.recipients[0], ctx.metadata.requestMetadata);
 
     if (envelope.envelopeItems.length !== 1) {
       throw new AppError(AppErrorCode.INVALID_REQUEST, {

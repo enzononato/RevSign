@@ -1,3 +1,4 @@
+import { REVALLE_DIRECT_TEMPLATES_DISABLED } from '@documenso/lib/revalle/direct-templates'; // REVALLE:
 import { nanoid, prefixedId } from '@documenso/lib/universal/id';
 import { prisma } from '@documenso/prisma';
 import type { TSignFieldWithTokenMutationSchema } from '@documenso/trpc/server/field-router/schema';
@@ -100,6 +101,11 @@ export const createDocumentFromDirectTemplate = async ({
   requestMetadata,
   user,
 }: CreateDocumentFromDirectTemplateOptions): Promise<TCreateDocumentFromDirectTemplateResponse> => {
+  // REVALLE: templates diretos fora do escopo (spec §1); qualquer pessoa digitaria um e-mail e assinaria sem o portão
+  if (REVALLE_DIRECT_TEMPLATES_DISABLED) {
+    throw new AppError(AppErrorCode.NOT_FOUND, { message: 'Direct templates are disabled' });
+  }
+
   const directTemplateEnvelope = await prisma.envelope.findFirst({
     where: {
       directLink: {

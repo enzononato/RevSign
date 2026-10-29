@@ -13,6 +13,7 @@ import {
   LineChartIcon,
   MailIcon,
   Settings,
+  ShieldCheck, // REVALLE:
   Trophy,
   Users,
   Wallet2,
@@ -189,6 +190,21 @@ export default function AdminLayout({ loaderData }: Route.ComponentProps) {
             <Link to="/admin/site-settings">
               <Settings className="mr-2 h-5 w-5" />
               <Trans>Site Settings</Trans>
+            </Link>
+          </Button>
+
+          {/* REVALLE: */}
+          <Button
+            variant="ghost"
+            className={cn(
+              'justify-start md:w-full',
+              pathname?.startsWith('/admin/revalle-verificacoes') && 'bg-secondary',
+            )}
+            asChild
+          >
+            <Link to="/admin/revalle-verificacoes">
+              <ShieldCheck className="mr-2 h-5 w-5" />
+              Verificações
             </Link>
           </Button>
         </div>
