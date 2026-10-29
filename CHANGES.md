@@ -63,6 +63,8 @@ Toda edição em arquivo do upstream é marcada com `REVALLE:` no código e list
 | `packages/lib/server-only/revalle/gate/` (inclui `is-gate-blocking-token.ts`, usado pelas rotas de arquivo por token), `packages/lib/revalle/direct-templates.ts`, `packages/trpc/server/revalle-router/`, `packages/email/templates/revalle-gate-locked.tsx` | Núcleo do portão: termo, identidade (CPF + data), bloqueio e aviso por e-mail | 3 |
 | `packages/trpc/server/router.ts` | Monta `revalle: revalleRouter` (marcado `// REVALLE:`) | 3 |
 | `packages/lib/types/document-audit-logs.ts`, `packages/lib/utils/document-audit-logs.ts` | Eventos de auditoria `REVALLE_*` (enum, schemas, união e texto em pt-BR; marcados `// REVALLE:`) | 3 |
+| `apps/remix/app/components/revalle/signing-gate/`, `packages/lib/server-only/revalle/gate/get-gate-state-for-loader.ts` | Telas do portão (termo, identidade, confirmação, bloqueado, indisponível) e consulta leve do loader | 3 |
+| `apps/remix/app/routes/_recipient+/sign.$token+/_index.tsx` | Loaders V1/V2 devolvem só a tela do portão antes de carregar o documento e de `viewedDocument`; `SigningPageV1/V2` renderizam `<RevalleSigningGate>` (marcado `// REVALLE:`) | 3 |
 
 ## Checklist de atualização do upstream
 
