@@ -69,6 +69,7 @@ export const ZDocumentAuditLogTypeSchema = z.enum([
   'REVALLE_IDENTITY_CONFIRMED',
   'REVALLE_IDENTITY_LINKED',
   'REVALLE_GATE_LOCKED',
+  'REVALLE_GATE_UNLOCKED',
 ]);
 
 export const ZDocumentAuditLogEmailTypeSchema = z.enum([
@@ -864,6 +865,11 @@ export const ZDocumentAuditLogEventRevalleGateLockedSchema = z.object({
   data: z.object({ reason: z.enum(['ATTEMPTS', 'CPF_CONFLICT']) }),
 });
 
+export const ZDocumentAuditLogEventRevalleGateUnlockedSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_GATE_UNLOCKED),
+  data: z.object({ unlockedBy: z.string() }),
+});
+
 export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
   z.union([
     ZDocumentAuditLogEventEnvelopeItemCreatedSchema,
@@ -912,6 +918,7 @@ export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
     ZDocumentAuditLogEventRevalleIdentityConfirmedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleIdentityLinkedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleGateLockedSchema, // REVALLE:
+    ZDocumentAuditLogEventRevalleGateUnlockedSchema, // REVALLE:
   ]),
 );
 

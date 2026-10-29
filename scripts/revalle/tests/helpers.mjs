@@ -129,3 +129,57 @@ export const db = (sql) =>
     ['exec', 'revsign-hml-database-1', 'psql', '-U', 'documenso', '-d', 'documenso', '-At', '-c', sql],
     { encoding: 'utf8' },
   ).trim();
+
+// Cookie de sessão por e-mail e senha (fluxo da tela de login: CSRF + authorize). Devolve o valor para o header Cookie.
+export const signIn = async (email, password) => {
+  const origin = new URL(BASE_URL).origin;
+  const csrfRes = await fetch(`${BASE_URL}/api/auth/csrf`, { headers: { Origin: origin } });
+  const jar = new Map();
+
+  const collect = (res) => {
+    for (const line of res.headers.getSetCookie()) {
+      const [pair] = line.split(';');
+      const index = pair.indexOf('=');
+
+      jar.set(pair.slice(0, index), pair.slice(index + 1));
+    }
+  };
+
+  collect(csrfRes);
+
+  const { csrfToken } = await csrfRes.json();
+  const cookie = () => [...jar].map(([name, value]) => `${name}=${value}`).join('; ');
+
+  const res = await fetch(`${BASE_URL}/api/auth/email-password/authorize`, {
+    method: 'POST',
+    headers: { Origin: origin, 'Content-Type': 'application/json', Cookie: cookie() },
+    body: JSON.stringify({ email, password, csrfToken }),
+  });
+
+  collect(res);
+
+  if (!res.ok) {
+    throw new Error(`login falhou (${res.status})`);
+  }
+
+  return cookie();
+};
+
+// tRPC autenticado por sessão. `kind`: 'query' (GET com input na URL) ou 'mutation' (POST).
+export const trpcAs = async (cookie, kind, procedure, input) => {
+  const origin = new URL(BASE_URL).origin;
+  const headers = { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json' };
+
+  const res =
+    kind === 'query'
+      ? await fetch(`${BASE_URL}/api/trpc/${procedure}?input=${encodeURIComponent(JSON.stringify({ json: input }))}`, {
+          headers,
+        })
+      : await fetch(`${BASE_URL}/api/trpc/${procedure}`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ json: input }),
+        });
+
+  return parse(res);
+};
