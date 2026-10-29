@@ -9,9 +9,9 @@ import { getFieldsForToken } from '@documenso/lib/server-only/field/get-fields-f
 import { getRecipientByToken } from '@documenso/lib/server-only/recipient/get-recipient-by-token';
 import { getRecipientSignatures } from '@documenso/lib/server-only/recipient/get-recipient-signatures';
 import {
-  getRevalleGateLoaderPayload,
-  isRevalleGateBlockingToken,
-} from '@documenso/lib/server-only/revalle/gate/get-gate-state-for-loader';
+  getRevalleGateLoaderPayload, // REVALLE:
+  isRevalleGatePendingForToken, // REVALLE:
+} from '@documenso/lib/server-only/revalle/gate/get-gate-state-for-loader'; // REVALLE:
 import { getUserByEmail } from '@documenso/lib/server-only/user/get-user-by-email';
 import { isDocumentCompleted } from '@documenso/lib/utils/document';
 import { trpc } from '@documenso/trpc/react';
@@ -24,9 +24,9 @@ import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
 import { DocumentStatus, FieldType, RecipientRole } from '@prisma/client';
 import { CheckCircle2, Clock8, DownloadIcon, Loader2 } from 'lucide-react';
-import { Link, redirect } from 'react-router';
+import { Link, redirect } from 'react-router'; // REVALLE: redirect
+import { getOptionalLoaderContext } from 'server/utils/get-loader-session'; // REVALLE:
 import { match } from 'ts-pattern';
-
 import { EnvelopeDownloadDialog } from '~/components/dialogs/envelope-download-dialog';
 import { ClaimAccount } from '~/components/general/claim-account';
 import { DocumentSigningAuthPageView } from '~/components/general/document-signing/document-signing-auth-page';
@@ -45,8 +45,10 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   }
 
   // REVALLE: nada do documento antes do portão; a tela do portão fica em /sign/<token>.
-  if (await isRevalleGateBlockingToken(token)) {
-    if (await getRevalleGateLoaderPayload(token)) {
+  const { requestMetadata } = getOptionalLoaderContext();
+
+  if (await isRevalleGatePendingForToken(token, requestMetadata)) {
+    if (await getRevalleGateLoaderPayload(token, requestMetadata)) {
       throw redirect(`/sign/${token}`);
     }
 

@@ -1,5 +1,6 @@
 import { normalizeEmail } from '../../revalle/email-domain';
 import { logger } from '../../utils/logger';
+import { revalleErrorCode } from './error-code';
 import { findRevalleRecipientSuggestions, REVALLE_SUGGESTIONS_LIMIT } from './recipient-suggestions';
 
 type Suggestion = { name: string | null; email: string };
@@ -13,7 +14,7 @@ export const mergeRevalleRecipientSuggestions = async <T extends Suggestion>(
   try {
     own = await findRevalleRecipientSuggestions(query);
   } catch (error) {
-    logger.error({ msg: '[RevSign] falha nas sugestões por vínculo', error: String(error) });
+    logger.error({ msg: '[RevSign] falha nas sugestões por vínculo', code: revalleErrorCode(error) });
   }
 
   const seen = new Set(upstream.map((item) => normalizeEmail(item.email)));

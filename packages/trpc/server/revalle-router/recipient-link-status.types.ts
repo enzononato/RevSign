@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const ZRecipientLinkStatusRequestSchema = z.object({
-  emails: z.array(z.string().max(254)).max(100),
+  emails: z.array(z.string().max(254)).max(20),
 });
 
 export const ZRecipientLinkStatusResponseSchema = z.array(z.object({ email: z.string(), isLinked: z.boolean() }));

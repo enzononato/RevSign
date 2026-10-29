@@ -3,7 +3,7 @@ import { send2FATokenEmail } from '@documenso/lib/server-only/2fa/email/send-2fa
 import { assertRateLimit } from '@documenso/lib/server-only/rate-limit/rate-limit-middleware';
 import { request2FAEmailRateLimit } from '@documenso/lib/server-only/rate-limit/rate-limits';
 import { prisma } from '@documenso/prisma';
-import { EnvelopeType } from '@prisma/client';
+import { DocumentStatus, EnvelopeType, RecipientRole, SigningStatus } from '@prisma/client'; // REVALLE: DocumentStatus, RecipientRole, SigningStatus
 import { TRPCError } from '@trpc/server';
 import { DateTime } from 'luxon';
 
@@ -30,20 +30,25 @@ export const accessAuthRequest2FAEmailRoute = procedure
       const user = ctx.user;
 
       // Get document and recipient by token
+      // REVALLE: código só para quem ainda não concluiu (NOT_SIGNED, nunca CC) em documento pendente; senão NOT_FOUND.
+      // VIEWER continua podendo pedir: a tela do upstream pede o código para "marcar como visto" (o documento só sela depois).
+      const revalleRecipientWhere = {
+        token,
+        role: { not: RecipientRole.CC },
+        signingStatus: SigningStatus.NOT_SIGNED,
+      };
+
       const envelope = await prisma.envelope.findFirst({
         where: {
           type: EnvelopeType.DOCUMENT,
+          status: DocumentStatus.PENDING, // REVALLE:
           recipients: {
-            some: {
-              token,
-            },
+            some: revalleRecipientWhere, // REVALLE:
           },
         },
         include: {
           recipients: {
-            where: {
-              token,
-            },
+            where: revalleRecipientWhere, // REVALLE:
           },
         },
       });

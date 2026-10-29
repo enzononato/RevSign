@@ -59,7 +59,7 @@ export const getRevalleGateLoaderPayload = async (
  * Estado do portão para as subrotas da página de assinatura (concluído, recusado, expirado), em qualquer estado do documento.
  * Devolve true quando há dados do documento que ainda não podem ser mostrados a este destinatário.
  */
-export const isRevalleGateBlockingToken = async (
+export const isRevalleGatePendingForToken = async (
   token: string,
   requestMetadata?: RequestMetadata,
 ): Promise<boolean> => {

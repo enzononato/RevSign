@@ -4,13 +4,13 @@ import { loadRecipientBrandingByTeamId } from '@documenso/lib/server-only/brandi
 import { getDocumentAndSenderByToken } from '@documenso/lib/server-only/document/get-document-by-token';
 import { isRecipientAuthorized } from '@documenso/lib/server-only/document/is-recipient-authorized';
 import { getRecipientByToken } from '@documenso/lib/server-only/recipient/get-recipient-by-token';
-import { isRevalleGateBlockingToken } from '@documenso/lib/server-only/revalle/gate/get-gate-state-for-loader';
+import { isRevalleGatePendingForToken } from '@documenso/lib/server-only/revalle/gate/get-gate-state-for-loader'; // REVALLE:
 import { Badge } from '@documenso/ui/primitives/badge';
 import { Button } from '@documenso/ui/primitives/button';
 import { Trans } from '@lingui/react/macro';
 import { TimerOffIcon } from 'lucide-react';
 import { Link } from 'react-router';
-
+import { getOptionalLoaderContext } from 'server/utils/get-loader-session'; // REVALLE:
 import { DocumentSigningAuthPageView } from '~/components/general/document-signing/document-signing-auth-page';
 import { RecipientBranding } from '~/components/general/recipient-branding';
 import { useCspNonce } from '~/utils/nonce';
@@ -39,7 +39,9 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   const branding = await loadRecipientBrandingByTeamId({ teamId: document.teamId });
 
   // REVALLE: sem o título enquanto o portão não foi passado.
-  const title = (await isRevalleGateBlockingToken(token)) ? null : document.title;
+  const title = (await isRevalleGatePendingForToken(token, getOptionalLoaderContext().requestMetadata))
+    ? null
+    : document.title;
 
   const recipient = await getRecipientByToken({ token }).catch(() => null);
 

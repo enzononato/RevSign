@@ -1,10 +1,13 @@
 import { prisma } from '@documenso/prisma';
 
-import { normalizeEmail } from '../../revalle/email-domain';
+import { getAllowedSignupDomains } from '../../constants/auth';
+import { isEmailDomainAllowed, normalizeEmail } from '../../revalle/email-domain';
 import { logger } from '../../utils/logger';
 import { type ColaboradoresRepository, getColaboradoresRepository } from './colaboradores/repository';
+import { revalleErrorCode } from './error-code';
 
 export const REVALLE_SUGGESTIONS_LIMIT = 8;
+export const REVALLE_LINK_STATUS_LIMIT = 20;
 const NAME_LOOKUP_CAP = 20;
 
 type Suggestion = { name: string; email: string };
@@ -78,7 +81,10 @@ export const findRevalleRecipientSuggestions = async (query: string): Promise<Su
         }),
       );
     } catch (error) {
-      logger.error({ msg: '[RevSign] base de colaboradores indisponível para sugestões', error: String(error) });
+      logger.error({
+        msg: '[RevSign] base de colaboradores indisponível para sugestões',
+        code: revalleErrorCode(error),
+      });
     }
   }
 
@@ -93,7 +99,11 @@ export const findRevalleRecipientSuggestions = async (query: string): Promise<Su
 
 /** E-mails vinculados: por vínculo gravado ou porque a base já traz o e-mail. */
 export const getRevalleEmailLinkStatus = async (emails: string[]): Promise<{ email: string; isLinked: boolean }[]> => {
-  const unique = [...new Set(emails.map(normalizeEmail))];
+  // Só e-mails da empresa são consultados (vínculo e base); os demais respondem "não vinculado" sem consulta.
+  const allowedDomains = getAllowedSignupDomains();
+  const unique = [...new Set(emails.map(normalizeEmail))]
+    .filter((email) => isEmailDomainAllowed(email, allowedDomains))
+    .slice(0, REVALLE_LINK_STATUS_LIMIT);
 
   const links = await prisma.revalleEmailLink.findMany({
     where: { email: { in: unique } },
@@ -113,7 +123,10 @@ export const getRevalleEmailLinkStatus = async (emails: string[]): Promise<{ ema
               linked.add(email);
             }
           } catch (error) {
-            logger.error({ msg: '[RevSign] base de colaboradores indisponível para vínculos', error: String(error) });
+            logger.error({
+              msg: '[RevSign] base de colaboradores indisponível para vínculos',
+              code: revalleErrorCode(error),
+            });
           }
         }),
     );
