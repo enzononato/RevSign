@@ -25,6 +25,10 @@ describe('isEmailDomainAllowed', () => {
     expect(isEmailDomainAllowed('revalle.com.br', ['revalle.com.br'])).toBe(false);
   });
 
+  it('treats a list of blank entries as empty', () => {
+    expect(isEmailDomainAllowed('a@gmail.com', ['', '   '])).toBe(true);
+  });
+
   it('allows any domain when the list is empty', () => {
     expect(isEmailDomainAllowed('a@gmail.com', [])).toBe(true);
   });

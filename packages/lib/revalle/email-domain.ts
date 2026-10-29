@@ -1,7 +1,9 @@
 export const normalizeEmail = (email: string): string => email.trim().toLowerCase();
 
 export const isEmailDomainAllowed = (email: string, allowedDomains: string[]): boolean => {
-  if (allowedDomains.length === 0) {
+  const domains = allowedDomains.map(normalizeEmail).filter((domain) => domain.length > 0);
+
+  if (domains.length === 0) {
     return true;
   }
 
@@ -14,5 +16,5 @@ export const isEmailDomainAllowed = (email: string, allowedDomains: string[]): b
 
   const domain = normalized.slice(atIndex + 1);
 
-  return allowedDomains.some((allowed) => normalizeEmail(allowed) === domain);
+  return domains.includes(domain);
 };

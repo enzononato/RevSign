@@ -21,7 +21,7 @@ export const parseBirthDateInput = (input: string): string | null => {
   const isoDate = birthDate.toISODate();
   const today = DateTime.now().setZone(TIME_ZONE).toISODate();
 
-  if (!isoDate || isoDate > today) {
+  if (!isoDate || !today || isoDate > today) {
     return null;
   }
 

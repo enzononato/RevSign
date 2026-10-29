@@ -18,6 +18,14 @@ describe('isValidCpf', () => {
     expect(isValidCpf('529.982.247-24')).toBe(false);
   });
 
+  it('accepts a CPF whose first check digit is zero', () => {
+    expect(isValidCpf('123.456.789-09')).toBe(true);
+  });
+
+  it('rejects a CPF whose first check digit is wrong', () => {
+    expect(isValidCpf('529.982.247-15')).toBe(false);
+  });
+
   it('rejects a repeated-digit sequence even when its check digits compute', () => {
     expect(isValidCpf('111.111.111-11')).toBe(false);
   });
