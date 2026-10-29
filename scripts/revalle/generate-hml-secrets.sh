@@ -172,7 +172,7 @@ TZ=America/Bahia
 # Guarda um arquivo por dia dos últimos 30 dias.
 BACKUP_RETENTION_DAYS=30
 # Todo dia às 02:00.
-BACKUP_CRON="0 2 * * *"
+BACKUP_CRON=0 2 * * *
 
 # --- Cópia remota (fora da VPS). Sem estas linhas, o backup fica só na VPS. ---
 # Exemplo FTPS (conta FTP do cPanel presa à pasta revsign-backups). Tire o # e preencha:

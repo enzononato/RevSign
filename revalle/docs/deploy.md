@@ -243,7 +243,7 @@ Legenda de "segredo?": **sim** = nunca no repositório, só no EasyPanel e no co
 | `BACKUP_REMOTE_USER` | Usuário da conta FTP/SFTP | usuário criado no cPanel | não |
 | `BACKUP_REMOTE_PASSWORD` | Senha da conta FTP/SFTP | senha da conta | sim |
 | `BACKUP_REMOTE_PATH` | Pasta de destino na hospedagem | `revsign-backups` | não |
-| `BACKUP_REMOTE_KNOWN_HOSTS_FILE` | (Só SFTP) caminho do arquivo `known_hosts` dentro do container | vazio no FTPS; `/known_hosts` no SFTP | não |
+| `BACKUP_REMOTE_KNOWN_HOSTS_FILE` | comentada | Só SFTP com arquivo `known_hosts` montado: caminho dele (`/known_hosts`). No FTPS, deixe comentada | não |
 | `BACKUP_REMOTE_INSECURE_TLS` | (Só testes) aceita certificado FTPS inválido | não definir (padrão `false`) | não |
 
 Variáveis só do ensaio local (não use no EasyPanel): `REVSIGN_IMAGE`, `REVSIGN_BACKUP_IMAGE`.
