@@ -26,6 +26,7 @@ Toda edição em arquivo do upstream é marcada com `REVALLE:` no código e list
 | `packages/lib/client-only/hooks/use-editor-recipients.ts` | Import + `.superRefine(refineRecipientDomains)` no fim do schema | Erro no campo de e-mail do editor v2 para e-mail fora da empresa | 3 |
 | `packages/ui/primitives/document-flow/add-signers.types.ts` | Import + `.superRefine(refineRecipientDomains)`; schema reindentado pelo formatter | Idem no formulário v1 | 3 |
 | `packages/lib/server-only/document/complete-document-with-token.ts` | Import + 1 chamada `assertRecipientEmailsAllowed([dictatedNextSigner?.email])` logo após `assertSenderNotDisabled` (inclui `recipientOverride?.email`) | O próximo assinante ditado e o e-mail informado ao assinar também precisa ser de domínio da empresa; a recusa vem antes de gravar qualquer coisa | 3 |
+| `packages/prisma/schema.prisma` | 1 linha em `model Recipient`: `revalleGate RevalleRecipientGate? // REVALLE:`; modelos `RevalleEmailLink` e `RevalleRecipientGate` no fim do arquivo. Migrações próprias usam o prefixo de nome `revalle_` (ex.: `20261029120000_revalle_verification`) | Vínculo e-mail↔CPF e estado da verificação por destinatário (FK com `ON DELETE CASCADE`) | 3 |
 
 ## Arquivos novos (não conflitam com o upstream)
 
@@ -47,6 +48,9 @@ Toda edição em arquivo do upstream é marcada com `REVALLE:` no código e list
 | `revalle/docs/aceite-fase1.md` | Roteiro de aceite da Fase 1 | 1 |
 | `packages/lib/revalle/recipient-domains.ts`, `packages/lib/server-only/revalle/assert-recipient-domains.ts` | Regra de domínio dos destinatários (cliente e servidor) | 3 |
 | `scripts/revalle/tests/` | Testes de integração contra a stack local (`node --test`) e ajudantes | 3 |
+| `packages/prisma/migrations/20261029120000_revalle_verification/migration.sql` | Tabelas `RevalleEmailLink` e `RevalleRecipientGate` | 3 |
+| `packages/lib/revalle/term.ts` | Termo de assinatura eletrônica (versão 1, provisória) | 3 |
+| `apps/remix/app/routes/_share+/privacidade.tsx` | Página pública `/privacidade` | 3 |
 
 ## Checklist de atualização do upstream
 
