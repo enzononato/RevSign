@@ -3,6 +3,7 @@ import {
   useCurrentEnvelopeRender,
 } from '@documenso/lib/client-only/providers/envelope-render-provider';
 import { PDF_VIEWER_ERROR_MESSAGES } from '@documenso/lib/constants/pdf-viewer-i18n';
+import { formatRevalleDateTime } from '@documenso/lib/revalle/date-format'; // REVALLE
 import { getDocumentDataUrlForPdfViewer } from '@documenso/lib/utils/envelope-download';
 import { formatDocumentsPath } from '@documenso/lib/utils/teams';
 import { trpc } from '@documenso/trpc/react';
@@ -18,7 +19,6 @@ import {
 import { Trans } from '@lingui/react/macro';
 import { type DocumentData, DocumentStatus, type EnvelopeItem, EnvelopeType } from '@prisma/client';
 import { DownloadIcon } from 'lucide-react';
-import { DateTime } from 'luxon';
 import { useEffect, useState } from 'react';
 
 import { EnvelopeDownloadDialog } from '~/components/dialogs/envelope-download-dialog';
@@ -55,7 +55,8 @@ export const DocumentCertificateQRView = ({
 
   const [isDialogOpen, setIsDialogOpen] = useState(() => !!documentViaUser);
 
-  const formattedDate = completedDate ? DateTime.fromJSDate(completedDate).toLocaleString(DateTime.DATETIME_MED) : '';
+  // REVALLE: data dd/MM/yyyy HH:mm em America/Bahia
+  const formattedDate = completedDate ? formatRevalleDateTime(completedDate) : '';
 
   useEffect(() => {
     if (documentViaUser) {

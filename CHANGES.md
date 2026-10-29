@@ -49,6 +49,9 @@ Toda edição em arquivo do upstream é marcada com `REVALLE:` no código e list
 | `apps/remix/app/routes/_authenticated+/admin+/_layout.tsx` | Import do ícone `ShieldCheck` + link "Verificações" no menu do admin, para `revalle-verificacoes.tsx` | Tela de links bloqueados e vínculos | 3 |
 | `packages/trpc/server/router.ts` | Import + `revalle: revalleRouter` | Rotas do portão, do admin e do status de vínculo | 3 |
 | `packages/lib/types/document-audit-logs.ts`, `packages/lib/utils/document-audit-logs.ts` | Eventos `REVALLE_TERM_ACCEPTED`, `REVALLE_IDENTITY_FAILED`, `REVALLE_IDENTITY_CONFIRMED`, `REVALLE_IDENTITY_LINKED`, `REVALLE_IDENTITY_SKIPPED`, `REVALLE_GATE_LOCKED` (`reason`: `ATTEMPTS`, `CPF_CONFLICT` com `cpfMasked` opcional, `CODE_ATTEMPTS`), `REVALLE_GATE_UNLOCKED` (enum, schemas, união e texto em pt-BR) | Trilha de auditoria do portão; nunca CPF completo nem data de nascimento | 3 |
+| `packages/lib/server-only/pdf/render-certificate.ts` | Datas via `formatRevalleDateTime` (dd/MM/yyyy HH:mm, America/Bahia); `renderBranding` recebe `hidePoweredBy` e, com ele ligado, omite só o logo "Powered by" e desenha sempre o QR; `showBranding` no lugar de `!hidePoweredBy` nas duas colocações (QR e "ID do Envelope" no rodapé sempre saem) | O certificado é como terceiros conferem o documento; a Fase 1 liga `hidePoweredBy` para todos | 4 |
+| `packages/lib/server-only/pdf/render-audit-logs.ts` | Datas (visão geral e entradas) via `formatRevalleDateTime`; removidos `dateFormat` e imports de luxon/`APP_I18N_OPTIONS` sem uso | Mesmo padrão de data no log de auditoria | 4 |
+| `apps/remix/app/components/general/document/document-certificate-qr-view.tsx` | `formattedDate` via `formatRevalleDateTime` | Página pública `/share/:qrToken` no mesmo padrão. Variantes Playwright do certificado e do log (`_internal+/[__htmltopdf]+/`, `NEXT_PRIVATE_USE_PLAYWRIGHT_PDF`) NÃO foram cobertas: a flag não é usada no RevSign | 4 |
 
 ## Arquivos novos (não conflitam com o upstream)
 
@@ -87,6 +90,8 @@ Toda edição em arquivo do upstream é marcada com `REVALLE:` no código e list
 | `packages/lib/server-only/revalle/colaboradores/` | Leitura da view de colaboradores (`COLABORADORES_DATABASE_URL`) e mapeamento das colunas | 3 |
 | `packages/lib/revalle/{cpf,birth-date,email-domain}.ts` (e testes) | CPF (validação, máscara), data de nascimento e normalização de e-mail/domínio | 3 |
 | `revalle/deploy/env.hml.example`, `revalle/deploy/compose.hml.yml` | Variáveis da Fase 3 (`COLABORADORES_DATABASE_URL`, `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK`) e base fictícia na stack local | 3 |
+| `packages/lib/revalle/date-format.ts` (e teste) | `formatRevalleDateTime`: dd/MM/yyyy HH:mm em America/Bahia, independente do TZ do processo | 4 |
+| `scripts/revalle/tests/certificate.test.mjs` | Datas brasileiras e QR/ID do envelope no PDF selado (poppler em container alpine) | 4 |
 
 ## Checklist de atualização do upstream
 

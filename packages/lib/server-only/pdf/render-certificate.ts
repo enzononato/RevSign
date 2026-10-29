@@ -10,14 +10,13 @@ import { msg } from '@lingui/core/macro';
 import type { Field, RecipientRole, Signature } from '@prisma/client';
 import { SigningStatus } from '@prisma/client';
 import Konva from 'konva';
-import { DateTime } from 'luxon';
 import { UAParser } from 'ua-parser-js';
 import { renderSVG } from 'uqr';
 
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../constants/app';
-import { APP_I18N_OPTIONS } from '../../constants/i18n';
 import { getSignatureFontFamily } from '../../constants/pdf';
 import { RECIPIENT_ROLE_SIGNING_REASONS, RECIPIENT_ROLES_DESCRIPTION } from '../../constants/recipient-roles';
+import { formatRevalleDateTime } from '../../revalle/date-format'; // REVALLE: datas dd/MM/yyyy HH:mm em America/Bahia
 import type { TDocumentAuditLogBaseSchema } from '../../types/document-audit-logs';
 import { svgToPng } from '../../utils/images/svg-to-png';
 import { ensureFontLibrary } from './helpers';
@@ -424,31 +423,21 @@ const renderColumnThree = (options: RenderColumnOptions) => {
     {
       label: i18n._(msg`Sent`),
       value: recipient.logs.emailed
-        ? DateTime.fromJSDate(recipient.logs.emailed.createdAt)
-            .setLocale(APP_I18N_OPTIONS.defaultLocale)
-            .toFormat('yyyy-MM-dd hh:mm:ss a (ZZZZ)')
+        ? formatRevalleDateTime(recipient.logs.emailed.createdAt)
         : recipient.logs.sent
-          ? DateTime.fromJSDate(recipient.logs.sent.createdAt)
-              .setLocale(APP_I18N_OPTIONS.defaultLocale)
-              .toFormat('yyyy-MM-dd hh:mm:ss a (ZZZZ)')
+          ? formatRevalleDateTime(recipient.logs.sent.createdAt)
           : i18n._(msg`Unknown`),
     },
     {
       label: i18n._(msg`Viewed`),
-      value: recipient.logs.opened
-        ? DateTime.fromJSDate(recipient.logs.opened.createdAt)
-            .setLocale(APP_I18N_OPTIONS.defaultLocale)
-            .toFormat('yyyy-MM-dd hh:mm:ss a (ZZZZ)')
-        : i18n._(msg`Unknown`),
+      value: recipient.logs.opened ? formatRevalleDateTime(recipient.logs.opened.createdAt) : i18n._(msg`Unknown`),
     },
   ];
 
   if (recipient.logs.rejected) {
     itemsToRender.push({
       label: i18n._(msg`Rejected`),
-      value: DateTime.fromJSDate(recipient.logs.rejected.createdAt)
-        .setLocale(APP_I18N_OPTIONS.defaultLocale)
-        .toFormat('yyyy-MM-dd hh:mm:ss a (ZZZZ)'),
+      value: formatRevalleDateTime(recipient.logs.rejected.createdAt),
       labelFill: textRejectedRed,
       valueFill: textRejectedRed,
     });
@@ -456,9 +445,7 @@ const renderColumnThree = (options: RenderColumnOptions) => {
     itemsToRender.push({
       label: i18n._(msg`Signed`),
       value: recipient.logs.completed
-        ? DateTime.fromJSDate(recipient.logs.completed.createdAt)
-            .setLocale(APP_I18N_OPTIONS.defaultLocale)
-            .toFormat('yyyy-MM-dd hh:mm:ss a (ZZZZ)')
+        ? formatRevalleDateTime(recipient.logs.completed.createdAt)
         : i18n._(msg`Unknown`),
     });
   }
@@ -565,7 +552,16 @@ const renderRow = (options: RenderRowOptions) => {
   return rowGroup;
 };
 
-const renderBranding = async ({ qrToken, i18n }: { qrToken: string | null; i18n: I18n }) => {
+// REVALLE: com hidePoweredBy o logo "Powered by" some, mas o QR continua sempre desenhado.
+const renderBranding = async ({
+  qrToken,
+  i18n,
+  hidePoweredBy,
+}: {
+  qrToken: string | null;
+  i18n: I18n;
+  hidePoweredBy: boolean;
+}) => {
   const branding = new Konva.Group();
 
   const brandingHeight = 12;
@@ -580,28 +576,30 @@ const renderBranding = async ({ qrToken, i18n }: { qrToken: string | null; i18n:
     height: brandingHeight,
   });
 
-  const logoPath = path.join(process.cwd(), 'public/static/logo.png');
-  const logo = fs.readFileSync(logoPath);
-
-  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-  const img = new SkiaImage(logo) as unknown as HTMLImageElement;
-
-  const documensoImage = new Konva.Image({
-    image: img,
-    height: brandingHeight,
-    width: brandingHeight * (img.width / img.height),
-    x: text.width() + 16,
-  });
-
   const qrSize = qrToken ? 72 : 0;
 
-  const logoGroup = new Konva.Group({
-    y: qrSize + 16,
-  });
-  logoGroup.add(text);
-  logoGroup.add(documensoImage);
+  if (!hidePoweredBy) {
+    const logoPath = path.join(process.cwd(), 'public/static/logo.png');
+    const logo = fs.readFileSync(logoPath);
 
-  branding.add(logoGroup);
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+    const img = new SkiaImage(logo) as unknown as HTMLImageElement;
+
+    const documensoImage = new Konva.Image({
+      image: img,
+      height: brandingHeight,
+      width: brandingHeight * (img.width / img.height),
+      x: text.width() + 16,
+    });
+
+    const logoGroup = new Konva.Group({
+      y: qrSize + 16,
+    });
+    logoGroup.add(text);
+    logoGroup.add(documensoImage);
+
+    branding.add(logoGroup);
+  }
 
   if (qrToken) {
     const qrSvg = renderSVG(`${NEXT_PUBLIC_WEBAPP_URL()}/share/${qrToken}`, {
@@ -754,9 +752,11 @@ export async function renderCertificate({
 
   const tables = renderTables({ groupedRows, columnWidths, i18n });
 
-  const brandingGroup = await renderBranding({ qrToken, i18n });
+  const brandingGroup = await renderBranding({ qrToken, i18n, hidePoweredBy });
   const brandingRect = brandingGroup.getClientRect();
   const brandingTopPadding = 24;
+  // REVALLE: sem logo e sem QR (qrToken nulo) não há nada a desenhar.
+  const showBranding = !hidePoweredBy || Boolean(qrToken);
 
   const pages: Uint8Array[] = [];
 
@@ -789,7 +789,7 @@ export async function renderCertificate({
     group.add(table);
 
     // Add QR code and branding on the last page if there is space.
-    if (index === tables.length - 1 && !hidePoweredBy) {
+    if (index === tables.length - 1 && showBranding) {
       const remainingHeight = pageHeight - group.getClientRect().height - pageBottomMargin;
 
       if (brandingRect.height + brandingTopPadding <= remainingHeight) {
@@ -823,7 +823,7 @@ export async function renderCertificate({
   }
 
   // Need to create an empty page for the QR code if it hasn't been placed yet.
-  if (!hidePoweredBy && !isQrPlaced) {
+  if (showBranding && !isQrPlaced) {
     const page = new Konva.Layer();
 
     brandingGroup.setAttrs({
