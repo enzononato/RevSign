@@ -1,11 +1,34 @@
 import type { RecipientRole } from '@prisma/client';
 import { z } from 'zod';
 
+import { groupRecipientsBySigningOrder } from '../utils/recipient-groups';
 import { formatRevalleDateTime } from './date-format';
 
 // REVALLE: linhas da prova congelada de cada destinatário no certificado de assinatura (Fase 4).
 
 export type RevalleCertificateRow = { label: string; value: string };
+
+/** Posição do destinatário na ordem de assinatura (passo N de K), só em documento com ordem sequencial. */
+export type RevalleSigningPosition = { position: number; total: number };
+
+/**
+ * Posição de cada destinatário pela ordem de assinatura, como o fluxo sequencial do upstream a aplica:
+ * um grupo (mesma ordem) é um passo só; CC não entra. Use só quando o documento é SEQUENTIAL.
+ */
+export const getRevalleSigningPositions = (
+  recipients: { id: number; role: RecipientRole; signingOrder: number | null }[],
+): Map<number, RevalleSigningPosition> => {
+  const { steps } = groupRecipientsBySigningOrder(recipients);
+  const positions = new Map<number, RevalleSigningPosition>();
+
+  for (const [index, step] of steps.entries()) {
+    for (const member of step.members) {
+      positions.set(member.id, { position: index + 1, total: steps.length });
+    }
+  }
+
+  return positions;
+};
 
 /** Colunas de `RevalleSignatureProof` usadas no certificado; os campos JSON chegam como estão no banco. */
 export type RevalleCertificateProof = {
@@ -149,7 +172,7 @@ const formatDeviceLocation = (deviceLocation: unknown) => {
  */
 export const buildRevalleCertificateRows = (
   proof: RevalleCertificateProof,
-  { role }: { role: RecipientRole },
+  { role, signingPosition }: { role: RecipientRole; signingPosition?: RevalleSigningPosition | null },
 ): RevalleCertificateRow[] => {
   const employee = ZEmployee.safeParse(proof.employee);
   const hr = employee.success ? employee.data : null;
@@ -163,6 +186,10 @@ export const buildRevalleCertificateRows = (
     { label: 'Situação', value: orEmpty(hr?.situacao) },
     { label: 'Verificação', value: formatFactors(proof.factors) },
     { label: 'Termo aceito', value: formatTerm(proof.termVersion, proof.termAcceptedAt) },
+    // REVALLE: spec §7.3, posição na ordem de assinatura quando sequencial (o certificado do upstream não a mostra).
+    ...(signingPosition
+      ? [{ label: 'Ordem de assinatura', value: `${signingPosition.position}º de ${signingPosition.total}` }]
+      : []),
     { label: 'Localização aproximada (IP)', value: formatIpLocation(proof.ipLocation) },
     { label: 'Localização do aparelho', value: formatDeviceLocation(proof.deviceLocation) },
   ];

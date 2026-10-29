@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildRevalleCertificateRows, type RevalleCertificateProof } from './certificate-rows';
+import {
+  buildRevalleCertificateRows,
+  getRevalleSigningPositions,
+  type RevalleCertificateProof,
+} from './certificate-rows';
 
 const completeProof: RevalleCertificateProof = {
   employee: {
@@ -154,5 +158,51 @@ describe('buildRevalleCertificateRows', () => {
     );
 
     expect(rowValue(rows, 'Verificação')).toBe('Vínculo de colaborador já confirmado (28/10/2026 09:00)');
+  });
+
+  it('ordem sequencial: "Ordem de assinatura" logo depois do termo; sem posição, a linha não existe', () => {
+    const rows = buildRevalleCertificateRows(completeProof, {
+      role: 'SIGNER',
+      signingPosition: { position: 2, total: 3 },
+    });
+    const labels = rows.map((row) => row.label);
+
+    expect(rowValue(rows, 'Ordem de assinatura')).toBe('2º de 3');
+    expect(labels.indexOf('Ordem de assinatura')).toBe(labels.indexOf('Termo aceito') + 1);
+    expect(buildRevalleCertificateRows(completeProof, { role: 'SIGNER' }).map((row) => row.label)).not.toContain(
+      'Ordem de assinatura',
+    );
+    expect(
+      buildRevalleCertificateRows(completeProof, { role: 'SIGNER', signingPosition: null }).map((row) => row.label),
+    ).not.toContain('Ordem de assinatura');
+  });
+});
+
+describe('getRevalleSigningPositions', () => {
+  it('três em sequência: 1º, 2º e 3º de 3', () => {
+    const positions = getRevalleSigningPositions([
+      { id: 12, role: 'SIGNER', signingOrder: 3 },
+      { id: 10, role: 'SIGNER', signingOrder: 1 },
+      { id: 11, role: 'APPROVER', signingOrder: 2 },
+    ]);
+
+    expect(positions.get(10)).toEqual({ position: 1, total: 3 });
+    expect(positions.get(11)).toEqual({ position: 2, total: 3 });
+    expect(positions.get(12)).toEqual({ position: 3, total: 3 });
+  });
+
+  it('grupo de assinatura (mesma ordem) conta como um passo; CC fica de fora', () => {
+    const positions = getRevalleSigningPositions([
+      { id: 1, role: 'SIGNER', signingOrder: 1 },
+      { id: 2, role: 'SIGNER', signingOrder: 2 },
+      { id: 3, role: 'SIGNER', signingOrder: 2 },
+      { id: 4, role: 'CC', signingOrder: 3 },
+      { id: 5, role: 'SIGNER', signingOrder: 4 },
+    ]);
+
+    expect(positions.get(2)).toEqual({ position: 2, total: 3 });
+    expect(positions.get(3)).toEqual({ position: 2, total: 3 });
+    expect(positions.get(5)).toEqual({ position: 3, total: 3 });
+    expect(positions.has(4)).toBe(false);
   });
 });

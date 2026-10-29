@@ -1,7 +1,11 @@
 import { prisma } from '@documenso/prisma';
-import type { RecipientRole } from '@prisma/client';
+import { DocumentSigningOrder, type RecipientRole } from '@prisma/client';
 
-import { buildRevalleCertificateRows, type RevalleCertificateRow } from '../../revalle/certificate-rows';
+import {
+  buildRevalleCertificateRows,
+  getRevalleSigningPositions,
+  type RevalleCertificateRow,
+} from '../../revalle/certificate-rows';
 import { revalleRoleVerb } from '../../revalle/role-verbs';
 
 export type RevalleCertificateRecipient = {
@@ -20,7 +24,7 @@ export type RevalleCertificateData = {
 
 type LoadRevalleCertificateDataOptions = {
   envelopeId: string;
-  recipients: { id: number; role: RecipientRole }[];
+  recipients: { id: number; role: RecipientRole; signingOrder: number | null }[];
   /** Na selagem cada item tem seu certificado; sem ele (download avulso), todos os itens do envelope. */
   envelopeItemId?: string;
 };
@@ -30,7 +34,7 @@ export const loadRevalleCertificateData = async ({
   recipients,
   envelopeItemId,
 }: LoadRevalleCertificateDataOptions): Promise<RevalleCertificateData> => {
-  const [proofs, hashes] = await Promise.all([
+  const [proofs, hashes, meta] = await Promise.all([
     prisma.revalleSignatureProof.findMany({
       where: { recipientId: { in: recipients.map((recipient) => recipient.id) } },
     }),
@@ -38,7 +42,17 @@ export const loadRevalleCertificateData = async ({
       where: envelopeItemId ? { envelopeItemId } : { envelopeItem: { envelopeId } },
       select: { originalSha256: true, envelopeItem: { select: { title: true, order: true } } },
     }),
+    prisma.envelope.findUnique({
+      where: { id: envelopeId },
+      select: { documentMeta: { select: { signingOrder: true } } },
+    }),
   ]);
+
+  // Ordem de assinatura só existe (e só aparece) em documento sequencial.
+  const positions =
+    meta?.documentMeta?.signingOrder === DocumentSigningOrder.SEQUENTIAL
+      ? getRevalleSigningPositions(recipients)
+      : new Map();
 
   const roles = new Map(recipients.map((recipient) => [recipient.id, recipient.role]));
   const byRecipient = new Map<number, RevalleCertificateRecipient>();
@@ -51,7 +65,7 @@ export const loadRevalleCertificateData = async ({
     }
 
     byRecipient.set(proof.recipientId, {
-      rows: buildRevalleCertificateRows(proof, { role }),
+      rows: buildRevalleCertificateRows(proof, { role, signingPosition: positions.get(proof.recipientId) }),
       device: proof.device,
       signedAt: proof.signedAt,
       signedVerb: revalleRoleVerb(role),
