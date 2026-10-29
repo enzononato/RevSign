@@ -155,17 +155,48 @@ test('malformado não consome o limite', async () => {
   assert.equal(db(`select count(*) from "RateLimit" where action = 'revalle.verify'`), '0');
 });
 
+// 31 consultas seguidas; `ipOf(i)` dá o IP da i-ésima. O limite usa janelas fixas de 15 min: se as 31 cruzarem a
+// virada da janela (contadores em dois baldes), a rodada não vale e é repetida uma vez (a nova cabe numa janela só).
+const burst = async (ipOf, key) => {
+  const run = async () => {
+    db('delete from "RateLimit"');
+
+    const statuses = [];
+    let last;
+
+    for (let i = 0; i < 31; i += 1) {
+      last = await page(code, { 'X-Forwarded-For': ipOf(i) });
+      statuses.push(last.status);
+    }
+
+    const buckets = db(
+      `select count(distinct bucket) from "RateLimit" where action = 'revalle.verify' and key = 'ip:${key}'`,
+    );
+
+    return { statuses, last, buckets };
+  };
+
+  const first = await run();
+  const result = first.buckets === '1' ? first : await run();
+
+  assert.equal(result.buckets, '1', 'as consultas cruzaram a virada da janela duas vezes');
+
+  return result;
+};
+
 test('a 31ª consulta em 15 min devolve 429', async () => {
-  const headers = { 'X-Forwarded-For': '198.51.100.77' };
+  const { statuses, last } = await burst(() => '198.51.100.77', '198.51.100.77');
 
-  for (let i = 0; i < 30; i += 1) {
-    assert.equal((await page(code, headers)).status, 200, `consulta ${i + 1}`);
-  }
+  assert.deepEqual(statuses.slice(0, 30), Array(30).fill(200));
+  assert.equal(statuses[30], 429);
+  assert.ok(last.html.includes('Muitas consultas. Tente novamente em alguns minutos.'));
+});
 
-  const limited = await page(code, headers);
+test('IPv6: endereços da mesma /64 dividem o limite', async () => {
+  const { statuses } = await burst((i) => `2001:db8:77:1::${(i + 1).toString(16)}`, '2001:db8:77:1::/64');
 
-  assert.equal(limited.status, 429);
-  assert.ok(limited.html.includes('Muitas consultas. Tente novamente em alguns minutos.'));
+  assert.deepEqual(statuses.slice(0, 30), Array(30).fill(200));
+  assert.equal(statuses[30], 429);
 });
 
 test('/share/<slug> que não é qr_ vira 404, sem redirecionar', async () => {

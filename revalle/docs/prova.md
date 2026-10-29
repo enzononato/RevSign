@@ -112,7 +112,7 @@ Destinatário de documento assinado antes da Fase 4 não tem prova congelada: o 
 O que **não** aparece no `/verificar`, de propósito: e-mail, IP, aparelho, localização, CPF completo e o conteúdo do documento.
 
 - Código errado ou de documento excluído/cancelado: `Código não encontrado.` (sem dizer mais nada).
-- São no máximo 30 consultas a cada 15 minutos por endereço de internet.
+- São no máximo 30 consultas a cada 15 minutos por endereço de internet (no IPv6, por rede `/64`, que costuma ser a de uma mesma casa ou empresa).
 
 Outras formas de conferir:
 

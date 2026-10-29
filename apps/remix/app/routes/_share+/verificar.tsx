@@ -12,6 +12,7 @@ import {
   findRevalleProofByCode,
   normalizeVerificationCodeInput,
 } from '@documenso/lib/server-only/revalle/proof/find-proof-by-code';
+import { revalleRateLimitIpKey } from '@documenso/lib/server-only/revalle/rate-limit-ip-key';
 import { getIpAddress } from '@documenso/lib/universal/get-ip-address';
 import { Button } from '@documenso/ui/primitives/button';
 import { Input } from '@documenso/ui/primitives/input';
@@ -57,11 +58,11 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
     return data<LoaderData>({ state: 'not-found', codigo: '' });
   }
 
-  // Sem IP legível, todos caem no mesmo balde 'unknown' (e dividem o limite).
+  // Sem IP legível, todos caem no mesmo balde 'unknown' (e dividem o limite). IPv6 conta por /64.
   let ip = 'unknown';
 
   try {
-    ip = getIpAddress(request);
+    ip = revalleRateLimitIpKey(getIpAddress(request));
   } catch {
     // sem IP: conta no mesmo balde
   }
