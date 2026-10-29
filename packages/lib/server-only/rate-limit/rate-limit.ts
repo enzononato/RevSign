@@ -1,6 +1,7 @@
 import { prisma } from '@documenso/prisma';
 
 import { logger } from '../../utils/logger';
+import { getRateLimitOverride } from '../revalle/rate-limit-overrides'; // REVALLE
 
 type WindowUnit = 's' | 'm' | 'h' | 'd';
 type WindowStr = `${number}${WindowUnit}`;
@@ -60,7 +61,9 @@ export const getBucket = (windowMs: number): Date => {
  * across multiple instances. Each check atomically increments the counter
  * and returns the new count.
  */
-export const createRateLimit = (config: RateLimitConfig) => {
+export const createRateLimit = (baseConfig: RateLimitConfig) => {
+  // REVALLE: limites ajustáveis por NEXT_PRIVATE_REVALLE_RATE_LIMITS (ver CHANGES.md).
+  const config: RateLimitConfig = { ...baseConfig, ...getRateLimitOverride(baseConfig.action) };
   const windowMs = parseWindow(config.window);
 
   return {
