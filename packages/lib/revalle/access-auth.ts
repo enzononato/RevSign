@@ -1,4 +1,4 @@
-import { DocumentAuth, type TDocumentAuthOptions, type TRecipientAuthOptions } from '../../types/document-auth';
+import { DocumentAuth, type TDocumentAuthOptions, type TRecipientAuthOptions } from '../types/document-auth';
 
 /**
  * Todo documento da Revalle exige o código de 6 dígitos enviado ao e-mail do destinatário na

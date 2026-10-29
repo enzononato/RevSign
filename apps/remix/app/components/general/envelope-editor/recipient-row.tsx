@@ -2,7 +2,7 @@ import type { TEditorRecipientsFormSchema } from '@documenso/lib/client-only/hoo
 import { useCurrentEnvelopeEditor } from '@documenso/lib/client-only/providers/envelope-editor-provider';
 import { useCurrentOrganisation } from '@documenso/lib/client-only/providers/organisation';
 import { isEmailDomainAllowed } from '@documenso/lib/revalle/email-domain'; // REVALLE:
-import { getClientAllowedDomains, isRecipientEmailExempt } from '@documenso/lib/revalle/recipient-domains'; // REVALLE:
+import { getClientAllowedDomains, isTemplateDraftEmailExempt } from '@documenso/lib/revalle/recipient-domains'; // REVALLE:
 import { isCcRecipient } from '@documenso/lib/utils/recipients';
 import { trpc } from '@documenso/trpc/react'; // REVALLE:
 import { RecipientActionAuthSelect } from '@documenso/ui/components/recipient/recipient-action-auth-select';
@@ -18,7 +18,7 @@ import type { DraggableProvidedDragHandleProps } from '@hello-pangea/dnd';
 import { useLingui } from '@lingui/react/macro';
 import { EnvelopeType, type RecipientRole } from '@prisma/client';
 import { GripVerticalIcon, TrashIcon } from 'lucide-react';
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react'; // REVALLE: useEffect, useState
 import { useFormContext } from 'react-hook-form';
 
 // REVALLE: aviso quando o e-mail da empresa ainda não tem vínculo com um CPF.
@@ -34,7 +34,7 @@ const useRevalleUnlinkedHint = (email: string) => {
 
   const domains = getClientAllowedDomains();
   const eligible =
-    debounced.includes('@') && !isRecipientEmailExempt(debounced) && isEmailDomainAllowed(debounced, domains);
+    debounced.includes('@') && !isTemplateDraftEmailExempt(debounced) && isEmailDomainAllowed(debounced, domains);
 
   const { data } = trpc.revalle.recipientLinkStatus.useQuery({ emails: [debounced] }, { enabled: eligible });
 

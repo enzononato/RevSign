@@ -9,13 +9,13 @@ import { isDeepEqual } from 'remeda';
 
 import { TEAM_DOCUMENT_VISIBILITY_MAP } from '../../constants/teams';
 import { AppError, AppErrorCode } from '../../errors/app-error';
+import { withRevalleAccessAuth } from '../../revalle/access-auth'; // REVALLE:
 import type { TDocumentAccessAuthTypes, TDocumentActionAuthTypes } from '../../types/document-auth';
 import { mapEnvelopeToWebhookDocumentPayload, ZWebhookDocumentSchema } from '../../types/webhook-payload';
 import { createDocumentAuthOptions, extractDocumentAuthMethods } from '../../utils/document-auth';
 import type { EnvelopeIdOptions } from '../../utils/envelope';
 import { buildTeamWhereQuery, canAccessTeamDocument } from '../../utils/teams';
 import { recomputeNextReminderForEnvelope } from '../recipient/update-recipient-next-reminder';
-import { withRevalleAccessAuth } from '../revalle/access-auth'; // REVALLE:
 import { assertCompatibleDictateNextSigner } from '../signature-level/assert-compatible-dictate-next-signer';
 import { assertCompatibleSigningOrder } from '../signature-level/assert-compatible-signing-order';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';

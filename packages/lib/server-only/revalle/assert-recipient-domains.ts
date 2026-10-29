@@ -1,22 +1,31 @@
 import { getAllowedSignupDomains } from '../../constants/auth';
 import { AppError, AppErrorCode } from '../../errors/app-error';
 import { isEmailDomainAllowed } from '../../revalle/email-domain';
-import { formatDomainList, isRecipientEmailExempt } from '../../revalle/recipient-domains';
+import { formatDomainList, isTemplateDraftEmailExempt } from '../../revalle/recipient-domains';
 
+/**
+ * Regra de domínio dos destinatários. Estrita por padrão (documento, envio, conclusão): nenhum e-mail fora dos domínios passa.
+ * `allowTemplatePlaceholders` só nos rascunhos de MODELO (placeholder `recipient.N@documenso.com` e link direto).
+ * E-mail vazio é ignorado, a não ser com `rejectEmpty` (o envio recusa).
+ */
 export const assertRecipientEmailsAllowed = (
   emails: Array<string | null | undefined>,
-  options: { rejectEmpty?: boolean } = {},
+  options: { rejectEmpty?: boolean; allowTemplatePlaceholders?: boolean } = {},
 ): void => {
   const allowedDomains = getAllowedSignupDomains();
 
   for (const email of emails) {
-    if (options.rejectEmpty && (!email || email.trim() === '')) {
-      throw new AppError(AppErrorCode.INVALID_BODY, {
-        message: 'Todo destinatário precisa de um e-mail da empresa.',
-      });
+    if (!email || email.trim() === '') {
+      if (options.rejectEmpty) {
+        throw new AppError(AppErrorCode.INVALID_BODY, {
+          message: 'Todo destinatário precisa de um e-mail da empresa.',
+        });
+      }
+
+      continue;
     }
 
-    if (!email || isRecipientEmailExempt(email)) {
+    if (options.allowTemplatePlaceholders && isTemplateDraftEmailExempt(email)) {
       continue;
     }
 

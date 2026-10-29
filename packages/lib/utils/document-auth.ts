@@ -1,5 +1,5 @@
 import type { Envelope, Recipient } from '@prisma/client';
-import { withRevalleRecipientAccessAuth } from '../server-only/revalle/access-auth'; // REVALLE:
+import { withRevalleRecipientAccessAuth } from '../revalle/access-auth'; // REVALLE:
 import type {
   TDocumentAuthOptions,
   TRecipientAccessAuthTypes,

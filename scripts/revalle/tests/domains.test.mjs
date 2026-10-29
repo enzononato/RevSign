@@ -89,3 +89,47 @@ test('destinatário sem e-mail não pode ser enviado', async () => {
   assert.equal(sent.status, 400, sent.text);
   assert.match(sent.text, /Todo destinatário precisa de um e-mail da empresa/);
 });
+
+// Revisão final (I1): sem exceção de placeholder em documento, envio e conclusão; o placeholder vale só em modelo.
+const LOOK_ALIKES = [
+  'x.recipient.1@documenso.com.evil.example',
+  'recipient.1@documenso.com',
+  'direct.link@documenso.com',
+];
+
+test('placeholder de modelo e parecidos são recusados na criação de documento', async () => {
+  for (const email of LOOK_ALIKES) {
+    const res = await createEnvelope({ recipients: [{ email }] });
+
+    assert.equal(res.status, 400, `${email}: ${res.text}`);
+    assert.match(res.text, new RegExp(MENSAGEM));
+  }
+});
+
+test('placeholder de modelo e parecidos são recusados no envio (gravados direto no banco)', async () => {
+  for (const email of LOOK_ALIKES) {
+    const base = await createEnvelope({ recipients: [{ email: `envio-${Date.now()}@revalle.com.br` }] });
+
+    assert.equal(base.status, 200, base.text);
+    db(`update "Recipient" set email = '${email}' where "envelopeId" = '${base.id}'`);
+
+    const res = await api('POST', '/envelope/distribute', { envelopeId: base.id });
+
+    assert.equal(res.status, 400, `${email}: ${res.text}`);
+    assert.match(res.text, new RegExp(MENSAGEM));
+    assert.equal(db(`select status from "Envelope" where id = '${base.id}'`), 'DRAFT');
+  }
+});
+
+test('modelo ainda aceita o placeholder exato, mas não o parecido', async () => {
+  const ok = await createEnvelope({ type: 'TEMPLATE', recipients: [{ email: 'recipient.1@documenso.com' }] });
+
+  assert.equal(ok.status, 200, ok.text);
+
+  const evil = await createEnvelope({
+    type: 'TEMPLATE',
+    recipients: [{ email: 'x.recipient.1@documenso.com.evil.example' }],
+  });
+
+  assert.equal(evil.status, 400, evil.text);
+});

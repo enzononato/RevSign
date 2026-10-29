@@ -21,6 +21,7 @@ import { validateCheckboxLength } from '../../advanced-fields-validation/validat
 import { DIRECT_TEMPLATE_RECIPIENT_EMAIL } from '../../constants/direct-templates';
 import { AppError, AppErrorCode } from '../../errors/app-error';
 import { jobs } from '../../jobs/client';
+import { withRevalleAccessAuth, withRevalleRecipientAccessAuth } from '../../revalle/access-auth'; // REVALLE:
 import { ZDocumentAuthOptionsSchema, ZRecipientAuthOptionsSchema } from '../../types/document-auth'; // REVALLE:
 import { extractDerivedDocumentEmailSettings } from '../../types/document-email';
 import {
@@ -43,7 +44,6 @@ import { getRecipientsInActiveSigningStep } from '../../utils/recipient-groups';
 import { getRecipientsWithMissingFields, isRecipientEmailValidForSending } from '../../utils/recipients';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { insertFormValuesInPdf } from '../pdf/insert-form-values-in-pdf';
-import { withRevalleAccessAuth, withRevalleRecipientAccessAuth } from '../revalle/access-auth'; // REVALLE:
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { assertUserNotDisabledById } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';

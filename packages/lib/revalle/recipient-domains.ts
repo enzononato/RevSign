@@ -1,14 +1,22 @@
 import { DIRECT_TEMPLATE_RECIPIENT_EMAIL } from '../constants/direct-templates';
-import { isTemplateRecipientEmailPlaceholder } from '../constants/template';
 import { env } from '../utils/env';
 import { isEmailDomainAllowed, normalizeEmail } from './email-domain';
 
-export const isRecipientEmailExempt = (email: string | null | undefined): boolean => {
+// Placeholder de destinatário de modelo (`recipient.1@documenso.com`), ancorado: `x.recipient.1@documenso.com.evil.example` não vale.
+const TEMPLATE_PLACEHOLDER_EMAIL = /^recipient\.\d+@documenso\.com$/;
+
+/**
+ * E-mails de rascunho de modelo que ficam fora da regra de domínio: vazio, placeholder de modelo e o destinatário do link direto.
+ * Só vale nos caminhos de criação/edição de MODELO; documento, envio e conclusão usam a regra estrita.
+ */
+export const isTemplateDraftEmailExempt = (email: string | null | undefined): boolean => {
   if (!email || email.trim() === '') {
     return true;
   }
 
-  return isTemplateRecipientEmailPlaceholder(email) || normalizeEmail(email) === DIRECT_TEMPLATE_RECIPIENT_EMAIL;
+  const normalized = normalizeEmail(email);
+
+  return TEMPLATE_PLACEHOLDER_EMAIL.test(normalized) || normalized === DIRECT_TEMPLATE_RECIPIENT_EMAIL;
 };
 
 export const formatDomainList = (domains: string[]): string => {
@@ -24,11 +32,11 @@ export const getClientAllowedDomains = (): string[] =>
     .map((domain) => domain.trim().toLowerCase())
     .filter(Boolean);
 
-/** Retorna a mensagem de erro do formulário, ou undefined quando o e-mail pode ser usado. */
+/** Retorna a mensagem de erro do formulário, ou undefined quando o e-mail pode ser usado (o servidor confere de novo). */
 export const getRecipientDomainFormError = (email: string): string | undefined => {
   const domains = getClientAllowedDomains();
 
-  if (isRecipientEmailExempt(email) || isEmailDomainAllowed(email, domains)) {
+  if (isTemplateDraftEmailExempt(email) || isEmailDomainAllowed(email, domains)) {
     return undefined;
   }
 

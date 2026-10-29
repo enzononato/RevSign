@@ -69,7 +69,10 @@ export const createEnvelopeRecipients = async ({
 
   assertEnvelopeMutable(envelope);
 
-  assertRecipientEmailsAllowed(recipientsToCreate.map((r) => r.email)); // REVALLE:
+  assertRecipientEmailsAllowed(
+    recipientsToCreate.map((r) => r.email),
+    { allowTemplatePlaceholders: envelope.type === EnvelopeType.TEMPLATE },
+  ); // REVALLE:
 
   if (envelope.completedAt) {
     throw new AppError(AppErrorCode.INVALID_REQUEST, {
