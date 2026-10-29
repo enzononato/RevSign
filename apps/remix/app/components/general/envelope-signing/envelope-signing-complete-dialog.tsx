@@ -17,6 +17,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate, useRevalidator, useSearchParams } from 'react-router';
 
 import { useEmbedSigningContext } from '~/components/embed/embed-signing-context';
+import { useDeviceLocation } from '~/components/revalle/use-device-location'; // REVALLE:
 
 import { DocumentSigningCompleteDialog } from '../document-signing/document-signing-complete-dialog';
 import { useRequiredEnvelopeSigningContext } from '../document-signing/envelope-signing-provider';
@@ -50,6 +51,8 @@ export const EnvelopeSignerCompleteDialog = () => {
   const { onDocumentCompleted, onDocumentError } = useEmbedSigningContext() || {};
 
   const isFramed = useIsFramed();
+
+  const { request: requestDeviceLocation, isLocating } = useDeviceLocation(recipient.role); // REVALLE: papel
 
   const { mutateAsync: completeDocument, isPending } = trpc.recipient.completeDocumentWithToken.useMutation();
 
@@ -209,7 +212,10 @@ export const EnvelopeSignerCompleteDialog = () => {
     };
 
     try {
+      const revalleGeolocation = await requestDeviceLocation(); // REVALLE: opcional; nunca lança
+
       const result = await completeDocument({
+        revalleGeolocation, // REVALLE:
         token: recipient.token,
         documentId: mapSecondaryIdToDocumentId(envelope.secondaryId),
         accessAuthOptions,
@@ -370,7 +376,7 @@ export const EnvelopeSignerCompleteDialog = () => {
     };
   }, [email, fullName, isDirectTemplate, recipient.email, recipient.name, recipient.fields]);
 
-  const isSubmitting = isPending || isSigningWithCsc || isCscPopupBusy || isRedirecting;
+  const isSubmitting = isLocating || isPending || isSigningWithCsc || isCscPopupBusy || isRedirecting; // REVALLE: isLocating
 
   return (
     <DocumentSigningCompleteDialog

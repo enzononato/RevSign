@@ -2,12 +2,19 @@ import Konva from 'konva';
 
 import { DEFAULT_SIGNATURE_TEXT_FONT_SIZE, getSignatureFontFamily } from '../../constants/pdf';
 import { AppError } from '../../errors/app-error';
+import { isRevalleStampOnlySignature, REVALLE_STAMP_ONLY_LABEL } from '../../revalle/stamp'; // REVALLE:
 import type { TSignatureFieldMeta } from '../../types/field-meta';
 import { resolveFieldOverflowMode } from '../../types/field-meta';
 import { calculateOverflowLayout } from './calculate-overflow-layout';
-import { createFieldHoverInteraction, upsertFieldGroup, upsertFieldRect } from './field-generic-items';
+import {
+  createFieldHoverInteraction,
+  konvaTextFontFamily, // REVALLE:
+  upsertFieldGroup,
+  upsertFieldRect,
+} from './field-generic-items';
 import type { FieldToRender, RenderFieldElementOptions } from './field-renderer';
 import { calculateFieldPosition } from './field-renderer';
+import { createRevalleStampGroup } from './render-revalle-stamp'; // REVALLE:
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let SkiaImage: any;
@@ -176,6 +183,15 @@ const createFieldSignature = (field: FieldToRender, options: RenderFieldElementO
     }
   }
 
+  // REVALLE: na tela, assinatura "só carimbo" mostra um rótulo neutro na fonte normal (não o tipo do campo em Caveat).
+  const isRevalleStampOnly = mode !== 'export' && isRevalleStampOnlySignature(field);
+
+  if (isRevalleStampOnly) {
+    textToRender = REVALLE_STAMP_ONLY_LABEL;
+  }
+
+  const fontFamily = isRevalleStampOnly ? konvaTextFontFamily : getSignatureFontFamily(textToRender); // REVALLE:
+
   const fieldMeta = field.fieldMeta as TSignatureFieldMeta | undefined;
 
   // Whether we're rendering the field type name (like "Signature") vs actual signed content.
@@ -187,7 +203,7 @@ const createFieldSignature = (field: FieldToRender, options: RenderFieldElementO
     isLabel,
     textToRender,
     fontSize,
-    fontFamily: getSignatureFontFamily(textToRender),
+    fontFamily, // REVALLE:
     lineHeight: 1,
     letterSpacing: 0,
     textAlign: 'center',
@@ -209,7 +225,7 @@ const createFieldSignature = (field: FieldToRender, options: RenderFieldElementO
     wrap: overflowLayout.wrap,
     text: textToRender,
     fontSize,
-    fontFamily: getSignatureFontFamily(textToRender),
+    fontFamily, // REVALLE:
     align: overflowLayout.textAlign,
     width: overflowLayout.width,
     height: overflowLayout.height,
@@ -236,6 +252,26 @@ export const renderSignatureFieldElement = (field: FieldToRender, options: Rende
 
   // Render the field background and text.
   const fieldRect = upsertFieldRect(field, options);
+
+  // REVALLE: no PDF final, a assinatura de quem tem prova vira o carimbo de texto (com o desenho, se houver).
+  if (mode === 'export' && field.revalleStamp) {
+    const { fieldWidth, fieldHeight } = calculateFieldPosition(field, pageWidth, pageHeight);
+
+    fieldRect.opacity(0);
+    fieldGroup.add(fieldRect);
+    fieldGroup.add(
+      createRevalleStampGroup({
+        stamp: field.revalleStamp,
+        signature: field.signature,
+        fieldWidth,
+        fieldHeight,
+        createImage: createSignatureImage,
+      }),
+    );
+
+    return { fieldGroup, isFirstRender };
+  }
+
   const { node: fieldSignature, isImageSignature, isLabel } = createFieldSignature(field, options);
 
   fieldGroup.add(fieldRect);

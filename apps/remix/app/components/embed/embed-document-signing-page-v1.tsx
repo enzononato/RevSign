@@ -116,7 +116,7 @@ export const EmbedSignDocumentV1ClientPage = ({
 
   const [pendingFields, _completedFields] = [
     sortFieldsByPosition(
-      fields.filter((field) => field.recipientId === recipient.id && isFieldUnsignedAndRequired(field)),
+      fields.filter((field) => field.recipientId === recipient.id && isFieldUnsignedAndRequired(field, recipient.role)), // REVALLE: papel
     ),
     fields.filter((field) => field.inserted),
   ];
@@ -124,7 +124,10 @@ export const EmbedSignDocumentV1ClientPage = ({
   const { mutateAsync: completeDocumentWithToken, isPending: isSubmitting } =
     trpc.recipient.completeDocumentWithToken.useMutation();
 
-  const fieldsRequiringValidation = useMemo(() => fields.filter(isFieldUnsignedAndRequired), [fields]);
+  const fieldsRequiringValidation = useMemo(
+    () => fields.filter((field) => isFieldUnsignedAndRequired(field, recipient.role)), // REVALLE: papel
+    [fields, recipient.role],
+  );
 
   const hasSignatureField = fields.some((field) => isSignatureFieldType(field.type));
 

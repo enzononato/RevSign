@@ -12,6 +12,7 @@ import { extractDocumentAuthMethods } from '../../utils/document-auth';
 import { getTranslations } from '../../utils/i18n';
 import { getDocumentCertificateAuditLogs } from '../document/get-document-certificate-audit-logs';
 import { getOrganisationClaimByTeamId } from '../organisation/get-organisation-claims';
+import { loadRevalleCertificateData } from '../revalle/certificate-data'; // REVALLE:
 import { renderCertificate } from './render-certificate';
 
 export type GenerateCertificatePdfOptions = {
@@ -36,19 +37,23 @@ export type GenerateCertificatePdfOptions = {
   language?: string;
   pageWidth: number;
   pageHeight: number;
+  revalleEnvelopeItemId?: string; // REVALLE: item selado (hash original do cabeçalho)
 };
 
 export const generateCertificatePdf = async (options: GenerateCertificatePdfOptions) => {
-  const { envelope, envelopeOwner, recipients, fields, language, pageWidth, pageHeight } = options;
+  const { envelope, envelopeOwner, recipients, fields, language, pageWidth, pageHeight, revalleEnvelopeItemId } =
+    options; // REVALLE: revalleEnvelopeItemId
 
   const documentLanguage = ZSupportedLanguageCodeSchema.parse(language);
 
-  const [organisationClaim, auditLogs, messages] = await Promise.all([
+  const [organisationClaim, auditLogs, messages, revalleData] = await Promise.all([
     getOrganisationClaimByTeamId({ teamId: envelope.teamId }),
     getDocumentCertificateAuditLogs({
       envelopeId: envelope.id,
     }),
     getTranslations(documentLanguage),
+    // REVALLE: provas congeladas por destinatário e SHA-256 do original
+    loadRevalleCertificateData({ envelopeId: envelope.id, recipients, envelopeItemId: revalleEnvelopeItemId }),
   ]);
 
   i18n.loadAndActivate({
@@ -133,12 +138,14 @@ export const generateCertificatePdf = async (options: GenerateCertificatePdfOpti
           completed: documentRecipientCompleted ?? null,
           rejected: documentRecipientRejected ?? null,
         },
+        revalle: revalleData.recipients.get(recipient.id) ?? null, // REVALLE:
       };
     }),
     envelopeOwner,
     envelopeId: envelope.id,
     qrToken: envelope.qrToken,
     hidePoweredBy: organisationClaim.flags.hidePoweredBy ?? false,
+    revalleHeaderLines: revalleData.headerLines, // REVALLE:
     pageWidth,
     pageHeight,
     i18n,

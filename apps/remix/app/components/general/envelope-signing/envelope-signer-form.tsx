@@ -8,6 +8,7 @@ import { RecipientRole } from '@prisma/client';
 import { useMemo } from 'react';
 
 import { useEmbedSigningContext } from '~/components/embed/embed-signing-context';
+import { RevalleOptionalDrawingNote } from '~/components/revalle/optional-drawing-note'; // REVALLE:
 
 import { useRequiredEnvelopeSigningContext } from '../document-signing/envelope-signing-provider';
 
@@ -125,6 +126,8 @@ export default function EnvelopeSignerForm() {
               uploadSignatureEnabled={envelope.documentMeta.uploadSignatureEnabled}
               drawSignatureEnabled={envelope.documentMeta.drawSignatureEnabled}
             />
+
+            <RevalleOptionalDrawingNote />
           </div>
         )}
       </div>

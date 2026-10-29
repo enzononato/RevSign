@@ -9,14 +9,12 @@ import type { I18n } from '@lingui/core';
 import { msg } from '@lingui/core/macro';
 import type { DocumentMeta, Envelope, RecipientRole } from '@prisma/client';
 import Konva from 'konva';
-import type { DateTimeFormatOptions } from 'luxon';
-import { DateTime } from 'luxon';
 import { match, P } from 'ts-pattern';
 import { UAParser } from 'ua-parser-js';
 
 import { DOCUMENT_STATUS } from '../../constants/document';
-import { APP_I18N_OPTIONS } from '../../constants/i18n';
 import { RECIPIENT_ROLES_DESCRIPTION } from '../../constants/recipient-roles';
+import { formatRevalleDateTime, REVALLE_TIME_ZONE_LABEL } from '../../revalle/date-format'; // REVALLE: datas dd/MM/yyyy HH:mm em America/Bahia
 import type { TDocumentAuditLog } from '../../types/document-audit-logs';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../types/document-audit-logs';
 import { formatDocumentAuditLogAction } from '../../utils/document-audit-logs';
@@ -224,7 +222,7 @@ const renderOverviewCard = (options: RenderOverviewCardOptions) => {
   });
   const timeZoneLabel = renderOverviewCardLabels({
     label: i18n._(msg`Time Zone`),
-    text: envelope.documentMeta?.timezone || 'N/A',
+    text: REVALLE_TIME_ZONE_LABEL, // REVALLE: as datas são sempre em Brasília
     width: columnWidth,
     groupX: columnWidth + columnSpacing,
   });
@@ -240,16 +238,12 @@ const renderOverviewCard = (options: RenderOverviewCardOptions) => {
 
   const createdAtLabel = renderOverviewCardLabels({
     label: i18n._(msg`Created At`),
-    text: DateTime.fromJSDate(envelope.createdAt)
-      .setLocale(APP_I18N_OPTIONS.defaultLocale)
-      .toFormat('yyyy-MM-dd hh:mm:ss a (ZZZZ)'),
+    text: formatRevalleDateTime(envelope.createdAt),
     width: columnWidth,
   });
   const lastUpdatedLabel = renderOverviewCardLabels({
     label: i18n._(msg`Last Updated`),
-    text: DateTime.fromJSDate(envelope.updatedAt)
-      .setLocale(APP_I18N_OPTIONS.defaultLocale)
-      .toFormat('yyyy-MM-dd hh:mm:ss a (ZZZZ)'),
+    text: formatRevalleDateTime(envelope.updatedAt),
     width: columnWidth,
     groupX: columnWidth + columnSpacing,
   });
@@ -350,7 +344,7 @@ const renderRow = (options: RenderRowOptions) => {
   const auditLogTimestampText = new Konva.Text({
     x: columnWidth + columnSpacing,
     width: columnWidth,
-    text: DateTime.fromJSDate(auditLog.createdAt).setLocale(APP_I18N_OPTIONS.defaultLocale).toLocaleString(dateFormat),
+    text: formatRevalleDateTime(auditLog.createdAt),
     fontFamily: 'Inter',
     align: 'right',
     fontSize: textSm,
@@ -688,11 +682,6 @@ export async function renderAuditLogs({
 
   return pages;
 }
-
-const dateFormat: DateTimeFormatOptions = {
-  ...DateTime.DATETIME_SHORT,
-  hourCycle: 'h12',
-};
 
 /**
  * Get the color indicator for the audit log type

@@ -524,6 +524,8 @@ model EnvelopeItem {
 
   field Field[]
 
+  revalleHash RevalleDocumentHash? // REVALLE: back-relation (hashes SHA-256)
+
   @@unique([documentDataId])
   @@index([envelopeId])
 }
@@ -672,6 +674,7 @@ model Recipient {
   cscCredential CscCredential?
   cscSession    CscSession?
   revalleGate   RevalleRecipientGate? // REVALLE:
+  revalleProof  RevalleSignatureProof? // REVALLE:
 
   @@index([token])
   @@index([email])
@@ -1340,4 +1343,50 @@ model RevalleRecipientGate {
   conflictCpf         String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+}
+
+/// REVALLE: SHA-256 do PDF original (no envio) e do PDF selado, por item do envelope.
+model RevalleDocumentHash {
+  id             String       @id @default(cuid())
+  envelopeItemId String       @unique
+  envelopeItem   EnvelopeItem @relation(fields: [envelopeItemId], references: [id], onDelete: Cascade)
+  originalSha256 String
+  /// Versão selada mais recente; o histórico completo fica em `sealedVersions`.
+  finalSha256    String?
+  sentAt         DateTime     @default(now())
+  sealedAt       DateTime?
+  sealedVersions RevalleSealedHash[]
+}
+
+/// REVALLE: histórico dos hashes finais. Uma linha por selagem (a reselagem acrescenta, nunca sobrescreve).
+model RevalleSealedHash {
+  id             String              @id @default(cuid())
+  documentHashId String
+  documentHash   RevalleDocumentHash @relation(fields: [documentHashId], references: [id], onDelete: Cascade)
+  sha256         String
+  sealedAt       DateTime
+
+  @@index([documentHashId])
+}
+
+/// REVALLE: prova congelada por signatário (dados do RH, fatores, termo, IP, aparelho, local). Imutável depois de criada.
+model RevalleSignatureProof {
+  id               String    @id @default(cuid())
+  recipientId      Int       @unique
+  recipient        Recipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  verificationCode String    @unique
+  signedAt         DateTime
+  employee         Json?
+  identityVerified Boolean
+  factors          Json
+  termVersion      String?
+  termAcceptedAt   DateTime?
+  ipAddress        String?
+  userAgent        String?
+  device           String?
+  ipLocation       Json?
+  deviceLocation   Json
+  drewSignature    Boolean
+  signatureKind    String // IMAGE | TYPED | NONE
+  createdAt        DateTime  @default(now())
 }

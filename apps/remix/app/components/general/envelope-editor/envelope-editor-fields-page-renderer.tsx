@@ -7,6 +7,7 @@ import {
   type PageRenderData,
   useCurrentEnvelopeRender,
 } from '@documenso/lib/client-only/providers/envelope-render-provider';
+import { clampRevalleSignatureFieldSize, REVALLE_SIGNATURE_FIELD_MIN } from '@documenso/lib/revalle/stamp'; // REVALLE:
 import { FIELD_META_DEFAULT_VALUES } from '@documenso/lib/types/field-meta';
 import {
   convertPixelToPercentage,
@@ -241,6 +242,8 @@ export const EnvelopeEditorFieldsPageRenderer = ({ pageData }: { pageData: PageR
 
     syncOverlapHighlight(fieldGroup, overlappingFieldFormIds.has(field.formId));
 
+    fieldGroup.setAttr('revalleFieldType', field.type); // REVALLE: tamanho mínimo da assinatura no redimensionamento
+
     if (!isFieldEditable) {
       return;
     }
@@ -368,6 +371,20 @@ export const EnvelopeEditorFieldsPageRenderer = ({ pageData }: { pageData: PageR
       boundBoxFunc: (oldBox, newBox) => {
         // Enforce minimum size
         if (newBox.width < 30 || newBox.height < 20) {
+          return oldBox;
+        }
+
+        // REVALLE: assinatura não encolhe abaixo do carimbo de 5 linhas (caixas em pixels do palco = página escalada).
+        // Crescer sempre vale, para um campo antigo/da API já menor que o mínimo poder ser aumentado.
+        const hasSignature = transformer.nodes().some((node) => node.getAttr('revalleFieldType') === 'SIGNATURE');
+        const minWidth = (currentStage.width() * REVALLE_SIGNATURE_FIELD_MIN.width) / 100;
+        const minHeight = (currentStage.height() * REVALLE_SIGNATURE_FIELD_MIN.height) / 100;
+
+        if (
+          hasSignature &&
+          ((newBox.width < minWidth && newBox.width < oldBox.width) ||
+            (newBox.height < minHeight && newBox.height < oldBox.height))
+        ) {
           return oldBox;
         }
 
@@ -670,7 +687,7 @@ export const EnvelopeEditorFieldsPageRenderer = ({ pageData }: { pageData: PageR
       return;
     }
 
-    const { fieldX, fieldY, fieldWidth, fieldHeight } = convertPixelToPercentage({
+    const converted = convertPixelToPercentage({
       width: pixelWidth,
       height: pixelHeight,
       positionX: pixelX,
@@ -678,6 +695,13 @@ export const EnvelopeEditorFieldsPageRenderer = ({ pageData }: { pageData: PageR
       pageWidth: unscaledViewport.width,
       pageHeight: unscaledViewport.height,
     });
+
+    // REVALLE: assinatura criada pela seleção também respeita o mínimo do carimbo
+    const { fieldX, fieldY } = converted;
+    const { width: fieldWidth, height: fieldHeight } =
+      type === 'SIGNATURE'
+        ? clampRevalleSignatureFieldSize({ width: converted.fieldWidth, height: converted.fieldHeight })
+        : { width: converted.fieldWidth, height: converted.fieldHeight };
 
     editorFields.addField({
       envelopeItemId: currentEnvelopeItem.id,

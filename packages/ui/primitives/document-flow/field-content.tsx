@@ -1,4 +1,5 @@
 import { convertToLocalSystemFormat, DEFAULT_DOCUMENT_DATE_FORMAT } from '@documenso/lib/constants/date-formats';
+import { isRevalleStampOnlySignature, REVALLE_STAMP_ONLY_LABEL } from '@documenso/lib/revalle/stamp'; // REVALLE:
 import type { TFieldMetaSchema } from '@documenso/lib/types/field-meta';
 import { fromCheckboxValue } from '@documenso/lib/universal/field-checkbox';
 import { useLingui } from '@lingui/react';
@@ -162,6 +163,13 @@ export const FieldContent = ({ field, documentMeta }: FieldIconProps) => {
     }
   }
 
+  // REVALLE: assinatura "só carimbo" (sem desenho) mostra um rótulo neutro na fonte normal.
+  const isRevalleStampOnly = isRevalleStampOnlySignature(field);
+
+  if (isRevalleStampOnly) {
+    textToDisplay = REVALLE_STAMP_ONLY_LABEL;
+  }
+
   const textAlign = fieldMeta && 'textAlign' in fieldMeta ? fieldMeta.textAlign : 'left';
 
   return (
@@ -172,7 +180,7 @@ export const FieldContent = ({ field, documentMeta }: FieldIconProps) => {
           {
             '!text-center': textAlign === 'center' || !textToDisplay,
             '!text-right': textAlign === 'right',
-            'font-signature text-[clamp(0.07rem,25cqw,1.125rem)]': isSignatureField,
+            'font-signature text-[clamp(0.07rem,25cqw,1.125rem)]': isSignatureField && !isRevalleStampOnly, // REVALLE:
           },
         )}
       >

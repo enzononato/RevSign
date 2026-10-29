@@ -10,16 +10,17 @@ import { msg } from '@lingui/core/macro';
 import type { Field, RecipientRole, Signature } from '@prisma/client';
 import { SigningStatus } from '@prisma/client';
 import Konva from 'konva';
-import { DateTime } from 'luxon';
 import { UAParser } from 'ua-parser-js';
 import { renderSVG } from 'uqr';
 
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../constants/app';
-import { APP_I18N_OPTIONS } from '../../constants/i18n';
 import { getSignatureFontFamily } from '../../constants/pdf';
 import { RECIPIENT_ROLE_SIGNING_REASONS, RECIPIENT_ROLES_DESCRIPTION } from '../../constants/recipient-roles';
+import { formatRevalleDateTime, REVALLE_TIME_ZONE_NOTE } from '../../revalle/date-format'; // REVALLE: datas dd/MM/yyyy HH:mm em America/Bahia
+import { REVALLE_STAMP_ONLY_LABEL } from '../../revalle/stamp'; // REVALLE:
 import type { TDocumentAuditLogBaseSchema } from '../../types/document-audit-logs';
 import { svgToPng } from '../../utils/images/svg-to-png';
+import type { RevalleCertificateRecipient } from '../revalle/certificate-data'; // REVALLE:
 import { ensureFontLibrary } from './helpers';
 
 type ColumnWidths = [number, number, number];
@@ -44,6 +45,7 @@ export type CertificateRecipient = {
     completed: BaseAuditLog | null;
     rejected: BaseAuditLog | null;
   };
+  revalle?: RevalleCertificateRecipient | null; // REVALLE: prova congelada (nula em documento anterior à Fase 4)
 };
 
 type GenerateCertificateOptions = {
@@ -58,6 +60,7 @@ type GenerateCertificateOptions = {
   };
   pageWidth: number;
   pageHeight: number;
+  revalleHeaderLines?: string[]; // REVALLE: "SHA-256 do original: <hex>"
 };
 
 // Helper function to get device info from user agent
@@ -100,6 +103,7 @@ type RenderLabelAndTextOptions = {
   y?: number;
   labelFill?: string;
   valueFill?: string;
+  wrap?: 'word' | 'char'; // REVALLE: linhas da prova quebram por palavra
 };
 
 const renderLabelAndText = (options: RenderLabelAndTextOptions) => {
@@ -124,14 +128,17 @@ const renderLabelAndText = (options: RenderLabelAndTextOptions) => {
 
   group.add(label);
 
+  // REVALLE: rótulo longo em coluna estreita leva o valor para a linha de baixo, com a largura toda
+  const isStacked = options.wrap !== undefined && width - label.width() < width * 0.4;
+
   const value = new Konva.Text({
-    x: label.width(),
-    y: 0,
-    width: width - label.width(),
+    x: isStacked ? 0 : label.width(), // REVALLE:
+    y: isStacked ? label.height() : 0, // REVALLE:
+    width: isStacked ? width : width - label.width(), // REVALLE:
     fontFamily: 'Inter',
     text: options.text,
     fill: valueFill,
-    wrap: 'char',
+    wrap: options.wrap ?? 'char', // REVALLE:
     fontSize: textSm,
   });
 
@@ -319,6 +326,26 @@ const renderColumnTwo = (options: RenderColumnOptions) => {
       }
 
       signatureContainer.add(typedSig);
+    } else if (recipient.revalle?.isStampOnly) {
+      // REVALLE: sem desenho nem texto, a caixa diz que a marca no documento é o carimbo (não fica vazia)
+      const stampOnlyLabel = new Konva.Text({
+        x: 2,
+        text: REVALLE_STAMP_ONLY_LABEL,
+        padding: 4,
+        fontFamily: 'Inter',
+        fontSize: textSm,
+        fill: textMutedForeground,
+        align: 'center',
+        verticalAlign: 'middle',
+        wrap: 'word',
+        width: maxSignatureWidth,
+      });
+
+      if (stampOnlyLabel.getClientRect().height < minSignatureHeight) {
+        stampOnlyLabel.setAttrs({ height: minSignatureHeight });
+      }
+
+      signatureContainer.add(stampOnlyLabel);
     }
 
     // Do not add the signature container for rejected recipients.
@@ -399,8 +426,9 @@ const renderColumnTwo = (options: RenderColumnOptions) => {
 
   const deviceLabelAndText = renderLabelAndText({
     label: i18n._(msg`Device`),
-    text: getDevice(relevantLog?.userAgent),
+    text: recipient.revalle?.device ?? getDevice(relevantLog?.userAgent), // REVALLE: aparelho congelado na prova
     width,
+    wrap: recipient.revalle ? 'word' : undefined, // REVALLE:
     y: column.getClientRect().height + 6,
   });
   column.add(deviceLabelAndText);
@@ -418,47 +446,43 @@ const renderColumnThree = (options: RenderColumnOptions) => {
     value: string;
     labelFill?: string;
     valueFill?: string;
+    wrap?: 'word' | 'char'; // REVALLE:
+    gap?: number; // REVALLE:
   };
 
   const itemsToRender: DetailItem[] = [
     {
       label: i18n._(msg`Sent`),
       value: recipient.logs.emailed
-        ? DateTime.fromJSDate(recipient.logs.emailed.createdAt)
-            .setLocale(APP_I18N_OPTIONS.defaultLocale)
-            .toFormat('yyyy-MM-dd hh:mm:ss a (ZZZZ)')
+        ? formatRevalleDateTime(recipient.logs.emailed.createdAt)
         : recipient.logs.sent
-          ? DateTime.fromJSDate(recipient.logs.sent.createdAt)
-              .setLocale(APP_I18N_OPTIONS.defaultLocale)
-              .toFormat('yyyy-MM-dd hh:mm:ss a (ZZZZ)')
+          ? formatRevalleDateTime(recipient.logs.sent.createdAt)
           : i18n._(msg`Unknown`),
     },
     {
       label: i18n._(msg`Viewed`),
-      value: recipient.logs.opened
-        ? DateTime.fromJSDate(recipient.logs.opened.createdAt)
-            .setLocale(APP_I18N_OPTIONS.defaultLocale)
-            .toFormat('yyyy-MM-dd hh:mm:ss a (ZZZZ)')
-        : i18n._(msg`Unknown`),
+      value: recipient.logs.opened ? formatRevalleDateTime(recipient.logs.opened.createdAt) : i18n._(msg`Unknown`),
     },
   ];
 
   if (recipient.logs.rejected) {
     itemsToRender.push({
       label: i18n._(msg`Rejected`),
-      value: DateTime.fromJSDate(recipient.logs.rejected.createdAt)
-        .setLocale(APP_I18N_OPTIONS.defaultLocale)
-        .toFormat('yyyy-MM-dd hh:mm:ss a (ZZZZ)'),
+      value: formatRevalleDateTime(recipient.logs.rejected.createdAt),
       labelFill: textRejectedRed,
       valueFill: textRejectedRed,
+    });
+  } else if (recipient.revalle) {
+    // REVALLE: com prova, o verbo do papel (igual ao /verificar) e o horário congelado
+    itemsToRender.push({
+      label: recipient.revalle.signedVerb,
+      value: formatRevalleDateTime(recipient.revalle.signedAt),
     });
   } else {
     itemsToRender.push({
       label: i18n._(msg`Signed`),
       value: recipient.logs.completed
-        ? DateTime.fromJSDate(recipient.logs.completed.createdAt)
-            .setLocale(APP_I18N_OPTIONS.defaultLocale)
-            .toFormat('yyyy-MM-dd hh:mm:ss a (ZZZZ)')
+        ? formatRevalleDateTime(recipient.logs.completed.createdAt)
         : i18n._(msg`Unknown`),
     });
   }
@@ -475,14 +499,20 @@ const renderColumnThree = (options: RenderColumnOptions) => {
           : i18n._(RECIPIENT_ROLE_SIGNING_REASONS[recipient.role]),
   });
 
+  // REVALLE: linhas da prova congelada, só quando ela existe
+  for (const row of recipient.revalle?.rows ?? []) {
+    itemsToRender.push({ ...row, wrap: 'word', gap: 5 });
+  }
+
   for (const [index, item] of itemsToRender.entries()) {
     const labelAndText = renderLabelAndText({
       label: item.label,
       text: item.value,
       width,
-      y: column.getClientRect().height + (index === 0 ? 0 : 8),
+      y: column.getClientRect().height + (index === 0 ? 0 : (item.gap ?? 8)), // REVALLE: gap
       labelFill: item.labelFill,
       valueFill: item.valueFill,
+      wrap: item.wrap, // REVALLE:
     });
     column.add(labelAndText);
   }
@@ -565,7 +595,16 @@ const renderRow = (options: RenderRowOptions) => {
   return rowGroup;
 };
 
-const renderBranding = async ({ qrToken, i18n }: { qrToken: string | null; i18n: I18n }) => {
+// REVALLE: com hidePoweredBy o logo "Powered by" some, mas o QR continua sempre desenhado.
+const renderBranding = async ({
+  qrToken,
+  i18n,
+  hidePoweredBy,
+}: {
+  qrToken: string | null;
+  i18n: I18n;
+  hidePoweredBy: boolean;
+}) => {
   const branding = new Konva.Group();
 
   const brandingHeight = 12;
@@ -580,28 +619,30 @@ const renderBranding = async ({ qrToken, i18n }: { qrToken: string | null; i18n:
     height: brandingHeight,
   });
 
-  const logoPath = path.join(process.cwd(), 'public/static/logo.png');
-  const logo = fs.readFileSync(logoPath);
-
-  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-  const img = new SkiaImage(logo) as unknown as HTMLImageElement;
-
-  const documensoImage = new Konva.Image({
-    image: img,
-    height: brandingHeight,
-    width: brandingHeight * (img.width / img.height),
-    x: text.width() + 16,
-  });
-
   const qrSize = qrToken ? 72 : 0;
 
-  const logoGroup = new Konva.Group({
-    y: qrSize + 16,
-  });
-  logoGroup.add(text);
-  logoGroup.add(documensoImage);
+  if (!hidePoweredBy) {
+    const logoPath = path.join(process.cwd(), 'public/static/logo.png');
+    const logo = fs.readFileSync(logoPath);
 
-  branding.add(logoGroup);
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+    const img = new SkiaImage(logo) as unknown as HTMLImageElement;
+
+    const documensoImage = new Konva.Image({
+      image: img,
+      height: brandingHeight,
+      width: brandingHeight * (img.width / img.height),
+      x: text.width() + 16,
+    });
+
+    const logoGroup = new Konva.Group({
+      y: qrSize + 16,
+    });
+    logoGroup.add(text);
+    logoGroup.add(documensoImage);
+
+    branding.add(logoGroup);
+  }
 
   if (qrToken) {
     const qrSvg = renderSVG(`${NEXT_PUBLIC_WEBAPP_URL()}/share/${qrToken}`, {
@@ -616,7 +657,8 @@ const renderBranding = async ({ qrToken, i18n }: { qrToken: string | null; i18n:
       image: qrSkiaImage,
       height: qrSize,
       width: qrSize,
-      x: branding.getClientRect().width - qrSize,
+      // REVALLE: sem o logo o grupo está vazio; o QR alinha à direita pela largura do grupo (mínimo = o próprio QR).
+      x: Math.max(branding.getClientRect().width, qrSize) - qrSize,
       y: 0,
     });
 
@@ -654,7 +696,8 @@ const groupRowsIntoPages = (options: GroupRowsIntoPagesOptions) => {
 
     const rowHeight = row.getClientRect().height;
 
-    if (rowHeight > availablePageHeight) {
+    // REVALLE: linha mais alta que a página fica na página atual se ela ainda está vazia (sem página de tabela vazia)
+    if (rowHeight > availablePageHeight && groupedRows[currentGroupedRowIndex].length > 0) {
       currentGroupedRowIndex++;
       groupedRows[currentGroupedRowIndex] = [row];
       availablePageHeight = maxHeight - rowHeaderHeight;
@@ -715,6 +758,45 @@ const renderTables = (options: RenderTablesOptions) => {
   return tables;
 };
 
+// REVALLE: SHA-256 do original sob a nota de fuso, quebrando na largura da tabela.
+const revalleHeaderTop = pageTopMargin - 8;
+
+const renderRevalleHeaderLines = (lines: string[], x: number, width: number) => {
+  const group = new Konva.Group({ x, y: revalleHeaderTop });
+  let y = 0;
+
+  for (const line of lines) {
+    const text = new Konva.Text({
+      y,
+      width,
+      text: line,
+      wrap: 'char',
+      fontFamily: 'Inter',
+      fontSize: textXs,
+      lineHeight: 1.2,
+      fill: textMutedForeground,
+    });
+
+    group.add(text);
+    y += text.height();
+  }
+
+  return { group, height: y };
+};
+
+// REVALLE: atribuição exigida pela licença da base DB-IP Lite (mesmo texto do /privacidade).
+const renderRevalleDbIpFooter = (x: number, width: number, pageHeight: number) =>
+  new Konva.Text({
+    x,
+    y: pageHeight - textXs - 10,
+    width,
+    align: 'right',
+    text: 'IP Geolocation by DB-IP (https://db-ip.com)',
+    fontFamily: 'Inter',
+    fontSize: textXs,
+    fill: textMutedForegroundLight,
+  });
+
 export async function renderCertificate({
   recipients,
   envelopeId,
@@ -724,6 +806,7 @@ export async function renderCertificate({
   envelopeOwner,
   pageWidth,
   pageHeight,
+  revalleHeaderLines = [], // REVALLE:
 }: GenerateCertificateOptions) {
   ensureFontLibrary();
 
@@ -742,7 +825,12 @@ export async function renderCertificate({
   // Helper to render a Konva stage to a PNG buffer
   let stage: Konva.Stage | null = new Konva.Stage({ width: pageWidth, height: pageHeight });
 
-  const maxTableHeight = pageHeight - pageTopMargin - pageBottomMargin;
+  // REVALLE: a tabela desce o tanto que as linhas do hash ocupam; sem hash (documento antigo), nada muda
+  const revalleHeaderShift =
+    revalleHeaderLines.length > 0 ? renderRevalleHeaderLines(revalleHeaderLines, margin, tableWidth).height : 0;
+  const hasRevalleProof = recipients.some((recipient) => Boolean(recipient.revalle)); // REVALLE:
+
+  const maxTableHeight = pageHeight - pageTopMargin - pageBottomMargin - revalleHeaderShift; // REVALLE: - revalleHeaderShift
 
   const groupedRows = groupRowsIntoPages({
     recipients,
@@ -754,9 +842,11 @@ export async function renderCertificate({
 
   const tables = renderTables({ groupedRows, columnWidths, i18n });
 
-  const brandingGroup = await renderBranding({ qrToken, i18n });
+  const brandingGroup = await renderBranding({ qrToken, i18n, hidePoweredBy });
   const brandingRect = brandingGroup.getClientRect();
   const brandingTopPadding = 24;
+  // REVALLE: sem logo e sem QR (qrToken nulo) não há nada a desenhar.
+  const showBranding = !hidePoweredBy || Boolean(qrToken);
 
   const pages: Uint8Array[] = [];
 
@@ -782,14 +872,30 @@ export async function renderCertificate({
 
     table.setAttrs({
       x: margin,
-      y: pageTopMargin,
+      y: pageTopMargin + revalleHeaderShift, // REVALLE: + revalleHeaderShift
     } satisfies Partial<Konva.GroupConfig>);
 
+    // REVALLE: fuso das datas do certificado.
+    const zoneText = new Konva.Text({
+      x: margin,
+      y: pageTopMargin - 20,
+      text: REVALLE_TIME_ZONE_NOTE,
+      fontFamily: 'Inter',
+      fontSize: textXs,
+      fill: textMutedForegroundLight,
+    });
+
     group.add(titleText);
+    group.add(zoneText);
     group.add(table);
 
+    // REVALLE: SHA-256 do original em todas as páginas da tabela
+    if (revalleHeaderLines.length > 0) {
+      group.add(renderRevalleHeaderLines(revalleHeaderLines, margin, tableWidth).group);
+    }
+
     // Add QR code and branding on the last page if there is space.
-    if (index === tables.length - 1 && !hidePoweredBy) {
+    if (index === tables.length - 1 && showBranding) {
       const remainingHeight = pageHeight - group.getClientRect().height - pageBottomMargin;
 
       if (brandingRect.height + brandingTopPadding <= remainingHeight) {
@@ -813,6 +919,10 @@ export async function renderCertificate({
     });
     page.add(footerText);
 
+    if (hasRevalleProof) {
+      page.add(renderRevalleDbIpFooter(margin, tableWidth, pageHeight)); // REVALLE:
+    }
+
     page.add(group);
     stage.add(page);
 
@@ -823,7 +933,7 @@ export async function renderCertificate({
   }
 
   // Need to create an empty page for the QR code if it hasn't been placed yet.
-  if (!hidePoweredBy && !isQrPlaced) {
+  if (showBranding && !isQrPlaced) {
     const page = new Konva.Layer();
 
     brandingGroup.setAttrs({
@@ -840,6 +950,10 @@ export async function renderCertificate({
       fill: textMutedForegroundLight,
     });
     page.add(overflowFooterText);
+
+    if (hasRevalleProof) {
+      page.add(renderRevalleDbIpFooter(margin, tableWidth, pageHeight)); // REVALLE:
+    }
 
     page.add(brandingGroup);
     stage.add(page);

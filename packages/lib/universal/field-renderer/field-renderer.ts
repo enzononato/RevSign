@@ -2,6 +2,7 @@ import type { TRecipientColor } from '@documenso/ui/lib/recipient-colors';
 import type { Field, FieldType, Signature } from '@prisma/client';
 import type Konva from 'konva';
 
+import type { RevalleStamp } from '../../revalle/stamp'; // REVALLE:
 import type { TFieldMetaSchema } from '../../types/field-meta';
 
 export const MIN_FIELD_HEIGHT_PX = 12;
@@ -19,6 +20,7 @@ export type FieldToRender = Pick<
   isValidating?: boolean;
   fieldMeta?: TFieldMetaSchema | null;
   signature?: Pick<Signature, 'signatureImageAsBase64' | 'typedSignature'> | null;
+  revalleStamp?: RevalleStamp | null; // REVALLE: carimbo do PDF final (só no modo export, a partir da prova)
 };
 
 /**

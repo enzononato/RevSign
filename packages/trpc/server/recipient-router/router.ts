@@ -592,7 +592,7 @@ export const recipientRouter = router({
     .output(ZCompleteDocumentWithTokenResponseSchema)
     .mutation(async ({ input, ctx }) => {
       try {
-        const { token, documentId, accessAuthOptions, nextSigner, recipientOverride } = input;
+        const { token, documentId, accessAuthOptions, nextSigner, recipientOverride, revalleGeolocation } = input; // REVALLE: revalleGeolocation
 
         ctx.logger.info({
           input: {
@@ -642,6 +642,7 @@ export const recipientRouter = router({
           accessAuthOptions,
           nextSigner,
           recipientOverride,
+          revalleGeolocation, // REVALLE:
           userId: ctx.user?.id,
           requestMetadata: ctx.metadata.requestMetadata,
         });

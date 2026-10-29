@@ -2,6 +2,7 @@ import { getOptionalNonEmbedSession } from '@documenso/auth/server/lib/session/e
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
 import { verifyEmbeddingPresignToken } from '@documenso/lib/server-only/embedding-presign/verify-embedding-presign-token';
 import { generatePartialSignedPdf } from '@documenso/lib/server-only/pdf/generate-partial-signed-pdf';
+import { loadRevalleStamps } from '@documenso/lib/server-only/revalle/proof/load-stamps'; // REVALLE:
 import { getTeamById } from '@documenso/lib/server-only/team/get-team';
 import { sha256 } from '@documenso/lib/universal/crypto';
 import { getFileServerSide } from '@documenso/lib/universal/upload/get-file.server';
@@ -200,9 +201,13 @@ const handlePendingFileRequest = async ({
     },
   });
 
+  // REVALLE: carimbo de quem já concluiu; entra no ETag porque a prova nasce na conclusão, mesmo sem mudar campos
+  const revalleStamps = await loadRevalleStamps(envelope.id);
+
   const etag = Buffer.from(
     sha256(
       JSON.stringify({
+        revalleStamps: [...revalleStamps.entries()],
         envelopeStatus: envelope.status,
         fields: fields.map((field) => ({
           id: field.id,
@@ -237,6 +242,7 @@ const handlePendingFileRequest = async ({
   const pdf = await generatePartialSignedPdf({
     pdfData: file,
     fields,
+    revalleStamps, // REVALLE:
   });
 
   c.get('logger').info({

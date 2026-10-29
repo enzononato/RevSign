@@ -13,6 +13,7 @@ import { match } from 'ts-pattern';
 
 import { AUTO_SIGNABLE_FIELD_TYPES } from '../../constants/autosign';
 import { DEFAULT_DOCUMENT_DATE_FORMAT } from '../../constants/date-formats';
+import { isPngSignatureDataUrl } from '../../constants/signatures'; // REVALLE:
 import { DEFAULT_DOCUMENT_TIME_ZONE } from '../../constants/time-zones';
 import { AppError, AppErrorCode } from '../../errors/app-error';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../types/document-audit-logs';
@@ -208,7 +209,16 @@ export const signFieldWithToken = async ({
       .toFormat(documentMeta?.dateFormat ?? DEFAULT_DOCUMENT_DATE_FORMAT);
   }
 
-  if (isSignatureField && !signatureImageAsBase64 && !typedSignature) {
+  // REVALLE: a flag isBase64 do cliente não basta: a imagem precisa ser PNG de verdade, e um "data:" inválido
+  // também não pode virar texto digitado.
+  if (isSignatureField && (isBase64 || value.startsWith('data:')) && !isPngSignatureDataUrl(value)) {
+    throw new AppError(AppErrorCode.INVALID_BODY, {
+      message: 'Signature image must be a valid PNG',
+    });
+  }
+
+  // REVALLE: texto só com espaços também conta como vazio (assinatura vazia só pela conclusão, com carimbo)
+  if (isSignatureField && !signatureImageAsBase64 && !typedSignature?.trim()) {
     throw new Error('Signature field must have a signature');
   }
 

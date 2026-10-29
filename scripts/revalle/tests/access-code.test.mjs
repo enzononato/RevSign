@@ -402,3 +402,57 @@ test('request2FAEmail: nunca para CC, nem para quem já concluiu, nem em documen
 
   assert.equal((await trpc('document.accessAuth.request2FAEmail', { token: draftToken })).status, 404);
 });
+
+// --- Fase 4, Task 0: pendências herdadas da Fase 3. ---
+
+test('stuck-at-5: contador em 5 sem bloqueio (requisição caiu antes de bloquear) vira LOCKED/CODE_ATTEMPTS', async () => {
+  const s = await setup();
+
+  db(
+    `update "RevalleRecipientGate" set "codeFailedAttempts" = 5, "lockedAt" = null, "lockReason" = null where "recipientId" = ${s.recipient.id}`,
+  );
+
+  const res = await completeWithCode({
+    token: s.recipient.token,
+    documentId: s.documentId,
+    email: s.recipient.email,
+  });
+
+  assert.notEqual(res.status, 200, res.text);
+  assert.equal(db(`select "signingStatus" from "Recipient" where id = ${s.recipient.id}`), 'NOT_SIGNED');
+  assert.equal(gateRow(s), '5|CODE_ATTEMPTS|true');
+
+  if (admin.email && admin.password) {
+    const cookie = await signIn(admin.email, admin.password);
+    const gateId = db(`select id from "RevalleRecipientGate" where "recipientId" = ${s.recipient.id}`);
+    const list = (await trpcAs(cookie, 'query', 'revalle.admin.findGates', { type: 'LOCKED' })).body.result.data.json;
+
+    assert.equal(list.locked.find((item) => item.id === gateId)?.reason, 'CODE_ATTEMPTS');
+  }
+});
+
+test('email-change-resets-code-attempts: trocar o e-mail zera os códigos errados; o bloqueio existente continua', async () => {
+  const s = await setup();
+
+  for (let i = 0; i < 3; i += 1) {
+    const wrong = await complete(s, { type: 'TWO_FACTOR_AUTH', method: 'email', token: '000000' });
+
+    assert.notEqual(wrong.status, 200, wrong.text);
+  }
+
+  assert.equal(gateRow(s), '3||false');
+
+  db(`update "Recipient" set email = '${unique('novo')}' where id = ${s.recipient.id}`);
+  await trpc('revalle.gate.acceptTerm', { token: s.recipient.token, termVersion: '1' });
+
+  assert.equal(gateRow(s), '0||false');
+
+  // Bloqueio existente persiste na troca de e-mail.
+  db(
+    `update "RevalleRecipientGate" set "codeFailedAttempts" = 4, "lockedAt" = now(), "lockReason" = 'CODE_ATTEMPTS' where "recipientId" = ${s.recipient.id}`,
+  );
+  db(`update "Recipient" set email = '${unique('novo2')}' where id = ${s.recipient.id}`);
+  await trpc('revalle.gate.acceptTerm', { token: s.recipient.token, termVersion: '1' });
+
+  assert.equal(gateRow(s), '0|CODE_ATTEMPTS|true');
+});

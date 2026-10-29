@@ -9,6 +9,7 @@ import type { PDF, Signer } from '@libpdf/core';
 import { match } from 'ts-pattern';
 
 import { getTimestampAuthority } from './helpers/tsa';
+import { getRevalleIcpSignOptions } from './revalle/icp-seal'; // REVALLE:
 import { createGoogleCloudSigner } from './transports/google-cloud';
 import { createLocalSigner } from './transports/local';
 
@@ -55,6 +56,7 @@ export const signPdf = async ({ pdf }: SignOptions) => {
     // depending on the signing certificate chain and the TSA responder.
     // The unused portion is zero-padding, so over-reserving is cheap.
     estimatedSize: tsa ? 32768 : undefined,
+    revalle: getRevalleIcpSignOptions(pdf), // REVALLE: política ICP-Brasil AD-RB e DocMDP P=2
   });
 
   return bytes;

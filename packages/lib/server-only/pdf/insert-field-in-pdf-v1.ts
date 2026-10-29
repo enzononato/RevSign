@@ -15,6 +15,7 @@ import { FieldType } from '@prisma/client';
 import { match, P } from 'ts-pattern';
 
 import { NEXT_PRIVATE_INTERNAL_WEBAPP_URL } from '../../constants/app';
+import type { RevalleStamp } from '../../revalle/stamp'; // REVALLE:
 import {
   ZCheckboxFieldMeta,
   ZDateFieldMeta,
@@ -25,9 +26,14 @@ import {
   ZRadioFieldMeta,
   ZTextFieldMeta,
 } from '../../types/field-meta';
+import { drawRevalleStampPdfLib } from '../revalle/stamp/draw-stamp-pdf-lib'; // REVALLE:
 import { getPageSize } from './get-page-size';
 
-export const insertFieldInPDFV1 = async (pdf: PDFDocument, field: FieldWithSignature) => {
+export const insertFieldInPDFV1 = async (
+  pdf: PDFDocument,
+  field: FieldWithSignature,
+  revalleStamp?: RevalleStamp, // REVALLE:
+) => {
   const [fontCaveat, fontNoto] = await Promise.all([
     fetch(`${NEXT_PRIVATE_INTERNAL_WEBAPP_URL()}/fonts/caveat.ttf`).then(async (res) => res.arrayBuffer()),
     fetch(`${NEXT_PRIVATE_INTERNAL_WEBAPP_URL()}/fonts/noto-sans.ttf`).then(async (res) => res.arrayBuffer()),
@@ -129,6 +135,28 @@ export const insertFieldInPDFV1 = async (pdf: PDFDocument, field: FieldWithSigna
         type: P.union(FieldType.SIGNATURE, FieldType.FREE_SIGNATURE),
       },
       async (field) => {
+        // REVALLE: com prova, o carimbo de texto (e o desenho, se houver) substitui a assinatura do upstream.
+        if (revalleStamp) {
+          await drawRevalleStampPdfLib({
+            pdf,
+            page,
+            stamp: revalleStamp,
+            signature: field.signature,
+            stampFontBytes: fontNoto,
+            signatureFont: font,
+            fieldX,
+            fieldY,
+            fieldWidth,
+            fieldHeight,
+            pageWidth,
+            pageHeight,
+            pageRotationInDegrees,
+            adjustPositionForRotation,
+          });
+
+          return;
+        }
+
         if (field.signature?.signatureImageAsBase64) {
           const image = await pdf.embedPng(field.signature?.signatureImageAsBase64 ?? '');
 

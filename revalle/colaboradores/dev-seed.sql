@@ -9,6 +9,11 @@
 -- | 4 | Carlos Simulado Lima        | 21598467085  | 1995-06-30 | (sem e-mail)             | afastado  | Paulo Afonso      |
 -- | 5 | Beatriz Modelo Andrade      | 68340192787  | 1988-09-09 | (sem e-mail)             | ativo     | Ribeira do Pombal |
 -- | 6 | Fernando Ensaio Barbosa     | 93457210888  | 1999-12-31 | (sem e-mail)             | ativo     | Serrinha          |
+-- | 7 | Teste Aceite F4 1           | 41000000141  | 1987-05-12 | (sem e-mail)             | ativo     | Alagoinhas        |
+-- | 8 | Teste Aceite F4 2           | 41000000222  | 1993-08-21 | (sem e-mail)             | ativo     | Juazeiro          |
+-- | 9 | Teste Aceite F4 3           | 41000000303  | 2001-11-30 | (sem e-mail)             | afastado  | Petrolina         |
+--
+-- 7 a 9 são exclusivos do aceite da Fase 4 (scripts/revalle/tests/acceptance-f4.test.mjs); nenhum outro teste os usa.
 --
 -- Role de leitura: revsign_leitura / revsign_leitura_dev (só desenvolvimento).
 -- Só enxerga a view; a tabela rh_colaboradores é negada.
@@ -36,6 +41,20 @@ VALUES
   ('21598467085', 'Carlos Simulado Lima',    '1995-06-30', 'Motorista',               'Entrega',        'Paulo Afonso',      '90004', NULL,                       NULL, 'afastado'),
   ('68340192787', 'Beatriz Modelo Andrade',  '1988-09-09', 'Assistente Financeiro',   'Financeiro',     'Ribeira do Pombal', '90005', NULL,                       NULL, 'ativo'),
   ('93457210888', 'Fernando Ensaio Barbosa', '1999-12-31', 'Vendedor',                'Comercial',      'Serrinha',          '90006', NULL,                       NULL, 'ativo');
+
+-- aceite-f4:inicio
+-- Colaboradores FICTÍCIOS do aceite da Fase 4. Bloco idempotente: numa base já criada, rode só este trecho
+-- (comando em revalle/docs/testes.md, seção "Aceite da Fase 4").
+INSERT INTO rh_colaboradores
+  (cpf_completo, nome_completo, nascimento, cargo_nome, setor_nome, unidade_nome, matricula_rh, email_corp, celular, status_rh)
+SELECT v.*
+FROM (VALUES
+  ('41000000141', 'Teste Aceite F4 1', DATE '1987-05-12', 'Gerente Administrativo', 'Diretoria',        'Alagoinhas', '90101', NULL::text, NULL::text, 'ativo'),
+  ('41000000222', 'Teste Aceite F4 2', DATE '1993-08-21', 'Analista de RH',         'Recursos Humanos', 'Juazeiro',   '90102', NULL,       NULL,       'ativo'),
+  ('41000000303', 'Teste Aceite F4 3', DATE '2001-11-30', 'Conferente',             'Logística',        'Petrolina',  '90103', NULL,       NULL,       'afastado')
+) AS v (cpf_completo, nome_completo, nascimento, cargo_nome, setor_nome, unidade_nome, matricula_rh, email_corp, celular, status_rh)
+WHERE NOT EXISTS (SELECT 1 FROM rh_colaboradores r WHERE r.cpf_completo = v.cpf_completo);
+-- aceite-f4:fim
 
 CREATE VIEW vw_colaboradores_assinatura AS
 SELECT

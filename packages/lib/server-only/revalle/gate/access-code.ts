@@ -93,6 +93,14 @@ export const assertRevalleAccessCode = async ({
   if (attempt === null) {
     await audit(DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_ACCESS_AUTH_2FA_FAILED, recipient, requestMetadata);
 
+    // Contador esgotado sem bloqueio (requisição que reservou a 5ª tentativa caiu antes de bloquear): bloqueia agora
+    // para o link aparecer na lista do admin. Idempotente (só age com lockedAt nulo).
+    await lockRevalleGate({
+      recipientId: recipient.id,
+      reason: 'CODE_ATTEMPTS',
+      requestMetadata: requestMetadata ?? {},
+    });
+
     throw new AppError(AppErrorCode.UNAUTHORIZED, {
       message: 'Este link foi bloqueado por segurança.',
     });

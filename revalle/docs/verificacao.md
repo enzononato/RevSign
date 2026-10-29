@@ -6,6 +6,8 @@ Resumo: antes de assinar, cada pessoa aceita um termo e, na primeira vez, confir
 
 Esta etapa se chama **portão** nos textos técnicos.
 
+O que fica registrado no PDF final (carimbo, certificado) e como conferir um documento pelo código: `prova.md`.
+
 ## Como funciona para quem assina
 
 As telas, na ordem em que a pessoa vê:

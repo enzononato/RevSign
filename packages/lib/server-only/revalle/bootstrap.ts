@@ -2,6 +2,7 @@ import { prisma } from '@documenso/prisma';
 
 import { env } from '../../utils/env';
 import { mergeRevalleClaimFlags, REVALLE_CLAIM_LIMITS } from './claim-defaults';
+import { checkRevalleGeoIpDatabase } from './geoip';
 
 const toFlagsRecord = (flags: unknown): Record<string, unknown> => {
   if (typeof flags === 'object' && flags !== null && !Array.isArray(flags)) {
@@ -95,4 +96,7 @@ export const runRevalleBootstrap = async () => {
   } catch (err) {
     console.error('[RevSign] bootstrap falhou', err);
   }
+
+  // Fora do try acima: a base GeoIP não depende do banco. Base ausente ou vazia gera um aviso no log.
+  await checkRevalleGeoIpDatabase().catch(() => undefined);
 };

@@ -1,4 +1,4 @@
-import { type Field, FieldType } from '@prisma/client';
+import { type Field, FieldType, RecipientRole } from '@prisma/client'; // REVALLE: RecipientRole
 
 import { ZFieldMetaSchema } from '../types/field-meta';
 
@@ -15,7 +15,13 @@ export const ADVANCED_FIELD_TYPES_WITH_OPTIONAL_SETTING: FieldType[] = [
 /**
  * Whether a field is required to be inserted.
  */
-export const isRequiredField = (field: Field) => {
+export const isRequiredField = (field: Field, recipientRole?: RecipientRole) => {
+  // REVALLE: para o SIGNER, desenhar é opcional (o servidor insere o carimbo ao concluir). Sem papel informado,
+  // ou para APPROVER/ASSISTANT, a assinatura continua obrigatória como no upstream.
+  if (field.type === FieldType.SIGNATURE && recipientRole === RecipientRole.SIGNER) {
+    return false;
+  }
+
   // All fields without the optional metadata are assumed to be required.
   if (!ADVANCED_FIELD_TYPES_WITH_OPTIONAL_SETTING.includes(field.type)) {
     return true;
@@ -41,9 +47,15 @@ export const isRequiredField = (field: Field) => {
 /**
  * Whether the provided field is required and not inserted.
  */
-export const isFieldUnsignedAndRequired = (field: Field) => isRequiredField(field) && !field.inserted;
+export const isFieldUnsignedAndRequired = (
+  field: Field,
+  recipientRole?: RecipientRole, // REVALLE: recipientRole
+) => isRequiredField(field, recipientRole) && !field.inserted;
 
 /**
  * Whether the provided fields contains a field that is required to be inserted.
  */
-export const fieldsContainUnsignedRequiredField = (fields: Field[]) => fields.some(isFieldUnsignedAndRequired);
+export const fieldsContainUnsignedRequiredField = (
+  fields: Field[],
+  recipientRole?: RecipientRole, // REVALLE: recipientRole
+) => fields.some((field) => isFieldUnsignedAndRequired(field, recipientRole));

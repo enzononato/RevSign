@@ -20,6 +20,11 @@ import { DateTime } from 'luxon';
 
 import { AppError, AppErrorCode } from '../../errors/app-error';
 import { jobs } from '../../jobs/client';
+import {
+  type RevalleGeolocation,
+  revalleRoleRequestsDeviceLocation,
+  roundGeolocation,
+} from '../../revalle/geolocation'; // REVALLE:
 import type { TRecipientAccessAuth } from '../../types/document-auth';
 import { DocumentAuth } from '../../types/document-auth';
 import { isTspEnvelope } from '../../types/signature-level';
@@ -32,6 +37,8 @@ import { assertRecipientNotExpired, isRecipientBefore } from '../../utils/recipi
 import { getIsRecipientsTurnToSign } from '../recipient/get-is-recipient-turn';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { assertRevalleAccessCode } from '../revalle/gate/access-code'; // REVALLE:
+import { createRevalleSignatureProof, loadProofExternals } from '../revalle/proof/create-signature-proof'; // REVALLE:
+import { insertRevalleStampOnlySignatures } from '../revalle/proof/insert-stamp-only-signatures'; // REVALLE:
 import { assertSenderNotDisabled } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
 import { isRecipientAuthorized } from './is-recipient-authorized';
@@ -54,6 +61,7 @@ export type CompleteDocumentWithTokenOptions = {
     email?: string;
     name?: string;
   };
+  revalleGeolocation?: RevalleGeolocation; // REVALLE:
 };
 
 export const completeDocumentWithToken = async ({
@@ -64,6 +72,7 @@ export const completeDocumentWithToken = async ({
   requestMetadata,
   nextSigner: dictatedNextSigner,
   recipientOverride,
+  revalleGeolocation, // REVALLE:
 }: CompleteDocumentWithTokenOptions) => {
   const envelope = await prisma.envelope.findFirst({
     where: {
@@ -329,12 +338,16 @@ export const completeDocumentWithToken = async ({
     });
   }
 
-  if (fieldsContainUnsignedRequiredField(fields)) {
+  // REVALLE: papel do destinatário (SIGNATURE só é opcional para SIGNER)
+  if (fieldsContainUnsignedRequiredField(fields, recipient.role)) {
     throw new AppError(AppErrorCode.RECIPIENT_HAS_UNSIGNED_FIELDS, {
       message: `Recipient ${recipient.id} has unsigned fields`,
       statusCode: 400,
     });
   }
+
+  // REVALLE: consultas lentas (base do RH, GeoIP) ficam fora da transação
+  const revalleProofExternals = await loadProofExternals(recipient.id, requestMetadata);
 
   await prisma.$transaction(async (tx) => {
     // Conditional update so two concurrent completion requests can't both
@@ -392,6 +405,44 @@ export const completeDocumentWithToken = async ({
                 to: recipientEmail,
               },
             ],
+          },
+        }),
+      });
+    }
+
+    // REVALLE: SIGNATURE sem desenho vira "só carimbo" antes de congelar a prova (drewSignature/signatureKind corretos).
+    // Só para SIGNER; APPROVER/ASSISTANT já foram barrados acima se deixaram o campo vazio.
+    if (recipient.role === RecipientRole.SIGNER) {
+      await insertRevalleStampOnlySignatures(tx, recipient.id);
+    }
+
+    // REVALLE: prova congelada na mesma transação que marca o destinatário como assinado (sem prova órfã)
+    const revalleProof = await createRevalleSignatureProof({
+      recipientId: recipient.id,
+      requestMetadata,
+      tx,
+      externals: revalleProofExternals,
+      // VIEWER/CC não aceitam o termo: localização do aparelho nunca é gravada (NOT_REQUESTED), venha o que vier.
+      deviceLocation:
+        revalleGeolocation && revalleRoleRequestsDeviceLocation(recipient.role)
+          ? roundGeolocation(revalleGeolocation)
+          : undefined,
+    });
+
+    // REVALLE: desenhou ou não fica no log (só SIGNER com campo de assinatura, os únicos com carimbo)
+    if (recipient.role === RecipientRole.SIGNER && fields.some((field) => field.type === FieldType.SIGNATURE)) {
+      await tx.documentAuditLog.create({
+        data: createDocumentAuditLogData({
+          type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_SIGNATURE_STAMPED,
+          envelopeId: envelope.id,
+          user: { name: recipientName, email: recipientEmail },
+          requestMetadata,
+          data: {
+            recipientId: recipient.id,
+            signatureKind:
+              revalleProof.signatureKind === 'IMAGE' || revalleProof.signatureKind === 'TYPED'
+                ? revalleProof.signatureKind
+                : 'NONE',
           },
         }),
       });

@@ -1,7 +1,9 @@
 import { getBoundingClientRect } from '@documenso/lib/client-only/get-bounding-client-rect';
 import { useDocumentElement } from '@documenso/lib/client-only/hooks/use-document-element';
 import { useCurrentEnvelopeEditor } from '@documenso/lib/client-only/providers/envelope-editor-provider';
+import { getRevalleSignatureFieldPixels } from '@documenso/lib/client-only/revalle/signature-field-size'; // REVALLE:
 import { PDF_VIEWER_PAGE_SELECTOR } from '@documenso/lib/constants/pdf-viewer';
+import { clampRevalleSignatureFieldSize } from '@documenso/lib/revalle/stamp'; // REVALLE:
 import { FIELD_META_DEFAULT_VALUES } from '@documenso/lib/types/field-meta';
 import { nanoid } from '@documenso/lib/universal/id';
 import { canRecipientFieldsBeModified } from '@documenso/lib/utils/recipients';
@@ -131,6 +133,13 @@ export const EnvelopeEditorFieldDragDrop = ({
 
   const onMouseMove = useCallback(
     (event: MouseEvent) => {
+      // REVALLE: assinatura nasce no tamanho do carimbo, proporcional à página
+      const revalleBounds = getRevalleSignatureFieldPixels(selectedField, 'default');
+
+      if (revalleBounds) {
+        fieldBounds.current = revalleBounds;
+      }
+
       setIsFieldWithinBounds(
         isWithinPageBounds(event, PDF_VIEWER_PAGE_SELECTOR, fieldBounds.current.width, fieldBounds.current.height),
       );
@@ -140,7 +149,7 @@ export const EnvelopeEditorFieldDragDrop = ({
         y: event.clientY - fieldBounds.current.height / 2,
       });
     },
-    [isWithinPageBounds],
+    [isWithinPageBounds, selectedField], // REVALLE: selectedField
   );
 
   const onMouseClick = useCallback(
@@ -168,8 +177,13 @@ export const EnvelopeEditorFieldDragDrop = ({
       let pageY = ((event.pageY - top) / height) * 100;
 
       // Get the bounds as a percentage of the page width and height
-      const fieldPageWidth = (fieldBounds.current.width / width) * 100;
-      const fieldPageHeight = (fieldBounds.current.height / height) * 100;
+      // REVALLE: assinatura nunca abaixo do mínimo do carimbo
+      const droppedSize = {
+        width: (fieldBounds.current.width / width) * 100,
+        height: (fieldBounds.current.height / height) * 100,
+      };
+      const { width: fieldPageWidth, height: fieldPageHeight } =
+        selectedField === FieldType.SIGNATURE ? clampRevalleSignatureFieldSize(droppedSize) : droppedSize;
 
       // And center it based on the bounds
       pageX -= fieldPageWidth / 2;
