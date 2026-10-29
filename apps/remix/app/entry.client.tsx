@@ -1,4 +1,5 @@
 import { extractPostHogConfig } from '@documenso/lib/constants/feature-flags';
+import { REVALLE_DEFAULT_LOCALE } from '@documenso/lib/revalle/locale';
 import { dynamicActivate } from '@documenso/lib/utils/i18n';
 import { i18n } from '@lingui/core';
 import { detect, fromHtmlTag } from '@lingui/detect-locale';
@@ -96,7 +97,7 @@ function onRecoverableError(error: unknown, errorInfo: { componentStack?: string
 }
 
 async function main() {
-  const locale = detect(fromHtmlTag('lang')) || 'en';
+  const locale = detect(fromHtmlTag('lang')) || REVALLE_DEFAULT_LOCALE; // REVALLE: pt-BR como padrão
 
   await dynamicActivate(locale);
 

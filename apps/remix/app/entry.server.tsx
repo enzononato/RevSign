@@ -1,6 +1,7 @@
 import { PassThrough } from 'node:stream';
 import { APP_I18N_OPTIONS } from '@documenso/lib/constants/i18n';
-import { dynamicActivate, extractLocaleData } from '@documenso/lib/utils/i18n';
+import { REVALLE_DEFAULT_LOCALE } from '@documenso/lib/revalle/locale';
+import { dynamicActivate } from '@documenso/lib/utils/i18n';
 import { i18n } from '@lingui/core';
 import { I18nProvider } from '@lingui/react';
 import { createReadableStreamFromReadable } from '@react-router/node';
@@ -25,7 +26,8 @@ export default async function handleRequest(
   let language = await langCookie.parse(request.headers.get('cookie') ?? '');
 
   if (!APP_I18N_OPTIONS.supportedLangs.includes(language)) {
-    language = extractLocaleData({ headers: request.headers }).lang;
+    // REVALLE: sem cookie `lang`, pt-BR (ignora o Accept-Language); o cookie continua vencendo.
+    language = REVALLE_DEFAULT_LOCALE;
   }
 
   await dynamicActivate(language);
