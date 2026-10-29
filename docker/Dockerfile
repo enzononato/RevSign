@@ -92,6 +92,23 @@ ENV NODE_OPTIONS="--max-old-space-size=8192"
 
 RUN npx turbo run build --filter=@documenso/remix...
 
+# REVALLE: base de geolocalização por IP (DB-IP Lite City, CC BY 4.0), offline em runtime.
+# Tenta o mês do build e o anterior; se o download falhar, deixa um marcador vazio e o build segue
+# (o app funciona sem a base: ipLocation fica nulo).
+FROM alpine:3.22 AS geoip
+ARG DBIP_MONTH=""
+RUN apk add --no-cache curl && mkdir -p /geoip && \
+    month="${DBIP_MONTH:-$(date -u +%Y-%m)}" && \
+    prev="$(date -u -d "@$(( $(date -u -d "${month}-01" +%s 2>/dev/null || echo 0) - 86400 ))" +%Y-%m 2>/dev/null || true)" && \
+    ok=0 && \
+    for m in "$month" "$prev"; do \
+      [ -n "$m" ] || continue; \
+      if curl -fsSL --retry 2 --max-time 120 -o /tmp/dbip.mmdb.gz "https://download.db-ip.com/free/dbip-city-lite-${m}.mmdb.gz" \
+        && gunzip -c /tmp/dbip.mmdb.gz > /geoip/dbip-city-lite.mmdb && [ -s /geoip/dbip-city-lite.mmdb ]; then ok=1; break; fi; \
+    done; \
+    if [ "$ok" != 1 ]; then echo "AVISO: base DB-IP indisponivel, seguindo sem geolocalizacao"; : > /geoip/dbip-city-lite.mmdb; fi; \
+    rm -f /tmp/dbip.mmdb.gz
+
 ###########################
 #     RUNNER CONTAINER    #
 ###########################
@@ -140,6 +157,9 @@ COPY --from=installer --chown=nodejs:nodejs /app/apps/remix/public ./apps/remix/
 # Copy the prisma binary, schema and migrations
 COPY --from=installer --chown=nodejs:nodejs /app/packages/prisma/schema.prisma ./packages/prisma/schema.prisma
 COPY --from=installer --chown=nodejs:nodejs /app/packages/prisma/migrations ./packages/prisma/migrations
+
+# REVALLE: base GeoIP offline (ver estágio geoip)
+COPY --from=geoip --chown=nodejs:nodejs /geoip /app/geoip
 
 # Generate the prisma client again, this time only targeting the client generator
 RUN npx prisma generate --schema ./packages/prisma/schema.prisma --generator client \

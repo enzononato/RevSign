@@ -32,6 +32,10 @@ export default function PrivacidadePage() {
           <li>data e hora de cada etapa;</li>
           <li>localização aproximada pelo IP e, se você autorizar, a localização do seu aparelho.</li>
         </ul>
+        <p className="text-muted-foreground text-sm">
+          A localização aproximada pelo IP é obtida offline, sem enviar o seu IP a terceiros. IP Geolocation by DB-IP
+          (db-ip.com).
+        </p>
         <p>
           Não coletamos nada além disso. A data de nascimento é usada apenas para conferir com o cadastro de
           colaboradores e não é gravada pelo RevSign.

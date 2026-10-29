@@ -32,6 +32,7 @@ import { assertRecipientNotExpired, isRecipientBefore } from '../../utils/recipi
 import { getIsRecipientsTurnToSign } from '../recipient/get-is-recipient-turn';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { assertRevalleAccessCode } from '../revalle/gate/access-code'; // REVALLE:
+import { createRevalleSignatureProof, loadProofExternals } from '../revalle/proof/create-signature-proof'; // REVALLE:
 import { assertSenderNotDisabled } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
 import { isRecipientAuthorized } from './is-recipient-authorized';
@@ -336,6 +337,9 @@ export const completeDocumentWithToken = async ({
     });
   }
 
+  // REVALLE: consultas lentas (base do RH, GeoIP) ficam fora da transação
+  const revalleProofExternals = await loadProofExternals(recipient.id, requestMetadata);
+
   await prisma.$transaction(async (tx) => {
     // Conditional update so two concurrent completion requests can't both
     // proceed: only the request that transitions the recipient to SIGNED
@@ -396,6 +400,14 @@ export const completeDocumentWithToken = async ({
         }),
       });
     }
+
+    // REVALLE: prova congelada na mesma transação que marca o destinatário como assinado (sem prova órfã)
+    await createRevalleSignatureProof({
+      recipientId: recipient.id,
+      requestMetadata,
+      tx,
+      externals: revalleProofExternals,
+    });
 
     const authOptions = extractDocumentAuthMethods({
       documentAuth: envelope.authOptions,

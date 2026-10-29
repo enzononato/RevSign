@@ -674,6 +674,7 @@ model Recipient {
   cscCredential CscCredential?
   cscSession    CscSession?
   revalleGate   RevalleRecipientGate? // REVALLE:
+  revalleProof  RevalleSignatureProof? // REVALLE:
 
   @@index([token])
   @@index([email])
@@ -1353,4 +1354,25 @@ model RevalleDocumentHash {
   finalSha256    String?
   sentAt         DateTime     @default(now())
   sealedAt       DateTime?
+}
+
+/// REVALLE: prova congelada por signatário (dados do RH, fatores, termo, IP, aparelho, local). Imutável depois de criada.
+model RevalleSignatureProof {
+  id               String    @id @default(cuid())
+  recipientId      Int       @unique
+  recipient        Recipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  verificationCode String    @unique
+  signedAt         DateTime
+  employee         Json?
+  identityVerified Boolean
+  factors          Json
+  termVersion      String?
+  termAcceptedAt   DateTime?
+  ipAddress        String?
+  userAgent        String?
+  device           String?
+  ipLocation       Json?
+  deviceLocation   Json
+  drewSignature    Boolean
+  createdAt        DateTime  @default(now())
 }
