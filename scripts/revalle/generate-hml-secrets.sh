@@ -13,8 +13,14 @@ fi
 command -v git >/dev/null || { echo "ERRO: falta o comando git (necessário para checar a pasta)." >&2; exit 1; }
 
 # Caminho absoluto, sem criar nada ainda.
-case "$OUT" in /*) ;; *) OUT="$PWD/$OUT" ;; esac
-OUT="${OUT%/}"
+# Normaliza (resolve .. e links) antes de qualquer checagem.
+OUT="$(realpath -m -- "$OUT")"
+
+# Recusa link simbólico (inclusive quebrado) no destino final.
+if [ -L "$OUT" ] || [ -L "${1%/}" ]; then
+  echo "ERRO: $1 é um link simbólico. Indique uma pasta de verdade." >&2
+  exit 1
+fi
 
 if [ -e "$OUT" ] && [ ! -d "$OUT" ]; then
   echo "ERRO: $OUT existe e não é uma pasta." >&2
