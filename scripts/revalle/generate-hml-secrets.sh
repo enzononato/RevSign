@@ -10,20 +10,57 @@ if [ -z "$OUT" ]; then
   exit 1
 fi
 
-mkdir -p "$OUT"
-OUT="$(cd "$OUT" && pwd)"
+command -v git >/dev/null || { echo "ERRO: falta o comando git (necessário para checar a pasta)." >&2; exit 1; }
 
-# Recusa pasta dentro de um repositório Git.
-if REPO="$(cd "$OUT" && git rev-parse --show-toplevel 2>/dev/null)"; then
-  echo "ERRO: $OUT está dentro do repositório Git ($REPO). Escolha uma pasta fora dele." >&2
+# Caminho absoluto, sem criar nada ainda.
+case "$OUT" in /*) ;; *) OUT="$PWD/$OUT" ;; esac
+OUT="${OUT%/}"
+
+if [ -e "$OUT" ] && [ ! -d "$OUT" ]; then
+  echo "ERRO: $OUT existe e não é uma pasta." >&2
+  exit 1
+fi
+
+# Ancestral existente mais próximo (a pasta em si, se já existir).
+ANC="$OUT"
+while [ ! -d "$ANC" ]; do ANC="$(dirname "$ANC")"; done
+ANC="$(cd "$ANC" && pwd -P)"
+
+# Recusa pasta dentro de um repositório Git (falha fechada se o git der erro).
+if GIT_ERR="$(LC_ALL=C git -C "$ANC" rev-parse --show-toplevel 2>&1)"; then
+  echo "ERRO: $OUT está dentro do repositório Git ($GIT_ERR). Escolha uma pasta fora dele." >&2
+  exit 1
+elif ! printf '%s' "$GIT_ERR" | grep -qi 'not a git repository'; then
+  echo "ERRO: não consegui checar se a pasta está em um repositório Git: $GIT_ERR" >&2
   exit 1
 fi
 
 # Recusa pasta que já tenha arquivos.
-if [ -n "$(ls -A "$OUT")" ]; then
+if [ -d "$OUT" ] && [ -n "$(ls -A "$OUT")" ]; then
   echo "ERRO: $OUT já tem arquivos. Use uma pasta vazia (nada foi sobrescrito)." >&2
   exit 1
 fi
+
+# Em caso de falha, remove só o que esta execução criou.
+CREATED_TOP=""
+if [ ! -d "$OUT" ]; then
+  CREATED_TOP="$OUT"
+  while [ ! -d "$(dirname "$CREATED_TOP")" ]; do CREATED_TOP="$(dirname "$CREATED_TOP")"; done
+fi
+cleanup() {
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    if [ -n "$CREATED_TOP" ]; then
+      rm -rf -- "$CREATED_TOP"
+    else
+      find "$OUT" -mindepth 1 -delete 2>/dev/null || true # pasta estava vazia antes
+    fi
+    echo "Falhou: nada foi deixado em $OUT." >&2
+  fi
+}
+trap cleanup EXIT
+mkdir -p "$OUT"
+OUT="$(cd "$OUT" && pwd -P)"
 
 for cmd in openssl base64; do
   command -v "$cmd" >/dev/null || { echo "ERRO: falta o comando $cmd." >&2; exit 1; }
@@ -34,8 +71,11 @@ gen_age() { # $1 = arquivo de saída
   if command -v age-keygen >/dev/null; then
     age-keygen -o "$1" 2>/dev/null
   elif command -v docker >/dev/null; then
-    docker run --rm --entrypoint age-keygen "${REVSIGN_BACKUP_IMAGE:-alpine:3.22}" >"$1" 2>/dev/null \
-      || docker run --rm alpine:3.22 sh -c 'apk add -q age >/dev/null && age-keygen 2>/dev/null' >"$1"
+    if [ -n "${REVSIGN_BACKUP_IMAGE:-}" ]; then
+      docker run --rm --entrypoint age-keygen "$REVSIGN_BACKUP_IMAGE" >"$1" 2>/dev/null
+    else
+      docker run --rm alpine:3.22 sh -c 'apk add -q age >/dev/null && age-keygen 2>/dev/null' >"$1"
+    fi
   else
     echo "ERRO: precisa de age-keygen ou Docker." >&2
     exit 1
