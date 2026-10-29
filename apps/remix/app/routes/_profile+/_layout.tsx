@@ -52,13 +52,8 @@ export default function PublicProfileLayout() {
             >
               <BrandingLogo className="hidden h-6 w-auto sm:block" />
 
-              <img
-                src={LogoIcon}
-                alt="Documenso Logo"
-                width={48}
-                height={48}
-                className="h-10 w-auto sm:hidden dark:invert"
-              />
+              {/* REVALLE: alt RevSign; sem dark:invert (o ícone tem fundo próprio) */}
+              <img src={LogoIcon} alt="RevSign" width={48} height={48} className="h-10 w-auto sm:hidden" />
             </Link>
 
             <div className="flex flex-row items-center justify-center">

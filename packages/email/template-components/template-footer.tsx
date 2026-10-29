@@ -1,3 +1,4 @@
+import { REVALLE_COMPANY_FOOTER } from '@documenso/lib/revalle/brand';
 import { Trans } from '@lingui/react/macro';
 import { Fragment } from 'react';
 
@@ -10,7 +11,7 @@ export type TemplateFooterProps = {
   reportUrl?: string;
 };
 
-export const TemplateFooter = ({ isDocument = true, reportUrl }: TemplateFooterProps) => {
+export const TemplateFooter = ({ reportUrl }: TemplateFooterProps) => {
   const branding = useBranding();
 
   const safeBrandingUrl = branding.brandingEnabled ? getSafeBrandingUrl(branding.brandingUrl) : null;
@@ -29,17 +30,7 @@ export const TemplateFooter = ({ isDocument = true, reportUrl }: TemplateFooterP
         </Text>
       )}
 
-      {isDocument && !branding.brandingHidePoweredBy && (
-        <Text className="my-4 text-base text-muted-foreground">
-          <Trans>
-            This document was sent using{' '}
-            <Link className="text-primary" href="https://documen.so/mail-footer">
-              Documenso
-            </Link>
-            .
-          </Trans>
-        </Text>
-      )}
+      {/* REVALLE: sem o "enviado usando Documenso" (link de divulgação para documen.so) */}
 
       {branding.brandingEnabled && branding.brandingCompanyDetails && (
         <Text className="my-8 text-muted-foreground text-sm">
@@ -64,9 +55,8 @@ export const TemplateFooter = ({ isDocument = true, reportUrl }: TemplateFooterP
 
       {!branding.brandingEnabled && (
         <Text className="my-8 text-muted-foreground text-sm">
-          Documenso, Inc.
-          <br />
-          2261 Market Street, #5211, San Francisco, CA 94114, USA
+          {/* REVALLE: rodapé da Revalle no lugar do endereço do Documenso */}
+          {REVALLE_COMPANY_FOOTER}
         </Text>
       )}
     </Section>

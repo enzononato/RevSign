@@ -1,4 +1,5 @@
 import type { TPasswordChangeSource } from '@documenso/lib/jobs/definitions/emails/send-password-reset-success-email';
+import { REVALLE_SUPPORT_EMAIL } from '@documenso/lib/revalle/brand';
 import { msg } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
@@ -56,9 +57,10 @@ export const ResetPasswordTemplate = ({
                     <Trans>We've changed your password as you asked. You can now sign in with your new password.</Trans>
                   </Text>
                   <Text className="mt-2 text-base text-muted-foreground">
+                    {/* REVALLE: suporte da TI da Revalle */}
                     <Trans>
                       Didn't request a password change? We are here to help you secure your account, just{' '}
-                      <Link className="font-normal text-primary" href="mailto:hi@documenso.com">
+                      <Link className="font-normal text-primary" href={`mailto:${REVALLE_SUPPORT_EMAIL}`}>
                         contact us
                       </Link>
                       .
@@ -71,9 +73,10 @@ export const ResetPasswordTemplate = ({
                     <Trans>Your password was just changed from your account security settings.</Trans>
                   </Text>
                   <Text className="mt-2 text-base text-muted-foreground">
+                    {/* REVALLE: suporte da TI da Revalle */}
                     <Trans>
                       If this was you, no action is needed. If it wasn't, reset your password immediately and{' '}
-                      <Link className="font-normal text-primary" href="mailto:hi@documenso.com">
+                      <Link className="font-normal text-primary" href={`mailto:${REVALLE_SUPPORT_EMAIL}`}>
                         contact us
                       </Link>
                       .

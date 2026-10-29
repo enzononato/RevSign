@@ -232,10 +232,11 @@ export const OrganisationMemberInviteDialog = ({ trigger, ...props }: Organisati
   };
 
   const downloadTemplate = () => {
+    // REVALLE: exemplos com o domínio da Revalle no modelo CSV
     const data = [
-      { email: 'admin@documenso.com', role: 'Admin' },
-      { email: 'manager@documenso.com', role: 'Manager' },
-      { email: 'member@documenso.com', role: 'Member' },
+      { email: 'admin@revalle.com.br', role: 'Admin' },
+      { email: 'manager@revalle.com.br', role: 'Manager' },
+      { email: 'member@revalle.com.br', role: 'Member' },
     ];
 
     const csvContent = 'Email address,Role\n' + data.map((row) => `${row.email},${row.role}`).join('\n');

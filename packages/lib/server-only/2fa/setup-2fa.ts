@@ -11,7 +11,8 @@ type SetupTwoFactorAuthenticationOptions = {
   user: Pick<User, 'id' | 'email'>;
 };
 
-const ISSUER = 'Documenso';
+// REVALLE: nome no app autenticador. É só rótulo: segredos TOTP já cadastrados continuam valendo.
+const ISSUER = 'RevSign';
 
 export const setupTwoFactorAuthentication = async ({ user }: SetupTwoFactorAuthenticationOptions) => {
   const key = DOCUMENSO_ENCRYPTION_KEY;
