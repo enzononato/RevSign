@@ -4261,3 +4261,21 @@ msgstr "Recolher"
 
 msgid "Expand"
 msgstr "Expandir"
+
+msgctxt "Recipient role action verb"
+msgid "Assist"
+msgstr "Preencher"
+
+msgid "Assist with signing"
+msgstr "Ajudar no preenchimento"
+
+msgid "Assisted"
+msgstr "Preenchido"
+
+msgctxt "Recipient role actioned"
+msgid "Assisted"
+msgstr "Preenchido"
+
+msgctxt "Recipient role progressive verb"
+msgid "Assisting"
+msgstr "Preenchendo"
