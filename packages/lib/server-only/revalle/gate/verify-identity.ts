@@ -36,11 +36,29 @@ const lookup = async (cpf: string, birthDate: string): Promise<LookupResult> => 
     return colaborador && colaborador.dataNascimento === isoDate
       ? { kind: 'FOUND', colaborador }
       : { kind: 'NOT_FOUND' };
-  } catch {
-    logRevalleBaseUnavailable();
+  } catch (error) {
+    logRevalleBaseUnavailable(error);
 
     return { kind: 'UNAVAILABLE' };
   }
+};
+
+// Reserva a tentativa antes de consultar a base: com requisições em paralelo, no máximo 5 palpites são avaliados.
+const reserveAttempt = async (recipientId: number): Promise<number | null> => {
+  const rows = await prisma.$queryRaw<Array<{ failedAttempts: number }>>`
+    UPDATE "RevalleRecipientGate"
+    SET "failedAttempts" = "failedAttempts" + 1, "updatedAt" = now()
+    WHERE "recipientId" = ${recipientId} AND "lockedAt" IS NULL AND "failedAttempts" < ${REVALLE_MAX_ATTEMPTS}
+    RETURNING "failedAttempts"`;
+
+  return rows[0]?.failedAttempts ?? null;
+};
+
+const giveBackAttempt = async (recipientId: number) => {
+  await prisma.revalleRecipientGate.updateMany({
+    where: { recipientId, failedAttempts: { gt: 0 } },
+    data: { failedAttempts: { decrement: 1 } },
+  });
 };
 
 export const verifyRevalleIdentity = async ({
@@ -65,13 +83,25 @@ export const verifyRevalleIdentity = async ({
     return current;
   }
 
+  const attempt = await reserveAttempt(recipientId);
+
+  if (attempt === null) {
+    await lockRevalleGate({ recipientId, reason: 'ATTEMPTS', requestMetadata });
+
+    return { status: 'LOCKED' };
+  }
+
   const result = await lookup(cpf, birthDate);
 
   if (result.kind === 'UNAVAILABLE') {
+    await giveBackAttempt(recipientId);
+
     return { status: 'UNAVAILABLE' };
   }
 
   if (result.kind === 'FOUND') {
+    await giveBackAttempt(recipientId);
+
     const { colaborador } = result;
     const email = normalizeEmail(recipient.email);
 
@@ -94,16 +124,6 @@ export const verifyRevalleIdentity = async ({
     return verified.count === 0 ? { status: 'LOCKED' } : previewOf(colaborador);
   }
 
-  const { failedAttempts: attempt, lockedAt } = await prisma.revalleRecipientGate.update({
-    where: { recipientId },
-    data: { failedAttempts: { increment: 1 } },
-    select: { failedAttempts: true, lockedAt: true },
-  });
-
-  if (lockedAt || attempt > REVALLE_MAX_ATTEMPTS) {
-    return { status: 'LOCKED' };
-  }
-
   await prisma.documentAuditLog.create({
     data: createDocumentAuditLogData({
       type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_IDENTITY_FAILED,
@@ -114,7 +134,7 @@ export const verifyRevalleIdentity = async ({
     }),
   });
 
-  if (attempt === REVALLE_MAX_ATTEMPTS) {
+  if (attempt >= REVALLE_MAX_ATTEMPTS) {
     await lockRevalleGate({ recipientId, reason: 'ATTEMPTS', requestMetadata });
 
     return { status: 'LOCKED' };

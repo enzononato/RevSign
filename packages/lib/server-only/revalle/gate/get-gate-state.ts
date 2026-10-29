@@ -15,22 +15,57 @@ import { REVALLE_MAX_ATTEMPTS, type RevalleGateRecipient, type RevalleGateState 
 
 export const isRevalleIdentityCheckDisabled = () => env('NEXT_PRIVATE_REVALLE_IDENTITY_CHECK') === 'disabled';
 
-export const logRevalleBaseUnavailable = () => {
-  logger.error({ msg: '[RevSign] base de colaboradores indisponível' });
+export const logRevalleBaseUnavailable = (error?: unknown) => {
+  const { code, message } =
+    error instanceof Error ? (error as Error & { code?: string }) : ({} as { code?: string; message?: string });
+
+  logger.error({ msg: '[RevSign] base de colaboradores indisponível', code, message: message?.slice(0, 200) });
 };
 
-export const ensureRevalleGate = async (recipientId: number): Promise<RevalleRecipientGate> => {
-  const existing = await prisma.revalleRecipientGate.findUnique({ where: { recipientId } });
+/**
+ * Devolve a linha do portão. Se o e-mail do destinatário mudou desde a última vez, o portão volta ao início
+ * (termo, identidade e tentativas), para que quem recebe o link depois não herde o que foi feito pelo e-mail anterior.
+ */
+export const ensureRevalleGate = async (recipient: RevalleGateRecipient): Promise<RevalleRecipientGate> => {
+  const email = normalizeEmail(recipient.email);
+  const recipientId = recipient.id;
+  let gate = await prisma.revalleRecipientGate.findUnique({ where: { recipientId } });
 
-  if (existing) {
-    return existing;
+  if (!gate) {
+    try {
+      gate = await prisma.revalleRecipientGate.create({ data: { recipientId, email } });
+    } catch {
+      gate = await prisma.revalleRecipientGate.findUniqueOrThrow({ where: { recipientId } });
+    }
   }
 
-  try {
-    return await prisma.revalleRecipientGate.create({ data: { recipientId } });
-  } catch {
-    return await prisma.revalleRecipientGate.findUniqueOrThrow({ where: { recipientId } });
+  if (gate.email === email) {
+    return gate;
   }
+
+  if (gate.email === null) {
+    await prisma.revalleRecipientGate.updateMany({ where: { recipientId, email: null }, data: { email } });
+  } else {
+    await prisma.revalleRecipientGate.updateMany({
+      where: { recipientId, email: gate.email },
+      data: {
+        email,
+        termVersion: null,
+        termAcceptedAt: null,
+        termIpAddress: null,
+        termUserAgent: null,
+        identityStatus: 'PENDING',
+        pendingCpf: null,
+        cpf: null,
+        identityConfirmedAt: null,
+        failedAttempts: 0,
+        lockedAt: null,
+        lockReason: null,
+      },
+    });
+  }
+
+  return await prisma.revalleRecipientGate.findUniqueOrThrow({ where: { recipientId } });
 };
 
 export const previewOf = (colaborador: Colaborador): RevalleGateState => ({
@@ -48,8 +83,12 @@ const markLinked = async (
   requestMetadata: RequestMetadata | undefined,
 ) => {
   const updated = await prisma.revalleRecipientGate.updateMany({
-    where: { recipientId: recipient.id, identityStatus: { notIn: ['LINKED', 'CONFIRMED', 'SKIPPED'] } },
-    data: { identityStatus: 'LINKED', cpf, identityConfirmedAt: new Date() },
+    where: {
+      recipientId: recipient.id,
+      lockedAt: null,
+      identityStatus: { notIn: ['LINKED', 'CONFIRMED', 'SKIPPED'] },
+    },
+    data: { identityStatus: 'LINKED', cpf, pendingCpf: null, identityConfirmedAt: new Date() },
   });
 
   if (updated.count === 0) {
@@ -78,7 +117,7 @@ export const getRevalleGateState = async (
   recipient: RevalleGateRecipient,
   requestMetadata?: RequestMetadata,
 ): Promise<RevalleGateState> => {
-  const gate = await ensureRevalleGate(recipient.id);
+  const gate = await ensureRevalleGate(recipient);
 
   if (gate.lockedAt) {
     return { status: 'LOCKED' };
@@ -139,8 +178,8 @@ export const getRevalleGateState = async (
         return previewOf(pending);
       }
     }
-  } catch {
-    logRevalleBaseUnavailable();
+  } catch (error) {
+    logRevalleBaseUnavailable(error);
 
     return { status: 'UNAVAILABLE' };
   }

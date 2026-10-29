@@ -49,6 +49,7 @@ Toda edição em arquivo do upstream é marcada com `REVALLE:` no código e list
 | `packages/lib/revalle/recipient-domains.ts`, `packages/lib/server-only/revalle/assert-recipient-domains.ts` | Regra de domínio dos destinatários (cliente e servidor) | 3 |
 | `scripts/revalle/tests/` | Testes de integração contra a stack local (`node --test`) e ajudantes | 3 |
 | `packages/prisma/migrations/20261029120000_revalle_verification/migration.sql` | Tabelas `RevalleEmailLink` e `RevalleRecipientGate` | 3 |
+| `packages/prisma/migrations/20261029130000_revalle_link_cpf_unique/migration.sql`, `packages/prisma/schema.prisma` (modelos `Revalle*`) | CPF único em `RevalleEmailLink`; e-mail no portão | 3 |
 | `packages/lib/revalle/term.ts` | Termo de assinatura eletrônica (versão 1, provisória) | 3 |
 | `apps/remix/app/routes/_share+/privacidade.tsx` | Página pública `/privacidade` | 3 |
 | `packages/lib/server-only/revalle/gate/`, `packages/trpc/server/revalle-router/`, `packages/email/templates/revalle-gate-locked.tsx` | Núcleo do portão: termo, identidade (CPF + data), bloqueio e aviso por e-mail | 3 |

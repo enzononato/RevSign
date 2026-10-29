@@ -26,7 +26,7 @@ export const acceptRevalleTerm = async ({
     select: { id: true, email: true, name: true, envelopeId: true },
   });
 
-  const gate = await ensureRevalleGate(recipientId);
+  const gate = await ensureRevalleGate(recipient);
 
   if (!gate.lockedAt && gate.termVersion !== REVALLE_TERM_VERSION) {
     await prisma.$transaction(async (tx) => {

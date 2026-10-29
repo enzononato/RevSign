@@ -19,7 +19,7 @@ export const lockRevalleGate = async ({
 }): Promise<void> => {
   const locked = await prisma.revalleRecipientGate.updateMany({
     where: { recipientId, lockedAt: null },
-    data: { lockedAt: new Date(), lockReason: reason, pendingCpf: null },
+    data: { lockedAt: new Date(), lockReason: reason, identityStatus: 'PENDING', pendingCpf: null },
   });
 
   if (locked.count === 0) {

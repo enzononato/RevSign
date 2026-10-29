@@ -4,16 +4,33 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { beforeEach, test } from 'node:test';
 
-import { createEnvelope, db, distribute, latestMail, trpc } from './helpers.mjs';
+import { api, createEnvelope, db, distribute, latestMail, trpc } from './helpers.mjs';
 
 const TERM_VERSION = '1';
 const ADMIN_EMAIL = 'teste1@revalle.com.br';
 const MARIA = { cpf: '390.533.447-05', cpfDigits: '39053344705', birthDate: '07/03/1990' };
 const JOAO = { cpf: '52871936455', birthDate: '20/11/1985' };
 const ANA = { cpf: '74612058380', birthDate: '15/01/1978' };
+const BEATRIZ = { cpf: '68340192787', birthDate: '09/09/1988' };
+const FERNANDO = { cpf: '93457210888', birthDate: '31/12/1999' };
+const ALL_CPFS = [MARIA.cpfDigits, JOAO.cpf, ANA.cpf, BEATRIZ.cpf, FERNANDO.cpf];
 
 const COMPOSE = ['compose', '-f', 'revalle/deploy/compose.hml.yml', '--env-file', '../local-hml/hml.env'];
 const compose = (...args) => execFileSync('docker', [...COMPOSE, ...args], { stdio: 'ignore' });
+
+const waitForBase = async () => {
+  compose('start', 'colaboradores-db');
+
+  for (let i = 0; i < 40; i += 1) {
+    try {
+      execFileSync('docker', ['exec', 'revsign-hml-colaboradores-db-1', 'pg_isready', '-q'], { stdio: 'ignore' });
+
+      return;
+    } catch {
+      await sleep(500);
+    }
+  }
+};
 
 const unique = () => `gate-${Date.now()}-${Math.floor(Math.random() * 1e6)}@revalle.com.br`;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -41,7 +58,7 @@ const attempts = (recipientId) =>
 
 beforeEach(() => {
   db(`delete from "RateLimit" where action = 'revalle.gate'`);
-  db(`delete from "RevalleEmailLink" where cpf in ('${MARIA.cpfDigits}', '${JOAO.cpf}', '${ANA.cpf}')`);
+  db(`delete from "RevalleEmailLink" where cpf in (${ALL_CPFS.map((c) => `'${c}'`).join(',')})`);
 });
 
 test('term-first: verificar identidade antes do termo devolve TERM_REQUIRED', async () => {
@@ -65,7 +82,14 @@ test('versão do termo diferente da vigente é recusada', async () => {
   const r = await newRecipient();
   const res = await call('acceptTerm', { token: r.token, termVersion: '0' });
 
-  assert.equal(res.ok, false);
+  assert.equal(res.status, 400, res.text);
+  assert.equal((await verify(r.token, MARIA.cpf, MARIA.birthDate)).state.status, 'TERM_REQUIRED');
+  assert.equal(
+    db(
+      `select count(*) from "DocumentAuditLog" where "envelopeId" = '${r.envelopeId}' and type = 'REVALLE_TERM_ACCEPTED'`,
+    ),
+    '0',
+  );
 });
 
 test('happy-path: termo, CPF + data, confirmação e vínculo criado', async () => {
@@ -226,14 +250,14 @@ test('desligado: situação não bloqueia', async () => {
   assert.equal((await call('confirmIdentity', { token: r.token, isMe: true })).state.status, 'PASSED');
 });
 
-test('tentativas em paralelo não passam de 5', async () => {
+test('tentativas em paralelo: exatamente 5 palpites avaliados e um bloqueio', async () => {
   const r = await newRecipient();
 
   await acceptTerm(r.token);
   await Promise.all(Array.from({ length: 12 }, () => verify(r.token, MARIA.cpf, '01/01/2001')));
 
+  assert.equal(attempts(r.recipientId), 5);
   assert.equal((await verify(r.token, MARIA.cpf, MARIA.birthDate)).state.status, 'LOCKED');
-  assert.ok(attempts(r.recipientId) <= 12);
   assert.equal(
     db(
       `select count(*) from "DocumentAuditLog" where "envelopeId" = '${r.envelopeId}' and type = 'REVALLE_GATE_LOCKED'`,
@@ -248,12 +272,151 @@ test('tentativas em paralelo não passam de 5', async () => {
   );
 });
 
+test('rajada com um palpite certo e confirmação: no máximo 5 palpites errados e vínculo só se não bloqueou', async () => {
+  const r = await newRecipient();
+
+  await acceptTerm(r.token);
+
+  const burst = Array.from({ length: 12 }, (_, i) =>
+    i === 6 ? verify(r.token, MARIA.cpf, MARIA.birthDate) : verify(r.token, MARIA.cpf, '01/01/2001'),
+  );
+
+  burst.push(call('confirmIdentity', { token: r.token, isMe: true }));
+  await Promise.all(burst);
+
+  const failed = Number(
+    db(
+      `select count(*) from "DocumentAuditLog" where "envelopeId" = '${r.envelopeId}' and type = 'REVALLE_IDENTITY_FAILED'`,
+    ),
+  );
+  const locked =
+    db(`select "lockedAt" is not null from "RevalleRecipientGate" where "recipientId" = ${r.recipientId}`) === 't';
+  const links = Number(db(`select count(*) from "RevalleEmailLink" where email = '${r.email}'`));
+
+  assert.ok(failed <= 5, `eventos FAILED: ${failed}`);
+  assert.ok(attempts(r.recipientId) <= 5);
+
+  if (locked) {
+    assert.equal(links, 0);
+  } else {
+    assert.ok(links <= 1);
+  }
+});
+
+test('confirmIdentity sem verificação prévia não cria vínculo', async () => {
+  const r = await newRecipient();
+
+  await acceptTerm(r.token);
+
+  const res = await call('confirmIdentity', { token: r.token, isMe: true });
+
+  assert.equal(res.state.status, 'IDENTITY_REQUIRED');
+  assert.equal(db(`select count(*) from "RevalleEmailLink" where email = '${r.email}'`), '0');
+});
+
+test('confirmar (sim ou não) em portão bloqueado continua bloqueado', async () => {
+  const r = await newRecipient();
+
+  await acceptTerm(r.token);
+  await verify(r.token, MARIA.cpf, MARIA.birthDate);
+  db(
+    `update "RevalleRecipientGate" set "lockedAt" = now(), "lockReason" = 'ATTEMPTS' where "recipientId" = ${r.recipientId}`,
+  );
+
+  assert.equal((await call('confirmIdentity', { token: r.token, isMe: true })).state.status, 'LOCKED');
+  assert.equal((await call('confirmIdentity', { token: r.token, isMe: false })).state.status, 'LOCKED');
+  assert.equal(db(`select count(*) from "RevalleEmailLink" where email = '${r.email}'`), '0');
+});
+
+test('conflito na confirmação: o CPF foi confirmado por outro e-mail antes', async () => {
+  const a = await newRecipient();
+  const b = await newRecipient();
+
+  for (const r of [a, b]) {
+    await acceptTerm(r.token);
+    assert.equal((await verify(r.token, BEATRIZ.cpf, BEATRIZ.birthDate)).state.status, 'IDENTITY_CONFIRM');
+  }
+
+  assert.equal((await call('confirmIdentity', { token: b.token, isMe: true })).state.status, 'PASSED');
+  assert.equal((await call('confirmIdentity', { token: a.token, isMe: true })).state.status, 'LOCKED');
+  assert.equal(
+    db(`select "lockReason" from "RevalleRecipientGate" where "recipientId" = ${a.recipientId}`),
+    'CPF_CONFLICT',
+  );
+  assert.equal(db(`select count(*) from "RevalleEmailLink" where cpf = '${BEATRIZ.cpf}'`), '1');
+  assert.equal(db(`select count(*) from "RevalleEmailLink" where email = '${a.email}'`), '0');
+
+  await sleep(1500);
+  assert.match((await latestMail(ADMIN_EMAIL))?.Subject ?? '', /Link de assinatura bloqueado/);
+});
+
+test('conflito na confirmação: e-mail já vinculado a outro CPF', async () => {
+  const r = await newRecipient();
+
+  await acceptTerm(r.token);
+  await verify(r.token, MARIA.cpf, MARIA.birthDate);
+  db(`insert into "RevalleEmailLink" (id, email, cpf) values ('t-${Date.now()}', '${r.email}', '${FERNANDO.cpf}')`);
+
+  assert.equal((await call('confirmIdentity', { token: r.token, isMe: true })).state.status, 'LOCKED');
+  assert.equal(db(`select cpf from "RevalleEmailLink" where email = '${r.email}'`), FERNANDO.cpf);
+  assert.equal(db(`select count(*) from "RevalleEmailLink" where cpf = '${MARIA.cpfDigits}'`), '0');
+});
+
+test('trocar o e-mail do destinatário reinicia o portão', async () => {
+  const r = await newRecipient();
+
+  await acceptTerm(r.token);
+  await verify(r.token, MARIA.cpf, MARIA.birthDate);
+  assert.equal((await call('confirmIdentity', { token: r.token, isMe: true })).state.status, 'PASSED');
+
+  const newEmail = unique();
+  const upd = await api('POST', '/envelope/recipient/update-many', {
+    envelopeId: r.envelopeId,
+    data: [{ id: r.recipientId, email: newEmail }],
+  });
+
+  assert.equal(upd.status, 200, upd.text);
+
+  const res = await verify(r.token, MARIA.cpf, MARIA.birthDate);
+
+  assert.equal(res.state.status, 'TERM_REQUIRED');
+  assert.equal((await acceptTerm(r.token)).state.status, 'IDENTITY_REQUIRED');
+  assert.equal(attempts(r.recipientId), 0);
+});
+
+test('envelope rascunho ou concluído devolve 404', async () => {
+  const draft = await createEnvelope({ recipients: [{ email: unique() }] });
+
+  assert.equal(draft.status, 200, draft.text);
+
+  const draftToken = draft.envelope.recipients[0].token;
+
+  assert.equal((await acceptTerm(draftToken)).status, 404);
+
+  const r = await newRecipient();
+
+  db(`update "Envelope" set status = 'COMPLETED' where id = '${r.envelopeId}'`);
+  assert.equal((await acceptTerm(r.token)).status, 404);
+});
+
+test('destinatário que já assinou ou é só cópia devolve 404', async () => {
+  const r = await newRecipient();
+
+  db(`update "Recipient" set "signingStatus" = 'SIGNED' where id = ${r.recipientId}`);
+  assert.equal((await acceptTerm(r.token)).status, 404);
+
+  const cc = await newRecipient();
+
+  db(`update "Recipient" set role = 'CC' where id = ${cc.recipientId}`);
+  assert.equal((await acceptTerm(cc.token)).status, 404);
+});
+
 test('base-down: base fora do ar devolve UNAVAILABLE sem consumir tentativa', async (t) => {
   const r = await newRecipient();
 
   await acceptTerm(r.token);
   compose('stop', 'colaboradores-db');
-  t.after(() => compose('start', 'colaboradores-db'));
+  t.after(waitForBase);
 
   const res = await verify(r.token, MARIA.cpf, MARIA.birthDate);
 

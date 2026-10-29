@@ -1315,17 +1315,16 @@ model RateLimit {
 model RevalleEmailLink {
   id                   String   @id @default(cuid())
   email                String   @unique
-  cpf                  String
+  cpf                  String   @unique
   createdAt            DateTime @default(now())
   createdByRecipientId Int?
-
-  @@index([cpf])
 }
 
 model RevalleRecipientGate {
   id                  String    @id @default(cuid())
   recipientId         Int       @unique
   recipient           Recipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  email               String?
   termVersion         String?
   termAcceptedAt      DateTime?
   termIpAddress       String?
