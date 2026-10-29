@@ -13,6 +13,7 @@ Toda edição em arquivo do upstream é marcada com `REVALLE:` no código e list
 | `.gitignore` | Bloco `REVALLE:` no final | Impedir commit de `.env*`, certificados e chaves | 1 |
 | `.husky/pre-commit` | Uma linha chamando `scripts/revalle/check-secrets.sh` | Bloqueio local de commit de segredos | 1 |
 | `apps/remix/app/root.tsx` | Import + renderização de `<SourceCodeLink />` | AGPL §13: link "Código-fonte" em todas as telas | 1 |
+| `packages/lib/utils/organisations.ts` | `generateDefaultOrganisationSettings`: pt-BR, `America/Bahia`, `dd/MM/yyyy HH:mm`, `includeAuditLog: true`; removido o import `DEFAULT_DOCUMENT_DATE_FORMAT`, que ficou sem uso | Toda organização nova (inclusive a pessoal de cada remetente) nasce com os padrões da Revalle | 1 |
 
 ## Arquivos novos (não conflitam com o upstream)
 

@@ -2,7 +2,6 @@ import type { ORGANISATION_MEMBER_ROLE_MAP } from '@documenso/lib/constants/orga
 import type { Organisation, OrganisationGlobalSettings, Prisma } from '@prisma/client';
 import { DocumentVisibility, type OrganisationGroup, OrganisationMemberRole } from '@prisma/client';
 
-import { DEFAULT_DOCUMENT_DATE_FORMAT } from '../constants/date-formats';
 import { DEFAULT_ENVELOPE_EXPIRATION_PERIOD } from '../constants/envelope-expiration';
 import { DEFAULT_ENVELOPE_REMINDER_SETTINGS } from '../constants/envelope-reminder';
 import {
@@ -119,14 +118,16 @@ export const buildOrganisationWhereQuery = ({
 export const generateDefaultOrganisationSettings = (): Omit<OrganisationGlobalSettings, 'id' | 'organisation'> => {
   return {
     documentVisibility: DocumentVisibility.EVERYONE,
-    documentLanguage: 'en',
-    documentTimezone: null, // Null means local timezone.
-    documentDateFormat: DEFAULT_DOCUMENT_DATE_FORMAT,
+    // REVALLE: toda organização nova (inclusive a pessoal) nasce em pt-BR, horário de
+    // Brasília, dd/MM/yyyy HH:mm e com o log de auditoria anexado ao PDF final.
+    documentLanguage: 'pt-BR',
+    documentTimezone: 'America/Bahia',
+    documentDateFormat: 'dd/MM/yyyy HH:mm',
     delegateDocumentOwnership: false,
 
     includeSenderDetails: true,
     includeSigningCertificate: true,
-    includeAuditLog: false,
+    includeAuditLog: true,
 
     typedSignatureEnabled: true,
     uploadSignatureEnabled: true,
