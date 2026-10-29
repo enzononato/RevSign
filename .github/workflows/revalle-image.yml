@@ -98,6 +98,11 @@ jobs:
           load: true
           push: false
           tags: revsign-backup:test
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.tags.outputs.version }}
+            org.opencontainers.image.licenses=AGPL-3.0
           cache-from: type=gha,scope=backup
           cache-to: type=gha,mode=max,scope=backup
 
@@ -110,16 +115,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/build-push-action@v6
-        with:
-          context: revalle/backup
-          platforms: linux/amd64
-          push: true
-          tags: ${{ steps.tags.outputs.tags }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.version=${{ steps.tags.outputs.version }}
-            org.opencontainers.image.licenses=AGPL-3.0
-          cache-from: type=gha,scope=backup
-          cache-to: type=gha,mode=max,scope=backup
+      # Publica exatamente a imagem testada (sem rebuild).
+      - name: Publicar imagem testada
+        env:
+          TAGS: ${{ steps.tags.outputs.tags }}
+        run: |
+          set -eu
+          for t in $(echo "$TAGS" | tr ',' ' '); do
+            docker tag revsign-backup:test "$t"
+            docker push "$t"
+          done
