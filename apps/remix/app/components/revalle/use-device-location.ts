@@ -1,5 +1,11 @@
-import { type RevalleGeolocation, roundGeolocation } from '@documenso/lib/revalle/geolocation';
-import { useCallback, useRef } from 'react';
+import { useIsFramed } from '@documenso/lib/client-only/hooks/use-is-framed';
+import {
+  canRequestDeviceLocation,
+  type RevalleGeolocation,
+  roundGeolocation,
+} from '@documenso/lib/revalle/geolocation';
+import { useCallback, useRef, useState } from 'react';
+import { useEmbedSigningContext } from '~/components/embed/embed-signing-context';
 
 // REVALLE: localização opcional do aparelho (Fase 4, spec 7.3). Nunca lança; recusa ou falha não bloqueiam a assinatura.
 const LOCATION_TIMEOUT_MS = 10_000;
@@ -39,19 +45,35 @@ const getLocation = (): Promise<RevalleGeolocation> =>
     }
   });
 
+/** false em embed/iframe: o aviso some e nada é pedido. */
+export const useCanRequestDeviceLocation = () => {
+  const isFramed = useIsFramed();
+  const embed = useEmbedSigningContext();
+
+  return canRequestDeviceLocation({ hasEmbedContext: Boolean(embed), isFramed });
+};
+
 export const useDeviceLocation = () => {
   const inFlight = useRef<Promise<RevalleGeolocation> | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const canRequest = useCanRequestDeviceLocation();
 
   // Cliques repetidos compartilham a mesma consulta (um só pedido ao navegador).
   const request = useCallback((): Promise<RevalleGeolocation> => {
+    if (!canRequest) {
+      return Promise.resolve({ status: 'UNAVAILABLE' });
+    }
+
     if (!inFlight.current) {
+      setIsLocating(true);
       inFlight.current = getLocation().finally(() => {
         inFlight.current = null;
+        setIsLocating(false);
       });
     }
 
     return inFlight.current;
-  }, []);
+  }, [canRequest]);
 
-  return { request };
+  return { request, isLocating };
 };

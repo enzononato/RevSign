@@ -29,6 +29,7 @@ import { z } from 'zod';
 import { useEmbedSigningContext } from '~/components/embed/embed-signing-context';
 import { AccessAuth2FAForm } from '~/components/general/document-signing/access-auth-2fa-form';
 import { DocumentSigningDisclosure } from '~/components/general/document-signing/document-signing-disclosure';
+import { useCanRequestDeviceLocation } from '~/components/revalle/use-device-location'; // REVALLE:
 
 import { getSigningCompletionErrorMessage } from '~/utils/toast-error-messages';
 
@@ -129,6 +130,8 @@ export const DocumentSigningCompleteDialog = ({
       email: recipientPayload?.email ?? '',
     },
   });
+
+  const canRequestLocation = useCanRequestDeviceLocation(); // REVALLE:
 
   const isComplete = useMemo(() => !fieldsContainUnsignedRequiredField(fields), [fields]);
 
@@ -282,7 +285,7 @@ export const DocumentSigningCompleteDialog = ({
         </div>
 
         {/* REVALLE: aviso antes do pedido de localização do navegador (feito ao enviar a conclusão) */}
-        {revalleLocationNotice && (
+        {revalleLocationNotice && canRequestLocation && (
           <p className="text-center text-muted-foreground text-xs">
             <Trans>
               Para reforçar a prova da assinatura, podemos registrar a localização do seu aparelho. É opcional.

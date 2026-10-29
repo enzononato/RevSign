@@ -98,10 +98,10 @@ export const DocumentSigningPageViewV1 = ({
     isSuccess,
   } = trpc.recipient.completeDocumentWithToken.useMutation();
 
-  const { request: requestDeviceLocation } = useDeviceLocation(); // REVALLE:
+  const { request: requestDeviceLocation, isLocating } = useDeviceLocation(); // REVALLE:
 
   // Keep the loading state going if successful since the redirect may take some time.
-  const isSubmitting = isPending || isSuccess;
+  const isSubmitting = isLocating || isPending || isSuccess; // REVALLE: isLocating
 
   const fieldsRequiringValidation = useMemo(() => fields.filter(isFieldUnsignedAndRequired), [fields]);
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { roundGeolocation, ZRevalleGeolocationSchema } from './geolocation';
+import { canRequestDeviceLocation, roundGeolocation, ZRevalleGeolocationSchema } from './geolocation';
 
 describe('ZRevalleGeolocationSchema', () => {
   it('aceita os três estados', () => {
@@ -38,5 +38,13 @@ describe('roundGeolocation', () => {
       accuracyM: 20,
     });
     expect(roundGeolocation({ status: 'DENIED' })).toEqual({ status: 'DENIED' });
+  });
+});
+
+describe('canRequestDeviceLocation', () => {
+  it('só pede fora de embed e de iframe', () => {
+    expect(canRequestDeviceLocation({ hasEmbedContext: false, isFramed: false })).toBe(true);
+    expect(canRequestDeviceLocation({ hasEmbedContext: true, isFramed: false })).toBe(false);
+    expect(canRequestDeviceLocation({ hasEmbedContext: false, isFramed: true })).toBe(false);
   });
 });

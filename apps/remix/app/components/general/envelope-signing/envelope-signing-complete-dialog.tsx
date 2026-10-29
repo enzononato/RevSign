@@ -52,7 +52,7 @@ export const EnvelopeSignerCompleteDialog = () => {
 
   const isFramed = useIsFramed();
 
-  const { request: requestDeviceLocation } = useDeviceLocation(); // REVALLE:
+  const { request: requestDeviceLocation, isLocating } = useDeviceLocation(); // REVALLE:
 
   const { mutateAsync: completeDocument, isPending } = trpc.recipient.completeDocumentWithToken.useMutation();
 
@@ -376,7 +376,7 @@ export const EnvelopeSignerCompleteDialog = () => {
     };
   }, [email, fullName, isDirectTemplate, recipient.email, recipient.name, recipient.fields]);
 
-  const isSubmitting = isPending || isSigningWithCsc || isCscPopupBusy || isRedirecting;
+  const isSubmitting = isLocating || isPending || isSigningWithCsc || isCscPopupBusy || isRedirecting; // REVALLE: isLocating
 
   return (
     <DocumentSigningCompleteDialog

@@ -24,3 +24,12 @@ export const roundGeolocation = (geo: RevalleGeolocation): RevalleGeolocation =>
         accuracyM: Math.round(geo.accuracyM),
       }
     : geo;
+
+/** Em embed/iframe a Permissions-Policy costuma bloquear a localização: não pedir, registrar indisponível. */
+export const canRequestDeviceLocation = ({
+  hasEmbedContext,
+  isFramed,
+}: {
+  hasEmbedContext: boolean;
+  isFramed: boolean;
+}) => !hasEmbedContext && !isFramed;
