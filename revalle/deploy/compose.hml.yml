@@ -75,5 +75,29 @@ services:
     ports:
       - '127.0.0.1:3000:3000'
 
+  # Backup diário cifrado (age) do Postgres, com cópia SFTP/FTPS e retenção.
+  # Sem BACKUP_AGE_RECIPIENT o serviço não sobe (nunca envia dump em texto puro).
+  backup:
+    image: ${REVSIGN_BACKUP_IMAGE:-ghcr.io/enzononato/revsign-backup:v2.21.1-revalle.3}
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      TZ: America/Bahia
+      BACKUP_DATABASE_URL: postgres://documenso:${POSTGRES_PASSWORD}@database:5432/documenso
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?defina BACKUP_AGE_RECIPIENT (chave pública age1...)}
+      BACKUP_CRON: ${BACKUP_CRON:-0 2 * * *}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      BACKUP_RUN_ON_START: ${BACKUP_RUN_ON_START:-false}
+      BACKUP_REMOTE_TYPE: ${BACKUP_REMOTE_TYPE:-none}
+      BACKUP_REMOTE_HOST: ${BACKUP_REMOTE_HOST:-}
+      BACKUP_REMOTE_PORT: ${BACKUP_REMOTE_PORT:-}
+      BACKUP_REMOTE_USER: ${BACKUP_REMOTE_USER:-}
+      BACKUP_REMOTE_PASSWORD: ${BACKUP_REMOTE_PASSWORD:-}
+      BACKUP_REMOTE_PATH: ${BACKUP_REMOTE_PATH:-revsign-backups}
+    volumes:
+      - backups:/backups
+
 volumes:
   database:
+  backups:

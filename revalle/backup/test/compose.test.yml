@@ -1,0 +1,62 @@
+# Infra descartável dos testes de integração do backup (rodada por run-tests.sh).
+# Segredos de teste vêm de variáveis geradas em tempo de execução; nada é versionado.
+# O cert FTPS é autoassinado, por isso os testes ligam
+# BACKUP_REMOTE_INSECURE_TLS=true.
+
+name: revsign-backup-test
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: testdb
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - ./seed.sql:/docker-entrypoint-initdb.d/seed.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d testdb']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  sftp:
+    image: atmoz/sftp:alpine-3.7
+    command: ['tester:${TEST_PASS}:1001:100:upload']
+
+  ftps:
+    image: stilliard/pure-ftpd:bookworm-1.0.50
+    environment:
+      PUBLICHOST: ftps
+      FTP_USER_NAME: tester
+      FTP_USER_PASS: ${TEST_PASS}
+      FTP_USER_HOME: /home/tester
+      FTP_PASSIVE_PORTS: 30000:30009
+      ADDED_FLAGS: '--tls=1'
+      TLS_USE_DSAPRAM: 'true'
+      TLS_CN: ftps
+      TLS_ORG: teste
+      TLS_C: BR
+
+  backup:
+    image: ${REVSIGN_BACKUP_TEST_IMAGE:-revsign-backup:test}
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      BACKUP_DATABASE_URL: postgres://postgres@db:5432/testdb
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:-}
+      BACKUP_REMOTE_TYPE: ${BACKUP_REMOTE_TYPE:-none}
+      BACKUP_REMOTE_HOST: ${BACKUP_REMOTE_HOST:-}
+      BACKUP_REMOTE_PORT: ${BACKUP_REMOTE_PORT:-}
+      BACKUP_REMOTE_USER: tester
+      BACKUP_REMOTE_PASSWORD: ${TEST_PASS}
+      BACKUP_REMOTE_PATH: ${BACKUP_REMOTE_PATH:-revsign-backups}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      # Só nos testes: aceita o certificado FTPS autoassinado.
+      BACKUP_REMOTE_INSECURE_TLS: 'true'
+    volumes:
+      - ${TEST_ID_FILE}:/id.txt:ro
+      - backups:/backups
+
+volumes:
+  backups:
