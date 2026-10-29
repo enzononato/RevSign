@@ -1,8 +1,8 @@
 // Marca RevSign (Task 3, Fase 2): nenhum "Documenso" visível nas telas, no manifest, nos e-mails de um fluxo real
 // (cadastro, convite para assinar, código, documento concluído) nem no certificado/log do PDF selado.
-// Fica de fora só o link "Código-fonte (AGPL-3.0)" (regra 8). Classes CSS (`documenso-branded`, `text-documenso-700`)
-// são identificadores de código, não texto: por isso a busca no HTML é por "Documenso" com D maiúsculo e por
-// links/handles do Documenso (documenso.com, @documenso).
+// Fica de fora só o link "Código-fonte (AGPL-3.0)" (regra 8), que o teste exige presente. A busca ignora maiúsculas;
+// os atributos `class` saem antes, porque as classes CSS (`documenso-branded`, `text-documenso-700`) são
+// identificadores de código, não texto.
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdtempSync, writeFileSync } from 'node:fs';
@@ -27,14 +27,17 @@ import {
 const MAILPIT = 'http://localhost:8025/api/v1';
 const FERNANDO = { cpf: '93457210888', birthDate: '31/12/1999' };
 const PASSWORD = 'Senha-Forte-123!';
-const VISIBLE_DOCUMENSO = /Documenso|documenso\.com|@documenso(?![/\w-])/;
+const VISIBLE_DOCUMENSO = /documenso/i;
+const AGPL_LINK = /<a\b[^>]*href="https?:\/\/[^"]+"[^>]*>\s*Código-fonte \(AGPL-3\.0\)\s*<\/a>/;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// HTML como o usuário vê: sem o conteúdo dos <script> (dados de hidratação e catálogo) e sem o link da AGPL.
+// HTML como o usuário vê: sem o conteúdo dos <script> (dados de hidratação e catálogo), sem atributos `class` e sem o
+// link da AGPL.
 const visibleHtml = (html) =>
   html
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<a\b[^>]*>\s*Código-fonte \(AGPL-3\.0\)\s*<\/a>/g, '');
+    .replace(/\sclass="[^"]*"/g, '')
+    .replace(new RegExp(AGPL_LINK.source, 'g'), '');
 
 const assertNoDocumenso = (label, text, pattern = VISIBLE_DOCUMENSO) => {
   const index = text.search(pattern);
@@ -83,7 +86,7 @@ const assertMailBranding = (mail) => {
 
   assert.equal(mail.From?.Name, 'RevSign', `${label}: remetente`);
   assertNoDocumenso(`${label} (assunto)`, mail.Subject);
-  assertNoDocumenso(`${label} (HTML)`, mail.HTML ?? '');
+  assertNoDocumenso(`${label} (HTML)`, visibleHtml(mail.HTML ?? ''));
   assertNoDocumenso(`${label} (texto)`, mail.Text ?? '');
 };
 
@@ -153,6 +156,11 @@ before(async () => {
   // Convite, código e "documento concluído" para quem assinou.
   flow.signerMails = await waitForMails(`to:${flow.signerEmail}`, 3);
 
+  const qrToken = db(`select "qrToken" from "Envelope" where id = '${envelope.id}'`);
+
+  assert.match(qrToken, /^qr_/, 'documento concluído sem link de QR');
+  flow.sharePageHtml = await getPage(`/share/${qrToken}`);
+
   flow.dir = mkdtempSync(path.join(tmpdir(), 'marca-'));
   flow.pdf = await downloadItem(envelope.envelope.envelopeItems[0].id, 'signed');
   writeFileSync(path.join(flow.dir, 'signed.pdf'), flow.pdf);
@@ -176,6 +184,14 @@ test('páginas públicas: nenhum Documenso visível e título "<Página> · RevS
     assertNoDocumenso(route, visibleHtml(html));
     assert.match(titleOf(html) ?? '', /^\S.* · RevSign$/, `${route}: título "${titleOf(html)}"`);
   }
+
+  // O link exigido pela AGPL continua em todas as telas (regra 8): sumir com ele tem de falhar.
+  assert.match(await getPage('/signin'), AGPL_LINK);
+});
+
+test('página do QR do documento (/share/qr_…): nenhum Documenso visível e título "· RevSign"', () => {
+  assertNoDocumenso('/share/<qr>', visibleHtml(flow.sharePageHtml));
+  assert.match(titleOf(flow.sharePageHtml) ?? '', /^\S.* · RevSign$/, `título "${titleOf(flow.sharePageHtml)}"`);
 });
 
 test('página de assinatura: nenhum Documenso visível e título "· RevSign"', () => {
@@ -186,7 +202,7 @@ test('página de assinatura: nenhum Documenso visível e título "· RevSign"', 
 test('site.webmanifest: nome RevSign e cor da marca', async () => {
   const manifest = JSON.parse(await getPage('/site.webmanifest'));
 
-  assertNoDocumenso('site.webmanifest', JSON.stringify(manifest), /documenso/i);
+  assertNoDocumenso('site.webmanifest', JSON.stringify(manifest));
   assert.equal(manifest.name, 'RevSign');
   assert.equal(manifest.short_name, 'RevSign');
   assert.equal(manifest.theme_color.toUpperCase(), '#1F4E79');
@@ -214,19 +230,19 @@ test('e-mails do fluxo de assinatura (convite, código, concluído): remetente R
 });
 
 test('certificado e log do PDF selado: nenhum Documenso no texto, nos metadados nem no motivo da assinatura', () => {
-  assertNoDocumenso('certificado/log (pdftotext)', flow.certificateText, /documenso/i);
-  assertNoDocumenso('metadados (pdfinfo)', flow.pdfInfo, /documenso/i);
-  assertNoDocumenso('assinatura (pdfsig)', flow.signatureInfo, /documenso/i);
+  assertNoDocumenso('certificado/log (pdftotext)', flow.certificateText);
+  assertNoDocumenso('metadados (pdfinfo)', flow.pdfInfo);
+  assertNoDocumenso('assinatura (pdfsig)', flow.signatureInfo);
 
   // O pdfsig não mostra o motivo (/Reason); o dicionário da assinatura fica sem compressão no arquivo.
   const raw = flow.pdf.toString('latin1');
   const reason = raw.match(/\/Reason \(([^)]*)\)/)?.[1];
 
   assert.ok(reason, 'assinatura sem /Reason');
-  assert.match(reason, /RevSign/);
+  assert.equal(reason, 'Selado pelo RevSign da Revalle');
   const pdfLabels = [...raw.matchAll(/\/(Reason|Producer|Creator) \([^)]*\)/g)].map(([entry]) => entry).join(' ');
 
-  assertNoDocumenso('/Reason, /Producer e /Creator', pdfLabels, /documenso/i);
+  assertNoDocumenso('/Reason, /Producer e /Creator', pdfLabels);
 });
 
 test('conta nova: confirmação do e-mail, "Equipe pessoal" no menu e autenticador (2FA) como RevSign', async () => {

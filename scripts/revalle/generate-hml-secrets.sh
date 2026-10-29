@@ -142,7 +142,7 @@ NEXT_PRIVATE_DATABASE_URL=<preencher>
 NEXT_PRIVATE_DIRECT_DATABASE_URL=<preencher>
 
 # --- Marca ---
-NEXT_PRIVATE_SIGNING_REASON=Selado pelo RevSign (Revalle)
+NEXT_PRIVATE_SIGNING_REASON=Selado pelo RevSign da Revalle
 NEXT_PUBLIC_SUPPORT_EMAIL=projetos.ti@revalle.com.br
 
 # --- App ---

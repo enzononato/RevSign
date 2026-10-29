@@ -87,7 +87,7 @@ services:
       DOCUMENSO_DISABLE_TELEMETRY: 'true'
       NEXT_PUBLIC_REVALLE_SOURCE_URL: https://github.com/enzononato/RevSign
       # Marca: motivo da assinatura no PDF e e-mail de suporte nas telas e nos e-mails.
-      NEXT_PRIVATE_SIGNING_REASON: ${NEXT_PRIVATE_SIGNING_REASON:-Selado pelo RevSign (Revalle)}
+      NEXT_PRIVATE_SIGNING_REASON: ${NEXT_PRIVATE_SIGNING_REASON:-Selado pelo RevSign da Revalle}
       NEXT_PUBLIC_SUPPORT_EMAIL: ${NEXT_PUBLIC_SUPPORT_EMAIL:-projetos.ti@revalle.com.br}
       # SMTP: Mailpit no ensaio; no EasyPanel, o SMTP do cPanel (ver env.hml.example).
       NEXT_PRIVATE_SMTP_TRANSPORT: smtp-auth

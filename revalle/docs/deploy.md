@@ -256,7 +256,7 @@ Legenda de "segredo?": **sim** = nunca no repositório, só no EasyPanel e no co
 | `NEXT_PUBLIC_REVALLE_SOURCE_URL` | Link "Código-fonte" no rodapé (exigência da AGPL) | `https://github.com/enzononato/RevSign` | não |
 | `NEXT_PRIVATE_ALLOWED_SIGNUP_DOMAINS` | Só e-mails destes domínios podem se cadastrar | `revalle.com.br,revallenordeste.com.br,revallepe.com.br` | não |
 | `NEXT_PRIVATE_REVALLE_RATE_LIMITS` | (Opcional) muda limites de tentativas. Sem ela valem os padrões do RevSign (cadastro, login, código por e-mail etc.; tabela em `verificacao.md`) | não definir | não |
-| `NEXT_PRIVATE_SIGNING_REASON` | Motivo gravado na assinatura digital do PDF (aparece no leitor de PDF, no painel de assinaturas) | `Selado pelo RevSign (Revalle)` (sem aspas no EasyPanel) | não |
+| `NEXT_PRIVATE_SIGNING_REASON` | Motivo gravado na assinatura digital do PDF (aparece no leitor de PDF, no painel de assinaturas) | `Selado pelo RevSign da Revalle`. Um EasyPanel que já tenha o valor antigo `Selado pelo RevSign (Revalle)` precisa ser atualizado (os parênteses saíam com barras no PDF) | não |
 | `NEXT_PUBLIC_SUPPORT_EMAIL` | E-mail de suporte mostrado nas telas (Suporte, avisos) e nos e-mails | `projetos.ti@revalle.com.br` | não |
 | `NEXT_PRIVATE_REVALLE_ADMIN_EMAIL` | Conta promovida a ADMIN quando o app sobe | `projetos.ti@revalle.com.br` | não |
 | `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK` | Confere CPF e data de nascimento na base de colaboradores na primeira assinatura. `required` (padrão) ou `disabled` (pula a etapa; só homologação sem a base, nunca em produção) | não definir (vale `required`) ou `disabled` enquanto não houver base | não |

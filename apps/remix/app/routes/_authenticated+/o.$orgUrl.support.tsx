@@ -42,9 +42,8 @@ export default function SupportPage() {
           <Trans>Support</Trans>
         </h1>
 
-        <p className="mt-2 text-muted-foreground">
-          <Trans>Your current plan includes the following support channels:</Trans>
-        </p>
+        {/* REVALLE: o único canal é a TI da Revalle */}
+        <p className="mt-2 text-muted-foreground">Fale com a equipe de TI da Revalle:</p>
 
         <div className="mt-6 flex flex-col gap-4">
           {/* REVALLE: suporte pela TI da Revalle no lugar da documentação e do Discord do Documenso */}

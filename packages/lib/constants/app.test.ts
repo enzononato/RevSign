@@ -11,13 +11,13 @@ describe('NEXT_PRIVATE_SIGNING_REASON', () => {
   it('defaults to the RevSign signing reason', () => {
     vi.stubEnv('NEXT_PRIVATE_SIGNING_REASON', undefined);
 
-    expect(NEXT_PRIVATE_SIGNING_REASON()).toBe('Selado pelo RevSign (Revalle)');
+    expect(NEXT_PRIVATE_SIGNING_REASON()).toBe('Selado pelo RevSign da Revalle');
   });
 
   it('uses the default for an empty signing reason', () => {
     vi.stubEnv('NEXT_PRIVATE_SIGNING_REASON', '');
 
-    expect(NEXT_PRIVATE_SIGNING_REASON()).toBe('Selado pelo RevSign (Revalle)');
+    expect(NEXT_PRIVATE_SIGNING_REASON()).toBe('Selado pelo RevSign da Revalle');
   });
 
   it('uses the configured signing reason verbatim', () => {

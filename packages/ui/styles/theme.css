@@ -168,6 +168,9 @@
 
     --field-border: 214.3 31.8% 91.4%;
 
+    /* REVALLE: borda dos campos clara o bastante para aparecer no fundo escuro */
+    --field-card-border: 209 59% 60%;
+
     --primary: 209 59% 45%;
     --primary-foreground: 0 0% 100%;
 
