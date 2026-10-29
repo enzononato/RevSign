@@ -35,14 +35,17 @@ GRANT CONNECT ON DATABASE <banco> TO revsign_leitura;
 GRANT USAGE ON SCHEMA public TO revsign_leitura;
 GRANT SELECT ON vw_colaboradores_assinatura TO revsign_leitura;
 
--- 3b) Confira que PUBLIC NÃO pode ler a tabela (senão o revsign_leitura herdaria o acesso).
---     Verificação principal, no psql:   \dp <tabela>
---     Olhe a coluna "Access privileges". Uma entrada que COMECE com "=r/" (sinal de igual logo no início,
---     sem nome antes) significa que PUBLIC pode ler. Isso precisa ser revogado.
---     Confirmação por SQL (mostra a lista de privilégios da tabela; procure por "=r/"):
-SELECT relname, relacl FROM pg_class WHERE oid = '<tabela>'::regclass;
---     Se aparecer "=r/": quem é dono da tabela (ou o TI) roda  REVOKE SELECT ON <tabela> FROM PUBLIC;
---     (avalie antes se outros usuários dependem disso). relacl vazio (NULL) = só o dono acessa.
+-- 3b) Confira que PUBLIC (qualquer usuário do banco) NÃO pode ler a tabela. Resposta sim/não:
+SELECT has_table_privilege('public', '<tabela>', 'SELECT') AS publico_pode_ler;
+--     Se aparecer f (falso): está correto.
+--     Se aparecer t (verdadeiro): qualquer usuário do banco consegue ler a tabela, inclusive o revsign_leitura.
+--     Peça ao dono da tabela/TI para rodar:  REVOKE SELECT ON <tabela> FROM PUBLIC;
+--     (avalie antes se outros usuários dependem disso).
+--     Detalhe opcional, no psql:  \dp <tabela>  (qualquer entrada sem nome antes do "=" que contenha a letra r).
+
+-- 3c) Confira o usuário de leitura. O primeiro deve dar f e o segundo deve dar t:
+SELECT has_table_privilege('revsign_leitura', '<tabela>', 'SELECT') AS le_a_tabela;
+SELECT has_table_privilege('revsign_leitura', 'vw_colaboradores_assinatura', 'SELECT') AS le_a_view;
 
 -- 4) Teste (conectado como revsign_leitura): deve listar pessoas.
 --    Já a mesma consulta na tabela <tabela> deve dar "permission denied".
