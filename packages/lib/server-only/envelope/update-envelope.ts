@@ -15,6 +15,7 @@ import { createDocumentAuthOptions, extractDocumentAuthMethods } from '../../uti
 import type { EnvelopeIdOptions } from '../../utils/envelope';
 import { buildTeamWhereQuery, canAccessTeamDocument } from '../../utils/teams';
 import { recomputeNextReminderForEnvelope } from '../recipient/update-recipient-next-reminder';
+import { withRevalleAccessAuth } from '../revalle/access-auth'; // REVALLE:
 import { assertCompatibleDictateNextSigner } from '../signature-level/assert-compatible-dictate-next-signer';
 import { assertCompatibleSigningOrder } from '../signature-level/assert-compatible-signing-order';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
@@ -133,10 +134,12 @@ export const updateEnvelope = async ({
     });
   }
 
-  const authOptions = createDocumentAuthOptions({
-    globalAccessAuth: newGlobalAccessAuth,
-    globalActionAuth: newGlobalActionAuth,
-  });
+  const authOptions = withRevalleAccessAuth(
+    createDocumentAuthOptions({
+      globalAccessAuth: newGlobalAccessAuth,
+      globalActionAuth: newGlobalActionAuth,
+    }),
+  ); // REVALLE:
 
   const emailId = meta.emailId;
 

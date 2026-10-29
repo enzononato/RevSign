@@ -14,11 +14,15 @@ export type ResolvedRateLimitOverrides = {
   invalidEntries: string[];
 };
 
-// Os limites do upstream contam por IP, e na Revalle cada unidade sai para a internet
-// por um único IP. 3 cadastros a cada 3h travariam a implantação de uma unidade inteira.
-// O risco de subir é baixo: só domínios da empresa se cadastram e o e-mail é confirmado.
+// Os limites do upstream contam por IP, e na Revalle cada unidade sai para a internet por um único IP.
+// Os padrões abaixo cabem uma unidade inteira: cadastros (só domínios da empresa, com e-mail confirmado),
+// pedido de código por e-mail (5 por link continua valendo), login, tRPC e envio de arquivos.
 const REVALLE_DEFAULT_OVERRIDES: Record<string, RateLimitOverride> = {
   'auth.signup': { max: 30, window: '1h' },
+  'auth.request-2fa-email': { max: 5, globalMax: 200, window: '15m' },
+  'auth.login': { max: 10, globalMax: 200, window: '15m' },
+  'api.trpc': { max: 3000, window: '1m' },
+  'api.file-upload': { max: 300, window: '1m' },
 };
 
 const ENTRY_PATTERN = /^([a-z0-9.-]+)=(\d+)(?::(\d+))?\/(\d+[smhd])$/;

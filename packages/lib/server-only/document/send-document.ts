@@ -21,6 +21,7 @@ import { validateCheckboxLength } from '../../advanced-fields-validation/validat
 import { DIRECT_TEMPLATE_RECIPIENT_EMAIL } from '../../constants/direct-templates';
 import { AppError, AppErrorCode } from '../../errors/app-error';
 import { jobs } from '../../jobs/client';
+import { ZDocumentAuthOptionsSchema } from '../../types/document-auth'; // REVALLE:
 import { extractDerivedDocumentEmailSettings } from '../../types/document-email';
 import {
   ZCheckboxFieldMeta,
@@ -42,6 +43,7 @@ import { getRecipientsInActiveSigningStep } from '../../utils/recipient-groups';
 import { getRecipientsWithMissingFields, isRecipientEmailValidForSending } from '../../utils/recipients';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { insertFormValuesInPdf } from '../pdf/insert-form-values-in-pdf';
+import { withRevalleAccessAuth } from '../revalle/access-auth'; // REVALLE:
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { assertUserNotDisabledById } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
@@ -173,6 +175,16 @@ export const sendDocument = async ({ id, userId, teamId, sendEmail, requestMetad
     envelope.recipients.map((r) => r.email),
     { rejectEmpty: true },
   ); // REVALLE:
+
+  // REVALLE: rede de segurança, o código por e-mail é exigido antes de qualquer distribuição.
+  const currentAuthOptions = ZDocumentAuthOptionsSchema.parse(envelope.authOptions);
+  const revalleAuthOptions = withRevalleAccessAuth(currentAuthOptions);
+
+  if (revalleAuthOptions !== currentAuthOptions) {
+    await prisma.envelope.update({ where: { id: envelope.id }, data: { authOptions: revalleAuthOptions } });
+
+    envelope.authOptions = revalleAuthOptions;
+  }
 
   // Validate that recipients with auth requirements have a valid email.
   envelope.recipients.forEach((recipient) => {

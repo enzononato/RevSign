@@ -86,11 +86,40 @@ export const latestMail = async (to) => {
   return first ? await (await fetch(`${MAILPIT}/message/${first.ID}`)).json() : undefined;
 };
 
-// Código de 6 dígitos do e-mail mais recente enviado a `to` (Mailpit), ou undefined. Usado na Task 8.
+// Código de 6 dígitos do e-mail mais recente enviado a `to` (Mailpit), ou undefined.
 export const getLatestCode = async (to) => {
   const mail = await latestMail(to);
 
   return mail?.Text?.match(/\b(\d{6})\b/)?.[1] ?? mail?.HTML?.replace(/<[^>]+>/g, ' ').match(/\b(\d{6})\b/)?.[1];
+};
+
+// Conclui o documento como a tela faz: pede o código por e-mail, lê no Mailpit e conclui com ele.
+// `extra` entra no corpo da conclusão (ex.: nextSigner). Devolve a resposta da conclusão.
+export const completeWithCode = async ({ token, documentId, email, extra = {}, headers = {} }) => {
+  const before = await getLatestCode(email);
+  const requested = await trpc('document.accessAuth.request2FAEmail', { token }, headers);
+
+  if (!requested.ok) {
+    return requested;
+  }
+
+  let code;
+
+  for (let i = 0; i < 30; i += 1) {
+    code = await getLatestCode(email);
+
+    if (code && code !== before) {
+      break;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+
+  return trpc(
+    'recipient.completeDocumentWithToken',
+    { token, documentId, accessAuthOptions: { type: 'TWO_FACTOR_AUTH', method: 'email', token: code }, ...extra },
+    headers,
+  );
 };
 
 // Consulta SQL no banco da stack local (psql -At).

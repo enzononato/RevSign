@@ -13,8 +13,8 @@
 // identidade, informa SMOKE_CPF e SMOKE_BIRTH_DATE (dd/MM/yyyy) de um colaborador da base e confirma "sou eu".
 // Obrigatórias nesse caso (sem elas o script falha com mensagem clara). Em homologação com
 // NEXT_PRIVATE_REVALLE_IDENTITY_CHECK=disabled nada é pedido. O vínculo CPF-e-mail é permanente: use um
-// CPF ainda sem vínculo ou um SIGNER_EMAIL que já esteja vinculado a ele. Se o código por e-mail estiver ligado
-// (Task 7), ver `getLatestCode` em tests/helpers.mjs.
+// CPF ainda sem vínculo ou um SIGNER_EMAIL que já esteja vinculado a ele. A conclusão exige o código de 6 dígitos
+// do e-mail: o script o pede e o lê no Mailpit local (SMOKE_MAILPIT_URL, padrão http://localhost:8025/api/v1).
 //
 // Variáveis opcionais: SIGNER_NAME, PDF_PATH (padrão: assets/example.pdf),
 // SEND_EMAIL=false (só gera o link, sem e-mail).
@@ -68,6 +68,32 @@ const trpcMutation = async (procedure, input) => {
   });
 
   return (await res.json()).result?.data?.json;
+};
+
+// Mailpit da stack local (SMOKE_MAILPIT_URL muda o endereço): ID do e-mail mais recente enviado a `to`.
+const MAILPIT = process.env.SMOKE_MAILPIT_URL ?? 'http://localhost:8025/api/v1';
+
+const latestMailId = async (to) =>
+  (await (await fetch(`${MAILPIT}/search?query=${encodeURIComponent(`to:${to}`)}`)).json()).messages?.[0]?.ID;
+
+// Código de 6 dígitos do primeiro e-mail novo (ID diferente de `previousId`) enviado a `to`.
+const readEmailCode = async (to, previousId) => {
+  for (let i = 0; i < 30; i += 1) {
+    const id = await latestMailId(to);
+
+    if (id && id !== previousId) {
+      const mail = await (await fetch(`${MAILPIT}/message/${id}`)).json();
+      const code = mail.Text?.match(/\b(\d{6})\b/)?.[1];
+
+      if (code) {
+        return code;
+      }
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+
+  throw new Error(`Código de acesso não chegou ao Mailpit para ${to}`);
 };
 
 const gateMutation = async (procedure, input) => {
@@ -169,7 +195,17 @@ const main = async () => {
     fieldId: field.id,
     fieldValue: { type: 'SIGNATURE', value: SIGNER_NAME },
   });
-  await trpcMutation('recipient.completeDocumentWithToken', { token: recipient.token, documentId });
+  const previousMailId = await latestMailId(recipient.email);
+
+  await trpcMutation('document.accessAuth.request2FAEmail', { token: recipient.token });
+
+  const code = await readEmailCode(recipient.email, previousMailId);
+
+  await trpcMutation('recipient.completeDocumentWithToken', {
+    token: recipient.token,
+    documentId,
+    accessAuthOptions: { type: 'TWO_FACTOR_AUTH', method: 'email', token: code },
+  });
 
   step('aguardando selagem');
 

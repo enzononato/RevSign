@@ -9,6 +9,7 @@ import { getI18nInstance } from '../../../client-only/providers/i18n-server';
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../../constants/app';
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
+import type { RequestMetadata } from '../../../universal/extract-request-metadata'; // REVALLE:
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { unsafeBuildEnvelopeIdQuery } from '../../../utils/envelope';
 import { renderEmailWithI18N } from '../../../utils/render-email-with-i18n';
@@ -19,9 +20,10 @@ import { generateTwoFactorTokenFromEmail } from './generate-2fa-token-from-email
 export type Send2FATokenEmailOptions = {
   token: string;
   envelopeId: string;
+  requestMetadata?: RequestMetadata; // REVALLE:
 };
 
-export const send2FATokenEmail = async ({ token, envelopeId }: Send2FATokenEmailOptions) => {
+export const send2FATokenEmail = async ({ token, envelopeId, requestMetadata }: Send2FATokenEmailOptions) => {
   const envelope = await prisma.envelope.findFirst({
     where: {
       ...unsafeBuildEnvelopeIdQuery(
@@ -123,6 +125,7 @@ export const send2FATokenEmail = async ({ token, envelopeId }: Send2FATokenEmail
     data: createDocumentAuditLogData({
       type: DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_ACCESS_AUTH_2FA_REQUESTED,
       envelopeId: envelope.id,
+      requestMetadata, // REVALLE:
       data: {
         recipientEmail: recipient.email,
         recipientName: recipient.name,

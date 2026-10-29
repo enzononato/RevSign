@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
 
-import { api, BASE_URL, createEnvelope, db, distribute, trpc } from './helpers.mjs';
+import { api, BASE_URL, completeWithCode, createEnvelope, db, distribute, trpc } from './helpers.mjs';
 
 const MARIA = { cpf: '39053344705', birthDate: '07/03/1990' };
 const ANA = { cpf: '74612058380', birthDate: '15/01/1978' };
@@ -58,7 +58,8 @@ const sign = (r) =>
     fieldId: r.field.id,
     fieldValue: { type: 'SIGNATURE', value: 'Teste' },
   });
-const complete = (r, documentId) => trpc('recipient.completeDocumentWithToken', { token: r.token, documentId });
+const completeRaw = (r, documentId) => trpc('recipient.completeDocumentWithToken', { token: r.token, documentId });
+const complete = (r, documentId) => completeWithCode({ token: r.token, documentId, email: r.email });
 
 const waitCompleted = async (envelopeId) => {
   for (let i = 0; i < 60; i += 1) {
@@ -87,7 +88,7 @@ test('gate-blocks-api: com o portão pendente todas as rotas por token recusam',
   assert.notEqual(signed.status, 200, signed.text);
   assert.match(signed.text, GATE_MESSAGE);
 
-  const completed = await complete(r, s.documentId);
+  const completed = await completeRaw(r, s.documentId);
 
   assert.notEqual(completed.status, 200, completed.text);
   assert.match(completed.text, GATE_MESSAGE);

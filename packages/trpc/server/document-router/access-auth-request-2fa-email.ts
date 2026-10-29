@@ -83,6 +83,7 @@ export const accessAuthRequest2FAEmailRoute = procedure
       await send2FATokenEmail({
         token,
         envelopeId: envelope.id,
+        requestMetadata: ctx.metadata.requestMetadata, // REVALLE:
       });
 
       return {

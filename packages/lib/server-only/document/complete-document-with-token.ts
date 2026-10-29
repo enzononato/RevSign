@@ -192,6 +192,7 @@ export const completeDocumentWithToken = async ({
         data: createDocumentAuditLogData({
           type: DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_ACCESS_AUTH_2FA_FAILED,
           envelopeId: envelope.id,
+          requestMetadata, // REVALLE:
           data: {
             recipientId: recipient.id,
             recipientName: recipient.name,
@@ -209,6 +210,7 @@ export const completeDocumentWithToken = async ({
       data: createDocumentAuditLogData({
         type: DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_ACCESS_AUTH_2FA_VALIDATED,
         envelopeId: envelope.id,
+        requestMetadata, // REVALLE:
         data: {
           recipientId: recipient.id,
           recipientName: recipient.name,
