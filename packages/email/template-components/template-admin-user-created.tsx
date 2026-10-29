@@ -1,4 +1,4 @@
-import { REVALLE_SUPPORT_EMAIL } from '@documenso/lib/revalle/brand';
+import { SUPPORT_EMAIL } from '@documenso/lib/constants/app';
 import { Trans } from '@lingui/react/macro';
 
 import { Button, Link, Section, Text } from '../components';
@@ -43,10 +43,10 @@ export const TemplateAdminUserCreated = ({ resetPasswordLink, assetBaseUrl }: Te
 
         <Section className="mt-8">
           <Text className="text-center text-muted-foreground text-sm">
-            {/* REVALLE: suporte da TI da Revalle */}
+            {/* REVALLE: suporte da TI da Revalle (NEXT_PUBLIC_SUPPORT_EMAIL) */}
             <Trans>
               If you didn't expect this account or have any questions, please{' '}
-              <Link href={`mailto:${REVALLE_SUPPORT_EMAIL}`} className="text-primary">
+              <Link href={`mailto:${SUPPORT_EMAIL}`} className="text-primary">
                 contact support
               </Link>
               .

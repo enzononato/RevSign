@@ -229,6 +229,16 @@ test('e-mails do fluxo de assinatura (convite, código, concluído): remetente R
   }
 });
 
+test('convite para assinar: assunto e 1ª linha "Você tem um novo documento para assinar" (spec §1.1/§5)', () => {
+  // Só o convite traz o link "denunciar o remetente" (/report/<token>).
+  const invite = flow.signerMails.find((mail) => /\/report\//.test(mail.HTML ?? ''));
+
+  assert.ok(invite, `convite não encontrado entre: ${flow.signerMails.map((mail) => mail.Subject).join(' | ')}`);
+  assert.equal(invite.Subject, 'Você tem um novo documento para assinar');
+  // 1ª linha do corpo (depois do logo e da imagem): o mesmo texto, com quem enviou e o nome do documento.
+  assert.match(invite.Text, /Você tem um novo documento para assinar, enviado por [^:\n]+:\s*"\[TESTE\] Marca/);
+});
+
 test('certificado e log do PDF selado: nenhum Documenso no texto, nos metadados nem no motivo da assinatura', () => {
   assertNoDocumenso('certificado/log (pdftotext)', flow.certificateText);
   assertNoDocumenso('metadados (pdfinfo)', flow.pdfInfo);

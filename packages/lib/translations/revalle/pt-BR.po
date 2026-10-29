@@ -45,9 +45,6 @@ msgstr "Junte-se a {organisationName} no RevSign"
 msgid "Link your Documenso account"
 msgstr "Vincule sua conta RevSign"
 
-msgid "Read our documentation to get started with Documenso."
-msgstr "Leia nossa documentação para começar com o RevSign."
-
 msgid "Return to Documenso sign in page here"
 msgstr "Retornar para a página de login do RevSign aqui"
 
@@ -2730,9 +2727,6 @@ msgstr "Aqui você pode editar os detalhes da sua equipe."
 msgid "Here you can set expiration and signing reminder preferences for your team."
 msgstr "Aqui você define as preferências de validade e de lembretes de assinatura da sua equipe."
 
-msgid "Create and manage API tokens. See our <0>documentation</0> for more information."
-msgstr "Crie e gerencie tokens de API. Veja nossa <0>documentação</0> para mais informações."
-
 msgid "Last Used"
 msgstr "Último uso"
 
@@ -2744,9 +2738,6 @@ msgstr "Ver modelo da organização"
 
 msgid "No organisation templates are shared with your team yet."
 msgstr "Nenhum modelo da organização foi compartilhado com sua equipe ainda."
-
-msgid "Sign Document - Documenso"
-msgstr "Assinar documento - RevSign"
 
 msgid "If you did not expect this email or believe it is spam, you can report the sender to our team for review."
 msgstr "Se você não esperava este e-mail ou acha que é spam, pode denunciar o remetente para nossa equipe analisar."
@@ -2768,9 +2759,6 @@ msgstr "Não foi possível denunciar este remetente agora. Tente novamente mais 
 
 msgid "<0>\"{0}\"</0> is no longer available to sign"
 msgstr "<0>\"{0}\"</0> não está mais disponível para assinatura"
-
-msgid "Want to send slick signing links like this one? <0>Check out Documenso</0>."
-msgstr "Quer enviar links de assinatura práticos como este? <0>Conheça o RevSign</0>."
 
 msgid "Signing Deadline Expired"
 msgstr "Prazo para assinar encerrado"
@@ -3095,9 +3083,6 @@ msgstr "Lembrete: você precisa {0} seu documento<0/>\"{documentName}\""
 
 msgid "Did not expect this email? <0>Click here to report the sender</0>. Never sign a document you don't recognize or weren't expecting."
 msgstr "Não esperava este e-mail? <0>Toque ou clique aqui para denunciar o remetente</0>. Nunca assine um documento que você não reconhece ou não estava esperando."
-
-msgid "This document was sent using <0>Documenso</0>."
-msgstr "Este documento foi enviado pelo <0>RevSign</0>."
 
 msgid "Only sign if you know and were expecting this sender."
 msgstr "Só assine se você conhece e esperava este remetente."
@@ -4128,7 +4113,7 @@ msgid "If you didn't request this verification code, you can safely ignore this 
 msgstr "Se você não pediu este código, ignore este e-mail."
 
 msgid "Please {recipientActionVerb} this document"
-msgstr "Documento para {recipientActionVerb}"
+msgstr "Você tem um novo documento para {recipientActionVerb}"
 
 msgid "Please {recipientActionVerb} your document"
 msgstr "Você precisa {recipientActionVerb} seu documento"
@@ -4140,28 +4125,28 @@ msgid "Please {action} your document {documentName}"
 msgstr "Você precisa {action} seu documento {documentName}"
 
 msgid "{inviterName} has invited you to {0}<0/>\"{documentName}\""
-msgstr "{inviterName} pediu para você {0}<0/>\"{documentName}\""
+msgstr "Você tem um novo documento para {0}, enviado por {inviterName}:<0/>\"{documentName}\""
 
 msgid "{inviterName} on behalf of \"{teamName}\" has invited you to {0}<0/>\"{documentName}\""
-msgstr "{inviterName}, em nome de \"{teamName}\", pediu para você {0}<0/>\"{documentName}\""
+msgstr "Você tem um novo documento para {0}, enviado por {inviterName} em nome de \"{teamName}\":<0/>\"{documentName}\""
 
 msgid "{teamName} has invited you to {0}<0/>\"{documentName}\""
-msgstr "{teamName} pediu para você {0}<0/>\"{documentName}\""
+msgstr "Você tem um novo documento para {0}, enviado por {teamName}:<0/>\"{documentName}\""
 
 msgid "{inviterName} has invited you to {action} {documentName}"
-msgstr "{inviterName} pediu para você {action} {documentName}"
+msgstr "Você tem um novo documento para {action}: {documentName} (enviado por {inviterName})"
 
 msgid "{inviterName} on behalf of \"{teamName}\" has invited you to {action} {documentName}"
-msgstr "{inviterName}, em nome de \"{teamName}\", pediu para você {action} {documentName}"
+msgstr "Você tem um novo documento para {action}: {documentName} (enviado por {inviterName} em nome de \"{teamName}\")"
 
 msgid "{teamName} has invited you to {action} {documentName}"
-msgstr "{teamName} pediu para você {action} {documentName}"
+msgstr "Você tem um novo documento para {action}: {documentName} (enviado por {teamName})"
 
 msgid "{inviterName} has invited you to {action} the document \"{documentName}\"."
 msgstr "{inviterName} pediu para você {action} o documento \"{documentName}\"."
 
 msgid "{0} invited you to {recipientActionVerb} a document"
-msgstr "{0} pediu para você {recipientActionVerb} um documento"
+msgstr "Você tem um novo documento de {0} para {recipientActionVerb}"
 
 msgid "{0} has invited you to {recipientActionVerb} the document \"{1}\"."
 msgstr "{0} pediu para você {recipientActionVerb} o documento \"{1}\"."
@@ -4253,3 +4238,26 @@ msgstr "Para marcar este documento como visto, você precisa estar conectado."
 
 msgid "You need to setup 2FA to mark this document as viewed."
 msgstr "Você precisa configurar a verificação em duas etapas (2FA) para marcar este documento como visto."
+
+# REVALLE: revisão final da Fase 2. Assunto e 1ª linha do convite "Você tem um novo documento para assinar"
+# (spec §1.1/§5) ficam nas entradas do convite acima; aqui o papel "leitor" no editor, "conectado" e o
+# expandir/recolher da barra de assinatura no celular.
+msgctxt "Recipient role name"
+msgid "Viewer"
+msgstr "Leitor"
+
+msgctxt "Recipient role plural name"
+msgid "Viewers"
+msgstr "Leitores"
+
+msgid "<0>Require account</0> - The recipient must be signed in to view the document"
+msgstr "<0>Exigir conta</0> - O destinatário precisa estar conectado para ver o documento"
+
+msgid "To view this document you need to be signed into your account, please sign in to continue."
+msgstr "Para ver este documento, você precisa estar conectado à sua conta. Entre para continuar."
+
+msgid "Collapse"
+msgstr "Recolher"
+
+msgid "Expand"
+msgstr "Expandir"

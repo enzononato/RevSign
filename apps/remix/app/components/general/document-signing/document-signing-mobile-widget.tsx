@@ -1,6 +1,6 @@
 import { Button } from '@documenso/ui/primitives/button';
 
-import { Plural, Trans } from '@lingui/react/macro';
+import { Plural, Trans, useLingui } from '@lingui/react/macro';
 import { RecipientRole } from '@prisma/client';
 import { motion } from 'framer-motion';
 import { LucideChevronDown, LucideChevronUp } from 'lucide-react';
@@ -15,6 +15,7 @@ import { EnvelopeSignerCompleteDialog } from '../envelope-signing/envelope-signi
 import { useRequiredEnvelopeSigningContext } from './envelope-signing-provider';
 
 export const DocumentSigningMobileWidget = () => {
+  const { t } = useLingui();
   const [isExpanded, setIsExpanded] = useState(false);
 
   const { hidePoweredBy = true } = useEmbedSigningContext() || {};
@@ -44,7 +45,8 @@ export const DocumentSigningMobileWidget = () => {
                     onClick={() => setIsExpanded(!isExpanded)}
                     // REVALLE: h-11 w-11 p-0 (44 px de área de toque; era h-8 w-8)
                     className="flex h-11 w-11 flex-shrink-0 items-center justify-center p-0"
-                    aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                    // REVALLE: rótulo do leitor de tela traduzido (era 'Collapse'/'Expand' fixo em inglês)
+                    aria-label={isExpanded ? t`Collapse` : t`Expand`}
                   >
                     {isExpanded ? (
                       <LucideChevronDown className="h-5 w-5 flex-shrink-0 text-muted-foreground" />

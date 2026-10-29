@@ -1,5 +1,6 @@
 import { env } from '@documenso/lib/utils/env';
 import { AppError, AppErrorCode } from '../errors/app-error';
+import { REVALLE_SUPPORT_EMAIL } from '../revalle/brand'; // REVALLE
 import { SignatureLevel, type TSignatureLevel } from '../types/signature-level';
 
 export const APP_DOCUMENT_UPLOAD_SIZE_LIMIT = Number(env('NEXT_PUBLIC_DOCUMENT_SIZE_UPLOAD_LIMIT')) || 50;
@@ -73,7 +74,7 @@ export const API_V2_BETA_URL = '/api/v2-beta';
 export const API_V2_URL = '/api/v2';
 
 // REVALLE: suporte interno da TI da Revalle quando a env não está definida.
-export const SUPPORT_EMAIL = env('NEXT_PUBLIC_SUPPORT_EMAIL') || 'projetos.ti@revalle.com.br';
+export const SUPPORT_EMAIL = env('NEXT_PUBLIC_SUPPORT_EMAIL') || REVALLE_SUPPORT_EMAIL;
 
 export const USE_INTERNAL_URL_BROWSERLESS = () => env('NEXT_PUBLIC_USE_INTERNAL_URL_BROWSERLESS') === 'true';
 

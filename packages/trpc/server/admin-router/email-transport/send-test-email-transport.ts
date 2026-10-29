@@ -41,7 +41,7 @@ export const sendTestEmailTransportRoute = adminProcedure
         to: input.to,
         from: { name: transport.fromName, address: transport.fromAddress },
         subject: 'Teste de envio de e-mail do RevSign', // REVALLE
-        text: `This is a test email sent through the "${transport.name}" email transport.`,
+        text: `Este é um e-mail de teste enviado pelo transporte de e-mail "${transport.name}".`, // REVALLE
       });
     } catch (err) {
       throw AppError.parseError(err);
