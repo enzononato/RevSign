@@ -37,12 +37,13 @@ Se o e-mail da pessoa já constar na base de colaboradores (coluna `email` da vi
 |---|---|---|
 | Data de nascimento digitada | **Não.** Só é comparada com a base na hora | em lugar nenhum |
 | CPF | Sim, completo, na tabela de vínculos (e-mail ↔ CPF) | banco do RevSign |
-| CPF em log e no log de auditoria do documento | Sempre mascarado (`***.456.789-**`) | log e auditoria |
-| CPF no certificado anexado ao documento | Mascarado | PDF final |
+| CPF nos registros de auditoria do documento | Só mascarado (`***.456.789-**`); o CPF digitado não vai inteiro para a auditoria | auditoria |
+| CPF no certificado anexado ao documento | Só mascarado | PDF final |
+| CPF nos logs do sistema | Não é registrado (nenhuma chamada de log do portão recebe o CPF) | — |
 | Aceite do termo | Versão, data, IP e navegador | banco do RevSign |
 | Código de 6 dígitos | Não é registrado | — |
 
-Isso confere com o que a página pública `/privacidade` diz.
+A página pública `/privacidade` diz o mesmo: o CPF aparece só mascarado na auditoria e no certificado, e o vínculo e-mail ↔ CPF fica no banco.
 
 ## Quando um link é bloqueado
 
@@ -68,13 +69,16 @@ O e-mail diz o motivo e manda desbloquear em **Admin → Verificações**.
 2. Abra `/admin` e clique em **Verificações**.
 3. Na lista **Links bloqueados**, ache o documento e o e-mail da pessoa. A coluna de motivo mostra "Excesso de tentativas" ou "CPF ligado a outro e-mail".
 4. Se o motivo for **"Excesso de tentativas"**, vá ao passo 8.
-5. Se o motivo for **"CPF ligado a outro e-mail"**, descubra primeiro qual vínculo está em conflito: na lista **Vínculos de e-mail**, busque pelo e-mail antigo da pessoa.
+5. Se o motivo for **"CPF ligado a outro e-mail"**, o conflito pode ter duas origens. Descubra qual: na lista **Vínculos de e-mail**, busque pelo e-mail antigo da pessoa.
 6. Confirme com a pessoa (ou com o RH) qual e-mail é o correto.
-7. No vínculo errado, clique em **Remover vínculo** e confirme. Faça isto ANTES de desbloquear; senão a pessoa tenta de novo e o link bloqueia outra vez.
+7. **Se existe um vínculo desse CPF com outro e-mail** (o vínculo errado aparece na lista): clique em **Remover vínculo** e confirme. Faça isto ANTES de desbloquear; senão a pessoa tenta de novo e o link bloqueia outra vez.
+   **Se NÃO existe vínculo** para esse CPF na lista: o conflito vem do e-mail cadastrado na base de RH para esse CPF, que é diferente do e-mail do destinatário. Não há vínculo para remover, e só desbloquear não resolve (o link bloqueia de novo). Escolha uma saída e só depois desbloqueie: (a) o RH corrige o e-mail na base; ou (b) o remetente reenvia o documento para o e-mail que a base tem.
 8. Volte à lista **Links bloqueados** e clique em **Desbloquear** na linha do documento.
 9. Avise a pessoa para abrir o link de novo. O contador de tentativas volta a zero e o evento "Link desbloqueado pelo administrador" fica no log de auditoria.
 
 Trocar o e-mail do destinatário no documento **não desbloqueia** o link (de propósito, por segurança): o bloqueio e as tentativas continuam valendo. Sempre desbloqueie pela tela de Verificações.
+
+Trocar o e-mail do destinatário também faz a pessoa nova começar do zero: o aceite do termo e a confirmação de identidade são apagados (ela aceita o termo e confirma de novo). O bloqueio e as tentativas são mantidos.
 
 ## Remover um vínculo
 
@@ -84,7 +88,7 @@ Use quando o vínculo foi feito com a pessoa errada, quando alguém troca de e-m
 2. Em **Vínculos de e-mail**, busque pelo e-mail (campo "Buscar por e-mail"). A lista mostra o e-mail, o nome (quando a base está ligada) e o CPF mascarado.
 3. Clique em **Remover vínculo** e confirme em "Remover este vínculo?".
 
-Efeito: vale só para documentos **novos**. Na próxima vez que esse e-mail receber um documento, a pessoa confirma CPF e data de novo. Quem já confirmou em um documento que ainda está em andamento mantém a confirmação desse documento e não precisa repetir.
+Efeito: vale só para documentos **novos**. Na próxima vez que esse e-mail receber um documento, a pessoa confirma CPF e data de novo. Quem já foi reconhecido ou confirmou naquele documento (que ainda está em andamento) continua passando nele, mesmo com o vínculo removido: o sistema só consulta o vínculo para quem ainda não passou pela identidade no documento. Se o termo mudar de versão, o termo é pedido de novo, mas a identidade já confirmada continua valendo.
 
 ## Ligar a base real de colaboradores
 

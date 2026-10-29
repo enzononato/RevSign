@@ -111,6 +111,7 @@ Por quê: o navegador precisa achar o endereço `assinatura-hml.revalle.com.br`.
 2. Troque cada `<preencher>` restante pelo valor real (tabela abaixo, "valor na homologação").
    - `NEXT_PRIVATE_DATABASE_URL` e `NEXT_PRIVATE_DIRECT_DATABASE_URL`: cole a **Internal Connection URL** do passo 2, as duas iguais.
    - `NEXT_PRIVATE_SMTP_*`: veja a seção "SMTP do cPanel" abaixo.
+   - `COLABORADORES_DATABASE_URL`: a URL da base de colaboradores (ver `verificacao.md`). Enquanto a base real não existe, troque a linha `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK=required` por `disabled` (só homologação) e apague a linha da URL.
 3. No EasyPanel, abra o serviço `revsign` e clique na aba **Environment**.
 4. Cole TODO o conteúdo do arquivo na caixa de texto (uma variável por linha, no formato `NOME=valor`, sem aspas).
 5. Clique em **Save**.
@@ -191,7 +192,7 @@ Por quê: copia o banco todo dia, cifrado, para fora da VPS. Detalhes em `backup
 Faça estas duas conferências antes de trocar a imagem de uma instalação que já está em uso. Numa instalação nova (sem dados) não há nada a conferir na primeira.
 
 1. **CPF repetido nos vínculos.** A migração `20261029130000_revalle_link_cpf_unique` torna o CPF único na tabela `RevalleEmailLink`. Se houver CPF repetido, ela falha e o app não sobe. Antes de atualizar:
-   1. Abra um terminal SQL no banco do RevSign (`revsign-db`).
+   1. No EasyPanel, abra o serviço do Postgres do RevSign (`revsign-db`) → **Console** e rode `psql -U <usuario> -d <banco>` (usuário e banco da Internal Connection URL; no passo 2 sugerimos `revsign` e `revsign`).
    2. Rode: `SELECT cpf, count(*) FROM "RevalleEmailLink" GROUP BY cpf HAVING count(*) > 1;`
    3. O resultado precisa ser VAZIO. Se aparecer alguma linha, avise o desenvolvedor antes de atualizar. Numa instalação nova a tabela ainda não existe (ou está vazia); não há o que conferir.
 2. **IP real no proxy.** O IP que vai para o log de auditoria e para os limites de tentativas vem do cabeçalho `X-Forwarded-For`, preenchido pelo proxy do EasyPanel (Traefik). O proxy precisa SOBRESCREVER o valor que o cliente manda (é o comportamento padrão). Para conferir:
@@ -200,7 +201,7 @@ Faça estas duas conferências antes de trocar a imagem de uma instalação que 
    3. Esperado: o IP público do celular (confira em https://meuip.com.br no mesmo celular).
    4. Se aparecer um IP interno (`10.`, `172.` ou `192.168.`) ou um IP que não é do celular, avise o desenvolvedor: o proxy não está repassando o IP real, e os limites e a auditoria perdem o valor.
 
-Depois de atualizar, preencha as variáveis novas (`COLABORADORES_DATABASE_URL` e, se for o caso, `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK`) conforme `verificacao.md`. O `app.env` gerado pelo script do passo 0 ainda não traz essas duas linhas: acrescente-as na aba **Environment**.
+Depois de atualizar, preencha as variáveis novas (`COLABORADORES_DATABASE_URL` e, se for o caso, `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK`) conforme `verificacao.md`. O `app.env` gerado pelo script do passo 0 já traz as duas linhas: `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK=required` e `COLABORADORES_DATABASE_URL=<preencher>`. Em instalações já existentes, acrescente-as na aba **Environment**.
 
 ## Tabela de todas as variáveis
 

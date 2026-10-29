@@ -78,10 +78,10 @@ export default function PrivacidadePage() {
         <h2 className="font-semibold text-xl">Segurança</h2>
         <p>
           Usamos medidas técnicas e administrativas para proteger os dados: acesso restrito, comunicação protegida e
-          registro das ações feitas no sistema. O CPF digitado não é gravado nos registros de auditoria e aparece
-          mascarado no certificado anexado ao documento. O vínculo entre o seu e-mail e o seu CPF fica guardado no banco
-          de dados do sistema para que você não precise confirmar seus dados a cada assinatura; ele pode ser removido
-          pelo administrador.
+          registro das ações feitas no sistema. O CPF aparece apenas mascarado (por exemplo, ***.456.789-**) nos
+          registros de auditoria e no certificado anexado ao documento. O vínculo entre o seu e-mail e o seu CPF fica
+          guardado no banco de dados do sistema para que você não precise confirmar seus dados a cada assinatura; ele
+          pode ser removido pelo administrador.
         </p>
       </section>
 
