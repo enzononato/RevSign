@@ -33,7 +33,7 @@ services:
       - '127.0.0.1:8025:8025'
 
   documenso:
-    image: ${REVSIGN_IMAGE:-ghcr.io/enzononato/revsign:v2.21.1-revalle.1}
+    image: ${REVSIGN_IMAGE:-ghcr.io/enzononato/revsign:v2.21.1-revalle.3}
     depends_on:
       database:
         condition: service_healthy

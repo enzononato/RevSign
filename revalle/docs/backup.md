@@ -26,7 +26,7 @@
 6. Em **Quota**, escolha um limite (por exemplo 5 GB) ou **Unlimited**.
 7. Clique em **Create FTP Account**.
 8. Na lista **FTP Accounts**, clique em **Configure FTP Client** na conta criada e anote o **FTP Server** (host).
-9. No EasyPanel, serviço `revsign-backup`, preencha:
+9. No `backup.env` (ou direto no EasyPanel, serviço `revsign-backup`, aba **Environment**), tire o `#` destas linhas e preencha:
    - `BACKUP_REMOTE_TYPE=ftps`
    - `BACKUP_REMOTE_HOST=` o host anotado
    - `BACKUP_REMOTE_PORT=21`
@@ -40,12 +40,12 @@
 1. No cPanel, procure **SSH Access**. Se não existir, a hospedagem não oferece: use FTPS.
 2. Se existir, a página mostra a porta (geralmente 22, mas algumas hospedagens usam uma porta diferente). Use essa.
 3. O login é o usuário do cPanel (ou outro que a hospedagem permita) e a senha dele. Pergunte à hospedagem se o SFTP está liberado para a conta.
-4. Variáveis: `BACKUP_REMOTE_TYPE=sftp`, `BACKUP_REMOTE_PORT=` a porta, host, usuário e senha, e `BACKUP_REMOTE_PATH=revsign-backups`.
+4. No `backup.env`, use as linhas de exemplo, mas com `BACKUP_REMOTE_TYPE=sftp`, `BACKUP_REMOTE_PORT=` a porta, host, usuário e senha, e `BACKUP_REMOTE_PATH=revsign-backups`.
 5. Opcional, mais seguro (verifica se o servidor é mesmo o da hospedagem; sem isto, a chave do servidor NÃO é conferida):
    1. No WSL, rode `ssh-keyscan -p PORTA HOST` e copie as linhas que aparecem.
    2. No EasyPanel, serviço `revsign-backup` → aba **Mounts** → **Add Mount** → tipo **File**.
    3. **Mount Path**: `/known_hosts`. **Content**: cole as linhas. **Save**.
-   4. Adicione a variável `BACKUP_REMOTE_KNOWN_HOSTS_FILE=/known_hosts` e reinicie.
+   4. Tire o `#` da linha `BACKUP_REMOTE_KNOWN_HOSTS_FILE=/known_hosts` e reinicie.
 
 ## Variáveis BACKUP_*
 
@@ -62,7 +62,7 @@
 | `BACKUP_REMOTE_USER` | vazio | Usuário |
 | `BACKUP_REMOTE_PASSWORD` | vazio | Senha (segredo) |
 | `BACKUP_REMOTE_PATH` | `revsign-backups` | Pasta de destino |
-| `BACKUP_REMOTE_KNOWN_HOSTS_FILE` | vazio | Só SFTP: arquivo `known_hosts` montado |
+| `BACKUP_REMOTE_KNOWN_HOSTS_FILE` | comentada | Só SFTP com arquivo montado: caminho do `known_hosts`. No FTPS, deixe comentada |
 | `BACKUP_REMOTE_INSECURE_TLS` | `false` | Só testes: aceita certificado FTPS inválido |
 
 ## Conferir que o backup está rodando

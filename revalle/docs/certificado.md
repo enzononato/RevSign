@@ -9,7 +9,7 @@ O RevSign sela o PDF final com um certificado digital. O certificado entra no ap
 
 Já vem pronto do script `scripts/revalle/generate-hml-secrets.sh` (passo 0 do `deploy.md`).
 
-- O `easypanel.env` já traz as duas variáveis preenchidas.
+- O `app.env` já traz as duas variáveis preenchidas.
 - Os arquivos `cert/cert.p12` e `cert/passphrase.txt` ficam no cofre de senhas.
 - Validade: 365 dias.
 - Limite conhecido: um certificado autoassinado não é confiável para ninguém. O Adobe mostra "validade desconhecida" (a assinatura está íntegra, só não se sabe quem é o emissor). Isso é esperado na homologação.

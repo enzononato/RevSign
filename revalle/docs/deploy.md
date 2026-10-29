@@ -25,7 +25,8 @@ Isto cria as senhas, o certificado de homologação e a chave do backup, tudo fo
 3. Rode (a pasta de saída precisa estar fora de qualquer repositório Git e vazia):
    `bash scripts/revalle/generate-hml-secrets.sh ~/projetos/assinaturas-revalle/local-hml/hml-easypanel`
 4. Abra a pasta criada. Ela tem:
-   - `easypanel.env`: as variáveis, prontas para colar no EasyPanel (com alguns `<preencher>`).
+   - `app.env`: variáveis do site (serviço `revsign`), com alguns `<preencher>`.
+   - `backup.env`: variáveis do serviço de backup (`revsign-backup`), com `<preencher>` e linhas de cópia remota comentadas (`#`).
    - `backup-age-identity.txt`: a chave PRIVADA dos backups.
    - `cert/`: o certificado `cert.p12` e a senha dele (`passphrase.txt`).
    - `LEIA-ME.txt`: resumo do que cada arquivo é.
@@ -106,18 +107,15 @@ Por quê: o navegador precisa achar o endereço `assinatura-hml.revalle.com.br`.
 
 ## Passo 5 — Colocar as variáveis de ambiente (App)
 
-Aqui é onde você me perguntou "como colocar as variáveis". Siga na ordem.
-
-1. Abra `easypanel.env` (do passo 0) no bloco de notas.
-2. Apague todas as linhas que começam com `BACKUP_`. Elas são do serviço de backup (passo 7), não do App.
-3. Troque cada `<preencher>` restante pelo valor real (tabela abaixo, "valor na homologação").
+1. Abra `app.env` (do passo 0) no bloco de notas. As variáveis do backup estão em outro arquivo (`backup.env`, passo 7).
+2. Troque cada `<preencher>` restante pelo valor real (tabela abaixo, "valor na homologação").
    - `NEXT_PRIVATE_DATABASE_URL` e `NEXT_PRIVATE_DIRECT_DATABASE_URL`: cole a **Internal Connection URL** do passo 2, as duas iguais.
    - `NEXT_PRIVATE_SMTP_*`: veja a seção "SMTP do cPanel" abaixo.
-4. No EasyPanel, abra o serviço `revsign` e clique na aba **Environment**.
-5. Cole TODO o conteúdo do arquivo na caixa de texto (uma variável por linha, no formato `NOME=valor`, sem aspas).
-6. Clique em **Save**.
-7. Conferência rápida: nenhuma linha deve conter `<preencher>`. Se ainda tiver, o App não sobe direito.
-8. Guarde uma cópia do arquivo preenchido no cofre de senhas e apague a cópia solta do computador.
+3. No EasyPanel, abra o serviço `revsign` e clique na aba **Environment**.
+4. Cole TODO o conteúdo do arquivo na caixa de texto (uma variável por linha, no formato `NOME=valor`, sem aspas).
+5. Clique em **Save**.
+6. Conferência rápida: o `app.env` não pode ter nenhuma linha com `<preencher>`. Se ainda tiver, o App não sobe direito.
+7. Guarde uma cópia do arquivo preenchido no cofre de senhas e apague a cópia solta do computador.
 
 ### SMTP do cPanel
 
@@ -150,28 +148,19 @@ Por quê: copia o banco todo dia, cifrado, para fora da VPS. Detalhes em `backup
 
 1. No projeto, clique em **+ Service** e depois **App**. Nome: `revsign-backup`.
 2. Aba **Source** → **Docker Image** → `ghcr.io/enzononato/revsign-backup:v2.21.1-revalle.3` → **Save**.
-3. Aba **Environment**: cole as variáveis abaixo (valores na tabela):
-
-```
-BACKUP_DATABASE_URL=<a mesma Internal Connection URL do passo 2>
-BACKUP_AGE_RECIPIENT=<a linha BACKUP_AGE_RECIPIENT do easypanel.env>
-BACKUP_REMOTE_TYPE=ftps
-BACKUP_REMOTE_HOST=<host da hospedagem>
-BACKUP_REMOTE_PORT=21
-BACKUP_REMOTE_USER=<usuário da conta FTP>
-BACKUP_REMOTE_PASSWORD=<senha da conta FTP>
-BACKUP_REMOTE_PATH=revsign-backups
-TZ=America/Bahia
-```
-
-   Clique em **Save**. (`BACKUP_CRON`, `BACKUP_RETENTION_DAYS` e `BACKUP_RUN_ON_START` são opcionais; veja a tabela.)
-4. Aba **Mounts** → **Add Mount** → tipo **Volume**:
+3. Abra `backup.env` (do passo 0) no bloco de notas e:
+   - Troque `BACKUP_DATABASE_URL=<preencher>` pela mesma Internal Connection URL do passo 2.
+   - Para a cópia fora da VPS (recomendada), tire o `#` do começo das linhas `BACKUP_REMOTE_*` do exemplo FTPS e preencha host, usuário e senha da conta FTP (veja `backup.md`). Deixe `BACKUP_REMOTE_KNOWN_HOSTS_FILE` comentada (só se usa em SFTP).
+   - Nenhuma linha SEM `#` pode ficar com `<preencher>`.
+4. Aba **Environment** do serviço `revsign-backup`: cole o conteúdo de `backup.env`.
+   Clique em **Save**. (`BACKUP_RUN_ON_START` é opcional; veja a tabela.)
+5. Aba **Mounts** → **Add Mount** → tipo **Volume**:
    - **Name**: `revsign-backups`
    - **Mount Path**: `/backups`
    - Clique em **Save**. Por quê: a cópia local e o arquivo `last-run.json` ficam guardados mesmo se o serviço reiniciar.
-5. Não crie domínio para este serviço (ele não tem site).
-6. Clique em **Deploy**.
-7. Para testar já, coloque `BACKUP_RUN_ON_START=true`, salve e reinicie. Abra a aba **Logs** e procure `backup concluido`. Depois volte para `false` (ou apague a linha).
+6. Não crie domínio para este serviço (ele não tem site).
+7. Clique em **Deploy**.
+8. Para testar já, coloque `BACKUP_RUN_ON_START=true`, salve e reinicie. Abra a aba **Logs** e procure `backup concluido`. Depois volte para `false` (ou apague a linha).
 
 ## Passo 8 — Criar a conta do administrador
 
@@ -263,4 +252,4 @@ Variáveis só do ensaio local (não use no EasyPanel): `REVSIGN_IMAGE`, `REVSIG
 
 1. Em **Source**, troque o número da versão na imagem (`...:v2.21.1-revalle.N`).
 2. Clique em **Deploy**.
-3. Rode as checagens do passo 9. Faça o backup antes (passo 7, item 7).
+3. Rode as checagens do passo 9. Faça o backup antes (passo 7, item 8).

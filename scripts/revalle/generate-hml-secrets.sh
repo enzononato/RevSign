@@ -108,8 +108,8 @@ AGE_PUB="$(grep -o 'age1[a-z0-9]*' "$OUT/backup-age-identity.txt" | head -n1)"
 P12_B64="$(base64 -w0 "$OUT/cert/cert.p12")"
 PASS="$(cat "$OUT/cert/passphrase.txt")"
 
-cat >"$OUT/easypanel.env" <<ENV
-# RevSign — homologação. Cole TUDO na aba Environment do serviço no EasyPanel.
+cat >"$OUT/app.env" <<ENV
+# RevSign — homologação, serviço APP. Cole TUDO na aba Environment do serviço "revsign" no EasyPanel.
 # Troque cada <preencher> pelo valor real antes de salvar.
 
 # --- Valores fixos ---
@@ -156,18 +156,36 @@ NEXT_PRIVATE_SMTP_FROM_ADDRESS=assinaturas@revalle.com.br
 # --- Certificado de assinatura ---
 NEXT_PRIVATE_SIGNING_LOCAL_FILE_CONTENTS=$P12_B64
 NEXT_PRIVATE_SIGNING_PASSPHRASE=$PASS
+ENV
 
-# --- Backup diário (chave PÚBLICA; a privada é o arquivo backup-age-identity.txt) ---
+cat >"$OUT/backup.env" <<ENV
+# RevSign — homologação, serviço BACKUP. Cole na aba Environment do serviço "revsign-backup".
+# Linhas começadas por # são comentários: tire o # só das que for usar.
+
+# Mesmo banco do app. Formato: postgres://revsign:<senha>@<host-interno>:5432/revsign
+# (é a "Internal Connection URL" do serviço Postgres no EasyPanel).
+BACKUP_DATABASE_URL=<preencher>
+
+# Chave PÚBLICA (a privada é o arquivo backup-age-identity.txt, que não vai para a VPS).
 BACKUP_AGE_RECIPIENT=$AGE_PUB
-# Cópia remota: none | sftp | ftps
-BACKUP_REMOTE_TYPE=<preencher>
-BACKUP_REMOTE_HOST=<preencher>
-BACKUP_REMOTE_PORT=<preencher>
-BACKUP_REMOTE_USER=<preencher>
-BACKUP_REMOTE_PASSWORD=<preencher>
-BACKUP_REMOTE_PATH=revsign-backups
-# SFTP: arquivo known_hosts montado no container (verifica a chave do servidor).
-BACKUP_REMOTE_KNOWN_HOSTS_FILE=<preencher>
+TZ=America/Bahia
+# Guarda um arquivo por dia dos últimos 30 dias.
+BACKUP_RETENTION_DAYS=30
+# Todo dia às 02:00.
+BACKUP_CRON="0 2 * * *"
+
+# --- Cópia remota (fora da VPS). Sem estas linhas, o backup fica só na VPS. ---
+# Exemplo FTPS (conta FTP do cPanel presa à pasta revsign-backups). Tire o # e preencha:
+# BACKUP_REMOTE_TYPE=ftps
+# BACKUP_REMOTE_HOST=<preencher>
+# BACKUP_REMOTE_PORT=21
+# BACKUP_REMOTE_USER=<preencher>
+# BACKUP_REMOTE_PASSWORD=<preencher>
+# BACKUP_REMOTE_PATH=revsign-backups
+#
+# Alternativa SFTP (só se a hospedagem tiver SSH): BACKUP_REMOTE_TYPE=sftp e a porta do SSH.
+# Só no SFTP, e só se você montou um arquivo known_hosts no container (ver backup.md):
+# BACKUP_REMOTE_KNOWN_HOSTS_FILE=/known_hosts
 ENV
 
 cat >"$OUT/LEIA-ME.txt" <<'TXT'
@@ -179,10 +197,15 @@ Não coloque dentro do repositório Git.
 
 O que cada arquivo é e para onde vai:
 
-1. easypanel.env
+1. app.env  (serviço do site, "revsign")
    - Abra o arquivo, troque cada <preencher> pelo valor real.
    - Cole o conteúdo na aba "Environment" do serviço no EasyPanel.
    - Depois de colar, guarde uma cópia no cofre de senhas e apague a cópia solta.
+
+1b. backup.env  (serviço "revsign-backup")
+   - Preencha BACKUP_DATABASE_URL (mesmo banco do app).
+   - Para a cópia fora da VPS, tire o # das linhas BACKUP_REMOTE_* e preencha.
+   - Cole na aba "Environment" do serviço de backup.
 
 2. backup-age-identity.txt
    - É a chave PRIVADA dos backups. Sem ela, os backups não abrem.
@@ -191,11 +214,11 @@ O que cada arquivo é e para onde vai:
 3. cert/ (cert.p12 e passphrase.txt)
    - É o certificado de assinatura e a senha dele.
    - Guarde no cofre de senhas, fora da VPS.
-   - O conteúdo do certificado já está dentro do easypanel.env.
+   - O conteúdo do certificado já está dentro do app.env.
    - Validade: 365 dias.
 TXT
 
-chmod 600 "$OUT/easypanel.env" "$OUT/backup-age-identity.txt" "$OUT/LEIA-ME.txt" "$OUT/cert/"*
+chmod 600 "$OUT/app.env" "$OUT/backup.env" "$OUT/backup-age-identity.txt" "$OUT/LEIA-ME.txt" "$OUT/cert/"*
 chmod 700 "$OUT/cert"
 echo "Pronto. Arquivos gerados em: $OUT"
 echo "Leia o LEIA-ME.txt desta pasta."
