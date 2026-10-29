@@ -51,7 +51,7 @@ services:
       - '127.0.0.1:8025:8025'
 
   documenso:
-    image: ${REVSIGN_IMAGE:-ghcr.io/enzononato/revsign:v2.21.1-revalle.4}
+    image: ${REVSIGN_IMAGE:-ghcr.io/enzononato/revsign:v2.21.1-revalle.5}
     depends_on:
       database:
         condition: service_healthy
@@ -99,7 +99,7 @@ services:
   # Backup diário cifrado (age) do Postgres, com cópia SFTP/FTPS e retenção.
   # Sem BACKUP_AGE_RECIPIENT o serviço não sobe (nunca envia dump em texto puro).
   backup:
-    image: ${REVSIGN_BACKUP_IMAGE:-ghcr.io/enzononato/revsign-backup:v2.21.1-revalle.4}
+    image: ${REVSIGN_BACKUP_IMAGE:-ghcr.io/enzononato/revsign-backup:v2.21.1-revalle.5}
     depends_on:
       database:
         condition: service_healthy
