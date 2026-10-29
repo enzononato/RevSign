@@ -3,8 +3,8 @@
 //
 // Passa por um fluxo real: cria e envia um documento pela API, abre o link de assinatura, passa pelo portão
 // (termo, CPF/data de nascimento do Fernando fictício do dev-seed.sql, "sou eu"), assina um campo de assinatura e
-// um de texto, abre e cancela o diálogo de recusa (e confere que o 1º toque depois disso abre o campo), pede o código
-// por e-mail (lido no Mailpit) e conclui.
+// um de texto, abre e fecha os diálogos "Baixar PDF" e "Recusar" do menu de ações (e confere que, depois de cada um, o
+// 1º toque num campo abre o campo), pede o código por e-mail (lido no Mailpit) e conclui.
 // Em cada passo tira um print e confere:
 //   - sem rolagem horizontal (document.scrollingElement.scrollWidth <= 360);
 //   - todo botão visível (button / role=button) com altura >= 44 px;
@@ -290,44 +290,71 @@ const runBrowser = async () => {
     await page.waitForLoadState('networkidle');
     await check('04-documento');
 
-    // 5. Menu de ações e diálogo de recusa (abre e cancela).
-    await page.locator('nav').getByRole('button').last().click();
+    // 5. Menu de ações: "Baixar PDF" (abre e fecha) e "Recusar" (abre e cancela). Os dois diálogos abrem de dentro do
+    // menu; depois de fechar cada um, o 1º toque num campo tem de abrir o campo. Com o menu modal do upstream, o menu
+    // continuava aberto e invisível (body com pointer-events: none) e esse toque se perdia.
+    const openActionsItem = async (pattern) => {
+      await page.locator('nav').getByRole('button').last().click();
+      await page.getByRole('menuitem').filter({ hasText: pattern }).waitFor();
+    };
+
+    const firstTapOpens = async (step, field) => {
+      await clickField(field);
+
+      const isOpened = await page
+        .getByRole('dialog')
+        .waitFor({ timeout: 5000 })
+        .then(
+          () => true,
+          () => false,
+        );
+
+      if (!isOpened) {
+        const detail = 'depois de fechar o diálogo, o 1º toque no campo não o abriu';
+
+        steps.push({ step, scrollWidth: null, problems: [{ kind: 'first-tap-lost', detail }] });
+        console.log(`FALHA ${step}: ${detail}`);
+        await clickField(field);
+        await page.getByRole('dialog').waitFor();
+      }
+    };
+
+    await openActionsItem(/baixar|download/i);
     await check('05-menu-acoes');
     await page
       .getByRole('menuitem')
-      .filter({ hasText: /recus|rejeit|reject/i })
+      .filter({ hasText: /baixar|download/i })
       .click();
     await page.getByRole('dialog').waitFor();
-    await check('06-recusar');
+    await check('06-baixar');
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: /fechar|close/i })
+      .click();
+    await page.getByRole('dialog').waitFor({ state: 'detached' });
+    await check('07-baixar-fechado');
+    await firstTapOpens('07-baixar-fechado', FIELDS.text);
     await page
       .getByRole('dialog')
       .getByRole('button', { name: /cancelar/i })
       .click();
     await page.getByRole('dialog').waitFor({ state: 'detached' });
-    // O 1º toque num campo depois de cancelar a recusa tem de abrir o campo. Antes da correção, o menu "Ações"
-    // continuava aberto e invisível (body com pointer-events: none) e esse toque se perdia.
-    await clickField(FIELDS.signature);
 
-    const isFirstTapOk = await page
+    await openActionsItem(/recus|rejeit|reject/i);
+    await page
+      .getByRole('menuitem')
+      .filter({ hasText: /recus|rejeit|reject/i })
+      .click();
+    await page.getByRole('dialog').waitFor();
+    await check('08-recusar');
+    await page
       .getByRole('dialog')
-      .waitFor({ timeout: 5000 })
-      .then(
-        () => true,
-        () => false,
-      );
+      .getByRole('button', { name: /cancelar/i })
+      .click();
+    await page.getByRole('dialog').waitFor({ state: 'detached' });
+    await firstTapOpens('08-recusar', FIELDS.signature);
 
-    if (!isFirstTapOk) {
-      steps.push({
-        step: '06-recusar',
-        scrollWidth: null,
-        problems: [{ kind: 'first-tap-lost', detail: 'depois de cancelar a recusa, o 1º toque no campo não o abriu' }],
-      });
-      console.log('FALHA 06-recusar: depois de cancelar a recusa, o 1º toque no campo não o abriu');
-      await clickField(FIELDS.signature);
-      await page.getByRole('dialog').waitFor();
-    }
-
-    await check('07-dialogo-assinatura');
+    await check('09-dialogo-assinatura');
 
     const canvas = page.getByRole('dialog').locator('canvas').first();
     const box = await canvas.boundingBox();
@@ -348,11 +375,11 @@ const runBrowser = async () => {
     // 7. Campo de texto.
     await clickField(FIELDS.text);
     await page.getByRole('dialog').waitFor();
-    await check('08-dialogo-texto');
+    await check('10-dialogo-texto');
     await page.getByRole('dialog').locator('textarea, input').first().fill('Teste no celular');
     await page.getByRole('dialog').getByRole('button').last().click();
     await page.getByRole('dialog').waitFor({ state: 'detached' });
-    await check('09-campos-preenchidos');
+    await check('11-campos-preenchidos');
 
     // 8. Concluir: diálogo, código por e-mail e conclusão.
     const before = await getLatestCode(SIGNER_EMAIL);
@@ -362,13 +389,13 @@ const runBrowser = async () => {
       .first()
       .click();
     await page.getByRole('dialog').waitFor();
-    await check('10-dialogo-concluir');
+    await check('12-dialogo-concluir');
     await page
       .getByRole('dialog')
       .getByRole('button', { name: /^(assinar|sign)$/i })
       .click();
     await page.getByRole('button', { name: /enviar código/i }).waitFor();
-    await check('11-pedir-codigo');
+    await check('13-pedir-codigo');
     await page.getByRole('button', { name: /enviar código/i }).click();
 
     let code;
@@ -389,13 +416,13 @@ const runBrowser = async () => {
 
     await page.locator('input[autocomplete="one-time-code"], [data-input-otp]').first().waitFor();
     await page.locator('input[autocomplete="one-time-code"], [data-input-otp]').first().fill(code);
-    await check('12-codigo');
+    await check('14-codigo');
     await page.getByRole('button', { name: /confirmar e concluir/i }).click();
 
     // 9. Página de conclusão.
     await page.waitForURL(/\/complete/, { timeout: 60_000 });
     await page.waitForLoadState('networkidle');
-    await check('13-concluido');
+    await check('15-concluido');
   } catch (error) {
     await page.screenshot({ path: `${out}/erro.png` }).catch(() => {});
     steps.push({ step: 'erro', scrollWidth: null, problems: [{ kind: 'flow-error', detail: String(error) }] });
