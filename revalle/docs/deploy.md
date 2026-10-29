@@ -236,6 +236,30 @@ Vale para quem atualiza uma instalação que já está em uso, vinda da Fase 3. 
    3. (Opcional) Teste direto, no **Console** do serviço `revsign`: `cd /app && node -e "require('maxmind').open('/app/geoip/dbip-city-lite.mmdb').then((r) => console.log(r.get('8.8.8.8')?.country?.iso_code, r.metadata.buildEpoch))"`. Esperado: `US` e a data da base.
 5. **Selagem.** Assine um documento de teste e confira o PDF final como em `certificado.md` (painel de assinaturas do leitor de PDF ou `scripts/revalle/inspect-pdf-signature.sh`).
 
+## Antes de atualizar (Fase 2)
+
+Vale para quem atualiza uma instalação que já está em uso, vinda da Fase 4 (marca RevSign e interface em pt-BR). Numa instalação nova o `app.env` do passo 0 já sai certo e não há contas antigas: nada a fazer.
+
+1. **Variáveis no EasyPanel.** Os padrões novos só valem quando a variável NÃO está definida. Numa instalação antiga, abra o serviço `revsign` → **Environment** e confira (ver a tabela abaixo):
+   - `NEXT_PRIVATE_SMTP_FROM_NAME=RevSign`: o valor antigo (`Revalle Assinaturas`) continua mandando e os e-mails saem com o nome antigo. Troque para `RevSign`;
+   - `NEXT_PRIVATE_SIGNING_REASON=Selado pelo RevSign da Revalle`: troque se estiver com o valor antigo `Selado pelo RevSign (Revalle)` (os parênteses saíam com barras no PDF), ou apague a linha para usar o padrão;
+   - `NEXT_PUBLIC_SUPPORT_EMAIL=projetos.ti@revalle.com.br`: e-mail de suporte das telas e dos e-mails (redefinir senha, conta criada pelo admin). Acrescente, ou ponha o e-mail que a TI quer receber.
+   Salve e faça o **Deploy** com a imagem nova.
+2. **(Opcional) Nome da organização e da equipe pessoais em pt-BR.** Contas novas já nascem com "Organização pessoal" e "Equipe pessoal". As contas antigas continuam com "Personal Organisation" / "Personal Team" no menu até alguém renomear. Para renomear todas de uma vez, faça o backup antes (passo 7, item 8) e, no EasyPanel, abra o serviço do Postgres do RevSign (`revsign-db`) → **Console**, rode `psql -U <usuario> -d <banco>` (como na Fase 3) e cole:
+   ```sql
+   SET client_encoding = 'UTF8';
+   BEGIN;
+   UPDATE "Organisation" SET name = 'Organização pessoal' WHERE name = 'Personal Organisation';
+   UPDATE "Team" SET name = 'Equipe pessoal' WHERE name = 'Personal Team';
+   SELECT name, count(*) FROM "Organisation" WHERE name IN ('Personal Organisation', 'Organização pessoal') GROUP BY name;
+   SELECT name, count(*) FROM "Team" WHERE name IN ('Personal Team', 'Equipe pessoal') GROUP BY name;
+   ```
+   - Só muda as linhas com exatamente o nome antigo; organização ou equipe que alguém renomeou fica como está. Pode rodar de novo: a segunda vez muda 0 linhas.
+   - Confira os dois `UPDATE n` e as duas contagens: nenhuma linha com o nome antigo e os acentos certos (`Organização`, sem `?` ou `Ã§`).
+   - Tudo certo: digite `COMMIT;`. Algo estranho: digite `ROLLBACK;` (nada muda) e avise o desenvolvedor.
+3. **Verificação em duas etapas (2FA) e chave de acesso (passkey).** O nome no aplicativo autenticador e no gerenciador de senhas passou de "Documenso" para "RevSign" só para o que for cadastrado a partir desta versão. Quem já tinha 2FA ou passkey continua vendo "Documenso" no celular, e os códigos continuam valendo normalmente. Para ver "RevSign", basta desativar e cadastrar de novo (ou renomear a entrada no próprio aplicativo).
+4. **Links públicos de compartilhamento.** O RevSign não cria mais link público de compartilhamento (`/share/<código>`, o "Compartilhar" do Documenso), e os links criados antes desta versão param de funcionar. O link do QR do certificado (`/share/qr_…`) continua valendo.
+
 ## Tabela de todas as variáveis
 
 Legenda de "segredo?": **sim** = nunca no repositório, só no EasyPanel e no cofre.

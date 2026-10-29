@@ -37,13 +37,22 @@ Variáveis:
 
 Pulados aparecem como `skipped` no resumo. "Tudo verde" de verdade é: `fail 0`. Confira também o número de `skipped`.
 
-`branding.test.mjs` (marca RevSign) cria a cada execução uma conta nova `marca-…@revalle.com.br` (cadastro, confirmação pelo link do Mailpit, login e início do 2FA, sem ativar) e um documento assinado pelo Fernando fictício do `dev-seed.sql`; o vínculo do CPF dele é solto antes e depois. Ele confere o título `· RevSign`, o manifest, os e-mails (remetente `RevSign`), o certificado/log e o motivo da assinatura no PDF: rode-o com a stack subida pelo `compose.hml.yml` atual (padrões `NEXT_PRIVATE_SMTP_FROM_NAME=RevSign` e `NEXT_PRIVATE_SIGNING_REASON`).
+`branding.test.mjs` (marca RevSign) cria a cada execução uma conta nova `marca-…@revalle.com.br` (cadastro, confirmação pelo link do Mailpit, login e início do 2FA, sem ativar) e um documento assinado pelo Fernando fictício do `dev-seed.sql`; o vínculo do CPF dele é solto antes e depois. Ele confere o título `· RevSign`, o manifest, os e-mails (remetente `RevSign`; assunto do convite "Você tem um novo documento para assinar"), o certificado/log e o motivo da assinatura no PDF: rode-o com a stack subida pelo `compose.hml.yml` atual (padrões `NEXT_PRIVATE_SMTP_FROM_NAME=RevSign` e `NEXT_PRIVATE_SIGNING_REASON`).
 
 `share-hardening.test.mjs` confere que o RevSign não cria link público de compartilhamento: `document.share` (tRPC) é recusado com o token do destinatário e com o dono logado (sem gravar linha em `DocumentShareLink`), e `/share/<slug>/opengraph` responde 404 (o teste insere e apaga uma linha própria).
 
 Os testes usam `docker exec revsign-hml-database-1 psql` (nome fixo do container), o Mailpit em `http://localhost:8025` e, para simular código vencido, `docker exec revsign-hml-documenso-1 node` (o código é calculado dentro do container; a chave não sai de lá).
 
 Conexões ociosas: o app fecha conexões keep-alive paradas. Depois de uma espera longa (selagem, reselagem), o próximo pedido pode cair numa conexão já fechada (`EPIPE`, `ECONNRESET` ou `UND_ERR_SOCKET` "other side closed"). Os ajudantes (`helpers.mjs`) repetem **uma vez** os pedidos que podem ser repetidos sem efeito colateral (GET: API, downloads, Mailpit, consultas tRPC) com `fetchIdempotent`/`retryOnStaleSocket`. Pedidos POST não são repetidos, com uma exceção: a criação de documento nos testes de carimbo, selagem e aceite (`retryCreateOnStaleSocket`), nos mesmos três erros. Risco aceito: um `UND_ERR_SOCKET` pode chegar depois de o servidor já ter criado o documento; aí a repetição cria outro e o primeiro fica como envelope de teste órfão (inofensivo na stack local descartável; o teste segue com o segundo). Não dá para restringir a repetição a `EPIPE`/`ECONNRESET`: o erro que aparece na prática nessa criação é justamente o `UND_ERR_SOCKET` do socket ocioso.
+
+## Tradução (overlay pt-BR)
+
+As traduções do RevSign ficam no overlay `packages/lib/translations/revalle/pt-BR.po`; os catálogos do upstream (`packages/lib/translations/<idioma>/web.po`) nunca são editados no git.
+
+- `npm run translate:revalle` faz o mesmo que o build da imagem: extrai as msgids, aplica o overlay, valida (`check-po.mjs --locale pt-BR --warn-missing`) e compila. `npm run dev` e `npm run dev:remix` já o rodam, então o desenvolvimento local mostra as telas como na imagem. A última linha do `check-po` é o resumo (`N entradas, M sem tradução, K obsoletas no overlay, E erros`).
+- Ele reescreve os `web.po` do upstream no lugar. Depois de rodar, desfaça com `git checkout -- 'packages/lib/translations/*/web.po'`. O pre-commit (`scripts/revalle/check-secrets.sh --staged`) recusa o commit se algum desses arquivos estiver no stage; num merge do upstream (`MERGE_HEAD`) eles passam, e `REVALLE_ALLOW_UPSTREAM_PO=1 git commit …` libera de propósito (ex.: reverter um commit acidental).
+- Testes puros do overlay, do validador e dessa guarda: `node --test scripts/revalle/tests/i18n.test.mjs` (não precisam da stack).
+- `sh scripts/revalle/check-image-i18n.sh <imagem>` confere que o catálogo pt-BR compilado dentro da imagem tem o overlay (o CI roda antes de publicar).
 
 ## Aceite da Fase 4
 
