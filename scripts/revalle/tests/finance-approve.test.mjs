@@ -9,7 +9,8 @@
 //     grava `APPROVED` e quem/quando, registra o evento (também no log em PDF), sela e a contabilidade recebe 1 e-mail;
 //     a 2ª chamada devolve `{ approved: false }` sem nada a mais;
 //   - aprovar antes de todos assinarem: o último a assinar sela direto;
-//   - disparo duplicado numa NF já concluída não carimba de novo; aprovação simultânea = 1 evento e 1 selagem;
+//   - disparo duplicado numa NF já concluída não carimba de novo, mas o retry do MESMO job (falha depois de selar)
+//     termina os passos seguintes (e-mail de conclusão); aprovação simultânea = 1 evento e 1 selagem;
 //   - a varredura conta a aprovação como atividade: aprovada há 20 minutos (assinaturas há 7 horas) é selada, há 5
 //     minutos ainda não; versão substituída (`SUPERSEDED`, no banco) nunca é selada e não pede aprovação;
 //   - os outros dois pontos de disparo também retêm: o admin remove o último pendente, e a NF só com CC (o atalho de
@@ -175,7 +176,7 @@ const danfe = async (variant) => {
 
 // Cria (NF com a conta `code`, ou documento comum com `pdf`), envia pela API v2 e devolve os destinatários com token.
 // `choice: null` = documento comum, sem escolha.
-const sendDocument = async (label, { signers = 2, choice = { code: '2.1.03' }, pdf } = {}) => {
+const sendDocument = async (label, { signers = 2, choice = { code: '2.1.03' }, pdf, meta } = {}) => {
   const emails = Array.from({ length: signers }, (_, index) => `f6-aprova-${label}-${index + 1}-${RUN}@revalle.com.br`);
   const title = `[TESTE NF] financeiro aprovação ${label} ${RUN}`;
   const created = await retryCreateOnStaleSocket(() =>
@@ -183,6 +184,7 @@ const sendDocument = async (label, { signers = 2, choice = { code: '2.1.03' }, p
       recipients: emails.map((email) => ({ email })),
       pdf: pdf ?? 'assets/example.pdf',
       title,
+      meta,
     }),
   );
 
@@ -249,7 +251,9 @@ const sign = async (doc, index) => {
 // Roda um job como o app roda (o cron do provedor local faz exatamente isto): grava a linha PENDING em
 // "BackgroundJob" e faz o POST em /api/jobs/{job}/{id} com a assinatura do app. A assinatura é calculada DENTRO do
 // container (a chave não sai de lá; só a assinatura volta). Devolve o status final da linha.
-const runJobLikeTheApp = async ({ jobId, name, version, payload }) => {
+// `retryOf`: repete um job que já existe, como o provedor faz depois de uma falha (a linha volta a PENDING e o POST
+// leva `X-Job-Retry`); as tarefas já concluídas do job devolvem o resultado guardado.
+const runJobLikeTheApp = async ({ jobId, name, version, payload, retryOf }) => {
   const options = { name: jobId, payload };
   const script = `
     const crypto = require('node:crypto');
@@ -265,15 +269,24 @@ const runJobLikeTheApp = async ({ jobId, name, version, payload }) => {
   const signature = execFileSync('docker', ['exec', APP_CONTAINER, 'node', '-e', script, JSON.stringify(options)], {
     encoding: 'utf8',
   }).trim();
-  const id = `revsign-test-${jobId}-${RUN}-${Date.now()}`;
+  const id = retryOf ?? `revsign-test-${jobId}-${RUN}-${Date.now()}`;
 
-  db(
-    `insert into "BackgroundJob" (id, "jobId", name, version, payload, "updatedAt") values ('${id}', '${jobId}', '${name}', '${version}', '${JSON.stringify(payload)}', now())`,
-  );
+  if (retryOf) {
+    db(`update "BackgroundJob" set status = 'PENDING' where id = '${retryOf}'`);
+  } else {
+    db(
+      `insert into "BackgroundJob" (id, "jobId", name, version, payload, "updatedAt") values ('${id}', '${jobId}', '${name}', '${version}', '${JSON.stringify(payload)}', now())`,
+    );
+  }
 
   const res = await fetch(`${BASE_URL}/api/jobs/${jobId}/${id}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Job-Id': id, 'X-Job-Signature': signature },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Job-Id': id,
+      'X-Job-Signature': signature,
+      ...(retryOf ? { 'X-Job-Retry': '1' } : {}),
+    },
     body: JSON.stringify(options),
   });
 
@@ -529,6 +542,46 @@ sessionTest('disparo duplicado da selagem numa NF já concluída: nada é carimb
   assert.equal(auditCount(held.id, 'DOCUMENT_COMPLETED'), 1);
 });
 
+sessionTest(
+  'retry do mesmo job de selagem (falha depois de selar): termina os passos seguintes e o e-mail de conclusão sai',
+  async () => {
+    // Com distribuição por e-mail: só assim o e-mail de conclusão aos participantes sai.
+    const doc = await sendDocument('retry', { signers: 1, choice: null, meta: { distributionMethod: 'EMAIL' } });
+    const signer = doc.recipients[0].email;
+    const completedMails = async () =>
+      (await mailsTo(signer)).filter((m) => (Array.isArray(m.Attachments) ? m.Attachments.length : m.Attachments) > 0)
+        .length;
+
+    await sign(doc, 0);
+    assert.equal(await waitStatus(doc.id, 'COMPLETED'), 'COMPLETED');
+    assert.equal((await waitMails(signer, (m) => m.Attachments > 0)).length, 1, 'o e-mail de conclusão não chegou');
+
+    // O job que selou: a tarefa `seal-document` dele está concluída, com o resultado guardado.
+    const [jobId] = db(
+      `select j.id from "BackgroundJob" j where j."jobId" = 'internal.seal-document' and j.payload->>'documentId' = '${doc.documentId}' and exists (select 1 from "BackgroundJobTask" t where t."jobId" = j.id and t.status = 'COMPLETED')`,
+    ).split('\n');
+
+    assert.ok(jobId, 'job de selagem não encontrado');
+
+    const before = [itemData(doc.id), sealedHash(doc.item.id)];
+    const payload = JSON.parse(db(`select payload::text from "BackgroundJob" where id = '${jobId}'`));
+    // Um passo depois da selagem (webhook, e-mails) falhou: o provedor repete o MESMO job.
+    const retried = await runJobLikeTheApp({ jobId: 'internal.seal-document', payload, retryOf: jobId });
+
+    assert.equal(retried, 'COMPLETED');
+
+    const deadline = Date.now() + 30_000;
+
+    while ((await completedMails()) < 2 && Date.now() < deadline) {
+      await sleep(500);
+    }
+
+    assert.equal(await completedMails(), 2, 'o retry não terminou os passos seguintes (e-mail de conclusão)');
+    assert.deepEqual([itemData(doc.id), sealedHash(doc.item.id)], before, 'o retry selou de novo');
+    assert.equal(auditCount(doc.id, 'DOCUMENT_COMPLETED'), 1);
+  },
+);
+
 sessionTest('aprovação simultânea (clique duplo): 1 evento, 1 selagem', async () => {
   const doc = await newInvoice('simultanea');
 
@@ -756,4 +809,21 @@ sessionTest('um signatário recusa: o documento fica REJECTED sem retenção', a
   assert.equal(financeStatus(doc.id), 'PENDING_APPROVAL');
   assert.equal((await approvalMails(doc)).length, 0);
   assert.equal((await accountingMails(doc)).length, 0);
+});
+
+sessionTest('versão substituída com recusa: é selada como recusada (a recusa vale também para ela)', async () => {
+  const doc = await newInvoice('substituida-recusa', { signers: 1 });
+
+  db(`update "RevalleInvoiceClassification" set "financeStatus" = 'SUPERSEDED' where "envelopeId" = '${doc.id}'`);
+  await gate(doc.recipients[0].token);
+
+  const rejected = await trpc('recipient.rejectDocumentWithToken', {
+    token: doc.recipients[0].token,
+    documentId: doc.documentId,
+    reason: 'Teste',
+  });
+
+  assert.equal(rejected.status, 200, rejected.text);
+  assert.equal(await waitStatus(doc.id, 'REJECTED'), 'REJECTED');
+  assert.equal((await approvalMails(doc)).length, 0);
 });

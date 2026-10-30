@@ -26,7 +26,7 @@ export const shouldHoldSeal = async (envelopeId: string): Promise<boolean> => {
 /**
  * Versão substituída pelo Financeiro (conta trocada) e ainda não concluída: nunca é selada, nem depois (a nova versão é
  * que segue). Diferente da retenção: não há aprovação a pedir. Uma versão já concluída continua concluída, e a
- * reselagem dela pelo admin segue normal.
+ * reselagem dela pelo admin segue normal; recusada também sela (como na varredura).
  */
 export const isSupersededUnsealed = async (envelopeId: string): Promise<boolean> => {
   const row = await prisma.revalleInvoiceClassification.findFirst({
@@ -34,7 +34,10 @@ export const isSupersededUnsealed = async (envelopeId: string): Promise<boolean>
       envelopeId,
       isInvoice: RevalleInvoiceStatus.YES,
       financeStatus: RevalleFinanceStatus.SUPERSEDED,
-      envelope: { status: { not: DocumentStatus.COMPLETED } },
+      envelope: {
+        status: { not: DocumentStatus.COMPLETED },
+        recipients: { none: { signingStatus: SigningStatus.REJECTED } },
+      },
     },
     select: { envelopeId: true },
   });
