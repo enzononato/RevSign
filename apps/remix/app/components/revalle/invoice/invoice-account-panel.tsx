@@ -109,8 +109,9 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
   // antes da classificação nova (os arquivos podem ter mudado). Sem estado (erro na consulta), o envio segue: o
   // servidor confere de qualquer forma. Escaneado (UNKNOWN) só libera com "Sim" (e a conta) ou "Não": uma NF tirada
   // no celular não pode sair do fluxo da contabilidade com um toque em "Enviar". O servidor não exige a resposta (API).
-  // Retida para o Financeiro ("Deixar para o Financeiro" já enviado): quem envia agora é o Financeiro.
-  const isHeld = isInvoice && state?.financeStatus === 'AWAITING_ACCOUNT';
+  // Retida para o Financeiro ("Deixar para o Financeiro" já enviado; ou com a conta definida e o envio do Financeiro
+  // em andamento): quem envia agora é o Financeiro.
+  const isHeld = isInvoice && (state?.financeStatus === 'AWAITING_ACCOUNT' || state?.financeStatus === 'APPROVED');
   const isReady =
     isClassified &&
     !isHeld &&

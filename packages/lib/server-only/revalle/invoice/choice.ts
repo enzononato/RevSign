@@ -1,5 +1,5 @@
 import { prisma } from '@documenso/prisma';
-import { RevalleFinanceStatus, RevalleInvoiceStatus } from '@prisma/client';
+import { RevalleInvoiceStatus } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
@@ -9,7 +9,14 @@ import { isAdmin } from '../../../utils/is-admin';
 import { logger } from '../../../utils/logger';
 import { emailAccountingIfCompleted } from './accounting-email';
 import type { InvoiceState } from './classify';
-import { classifyEnvelope, financeDecidesError, getInvoiceState, isEnvelopeDraft, toInvoiceState } from './classify';
+import {
+  classifyEnvelope,
+  financeDecidesError,
+  getInvoiceState,
+  isDraftFinanceStatusLocked,
+  isEnvelopeDraft,
+  toInvoiceState,
+} from './classify';
 
 export const INVOICE_ACCOUNT_REQUIRED_MESSAGE = 'Escolha a conta contábil ou deixe para o Financeiro.';
 
@@ -89,7 +96,7 @@ export const setInvoiceChoice = async ({
     select: { financeStatus: true, choiceCode: true, choiceDefer: true },
   });
 
-  if (isDraft && current?.financeStatus === RevalleFinanceStatus.AWAITING_ACCOUNT) {
+  if (isDraft && isDraftFinanceStatusLocked(current?.financeStatus)) {
     throw financeDecidesError();
   }
 

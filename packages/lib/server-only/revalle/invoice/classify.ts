@@ -163,13 +163,20 @@ export const financeDecidesError = () =>
     userMessage: INVOICE_FINANCE_DECIDES_MESSAGE,
   });
 
+/**
+ * Rascunho nas mãos do Financeiro: retido esperando a conta (`AWAITING_ACCOUNT`) ou com a conta definida e o envio em
+ * andamento (`APPROVED` ainda em rascunho; ver `define-and-send.ts`).
+ */
+export const isDraftFinanceStatusLocked = (financeStatus: RevalleFinanceStatus | null | undefined) =>
+  financeStatus === RevalleFinanceStatus.AWAITING_ACCOUNT || financeStatus === RevalleFinanceStatus.APPROVED;
+
 export const isHeldForFinance = async (envelopeId: string) => {
   const row = await prisma.revalleInvoiceClassification.findUnique({
     where: { envelopeId },
     select: { financeStatus: true },
   });
 
-  return row?.financeStatus === RevalleFinanceStatus.AWAITING_ACCOUNT;
+  return isDraftFinanceStatusLocked(row?.financeStatus);
 };
 
 export const isEnvelopeDraft = async (envelopeId: string) => {
