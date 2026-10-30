@@ -4279,3 +4279,136 @@ msgstr "Preenchido"
 msgctxt "Recipient role progressive verb"
 msgid "Assisting"
 msgstr "Preenchendo"
+
+# REVALLE: Fase 5, tela Admin → Contas contábeis (msgids já em pt-BR).
+msgid "A lista nova substitui a atual. Contas que saírem ficam inativas: documentos antigos continuam com elas, mas elas não aparecem em documentos novos."
+msgstr "A lista nova substitui a atual. Contas que saírem ficam inativas: documentos antigos continuam com elas, mas elas não aparecem em documentos novos."
+
+msgid "A pagar"
+msgstr "A pagar"
+
+msgid "A receber"
+msgstr "A receber"
+
+msgid "Alterado por {updatedByName} em {updatedAt}."
+msgstr "Alterado por {updatedByName} em {updatedAt}."
+
+msgid "Aplicar"
+msgstr "Aplicar"
+
+msgid "Arquivo CSV separado por ponto e vírgula, com as colunas numero;nome;descricao;tipo. O tipo é pagar, receber ou vazio."
+msgstr "Arquivo CSV separado por ponto e vírgula, com as colunas numero;nome;descricao;tipo. O tipo é pagar, receber ou vazio."
+
+msgid "Arquivo: {fileName}"
+msgstr "Arquivo: {fileName}"
+
+msgid "Ativa"
+msgstr "Ativa"
+
+msgid "Buscar por número ou nome"
+msgstr "Buscar por número ou nome"
+
+msgid "Cancelar"
+msgstr "Cancelar"
+
+msgid "Configurações salvas."
+msgstr "Configurações salvas."
+
+msgid "Contas"
+msgstr "Contas"
+
+msgid "Contas contábeis"
+msgstr "Contas contábeis"
+
+msgid "Contas válidas: {validCount}"
+msgstr "Contas válidas: {validCount}"
+
+msgid "Corrija estes erros e envie de novo. Nada foi gravado."
+msgstr "Corrija estes erros e envie de novo. Nada foi gravado."
+
+msgid "Descrição"
+msgstr "Descrição"
+
+msgid "E-mail da contabilidade"
+msgstr "E-mail da contabilidade"
+
+msgid "Enviar arquivo CSV"
+msgstr "Enviar arquivo CSV"
+
+msgid "Importar lista de contas"
+msgstr "Importar lista de contas"
+
+msgid "Inativa"
+msgstr "Inativa"
+
+msgid "Linha {line}: {message}"
+msgstr "Linha {line}: {message}"
+
+msgid "Lista aplicada: {created} novas, {updated} alteradas, {deactivated} desativadas."
+msgstr "Lista aplicada: {created} novas, {updated} alteradas, {deactivated} desativadas."
+
+msgid "Mostrando {shown} de {total}. Use a busca para achar as outras."
+msgstr "Mostrando {shown} de {total}. Use a busca para achar as outras."
+
+msgid "Mostrar inativas"
+msgstr "Mostrar inativas"
+
+msgid "Não foi possível aplicar a lista."
+msgstr "Não foi possível aplicar a lista."
+
+msgid "Não foi possível ler a lista."
+msgstr "Não foi possível ler a lista."
+
+msgid "Não foi possível salvar. Confira o e-mail da contabilidade."
+msgstr "Não foi possível salvar. Confira o e-mail da contabilidade."
+
+msgid "Nenhuma conta encontrada."
+msgstr "Nenhuma conta encontrada."
+
+msgid "Nome"
+msgstr "Nome"
+
+msgid "Número"
+msgstr "Número"
+
+msgid "O arquivo não estava em UTF-8; foi lido como Windows-1252 (padrão do Excel)."
+msgstr "O arquivo não estava em UTF-8; foi lido como Windows-1252 (padrão do Excel)."
+
+msgid "O arquivo passa de 1 MB."
+msgstr "O arquivo passa de 1 MB."
+
+msgid "Orientações para a IA escolher a conta (ex.: regras da empresa). A lista de contas ativas é enviada junto, sempre."
+msgstr "Orientações para a IA escolher a conta (ex.: regras da empresa). A lista de contas ativas é enviada junto, sempre."
+
+msgid "Ou cole a lista aqui"
+msgstr "Ou cole a lista aqui"
+
+msgid "Prompt"
+msgstr "Prompt"
+
+msgid "Recebe o PDF assinado das notas fiscais. Pode ficar vazio."
+msgstr "Recebe o PDF assinado das notas fiscais. Pode ficar vazio."
+
+msgid "Salvar"
+msgstr "Salvar"
+
+msgid "Situação"
+msgstr "Situação"
+
+msgid "Sugestão e contabilidade"
+msgstr "Sugestão e contabilidade"
+
+msgid "Sugestão por IA: desligada. A escolha da conta funciona, mas sem sugestão."
+msgstr "Sugestão por IA: desligada. A escolha da conta funciona, mas sem sugestão."
+
+msgid "Sugestão por IA: Gemini configurado (modelo {model})."
+msgstr "Sugestão por IA: Gemini configurado (modelo {model})."
+
+msgid "Sugestão por IA: sem chave do Gemini. A escolha da conta funciona, mas sem sugestão."
+msgstr "Sugestão por IA: sem chave do Gemini. A escolha da conta funciona, mas sem sugestão."
+
+msgid "Tipo"
+msgstr "Tipo"
+
+msgid "Ver prévia"
+msgstr "Ver prévia"
