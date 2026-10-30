@@ -2,11 +2,12 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import type { FilePart, TextPart } from 'ai';
 import { generateObject, NoObjectGeneratedError } from 'ai';
 
+import { maskCpf } from '../../../revalle/invoice/mask-cpf';
 import { ZInvoiceSuggestionSchema } from '../../../revalle/invoice/suggestion';
 import { env } from '../../../utils/env';
 import { getRevalleInvoiceAiConfig } from './settings';
 
-/** Limite do texto da NF enviado ao Gemini (o resto é cortado). */
+/** Limite do texto de CADA arquivo enviado ao Gemini (o resto é cortado). */
 export const INVOICE_TEXT_MAX_CHARS = 20_000;
 
 /**
@@ -29,7 +30,8 @@ export type GeminiSuggestionResult = {
  */
 export const requestGeminiSuggestion = async (input: {
   prompt: string;
-  text?: string;
+  /** Texto de um ou mais arquivos (uma parte da mensagem por arquivo; CPF mascarado e corte por arquivo). */
+  text?: string | string[];
   pdf?: Uint8Array | Uint8Array[];
   signal: AbortSignal;
 }): Promise<GeminiSuggestionResult> => {
@@ -41,11 +43,13 @@ export const requestGeminiSuggestion = async (input: {
   });
 
   const pdfs = input.pdf === undefined ? [] : Array.isArray(input.pdf) ? input.pdf : [input.pdf];
-  const text = input.text?.trim() ? input.text.slice(0, INVOICE_TEXT_MAX_CHARS) : '';
+  const texts = (input.text === undefined ? [] : Array.isArray(input.text) ? input.text : [input.text])
+    .map((text) => maskCpf(text).slice(0, INVOICE_TEXT_MAX_CHARS).trim())
+    .filter(Boolean);
 
   const content: Array<TextPart | FilePart> = [
     { type: 'text', text: INVOICE_CONTENT_PREAMBLE },
-    ...(text ? [{ type: 'text' as const, text }] : []),
+    ...texts.map((text) => ({ type: 'text' as const, text })),
     ...pdfs.map((data) => ({ type: 'file' as const, data, mediaType: 'application/pdf' })),
   ];
 
@@ -56,6 +60,9 @@ export const requestGeminiSuggestion = async (input: {
       instructions: input.prompt,
       messages: [{ role: 'user', content }],
       abortSignal: input.signal,
+      // Gemini 3: thinkingLevel "minimal"; 2.5: orçamento pequeno. Classificar não precisa de raciocínio longo e o
+      // limite é de 20 s.
+      reasoning: 'minimal',
       // Uma repetição para falha passageira do provedor (dentro dos mesmos 20 s do `signal`).
       maxRetries: 1,
     });

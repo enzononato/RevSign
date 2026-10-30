@@ -50,21 +50,24 @@ export const toInvoiceState = async (row: RevalleInvoiceClassification): Promise
     Boolean(code),
   );
 
-  const names = new Map(
+  const accounts = new Map(
     codes.length > 0
       ? (
           await prisma.revalleAccountingAccount.findMany({
             where: { code: { in: codes } },
-            select: { code: true, name: true },
+            select: { code: true, name: true, active: true },
           })
-        ).map((account) => [account.code, account.name])
+        ).map((account) => [account.code, account])
       : [],
   );
 
-  const suggestion: InvoiceState['suggestion'] = hasSuggestion
+  const suggestedAccount = hasSuggestion ? accounts.get(String(stored.accountCode)) : undefined;
+
+  // Conta sugerida que saiu da lista (inativa) não é mais oferecida: fica como "sem sugestão".
+  const suggestion: InvoiceState['suggestion'] = suggestedAccount?.active
     ? {
-        accountCode: String(stored.accountCode),
-        accountName: names.get(String(stored.accountCode)) ?? '',
+        accountCode: suggestedAccount.code,
+        accountName: suggestedAccount.name,
         // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
         confidence: stored.confidence as 'alta' | 'media' | 'baixa',
         reason: String(stored.reason),
@@ -74,7 +77,7 @@ export const toInvoiceState = async (row: RevalleInvoiceClassification): Promise
   const choice: InvoiceState['choice'] = row.choiceDefer
     ? { code: 'DEFER' }
     : row.choiceCode
-      ? { code: row.choiceCode, name: names.get(row.choiceCode) }
+      ? { code: row.choiceCode, name: accounts.get(row.choiceCode)?.name }
       : null;
 
   return {
@@ -122,25 +125,42 @@ export const classifyEnvelope = async (envelopeId: string, requester: InvoiceReq
 
   if (!row || row.fileSha256 !== key) {
     const contents = await readFilesContent(files);
-    const detection =
+    const invoiceFiles = contents.filter((content) => content.detection.status === 'YES');
+    // Basta um arquivo ser NF. Sem nenhum, o conjunto decide entre NO e UNKNOWN (todo escaneado = UNKNOWN).
+    const overall = detectInvoice(contents.flatMap((content) => content.pages)).status;
+    const isInvoice =
       files.length === 0
-        ? { status: 'NO' as const, signals: [] }
-        : detectInvoice(contents.flatMap((content) => content.pages));
+        ? RevalleInvoiceStatus.NO
+        : invoiceFiles.length > 0
+          ? RevalleInvoiceStatus.YES
+          : overall === 'UNKNOWN'
+            ? RevalleInvoiceStatus.UNKNOWN
+            : RevalleInvoiceStatus.NO;
 
     const data = {
-      isInvoice: detection.status,
+      isInvoice,
       detectedBy: RevalleInvoiceDetectedBy.TEXT,
-      signals: detection.signals,
+      signals: [...new Set(invoiceFiles.flatMap((content) => content.detection.signals))],
       fileSha256: key,
       suggestionStatus: RevalleSuggestionStatus.SKIPPED,
       suggestion: Prisma.DbNull,
     };
 
-    row = await prisma.revalleInvoiceClassification.upsert({
-      where: { envelopeId },
-      create: { envelopeId, ...data },
-      update: data,
-    });
+    // Escrita condicionada ao que foi lido: se outro pedido já reclassificou (ou criou), este não desfaz o trabalho
+    // dele (inclusive uma sugestão já em andamento).
+    if (row) {
+      await prisma.revalleInvoiceClassification.updateMany({
+        where: { envelopeId, fileSha256: row.fileSha256 },
+        data,
+      });
+    } else {
+      await prisma.revalleInvoiceClassification.createMany({
+        data: [{ envelopeId, ...data }],
+        skipDuplicates: true,
+      });
+    }
+
+    row = await prisma.revalleInvoiceClassification.findUniqueOrThrow({ where: { envelopeId } });
   }
 
   // Também cobre a IA ligada depois da classificação (YES que ficou SKIPPED por falta de chave).

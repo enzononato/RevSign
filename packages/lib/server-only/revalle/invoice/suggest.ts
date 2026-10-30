@@ -3,6 +3,7 @@ import { Prisma, RevalleInvoiceStatus, RevalleSuggestionStatus } from '@prisma/c
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { jobs } from '../../../jobs/client';
+import { firstPagesPdf } from '../../../revalle/invoice/first-pages-pdf';
 import { buildInvoicePrompt } from '../../../revalle/invoice/prompt';
 import type { InvoiceSuggestion } from '../../../revalle/invoice/suggestion';
 import { validateSuggestion, ZInvoiceSuggestionSchema } from '../../../revalle/invoice/suggestion';
@@ -22,6 +23,12 @@ export const INVOICE_SUGGESTION_STALE_MS = 60_000;
 /** Soma dos PDFs enviados inline (o limite do Gemini é 20 MB por pedido, já em base64). */
 const MAX_INLINE_PDF_BYTES = 12 * 1024 * 1024;
 
+/**
+ * Chamadas à IA (sem cache) por documento, para sempre: a automática + 5. Conta toda partida que não veio do cache,
+ * inclusive depois de "Não"/"Sim" do remetente (`suggestionAttempts`).
+ */
+export const INVOICE_MAX_AI_CALLS_PER_DOCUMENT = 6;
+
 /** Motivo curto gravado no FAILED. Nunca o texto da NF nem a mensagem do provedor. */
 export type InvoiceFailureReason =
   | 'TIMEOUT'
@@ -35,10 +42,9 @@ export type InvoiceFailureReason =
 /** Formato de `RevalleInvoiceClassification.suggestion`. */
 export type StoredInvoiceSuggestion = (InvoiceSuggestion & { model: string }) | { failure: InvoiceFailureReason };
 
-// 60 sugestões por usuário por hora (primeira sugestão, "Sim" do remetente e "Sugerir de novo") e 5 "Sugerir de novo"
-// por documento. Ajustáveis por NEXT_PRIVATE_REVALLE_RATE_LIMITS (ver rate-limit-overrides.ts).
+// 60 chamadas à IA por usuário por hora (primeira sugestão, "Sim" do remetente e "Sugerir de novo"). Ajustável por
+// NEXT_PRIVATE_REVALLE_RATE_LIMITS (ver rate-limit-overrides.ts). O limite por documento é o contador da linha.
 const userSuggestionRateLimit = createRateLimit({ action: 'revalle.invoice-suggest', max: 60, window: '1h' });
-const documentResuggestRateLimit = createRateLimit({ action: 'revalle.invoice-resuggest', max: 5, window: '1d' });
 
 export type InvoiceRequester = { userId?: number; ipAddress?: string | null };
 
@@ -68,10 +74,24 @@ const readCachedSuggestion = async (fileSha256: string, activeCodes: Set<string>
   return suggestion ? { ...suggestion, model: cached.model } : null;
 };
 
+const tooManyRequests = () =>
+  new AppError(AppErrorCode.TOO_MANY_REQUESTS, { message: 'Limite de sugestões deste documento atingido.' });
+
+const storedJson = (value: unknown) =>
+  value === null || value === undefined
+    ? Prisma.DbNull
+    : // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+      (value as Prisma.InputJsonValue);
+
 /**
- * Começa a sugestão de um documento já marcado como NF (`YES`): cache → DONE na hora; IA desligada → SKIPPED;
- * sem contas → FAILED; acima do limite do usuário → FAILED (RATE_LIMITED); senão PENDING + job.
- * `force` ("Sugerir de novo") ignora o cache. Não lança para a tela: o resultado fica na linha da classificação.
+ * Começa a sugestão de um documento marcado como NF (`YES`). Automática (`force` falso) só a partir de SKIPPED: um
+ * DONE/FAILED nunca volta sozinho para PENDING. "Sugerir de novo" (`force`) parte de qualquer estado que não seja
+ * PENDING e ignora o cache.
+ *
+ * Toda escrita é condicionada ao estado lido (status + `suggestionAttempts`): de vários pedidos simultâneos, só um
+ * vence; o número da tentativa vai no job, e um job velho sai sem chamar a IA. Os limites só são consumidos por quem
+ * venceu. Cache → DONE na hora; IA desligada → nada; sem contas → FAILED; limite do documento ou do usuário →
+ * FAILED (RATE_LIMITED), ou 429 no "Sugerir de novo".
  */
 export const startInvoiceSuggestion = async ({
   envelopeId,
@@ -84,22 +104,32 @@ export const startInvoiceSuggestion = async ({
   requester?: InvoiceRequester;
   force?: boolean;
 }) => {
-  const where = { envelopeId, fileSha256, suggestionStatus: { not: RevalleSuggestionStatus.PENDING } };
+  const row = await prisma.revalleInvoiceClassification.findUnique({ where: { envelopeId } });
 
-  if (!isAiAvailable() || !fileSha256) {
-    await prisma.revalleInvoiceClassification.updateMany({
-      where,
-      data: { suggestionStatus: RevalleSuggestionStatus.SKIPPED, suggestion: Prisma.DbNull },
-    });
-
+  if (!row || !fileSha256 || row.fileSha256 !== fileSha256 || row.isInvoice !== RevalleInvoiceStatus.YES) {
     return;
   }
+
+  const canStart = force
+    ? row.suggestionStatus !== RevalleSuggestionStatus.PENDING
+    : row.suggestionStatus === RevalleSuggestionStatus.SKIPPED;
+
+  if (!canStart || !isAiAvailable()) {
+    return;
+  }
+
+  const guard = {
+    envelopeId,
+    fileSha256,
+    suggestionStatus: row.suggestionStatus,
+    suggestionAttempts: row.suggestionAttempts,
+  };
 
   const activeCodes = await activeAccountCodes();
 
   if (activeCodes.size === 0) {
     await prisma.revalleInvoiceClassification.updateMany({
-      where,
+      where: guard,
       data: { suggestionStatus: RevalleSuggestionStatus.FAILED, suggestion: failure('NO_ACCOUNTS') },
     });
 
@@ -110,12 +140,38 @@ export const startInvoiceSuggestion = async ({
 
   if (cached) {
     await prisma.revalleInvoiceClassification.updateMany({
-      where,
+      where: guard,
       data: { suggestionStatus: RevalleSuggestionStatus.DONE, suggestion: cached },
     });
 
     return;
   }
+
+  if (row.suggestionAttempts >= INVOICE_MAX_AI_CALLS_PER_DOCUMENT) {
+    if (force) {
+      throw tooManyRequests();
+    }
+
+    await prisma.revalleInvoiceClassification.updateMany({
+      where: guard,
+      data: { suggestionStatus: RevalleSuggestionStatus.FAILED, suggestion: failure('RATE_LIMITED') },
+    });
+
+    return;
+  }
+
+  const attempt = row.suggestionAttempts + 1;
+
+  const { count } = await prisma.revalleInvoiceClassification.updateMany({
+    where: guard,
+    data: { suggestionStatus: RevalleSuggestionStatus.PENDING, suggestion: Prisma.DbNull, suggestionAttempts: attempt },
+  });
+
+  if (count === 0) {
+    return;
+  }
+
+  const ownPending = { envelopeId, suggestionStatus: RevalleSuggestionStatus.PENDING, suggestionAttempts: attempt };
 
   if (requester.userId !== undefined) {
     const limit = await userSuggestionRateLimit.check({
@@ -124,45 +180,46 @@ export const startInvoiceSuggestion = async ({
     });
 
     if (limit.isLimited) {
+      // A tentativa não chamou a IA: devolve o contador. No "Sugerir de novo", volta ao estado de antes e responde 429.
       await prisma.revalleInvoiceClassification.updateMany({
-        where,
-        data: { suggestionStatus: RevalleSuggestionStatus.FAILED, suggestion: failure('RATE_LIMITED') },
+        where: ownPending,
+        data: force
+          ? {
+              suggestionStatus: row.suggestionStatus,
+              suggestion: storedJson(row.suggestion),
+              suggestionAttempts: row.suggestionAttempts,
+            }
+          : {
+              suggestionStatus: RevalleSuggestionStatus.FAILED,
+              suggestion: failure('RATE_LIMITED'),
+              suggestionAttempts: row.suggestionAttempts,
+            },
       });
+
+      if (force) {
+        assertRateLimit(limit);
+      }
 
       return;
     }
   }
 
-  // Só quem fez a transição para PENDING dispara o job (dois pedidos simultâneos não geram duas chamadas).
-  const { count } = await prisma.revalleInvoiceClassification.updateMany({
-    where,
-    data: {
-      suggestionStatus: RevalleSuggestionStatus.PENDING,
-      suggestion: Prisma.DbNull,
-      suggestionAttempts: { increment: 1 },
-    },
-  });
-
-  if (count === 0) {
-    return;
-  }
-
   try {
     await jobs.triggerJob({
       name: 'internal.revalle-invoice-suggest',
-      payload: { envelopeId, fileSha256, force },
+      payload: { envelopeId, fileSha256, force, attempt },
     });
   } catch {
     await prisma.revalleInvoiceClassification.updateMany({
-      where: { envelopeId, fileSha256, suggestionStatus: RevalleSuggestionStatus.PENDING },
+      where: ownPending,
       data: { suggestionStatus: RevalleSuggestionStatus.FAILED, suggestion: failure('PROVIDER_ERROR') },
     });
   }
 };
 
 /**
- * "Sugerir de novo": só para documento marcado como NF, com a IA ligada. Limites: 5 por documento e 60 por usuário
- * (429). Enquanto uma sugestão está em andamento, não começa outra.
+ * "Sugerir de novo": só para documento marcado como NF, com a IA ligada. Limites: 6 chamadas à IA por documento
+ * (a automática + 5) e 60 por usuário por hora (429). Enquanto uma sugestão está em andamento, não começa outra.
  */
 export const resuggestInvoice = async ({
   envelopeId,
@@ -185,13 +242,11 @@ export const resuggestInvoice = async ({
     return;
   }
 
-  const ip = requester.ipAddress ?? 'unknown';
+  if (row.suggestionAttempts >= INVOICE_MAX_AI_CALLS_PER_DOCUMENT) {
+    throw tooManyRequests();
+  }
 
-  assertRateLimit(await documentResuggestRateLimit.check({ ip, identifier: `envelope:${envelopeId}` }));
-  assertRateLimit(await userSuggestionRateLimit.check({ ip, identifier: `user:${requester.userId}` }));
-
-  // O limite do usuário já foi contado acima.
-  await startInvoiceSuggestion({ envelopeId, fileSha256: row.fileSha256, force: true });
+  await startInvoiceSuggestion({ envelopeId, fileSha256: row.fileSha256, requester, force: true });
 };
 
 type SuggestionOutcome =
@@ -231,13 +286,21 @@ export const runInvoiceSuggestion = async ({
   envelopeId,
   fileSha256,
   force,
+  attempt,
 }: {
   envelopeId: string;
   fileSha256: string;
   force: boolean;
+  /** `suggestionAttempts` gravado na partida: outro valor = este job ficou velho e não chama a IA. */
+  attempt: number;
 }) => {
   const startedAt = Date.now();
-  const pendingWhere = { envelopeId, fileSha256, suggestionStatus: RevalleSuggestionStatus.PENDING };
+  const pendingWhere = {
+    envelopeId,
+    fileSha256,
+    suggestionStatus: RevalleSuggestionStatus.PENDING,
+    suggestionAttempts: attempt,
+  };
   let model = getRevalleInvoiceAiConfig().model;
   let usage: { inputTokens?: number; outputTokens?: number } = {};
   let input: 'text' | 'pdf' | 'text+pdf' | 'none' = 'none';
@@ -291,7 +354,12 @@ export const runInvoiceSuggestion = async ({
   try {
     const row = await prisma.revalleInvoiceClassification.findUnique({ where: { envelopeId } });
 
-    if (!row || row.suggestionStatus !== RevalleSuggestionStatus.PENDING || row.fileSha256 !== fileSha256) {
+    if (
+      !row ||
+      row.suggestionStatus !== RevalleSuggestionStatus.PENDING ||
+      row.fileSha256 !== fileSha256 ||
+      row.suggestionAttempts !== attempt
+    ) {
       return;
     }
 
@@ -335,18 +403,24 @@ export const runInvoiceSuggestion = async ({
       readFilesContent(files),
     ]);
 
-    const text = contents
-      .filter((content) => !content.isSparse)
-      .map((content) => content.pages.join('\n'))
-      .join('\n\n');
+    // Só os arquivos detectados como NF vão para a IA: num documento com contrato + NF, o contrato fica de fora.
+    // Sem nenhum arquivo NF (o remetente disse "Sim"), vai o texto dos arquivos com texto e o PDF dos escaneados.
+    const invoiceFiles = contents.filter((content) => content.detection.status === 'YES');
+    const textFiles = invoiceFiles.length > 0 ? invoiceFiles : contents.filter((content) => !content.isSparse);
+    const scannedFiles = invoiceFiles.length > 0 ? [] : contents.filter((content) => content.isSparse);
+
+    const texts = textFiles.map((content) => content.pages.join('\n')).filter((text) => text.trim());
+    const text = texts.join('\n\n');
 
     const pdfs: Uint8Array[] = [];
     let pdfBytes = 0;
 
-    for (const content of contents.filter((item) => item.isSparse)) {
-      if (pdfBytes + content.file.bytes.length <= MAX_INLINE_PDF_BYTES) {
-        pdfs.push(content.file.bytes);
-        pdfBytes += content.file.bytes.length;
+    for (const content of scannedFiles) {
+      const trimmed = await firstPagesPdf(content.file.bytes);
+
+      if (pdfBytes + trimmed.length <= MAX_INLINE_PDF_BYTES) {
+        pdfs.push(trimmed);
+        pdfBytes += trimmed.length;
       }
     }
 
@@ -363,7 +437,7 @@ export const runInvoiceSuggestion = async ({
     try {
       const result = await requestGeminiSuggestion({
         prompt: buildInvoicePrompt({ userPrompt: settings.prompt, accounts }),
-        text: text || undefined,
+        text: texts.length > 0 ? texts : undefined,
         pdf: pdfs.length > 0 ? pdfs : undefined,
         signal,
       });

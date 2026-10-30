@@ -12,6 +12,8 @@ const REVALLE_INVOICE_SUGGEST_JOB_DEFINITION_SCHEMA = z.object({
   fileSha256: z.string(),
   /** "Sugerir de novo": ignora o cache e o substitui. */
   force: z.boolean(),
+  /** `suggestionAttempts` gravado na partida: um job velho (outro valor na linha) sai sem chamar a IA. */
+  attempt: z.number().int().positive(),
 });
 
 export type TRevalleInvoiceSuggestJobDefinition = z.infer<typeof REVALLE_INVOICE_SUGGEST_JOB_DEFINITION_SCHEMA>;

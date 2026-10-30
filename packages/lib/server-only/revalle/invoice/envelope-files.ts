@@ -1,5 +1,7 @@
 import { prisma } from '@documenso/prisma';
 
+import type { InvoiceDetection } from '../../../revalle/invoice/detect-invoice';
+import { detectInvoice } from '../../../revalle/invoice/detect-invoice';
 import { sha256Hex } from '../../../revalle/sha256';
 import { getFileServerSide } from '../../../universal/upload/get-file.server';
 import { extractPdfText } from './pdf-text';
@@ -55,6 +57,8 @@ export type InvoiceFileContent = {
   pages: string[];
   /** Sem texto aproveitável (PDF escaneado): para a IA vai o próprio PDF. */
   isSparse: boolean;
+  /** Detecção só deste arquivo: só arquivos YES vão para a IA (os outros podem ser contratos com dados pessoais). */
+  detection: InvoiceDetection;
 };
 
 export const readFilesContent = async (files: InvoiceEnvelopeFile[], maxPages = 5): Promise<InvoiceFileContent[]> => {
@@ -64,7 +68,12 @@ export const readFilesContent = async (files: InvoiceEnvelopeFile[], maxPages = 
     const pages = await extractPdfText(file.bytes, maxPages);
     const chars = pages.reduce((total, page) => total + page.replace(/\s/g, '').length, 0);
 
-    contents.push({ file, pages, isSparse: pages.length === 0 || chars / pages.length < MIN_CHARS_PER_PAGE });
+    contents.push({
+      file,
+      pages,
+      isSparse: pages.length === 0 || chars / pages.length < MIN_CHARS_PER_PAGE,
+      detection: detectInvoice(pages),
+    });
   }
 
   return contents;
