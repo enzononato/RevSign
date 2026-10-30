@@ -93,18 +93,25 @@ o mesmo PDF for enviado de novo, a sugestão vem do cache, sem nova chamada. Por
 
 **NF enviada pela API ou por modelo:** o documento é criado, mas o envio é recusado (`INVOICE_ACCOUNT_REQUIRED`) até a
 conta ser escolhida na tela. O documento fica como rascunho: abra-o no site, escolha a conta e envie. Usar modelo com
-"enviar" e envio em lote fazem o mesmo. Detalhes em `deploy.md`, seção "Notas fiscais enviadas pela API ou por modelo".
+"enviar" e envio em lote fazem o mesmo. Detalhes em `revalle/docs/deploy.md`, seção "Notas fiscais enviadas pela API ou por modelo".
 
 ## 5. Página "Notas fiscais" e planilha
 
 No menu do site, **Notas fiscais**. Cada pessoa vê as NFs já enviadas em que está envolvida: as que enviou e as que
-chegaram para ela assinar. O **administrador vê todas**. Rascunhos e documentos apagados não aparecem.
+chegaram para ela assinar. O **administrador vê todas**. Rascunhos não aparecem.
+
+**NF excluída pelo remetente:** some para quem enviou e para quem assinou, mas o administrador continua vendo (a
+contabilidade pode já ter lançado a nota). Na tela ela aparece com a marca **excluído pelo remetente**; na planilha, a
+coluna `status` diz `excluído pelo remetente`.
+
+A lista vem da mais recente para a mais antiga pela **data de envio**.
 
 Colunas: título, remetente, data de envio, status, conta (número · nome, ou "A definir pela contabilidade") e
 "Sugestão aceita?" (Sim, Não ou "sem sugestão", quando não havia sugestão na hora da escolha).
 
 Filtros: período de envio (dias no horário de Brasília), status, número da conta e "Só as deixadas para a
-contabilidade".
+contabilidade". Se a data inicial for depois da final, a tela avisa "A data inicial é depois da data final." e nada é
+listado nem exportado.
 
 **Exportar planilha** baixa `notas-fiscais-AAAA-MM-DD.csv` (data de hoje em Brasília) com os **mesmos filtros** da tela.
 O arquivo abre direto no Excel (separador `;`, UTF-8 com BOM). Colunas:
@@ -116,7 +123,7 @@ O arquivo abre direto no Excel (separador `;`, UTF-8 com BOM). Colunas:
 | `remetente` | Nome de quem enviou (ou o e-mail, se não tiver nome) |
 | `enviado_em` | Data e hora do envio (Brasília, `dd/mm/aaaa hh:mm`) |
 | `concluido_em` | Data e hora em que todos assinaram (vazio se ainda não concluiu) |
-| `status` | Pendente, Concluído, Recusado ou Cancelado |
+| `status` | Pendente, Concluído, Recusado, Cancelado, ou `excluído pelo remetente` (só na planilha do admin) |
 | `conta` | Número da conta, ou `a definir pela contabilidade` |
 | `nome_conta` | Nome da conta (vazio quando ficou para a contabilidade) |
 | `tipo` | `pagar`, `receber` ou vazio |

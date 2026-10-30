@@ -2,6 +2,7 @@ import { getOptionalSession } from '@documenso/auth/server/lib/utils/get-session
 import {
   brasiliaToday,
   INVOICE_EXPORT_LIMIT_MESSAGE,
+  invoiceFiltersError,
   parseInvoiceFilterParams,
 } from '@documenso/lib/revalle/invoice/invoice-filters';
 import { exportInvoicesCsv } from '@documenso/lib/server-only/revalle/invoice/find-invoices';
@@ -25,6 +26,12 @@ export async function loader({ request }: Route.LoaderArgs) {
 
   if (!filters.success) {
     return text('Filtro inválido.', 400);
+  }
+
+  const filtersError = invoiceFiltersError(filters.data);
+
+  if (filtersError) {
+    return text(filtersError, 400);
   }
 
   const result = await exportInvoicesCsv({ userId: user.id, isAdmin: isAdmin(user), filters: filters.data });

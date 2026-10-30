@@ -11,6 +11,7 @@
 //   8. chegaram 2 e-mails para a contabilidade;
 //   9. a política de privacidade tem a frase da spec §9;
 //  10. o PDF selado (com o certificado e o log anexados) não tem o número nem o nome da conta.
+//  11. o remetente exclui a NFS-e: some para ele e o admin continua vendo, marcada "excluído pelo remetente".
 //
 // Com o servidor falso do Gemini (compose.test.yml) a sugestão do passo 2 sai de verdade; sem ele (sem chave), o
 // remetente escolhe a mesma conta na lista e a planilha fica sem sugestão (o resto do aceite é igual).
@@ -25,6 +26,7 @@ import { after, before, test } from 'node:test';
 import { PDFDocument, rgb, StandardFonts } from '@cantoo/pdf-lib';
 
 import {
+  api,
   BASE_URL,
   completeWithCode,
   createEnvelope,
@@ -416,8 +418,9 @@ before(async () => {
   await distribute(fx.contract.id, { apiToken: fx.senderToken });
 
   // 5. Dois signatários em cada NF.
-  await signAll(fx.danfe);
+  // A NFS-e (criada depois) é enviada ANTES do DANFE: a ordem por data de envio difere da ordem de criação.
   await signAll(fx.nfse);
+  await signAll(fx.danfe);
 
   fx.ready = true;
 });
@@ -446,7 +449,12 @@ testStep(
     const mine = await find(fx.sender.cookie);
 
     assert.equal(mine.count, 2, JSON.stringify(mine));
-    assert.deepEqual(mine.data.map((row) => row.id).sort(), [fx.danfe.id, fx.nfse.id].sort());
+    // Mais recente primeiro pela data de ENVIO (o DANFE foi enviado depois, embora criado antes).
+    assert.deepEqual(
+      mine.data.map((row) => row.id),
+      [fx.danfe.id, fx.nfse.id],
+    );
+    assert.ok(mine.data.every((row) => row.deleted === false));
 
     const danfe = mine.data.find((row) => row.id === fx.danfe.id);
     const nfse = mine.data.find((row) => row.id === fx.nfse.id);
@@ -521,10 +529,17 @@ testStep('7. planilha: BOM, cabeçalho exato, 2 linhas com as contas certas, fil
 
   assert.equal(res.status, 200, res.text);
   assert.equal(res.headers.get('content-type'), 'text/csv; charset=utf-8');
+  assert.equal(res.headers.get('cache-control'), 'no-store');
   assert.equal(res.headers.get('content-disposition'), `attachment; filename="notas-fiscais-${brasiliaDay()}.csv"`);
   assert.ok(res.text.startsWith('﻿'), 'sem BOM');
 
   const lines = res.text.slice(1).split('\r\n').filter(Boolean);
+
+  // Mesma ordem da tela: data de envio, mais recente primeiro.
+  assert.deepEqual(
+    lines.slice(1).map((line) => line.split(';')[0]),
+    [fx.danfe.id, fx.nfse.id],
+  );
 
   assert.equal(lines[0], HEADER);
   assert.equal(lines.length, 3, res.text);
@@ -600,6 +615,12 @@ testStep('7. planilha: BOM, cabeçalho exato, 2 linhas com as contas certas, fil
 
   // Filtro inválido: 400, sem planilha.
   assert.equal((await csv(fx.sender.cookie, '?de=ontem')).status, 400);
+
+  // Data inicial depois da final: 400 com a mesma frase da tela.
+  const reversed = await csv(fx.sender.cookie, '?de=2026-10-31&ate=2026-10-30');
+
+  assert.equal(reversed.status, 400);
+  assert.equal(reversed.text, 'A data inicial é depois da data final.');
 });
 
 testStep('8. a contabilidade recebeu 2 e-mails (um por NF)', async () => {
@@ -661,3 +682,42 @@ testStep('10. o PDF selado (com certificado e log) não tem o número nem o nome
     assert.ok(!/conta cont[aá]bil/i.test(text), `${doc.title}: o PDF fala de conta contábil`);
   }
 });
+
+testStep(
+  '11. NF excluída pelo remetente: some para ele e continua para o admin, marcada na tela e na planilha',
+  async () => {
+    const deleted = await api('POST', '/envelope/delete', { envelopeId: fx.nfse.id }, { apiToken: fx.senderToken });
+
+    assert.equal(deleted.status, 200, deleted.text);
+    assert.notEqual(db(`select "deletedAt" from "Envelope" where id = '${fx.nfse.id}'`), '', 'não foi exclusão suave');
+
+    // Dono: a NF sumiu da tela e da planilha.
+    assert.deepEqual(
+      (await find(fx.sender.cookie)).data.map((row) => row.id),
+      [fx.danfe.id],
+    );
+    assert.ok(!(await csv(fx.sender.cookie)).text.includes(fx.nfse.id));
+
+    // Admin: continua vendo, com a marca e o link do painel.
+    const row = (await find(adminCookie, { deferred: true })).data.find((r) => r.id === fx.nfse.id);
+
+    assert.ok(row, 'o admin não vê a NF excluída');
+    assert.equal(row.deleted, true);
+    assert.equal(row.link, `/admin/documents/${fx.nfse.id}`);
+    assert.equal(
+      (await find(adminCookie, { deferred: true })).data.find((r) => r.id === fx.danfe.id),
+      undefined,
+    );
+
+    const exported = await csv(adminCookie, '?deixadas=1');
+    const line = exported.text
+      .slice(1)
+      .split('\r\n')
+      .find((l) => l.startsWith(`${fx.nfse.id};`));
+
+    assert.equal(exported.status, 200);
+    assert.ok(line, 'linha da NF excluída ausente na planilha do admin');
+    assert.equal(line.split(';')[HEADER.split(';').indexOf('status')], 'excluído pelo remetente');
+    assert.equal(exported.text.slice(1).split('\r\n')[0], HEADER);
+  },
+);

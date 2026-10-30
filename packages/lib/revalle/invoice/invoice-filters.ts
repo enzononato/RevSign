@@ -7,6 +7,13 @@ export const INVOICE_EXPORT_LIMIT = 10_000;
 
 export const INVOICE_EXPORT_LIMIT_MESSAGE = 'Filtre por período para exportar menos de 10.000 notas.';
 
+export const INVOICE_DATE_ORDER_MESSAGE = 'A data inicial é depois da data final.';
+
+/** Status mostrado (tela e planilha) para a NF que o remetente excluiu; só o admin a vê. */
+export const INVOICE_DELETED_LABEL = 'excluído pelo remetente';
+
+export const isOverInvoiceExportLimit = (count: number) => count > INVOICE_EXPORT_LIMIT;
+
 /** Notas fiscais da página são as já enviadas: rascunho não entra. */
 export const INVOICE_LIST_STATUSES = ['PENDING', 'COMPLETED', 'REJECTED', 'CANCELLED'] as const;
 
@@ -62,6 +69,10 @@ const readParams = (params: URLSearchParams) => {
 /** Filtros da URL. Um valor inválido torna o resultado inválido (a planilha responde 400). */
 export const parseInvoiceFilterParams = (params: URLSearchParams) =>
   ZInvoiceFiltersSchema.safeParse(readParams(params));
+
+/** Erro de combinação dos filtros (cada um válido sozinho), ou `null`. Datas `AAAA-MM-DD` comparam como texto. */
+export const invoiceFiltersError = ({ from, to }: Pick<TInvoiceFilters, 'from' | 'to'>) =>
+  from && to && from > to ? INVOICE_DATE_ORDER_MESSAGE : null;
 
 /** Mesma leitura, mas para a tela: o filtro inválido é ignorado em vez de quebrar a página. */
 export const readInvoiceFilterParams = (params: URLSearchParams): TInvoiceFilters => {

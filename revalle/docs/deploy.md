@@ -187,6 +187,16 @@ Por quê: copia o banco todo dia, cifrado, para fora da VPS. Detalhes em `backup
    - Esperado: o IP público do celular (confira em https://meuip.com.br no mesmo celular).
    - Se aparecer um IP interno (começa com `10.`, `172.` ou `192.168.`), o proxy do EasyPanel não está repassando o IP real. Avise o desenvolvedor.
 
+## Backup antes de atualizar
+
+Faça sempre antes de trocar a versão (as migrações rodam sozinhas na subida e não há volta automática):
+
+1. No EasyPanel, abra o serviço `revsign-backup` → aba **Console** (terminal do container).
+2. Rode: `/usr/local/bin/backup.sh`
+3. Espere a última linha `backup concluido` (leva de segundos a poucos minutos). Se aparecer `ERRO: ...`, PARE e não atualize: veja "Se der erro" em `backup.md`.
+4. Confira: `cat /backups/last-run.json` deve mostrar `"status":"ok"` e o nome do arquivo novo (`revsign-AAAAMMDD-HHMMSS.dump.age`). Com cópia remota ligada, o mesmo arquivo aparece na pasta `revsign-backups` do cPanel (**File Manager**).
+5. Só então siga para a atualização.
+
 ## Antes de atualizar para esta versão (Fase 3)
 
 Faça estas duas conferências antes de trocar a imagem de uma instalação que já está em uso. Numa instalação nova (sem dados) não há nada a conferir na primeira.
@@ -221,7 +231,7 @@ Vale para quem atualiza uma instalação que já está em uso, vinda da Fase 3. 
    - o `/verificar`, aberto pelo código de quem assinou depois, lista só quem tem prova; quem assinou antes não aparece;
    - o certificado da primeira selagem sai sem a linha `SHA-256 do original` (ela só aparece numa reselagem).
    Se não der para terminar algum, ele continua válido; só a prova fica parcial.
-2. **Backup antes** (passo 7, item 8). As migrações abaixo rodam sozinhas na subida e só ACRESCENTAM tabelas e colunas; nenhuma apaga dados:
+2. **Backup antes** (seção "Backup antes de atualizar"). As migrações abaixo rodam sozinhas na subida e só ACRESCENTAM tabelas e colunas; nenhuma apaga dados:
    - `20261030100000_revalle_document_hashes` (SHA-256 do original e do PDF selado);
    - `20261030120000_revalle_signature_proof` (prova congelada de cada pessoa);
    - `20261030130000_revalle_signature_kind` (tipo da assinatura visual, preenchido a partir da prova);
@@ -245,7 +255,7 @@ Vale para quem atualiza uma instalação que já está em uso, vinda da Fase 4 (
    - `NEXT_PRIVATE_SIGNING_REASON=Selado pelo RevSign da Revalle`: troque se estiver com o valor antigo `Selado pelo RevSign (Revalle)` (os parênteses saíam com barras no PDF), ou apague a linha para usar o padrão;
    - `NEXT_PUBLIC_SUPPORT_EMAIL=projetos.ti@revalle.com.br`: e-mail de suporte das telas e dos e-mails (redefinir senha, conta criada pelo admin). Acrescente, ou ponha o e-mail que a TI quer receber.
    Salve e faça o **Deploy** com a imagem nova.
-2. **(Opcional) Nome da organização e da equipe pessoais em pt-BR.** Contas novas já nascem com "Organização pessoal" e "Equipe pessoal". As contas antigas continuam com "Personal Organisation" / "Personal Team" no menu até alguém renomear. Para renomear todas de uma vez, faça o backup antes (passo 7, item 8) e, no EasyPanel, abra o serviço do Postgres do RevSign (`revsign-db`) → **Console**, rode `psql -U <usuario> -d <banco>` (como na Fase 3) e cole:
+2. **(Opcional) Nome da organização e da equipe pessoais em pt-BR.** Contas novas já nascem com "Organização pessoal" e "Equipe pessoal". As contas antigas continuam com "Personal Organisation" / "Personal Team" no menu até alguém renomear. Para renomear todas de uma vez, faça o backup antes (seção "Backup antes de atualizar") e, no EasyPanel, abra o serviço do Postgres do RevSign (`revsign-db`) → **Console**, rode `psql -U <usuario> -d <banco>` (como na Fase 3) e cole:
    ```sql
    SET client_encoding = 'UTF8';
    BEGIN;
@@ -264,7 +274,7 @@ Vale para quem atualiza uma instalação que já está em uso, vinda da Fase 4 (
 
 Vale para quem atualiza uma instalação que já está em uso. A Fase 5 traz a nota fiscal com conta contábil sugerida; o guia completo (lista de contas, prompt, o que o remetente vê, planilha) está em `notas-fiscais.md`.
 
-1. **Backup antes** (passo 7, item 8). As migrações abaixo rodam sozinhas na subida e só ACRESCENTAM tabelas e colunas; nenhuma apaga dados:
+1. **Backup antes.** No EasyPanel, serviço `revsign-backup` → **Console**, rode `/usr/local/bin/backup.sh` e espere `backup concluido`; depois `cat /backups/last-run.json` tem de mostrar `"status":"ok"` (passo a passo: seção "Backup antes de atualizar"). As migrações abaixo rodam sozinhas na subida e só ACRESCENTAM tabelas e colunas; nenhuma apaga dados:
    - `20261031100000_revalle_invoice` (plano de contas, configurações, classificação de cada documento e cache da sugestão);
    - `20261031110000_revalle_invoice_flag_audit` (quem marcou "é / não é nota fiscal" e quando).
 2. **Variáveis novas** (serviço `revsign` → **Environment**; ver a tabela abaixo). Nenhuma é obrigatória:
@@ -366,4 +376,4 @@ Variáveis só do ensaio local (não use no EasyPanel): `REVSIGN_IMAGE`, `REVSIG
 0. Antes de trocar a versão, confirme que as DUAS imagens existem para a tag nova: `ghcr.io/enzononato/revsign:<tag>` e `ghcr.io/enzononato/revsign-backup:<tag>` (GitHub → Packages; os dois jobs de publicação são independentes e um pode falhar sozinho).
 1. Em **Source**, troque o número da versão na imagem (`...:v2.21.1-revalle.N`).
 2. Clique em **Deploy**.
-3. Rode as checagens do passo 9. Faça o backup antes (passo 7, item 8).
+3. Rode as checagens do passo 9. Faça o backup antes (seção "Backup antes de atualizar").

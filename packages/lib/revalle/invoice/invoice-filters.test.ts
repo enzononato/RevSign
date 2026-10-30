@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   brasiliaToday,
+  INVOICE_DATE_ORDER_MESSAGE,
   invoiceDayRange,
+  invoiceFiltersError,
   invoiceFiltersToParams,
+  isOverInvoiceExportLimit,
   parseInvoiceFilterParams,
   readInvoiceFilterParams,
 } from './invoice-filters';
@@ -44,5 +47,16 @@ describe('filtros da página de notas fiscais', () => {
   it('o dia do nome da planilha é o de Brasília', () => {
     expect(brasiliaToday(new Date('2026-10-31T02:30:00.000Z'))).toBe('2026-10-30');
     expect(brasiliaToday(new Date('2026-10-31T03:00:00.000Z'))).toBe('2026-10-31');
+  });
+
+  it('data inicial depois da final é erro; mesmo dia ou só uma das datas, não', () => {
+    expect(invoiceFiltersError({ from: '2026-10-31', to: '2026-10-30' })).toBe(INVOICE_DATE_ORDER_MESSAGE);
+    expect(invoiceFiltersError({ from: '2026-10-30', to: '2026-10-30' })).toBeNull();
+    expect(invoiceFiltersError({ from: '2026-10-31' })).toBeNull();
+  });
+
+  it('planilha: até 10.000 linhas sai; acima, não', () => {
+    expect(isOverInvoiceExportLimit(10_000)).toBe(false);
+    expect(isOverInvoiceExportLimit(10_001)).toBe(true);
   });
 });

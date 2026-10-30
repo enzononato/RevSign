@@ -282,9 +282,16 @@ before(async () => {
   previousEmail = current.body.result.data.json.accountingEmail ?? '';
   await settings(ACCOUNTING);
 
-  fakeUp = await fetch(`${FAKE_URL}/__health`)
-    .then((res) => res.ok)
-    .catch(() => false);
+  // O caminho da IA exige o servidor falso no ar E o app subido com ele (compose.test.yml): o container do servidor
+  // falso pode continuar de pé com o app já recriado sem a chave.
+  const aiStatus = (await trpcAs(adminCookie, 'query', 'revalle.invoice.adminGetSettings', undefined)).body?.result
+    ?.data?.json?.aiStatus;
+
+  fakeUp =
+    aiStatus === 'CONFIGURED' &&
+    (await fetch(`${FAKE_URL}/__health`)
+      .then((res) => res.ok)
+      .catch(() => false));
 });
 
 after(async () => {

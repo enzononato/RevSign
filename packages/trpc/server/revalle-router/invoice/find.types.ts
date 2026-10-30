@@ -14,6 +14,7 @@ export const ZInvoiceListRowSchema = z.object({
   sentAt: z.date(),
   completedAt: z.date().nullable(),
   status: z.enum(INVOICE_LIST_STATUSES),
+  deleted: z.boolean(),
   account: z.object({ code: z.string(), name: z.string().nullable() }).nullable(),
   accountKind: z.enum(['PAYABLE', 'RECEIVABLE']).nullable(),
   deferred: z.boolean(),

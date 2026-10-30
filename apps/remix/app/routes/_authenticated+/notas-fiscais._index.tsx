@@ -1,11 +1,12 @@
 import { useSession } from '@documenso/lib/client-only/providers/session';
 import { formatRevalleDateTime } from '@documenso/lib/revalle/date-format';
 import {
-  INVOICE_EXPORT_LIMIT,
   INVOICE_EXPORT_LIMIT_MESSAGE,
   INVOICE_LIST_STATUSES,
   type InvoiceListStatus,
+  invoiceFiltersError,
   invoiceFiltersToParams,
+  isOverInvoiceExportLimit,
   readInvoiceFilterParams,
   type TInvoiceFilters,
 } from '@documenso/lib/revalle/invoice/invoice-filters';
@@ -49,10 +50,15 @@ export default function InvoicesPage() {
 
   const [accountInput, setAccountInput] = useState(filters.accountCode ?? '');
 
-  const { data, isPending, isError } = trpc.revalle.invoice.find.useQuery(
+  const dateError = invoiceFiltersError(filters);
+
+  const query = trpc.revalle.invoice.find.useQuery(
     { ...filters, page, perPage: PER_PAGE },
-    { placeholderData: (previous) => previous },
+    { placeholderData: (previous) => previous, enabled: dateError === null },
   );
+
+  const data = dateError ? undefined : query.data;
+  const { isPending, isError } = query;
 
   const applyFilters = (next: TInvoiceFilters) => {
     setSearchParams(invoiceFiltersToParams(next), { replace: true });
@@ -96,7 +102,7 @@ export default function InvoicesPage() {
   const exportQuery = invoiceFiltersToParams(filters).toString();
   const exportHref = `/notas-fiscais/csv${exportQuery ? `?${exportQuery}` : ''}`;
   const count = data?.count ?? 0;
-  const isOverLimit = count > INVOICE_EXPORT_LIMIT;
+  const isOverLimit = isOverInvoiceExportLimit(count);
 
   const statusLabels: Record<InvoiceListStatus, string> = {
     PENDING: t`Pendente`,
@@ -208,7 +214,11 @@ export default function InvoicesPage() {
           {data && (count === 1 ? <Trans>1 nota fiscal</Trans> : <Trans>{count} notas fiscais</Trans>)}
         </p>
 
-        {isOverLimit ? (
+        {dateError ? (
+          <p className="text-destructive text-sm" role="alert">
+            <Trans>A data inicial é depois da data final.</Trans>
+          </p>
+        ) : isOverLimit ? (
           <p className="text-destructive text-sm">{INVOICE_EXPORT_LIMIT_MESSAGE}</p>
         ) : (
           <Button asChild variant="outline" className="h-11">
@@ -255,15 +265,13 @@ export default function InvoicesPage() {
                   {hasFilters ? (
                     <Trans>Nenhuma nota fiscal com esses filtros.</Trans>
                   ) : (
-                    <Trans>
-                      Nenhuma nota fiscal ainda. Quando você enviar uma nota fiscal para assinatura, ela aparece aqui.
-                    </Trans>
+                    <Trans>Nenhuma nota fiscal ainda. As notas fiscais que você enviar ou assinar aparecem aqui.</Trans>
                   )}
                 </TableCell>
               </TableRow>
             )}
 
-            {!data && (
+            {!data && !dateError && (
               <TableRow>
                 <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
                   {isError && !isPending ? (
@@ -341,7 +349,14 @@ const InvoiceTableRow = ({ row }: { row: InvoiceRow }) => {
       <TableCell className="min-w-[8rem]">{row.senderName}</TableCell>
       <TableCell className="whitespace-nowrap">{formatRevalleDateTime(row.sentAt)}</TableCell>
       <TableCell>
-        <DocumentStatus status={row.status} />
+        <div className="flex flex-col items-start gap-1">
+          <DocumentStatus status={row.status} />
+          {row.deleted && (
+            <span className="whitespace-nowrap rounded-full bg-destructive/10 px-2 py-0.5 text-destructive text-xs">
+              <Trans>excluído pelo remetente</Trans>
+            </span>
+          )}
+        </div>
       </TableCell>
       <TableCell className="min-w-[10rem]">{account}</TableCell>
       <TableCell className="whitespace-nowrap">{accepted}</TableCell>

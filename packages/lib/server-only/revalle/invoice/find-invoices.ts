@@ -9,11 +9,12 @@ import {
   type InvoiceExportRow,
 } from '../../../revalle/invoice/export-csv';
 import {
-  INVOICE_EXPORT_LIMIT,
+  INVOICE_DELETED_LABEL,
   INVOICE_LIST_STATUSES,
   INVOICE_STATUS_LABELS,
   type InvoiceListStatus,
   invoiceDayRange,
+  isOverInvoiceExportLimit,
   type TInvoiceFilters,
 } from '../../../revalle/invoice/invoice-filters';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
@@ -28,6 +29,8 @@ export type InvoiceListRow = {
   sentAt: Date;
   completedAt: Date | null;
   status: InvoiceListStatus;
+  /** Excluído pelo remetente (só o admin vê). */
+  deleted: boolean;
   account: { code: string; name: string | null } | null;
   accountKind: 'PAYABLE' | 'RECEIVABLE' | null;
   deferred: boolean;
@@ -47,7 +50,8 @@ const SENT = DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_SENT;
 
 /**
  * Visibilidade igual à do documento no RevSign (só organizações pessoais): o dono, quem é destinatário pelo e-mail (sem
- * ter escondido o documento) e o admin, que vê todas. Só NF já enviada (rascunho não entra) e não apagada.
+ * ter escondido o documento) e o admin, que vê todas. Só NF já enviada (rascunho não entra). NF excluída pelo remetente
+ * some para o dono e para os destinatários, mas o admin continua vendo (a contabilidade pode já ter lançado).
  */
 const buildInvoiceWhere = async ({ userId, isAdmin, filters }: InvoiceViewer & { filters: TInvoiceFilters }) => {
   const conditions: Prisma.EnvelopeWhereInput[] = [];
@@ -82,7 +86,7 @@ const buildInvoiceWhere = async ({ userId, isAdmin, filters }: InvoiceViewer & {
 
   return {
     type: EnvelopeType.DOCUMENT,
-    deletedAt: null,
+    ...(isAdmin ? {} : { deletedAt: null }),
     status: filters.status ?? { in: [...INVOICE_LIST_STATUSES] },
     revalleInvoice: {
       isInvoice: RevalleInvoiceStatus.YES,
@@ -99,6 +103,7 @@ const select = {
   status: true,
   createdAt: true,
   completedAt: true,
+  deletedAt: true,
   userId: true,
   user: { select: { name: true, email: true } },
   team: { select: { url: true } },
@@ -151,8 +156,10 @@ const toRows = async (envelopes: SelectedEnvelope[], viewer: InvoiceViewer): Pro
     const code = deferred ? null : (invoice?.choiceCode ?? null);
     const account = code ? accounts.get(code) : undefined;
 
+    const deleted = envelope.deletedAt !== null;
+
     const link =
-      envelope.userId === viewer.userId
+      envelope.userId === viewer.userId && !deleted
         ? `/t/${envelope.team.url}/documents/${envelope.id}`
         : viewer.isAdmin
           ? `/admin/documents/${envelope.id}`
@@ -163,9 +170,10 @@ const toRows = async (envelopes: SelectedEnvelope[], viewer: InvoiceViewer): Pro
       title: envelope.title,
       senderName: envelope.user.name?.trim() || envelope.user.email,
       senderEmail: envelope.user.email,
-      sentAt: envelope.auditLogs[0]?.createdAt ?? envelope.createdAt,
+      sentAt: sentAtOf(envelope),
       completedAt: envelope.completedAt,
       status: envelope.status as Exclude<DocumentStatus, 'DRAFT'>,
+      deleted,
       account: code ? { code, name: account?.name ?? null } : null,
       accountKind: account?.kind ?? null,
       deferred,
@@ -176,19 +184,45 @@ const toRows = async (envelopes: SelectedEnvelope[], viewer: InvoiceViewer): Pro
   });
 };
 
-const ORDER_BY = [{ createdAt: 'desc' }, { id: 'desc' }] satisfies Prisma.EnvelopeOrderByWithRelationInput[];
+const sentAtOf = (envelope: { createdAt: Date; auditLogs: { createdAt: Date }[] }) =>
+  envelope.auditLogs[0]?.createdAt ?? envelope.createdAt;
+
+/**
+ * Ids na ordem da coluna "Enviado em" (mais recente primeiro; empate pelo id). O Prisma não ordena pelo primeiro evento
+ * DOCUMENT_SENT, então a ordem é feita aqui sobre os ids e datas (a planilha já é limitada a 10.000 linhas).
+ */
+const findOrderedIds = async (where: Prisma.EnvelopeWhereInput) => {
+  const envelopes = await prisma.envelope.findMany({
+    where,
+    select: { id: true, createdAt: true, auditLogs: select.auditLogs },
+  });
+
+  return envelopes
+    .map((envelope) => ({ id: envelope.id, sentAt: sentAtOf(envelope).getTime() }))
+    .sort((a, b) => b.sentAt - a.sentAt || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
+    .map((envelope) => envelope.id);
+};
+
+const findRowsInOrder = async (ids: string[], viewer: InvoiceViewer) => {
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const envelopes = await prisma.envelope.findMany({ where: { id: { in: ids } }, select });
+  const position = new Map(ids.map((id, index) => [id, index]));
+
+  envelopes.sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0));
+
+  return await toRows(envelopes, viewer);
+};
 
 export const findInvoices = async ({ userId, isAdmin, filters, page = 1, perPage = 20 }: FindInvoicesOptions) => {
   const viewer = { userId, isAdmin };
-  const where = await buildInvoiceWhere({ ...viewer, filters });
-
-  const [count, envelopes] = await Promise.all([
-    prisma.envelope.count({ where }),
-    prisma.envelope.findMany({ where, select, orderBy: ORDER_BY, skip: (page - 1) * perPage, take: perPage }),
-  ]);
+  const ids = await findOrderedIds(await buildInvoiceWhere({ ...viewer, filters }));
+  const count = ids.length;
 
   return {
-    data: await toRows(envelopes, viewer),
+    data: await findRowsInOrder(ids.slice((page - 1) * perPage, page * perPage), viewer),
     count,
     currentPage: page,
     perPage,
@@ -205,20 +239,19 @@ export const exportInvoicesCsv = async ({
   const viewer = { userId, isAdmin };
   const where = await buildInvoiceWhere({ ...viewer, filters });
 
-  if ((await prisma.envelope.count({ where })) > INVOICE_EXPORT_LIMIT) {
+  if (isOverInvoiceExportLimit(await prisma.envelope.count({ where }))) {
     return { tooMany: true };
   }
 
-  const envelopes = await prisma.envelope.findMany({ where, select, orderBy: ORDER_BY, take: INVOICE_EXPORT_LIMIT });
   const baseUrl = NEXT_PUBLIC_WEBAPP_URL().replace(/\/$/, '');
 
-  const rows: InvoiceExportRow[] = (await toRows(envelopes, viewer)).map((row) => ({
+  const rows: InvoiceExportRow[] = (await findRowsInOrder(await findOrderedIds(where), viewer)).map((row) => ({
     id: row.id,
     title: row.title,
     senderName: row.senderName,
     sentAt: row.sentAt,
     completedAt: row.completedAt,
-    status: INVOICE_STATUS_LABELS[row.status],
+    status: row.deleted ? INVOICE_DELETED_LABEL : INVOICE_STATUS_LABELS[row.status],
     choice: row.deferred ? INVOICE_DEFER_CHOICE : (row.account?.code ?? null),
     accountName: row.account?.name ?? null,
     accountKind: row.accountKind,

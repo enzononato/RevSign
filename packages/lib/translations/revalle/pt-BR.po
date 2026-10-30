@@ -4594,8 +4594,8 @@ msgstr "Limpar filtros"
 msgid "Não foi possível carregar as notas fiscais. Tente de novo."
 msgstr "Não foi possível carregar as notas fiscais. Tente de novo."
 
-msgid "Nenhuma nota fiscal ainda. Quando você enviar uma nota fiscal para assinatura, ela aparece aqui."
-msgstr "Nenhuma nota fiscal ainda. Quando você enviar uma nota fiscal para assinatura, ela aparece aqui."
+msgid "Nenhuma nota fiscal ainda. As notas fiscais que você enviar ou assinar aparecem aqui."
+msgstr "Nenhuma nota fiscal ainda. As notas fiscais que você enviar ou assinar aparecem aqui."
 
 msgid "Nenhuma nota fiscal com esses filtros."
 msgstr "Nenhuma nota fiscal com esses filtros."
@@ -4635,3 +4635,9 @@ msgstr "Todas as notas fiscais enviadas para assinatura (você é administrador)
 
 msgid "Todos"
 msgstr "Todos"
+
+msgid "A data inicial é depois da data final."
+msgstr "A data inicial é depois da data final."
+
+msgid "excluído pelo remetente"
+msgstr "excluído pelo remetente"

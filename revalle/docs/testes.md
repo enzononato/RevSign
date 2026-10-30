@@ -140,6 +140,7 @@ node --test --test-concurrency=1 scripts/revalle/tests/acceptance-f4.test.mjs
 8. 2 e-mails para a contabilidade, com os assuntos exatos (nenhum para o contrato);
 9. `/privacidade` tem a frase exata da spec §9;
 10. o PDF selado das duas NFs (com o certificado e o log de auditoria anexados) não tem o número, o nome da conta nem "conta contábil" (`pdftotext` pelo `helpers.poppler`).
+11. o remetente exclui a NFS-e (`/envelope/delete`, exclusão suave de documento concluído): ela some da tela e da planilha dele; o admin continua vendo, com `deleted` e `excluído pelo remetente` na coluna `status`.
 
 O remetente, o terceiro e o colega são **contas novas a cada execução** (`f5-…@revalle.com.br`: cadastro, confirmação pelo link do Mailpit e login, como em `branding.test.mjs`); o token de API do remetente é criado pela rota `apiToken.create` da sessão dele. O prompt e o e-mail da contabilidade anteriores voltam no final. A lista de contas fica com as 4 do aceite (os outros testes de NF importam a própria).
 
@@ -149,7 +150,8 @@ node --test --test-concurrency=1 scripts/revalle/tests/acceptance-f5.test.mjs
 ```
 
 - Rode com a stack subida com o `compose.test.yml` (caminho da IA) e também sem ele; os dois caminhos devem passar.
-- O limite de 10.000 linhas da planilha não é exercitado aqui (exigiria criar 10.001 notas); ele está no código (`exportInvoicesCsv`) e no texto da tela.
+- O limite de 10.000 linhas da planilha não é exercitado aqui (exigiria criar 10.001 notas); a decisão (`isOverInvoiceExportLimit`) tem teste Vitest e o código conta antes de montar a planilha.
+- `invoice-send`, `invoice-email` e este aceite só seguem o caminho da IA com o app configurado (`aiStatus = CONFIGURED`) E o servidor falso no ar; com o app sem chave, os casos de IA são pulados mesmo com o container `fake-gemini` de pé.
 
 ## Teste de fumaça (smoke)
 
