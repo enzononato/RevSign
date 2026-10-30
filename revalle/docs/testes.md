@@ -71,6 +71,7 @@ docker compose -f revalle/deploy/compose.hml.yml -f revalle/deploy/compose.test.
 - Para voltar à stack sem IA, suba de novo só com o `compose.hml.yml` (o app é recriado sem a chave; o `fake-gemini` pode ser parado com `docker compose -f revalle/deploy/compose.hml.yml -f revalle/deploy/compose.test.yml --env-file ../local-hml/hml.env stop fake-gemini`).
 - Depois de editar `fake-gemini.mjs`, recrie o serviço (`... up -d --force-recreate fake-gemini`): o arquivo é montado sozinho e o container continua vendo a versão antiga.
 - A suíte inteira deve passar nos dois jeitos: com o `compose.test.yml` (caminho da IA) e sem ele (sem chave, `aiAvailable: false`).
+- **Guarda contra chamada paga:** `invoice-classify`, `invoice-send`, `invoice-email` e `acceptance-f5` chamam `assertNoPaidGeminiCalls()` (`helpers.mjs`) antes de criar qualquer NF. Se o app tiver `GEMINI_API_KEY` e `NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL` não for `http://fake-gemini:8787/v1beta` (ex.: uma chave de verdade no `hml.env` para teste manual), a suíte para com a mensagem "Parado: o app tem GEMINI_API_KEY e não aponta para o servidor falso…". Para chamar o Gemini de propósito, defina `REVALLE_TEST_GEMINI_API_KEY`. O teste puro da guarda é `gemini-guard.test.mjs`.
 
 O que o servidor falso faz (o teste o controla pela porta 8787 do host):
 

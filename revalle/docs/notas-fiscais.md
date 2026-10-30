@@ -70,6 +70,8 @@ o mesmo PDF for enviado de novo, a sugestão vem do cache, sem nova chamada. Por
 - **E-mail da contabilidade:** na mesma tela, campo **E-mail da contabilidade**. Quando uma NF é concluída (todos
   assinaram), esse endereço recebe o PDF assinado, com o título, o remetente, a data e a conta no assunto. Um e-mail por
   NF, uma vez só. Vazio = ninguém recebe. NF recusada ou cancelada não gera e-mail.
+- **Trocar a conta depois da conclusão não reenvia o e-mail**: a contabilidade fica com a conta que estava no e-mail.
+  A conta atual está sempre na página **Notas fiscais** e na planilha; confira por ela.
 - **Chave do Gemini:** no EasyPanel, serviço `revsign` → **Environment**, defina `GEMINI_API_KEY` com a chave do
   [Google AI Studio](https://aistudio.google.com/apikey) e faça o **Deploy**. A chave fica só no servidor; nunca vai para
   o navegador nem para o repositório.
@@ -84,16 +86,30 @@ o mesmo PDF for enviado de novo, a sugestão vem do cache, sem nova chamada. Por
    botão **Usar sugestão**. Ele também pode buscar outra conta na lista (por número ou nome) ou escolher **Deixar para
    a contabilidade decidir**.
 3. O botão **Enviar** só libera depois da escolha.
-4. Se o RevSign não tiver certeza (PDF escaneado, sem texto), pergunta "Este documento é uma nota fiscal?". Com "Sim",
-   o PDF vai para a IA; com "Não", o documento segue como um documento comum. Se o RevSign errou e não é NF, há o botão
-   **Não é nota fiscal**.
-5. Depois do envio, a página do documento mostra o cartão **Conta contábil**, onde o dono (ou o admin) troca a conta.
-   Cada troca fica no histórico do documento (não no PDF).
+4. Se o RevSign não tiver certeza (PDF escaneado, sem texto), pergunta "Este documento é uma nota fiscal?" e o botão
+   **Enviar** fica bloqueado até a resposta ("Responda para enviar"). Com "Sim", o PDF vai para a IA e a conta é
+   escolhida como numa NF comum; com "Não", o documento segue como um documento comum. Se o RevSign errou e não é NF,
+   há o botão **Não é nota fiscal**.
+5. Depois do envio, a página do documento mostra o cartão **Conta contábil** para o dono e o admin:
+   - numa NF, ele troca a conta. Cada troca fica no histórico do documento (não no PDF);
+   - num documento enviado (pendente ou concluído) que não ficou como NF (ex.: NF escaneada enviada pela API, sem a
+     resposta, ou enviada antes desta versão), o botão **Marcar como nota fiscal** a coloca no fluxo, sem chamar a IA.
+     Em seguida o cartão pede a conta (ou "Deixar para a contabilidade decidir"). Se o documento já estava
+     **concluído**, a contabilidade recebe o e-mail assim que a conta é escolhida (uma vez só).
 6. No menu, **Notas fiscais** lista as NFs que ele enviou ou que chegaram para ele assinar.
 
 **NF enviada pela API ou por modelo:** o documento é criado, mas o envio é recusado (`INVOICE_ACCOUNT_REQUIRED`) até a
-conta ser escolhida na tela. O documento fica como rascunho: abra-o no site, escolha a conta e envie. Usar modelo com
-"enviar" e envio em lote fazem o mesmo. Detalhes em `revalle/docs/deploy.md`, seção "Notas fiscais enviadas pela API ou por modelo".
+conta ser escolhida na tela. O documento fica como rascunho: abra-o no site, escolha a conta e envie. Documento v1
+(ex.: criado pela API v1) abre no editor antigo, que mostra o bloco **Nota fiscal · Conta contábil** no topo. Usar
+modelo com "enviar" e envio em lote fazem o mesmo. Detalhes em `revalle/docs/deploy.md`, seção "Notas fiscais enviadas
+pela API ou por modelo".
+
+**PDF escaneado pela API:** o servidor não exige a resposta a "É nota fiscal?" (só a tela exige). Pela API, o PDF sem
+texto é enviado como documento comum: fica fora da lista e da planilha e não gera e-mail. Se era NF, use **Marcar como
+nota fiscal** na página do documento (item 5).
+
+**NFs enviadas antes desta atualização** não têm classificação: não aparecem em **Notas fiscais** nem na planilha, e a
+contabilidade não recebe e-mail delas. Para colocar uma delas no fluxo, use **Marcar como nota fiscal** (item 5).
 
 ## 5. Página "Notas fiscais" e planilha
 
@@ -140,7 +156,7 @@ tratar como fórmula.
 
 - Só documento detectado (ou confirmado pelo remetente) como NF vai para a IA. Num documento com vários arquivos, só os
   arquivos que são NF vão; um contrato junto fica de fora.
-- Até 20.000 caracteres de texto por arquivo; PDF escaneado vai cortado nas 5 primeiras páginas.
+- Até 20.000 caracteres de texto por arquivo; PDF escaneado vai cortado nas 5 primeiras páginas (como imagem).
 - A IA tem 20 segundos para responder. Se demorar, errar o formato ou sugerir uma conta que não existe (ou está
   inativa), fica "sem sugestão" e o remetente escolhe na lista. Nada trava.
 - 60 sugestões por usuário por hora, e no máximo 6 chamadas à IA por documento (a automática + 5 "Sugerir de novo" ou
@@ -150,9 +166,17 @@ tratar como fórmula.
 
 - A política de privacidade (`/privacidade`) diz: "As notas fiscais enviadas para assinatura são analisadas por um
   serviço de inteligência artificial (Google Gemini) apenas para sugerir a conta contábil."
-- Nunca vão para o Gemini: CPF (números com cara de CPF são mascarados no texto), data de nascimento e os dados da
-  verificação de quem assina.
-- O log do servidor registra só o modelo, os tokens, a duração e o resultado; nunca o texto da NF.
+- E também: "No texto da nota, números de CPF são mascarados antes do envio; uma nota digitalizada (imagem) é enviada
+  como está. Nunca enviamos a data de nascimento nem os dados da verificação de quem assina."
+- Na prática: no texto, `123.456.789-09`, `123456789-09` e 11 dígitos logo depois de "CPF", "CPF nº" ou "CPF/CNPJ"
+  viram `***.***.***-**`; CNPJ (14 dígitos) e a chave de acesso (44) ficam. Uma NF escaneada (foto ou digitalização)
+  vai como imagem, e o CPF que estiver nela vai junto: não há texto para mascarar.
+- O log do servidor registra só o modelo, os tokens, a duração, o resultado e, quando o Google recusa, o código HTTP
+  (ex.: 429 = cota, 403 = chave, 404 = modelo retirado); nunca o texto da NF nem a resposta do Google.
+- **Cache das sugestões:** a tabela `RevalleInvoiceSuggestionCache` guarda, por SHA-256 do arquivo, a conta sugerida,
+  a confiança, o modelo e o motivo escrito pela IA (que pode citar o nome do fornecedor ou do tomador). Não tem prazo
+  e não é apagada quando o documento é excluído. Para limpar (as NFs seguintes voltam a chamar a IA):
+  `delete from "RevalleInvoiceSuggestionCache";` no banco.
 - A chave fica só no servidor (EasyPanel).
 
 ## 8. Problemas comuns
@@ -160,6 +184,7 @@ tratar como fórmula.
 - **"Sem sugestão" sempre:** confira na tela de admin se aparece "Gemini configurado". Se aparecer "sem chave", defina
   `GEMINI_API_KEY`. Se a lista de contas estiver vazia, não há o que sugerir.
 - **A NF não foi reconhecida:** o RevSign procura sinais de NF no texto (DANFE, chave de acesso, NFS-e etc.). PDF
-  escaneado sem texto gera a pergunta "Este documento é uma nota fiscal?". Um documento comum nunca é bloqueado.
+  escaneado sem texto gera a pergunta "Este documento é uma nota fiscal?"; num documento escaneado comum, basta
+  responder "Não" para enviar. Um documento comum com texto nunca é bloqueado.
 - **A contabilidade não recebeu o e-mail:** confira o campo na tela de admin e se a NF está **Concluída** (todos
   assinaram). O e-mail sai uma vez só; reselar o documento não reenvia.
