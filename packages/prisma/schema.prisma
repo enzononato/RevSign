@@ -1447,6 +1447,9 @@ model RevalleInvoiceClassification {
   envelope              Envelope                 @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
   isInvoice             RevalleInvoiceStatus
   detectedBy            RevalleInvoiceDetectedBy
+  /// Quem trocou a marcação "é nota fiscal" pela última vez e quando (sem FK, como choiceById).
+  flagChangedById       Int?
+  flagChangedAt         DateTime?
   signals               String[]
   fileSha256            String?
   suggestionStatus      RevalleSuggestionStatus  @default(SKIPPED)

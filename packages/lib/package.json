@@ -15,6 +15,7 @@
     "clean": "rimraf node_modules"
   },
   "dependencies": {
+    "@ai-sdk/google": "4.0.39",
     "@ai-sdk/google-vertex": "5.0.48",
     "@aws-sdk/client-s3": "^3.998.0",
     "@aws-sdk/client-sesv2": "^3.998.0",

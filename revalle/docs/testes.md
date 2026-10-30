@@ -43,9 +43,46 @@ Pulados aparecem como `skipped` no resumo. "Tudo verde" de verdade é: `fail 0`.
 
 `invoice-admin.test.mjs` (Fase 5) usa as sessões de `REVSIGN_ADMIN_*` (rotas `revalle.invoice.admin*`) e de `REVSIGN_USER_*` (recusa ao usuário comum). Ele **apaga e recria a lista de contas contábeis** da stack local e grava prompt e e-mail da contabilidade. O teste do estado da IA lê dentro do container se `GEMINI_API_KEY` está definida (sem mostrar o valor) e `NEXT_PRIVATE_REVALLE_INVOICE_AI`; vale para a stack subida com ou sem a chave.
 
+`invoice-classify.test.mjs` (Fase 5) cria notas fiscais FICTÍCIAS no próprio teste (com `@cantoo/pdf-lib`: um DANFE com a chave de acesso fictícia `29241012345678000195550010000123451123456784`, uma NFS-e e um PDF "escaneado", só com imagem), envia pela API v2 e chama as rotas `revalle.invoice.get/classify/setInvoiceFlag/resuggest` com a sessão de `REVSIGN_USER_*`. Ele **substitui a lista de contas contábeis** da stack pela dele (importada pela sessão de `REVSIGN_ADMIN_*`, porque `invoice-admin.test.mjs` apaga a lista) e apaga os contadores de limite `revalle.invoice*`. Os casos com IA precisam da stack subida com o servidor falso do Gemini (seção abaixo); sem ele, só roda o caso "sem IA" (`aiAvailable: false`, a detecção funciona e nada quebra) e os outros aparecem como pulados. O caso de acesso usa também `REVSIGN_SENDER_API_TOKEN` (documento de outro time).
+
 Os testes usam `docker exec revsign-hml-database-1 psql` (nome fixo do container), o Mailpit em `http://localhost:8025` e, para simular código vencido, `docker exec revsign-hml-documenso-1 node` (o código é calculado dentro do container; a chave não sai de lá).
 
 Conexões ociosas: o app fecha conexões keep-alive paradas. Depois de uma espera longa (selagem, reselagem), o próximo pedido pode cair numa conexão já fechada (`EPIPE`, `ECONNRESET` ou `UND_ERR_SOCKET` "other side closed"). Os ajudantes (`helpers.mjs`) repetem **uma vez** os pedidos que podem ser repetidos sem efeito colateral (GET: API, downloads, Mailpit, consultas tRPC) com `fetchIdempotent`/`retryOnStaleSocket`. Pedidos POST não são repetidos, com uma exceção: a criação de documento nos testes de carimbo, selagem e aceite (`retryCreateOnStaleSocket`), nos mesmos três erros. Risco aceito: um `UND_ERR_SOCKET` pode chegar depois de o servidor já ter criado o documento; aí a repetição cria outro e o primeiro fica como envelope de teste órfão (inofensivo na stack local descartável; o teste segue com o segundo). Não dá para restringir a repetição a `EPIPE`/`ECONNRESET`: o erro que aparece na prática nessa criação é justamente o `UND_ERR_SOCKET` do socket ocioso.
+
+## Servidor falso do Gemini (Fase 5)
+
+A sugestão de conta contábil da nota fiscal chama o Gemini, uma API externa e paga. Os testes não chamam o Google: o app fala com `scripts/revalle/tests/fake-gemini.mjs`, um servidor falso que responde no formato da API `generateContent`. É uma exceção deliberada à regra "sem mock": o dublê fica na **fronteira de rede**, no lugar do Google; o app é o mesmo, só muda o endereço (`NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL`). Tudo dentro do app (texto do PDF, detecção, cache, job, limites, validação da resposta) roda de verdade.
+
+Subir a stack com o servidor falso (por cima do `compose.hml.yml`):
+
+```sh
+docker compose -f revalle/deploy/compose.hml.yml -f revalle/deploy/compose.test.yml --env-file ../local-hml/hml.env up -d
+```
+
+- `compose.test.yml` acrescenta o serviço `fake-gemini` (imagem `node:24-alpine`, script montado só para leitura, porta `127.0.0.1:8787`) e define no app `GEMINI_API_KEY=test-key` e `NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL=http://fake-gemini:8787/v1beta`. Nunca use esse arquivo em homologação ou produção.
+- Para voltar à stack sem IA, suba de novo só com o `compose.hml.yml` (o app é recriado sem a chave; o `fake-gemini` pode ser parado com `docker compose -f revalle/deploy/compose.hml.yml -f revalle/deploy/compose.test.yml --env-file ../local-hml/hml.env stop fake-gemini`).
+- A suíte inteira deve passar nos dois jeitos: com o `compose.test.yml` (caminho da IA) e sem ele (sem chave, `aiAvailable: false`).
+
+O que o servidor falso faz (o teste o controla pela porta 8787 do host):
+
+| Rota | Para que serve |
+|---|---|
+| `POST /v1beta/models/{modelo}:generateContent` | O que o app chama. Responde no formato do Gemini com o JSON do modo programado. Confere a chave `test-key` no cabeçalho `x-goog-api-key` |
+| `POST /__program {"mode": ..., "accountCode": ...}` | Modo da próxima resposta: `ok` (a conta de `accountCode`, ou a primeira da lista), `unknown-account` (conta que não existe), `garbage` (texto que não é JSON), `slow` (25 s; o app desiste em 20 s), `error` (HTTP 500) |
+| `GET /__calls` | Chamadas recebidas: modelo, se veio PDF ou texto, tamanhos, as instruções e as partes da mensagem |
+| `POST /__reset` | Apaga as chamadas e volta ao modo `ok` |
+
+Rodar só este teste (com a stack subida com o `compose.test.yml`):
+
+```sh
+REVSIGN_API_TOKEN=api_... REVSIGN_USER_EMAIL=... REVSIGN_USER_PASSWORD=... \
+REVSIGN_ADMIN_EMAIL=... REVSIGN_ADMIN_PASSWORD=... REVSIGN_SENDER_API_TOKEN=api_... \
+node --test --test-concurrency=1 scripts/revalle/tests/invoice-classify.test.mjs
+```
+
+- `REVSIGN_FAKE_GEMINI_URL`: endereço do servidor falso visto do host (padrão `http://localhost:8787`).
+- **Perna opcional com o Gemini de verdade:** com `REVALLE_TEST_GEMINI_API_KEY=<chave>` no ambiente do teste, um caso programa o servidor falso no modo `proxy`, que repassa UMA chamada (o DANFE fictício) ao Google com essa chave, e confere só que a resposta passa na validação ou vira `FAILED` com um código curto. A chave fica só na memória do servidor falso (não é devolvida nem registrada). Sem a variável, o caso é pulado. Custa uma chamada paga.
+- O caso "o log do app não tem o texto da NF" lê `docker logs revsign-hml-documenso-1` desde o início do teste e procura uma frase da NF fictícia e a chave de acesso.
 
 ## Tradução (overlay pt-BR)
 

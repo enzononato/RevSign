@@ -1,0 +1,36 @@
+# RevSign — complemento SÓ PARA TESTES do ensaio local: servidor FALSO do Gemini (Fase 5).
+#
+# A sugestão de conta contábil chama uma API externa e paga. Nos testes, o app fala com este servidor falso
+# (scripts/revalle/tests/fake-gemini.mjs) em vez do Google: é um dublê na fronteira de rede, o app não muda.
+# Nunca use em homologação nem em produção.
+#
+# Uso (por cima do compose.hml.yml):
+#   docker compose -f revalle/deploy/compose.hml.yml -f revalle/deploy/compose.test.yml --env-file ../local-hml/hml.env up -d
+# Para voltar à stack sem IA, suba de novo só com o compose.hml.yml (o app é recriado sem a chave).
+# Ver revalle/docs/testes.md ("Servidor falso do Gemini").
+
+services:
+  fake-gemini:
+    image: node:24-alpine
+    command: ['node', '/fake/fake-gemini.mjs']
+    environment:
+      FAKE_GEMINI_PORT: 8787
+      FAKE_GEMINI_API_KEY: test-key
+    volumes:
+      - ../../scripts/revalle/tests/fake-gemini.mjs:/fake/fake-gemini.mjs:ro
+    ports:
+      # Os testes programam o modo (/__program) e leem as chamadas (/__calls) por aqui.
+      - '127.0.0.1:8787:8787'
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8787/__health']
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  documenso:
+    depends_on:
+      fake-gemini:
+        condition: service_healthy
+    environment:
+      GEMINI_API_KEY: test-key
+      NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL: http://fake-gemini:8787/v1beta
