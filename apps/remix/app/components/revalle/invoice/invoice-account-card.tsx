@@ -18,8 +18,12 @@ export type InvoiceAccountCardProps = {
  * "Conta contábil" na página do documento já enviado (inclusive concluído), só para o dono e o admin.
  * - NF: mostra a conta e deixa trocar (cada troca vai para o histórico do documento). NF sem conta: a lista já vem
  *   aberta, sem "Cancelar", até a escolha.
- * - Enviado (pendente ou concluído) que não ficou como NF (ex.: NF escaneada enviada sem resposta): "Marcar como nota
- *   fiscal" (sem IA) e, em seguida, a escolha da conta. Num documento concluído, a escolha avisa a contabilidade.
+ * - Enviado (pendente ou concluído) sem resposta a "É nota fiscal?" (UNKNOWN, ex.: NF escaneada enviada pela API): o
+ *   cartão com a pergunta e "Marcar como nota fiscal".
+ * - Enviado que não é NF (NO, ou enviado antes desta versão): só um link discreto "É uma nota fiscal? Marcar como
+ *   nota fiscal", para não pesar na página de todo contrato.
+ * Marcar (sem IA) abre em seguida a escolha da conta, no cartão. Num documento concluído, a escolha avisa a
+ * contabilidade.
  */
 export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
   const { user } = useSession();
@@ -60,6 +64,28 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
     }
   };
 
+  if (!isInvoice && state.isInvoice !== 'UNKNOWN') {
+    return (
+      <div
+        className="-my-2 flex flex-wrap items-center gap-x-1 px-1 text-muted-foreground text-sm"
+        data-testid="invoice-mark-link"
+      >
+        <span>
+          <Trans>É uma nota fiscal?</Trans>
+        </span>
+        <Button
+          type="button"
+          variant="link"
+          className="h-11 px-0 text-sm"
+          disabled={isPending}
+          onClick={() => void onMark()}
+        >
+          <Trans>Marcar como nota fiscal</Trans>
+        </Button>
+      </div>
+    );
+  }
+
   if (!isInvoice) {
     return (
       <section
@@ -69,6 +95,10 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
         <h2 className="font-medium">
           <Trans>Conta contábil</Trans>
         </h2>
+
+        <p className="font-medium text-sm">
+          <Trans>Este documento é uma nota fiscal?</Trans>
+        </p>
 
         <p className="text-muted-foreground text-sm">
           <Trans>Se este documento for uma nota fiscal, marque aqui para escolher a conta contábil.</Trans>

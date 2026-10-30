@@ -90,12 +90,17 @@ o mesmo PDF for enviado de novo, a sugestão vem do cache, sem nova chamada. Por
    **Enviar** fica bloqueado até a resposta ("Responda para enviar"). Com "Sim", o PDF vai para a IA e a conta é
    escolhida como numa NF comum; com "Não", o documento segue como um documento comum. Se o RevSign errou e não é NF,
    há o botão **Não é nota fiscal**.
-5. Depois do envio, a página do documento mostra o cartão **Conta contábil** para o dono e o admin:
-   - numa NF, ele troca a conta. Cada troca fica no histórico do documento (não no PDF);
-   - num documento enviado (pendente ou concluído) que não ficou como NF (ex.: NF escaneada enviada pela API, sem a
-     resposta, ou enviada antes desta versão), o botão **Marcar como nota fiscal** a coloca no fluxo, sem chamar a IA.
-     Em seguida o cartão pede a conta (ou "Deixar para a contabilidade decidir"). Se o documento já estava
-     **concluído**, a contabilidade recebe o e-mail assim que a conta é escolhida (uma vez só).
+5. Depois do envio, a página do documento mostra ao dono e ao admin:
+   - numa NF, o cartão **Conta contábil**, onde ele troca a conta. Cada troca fica no histórico do documento (não no
+     PDF);
+   - num PDF escaneado enviado sem a resposta (pela API), o cartão **Conta contábil** com a pergunta "Este documento é
+     uma nota fiscal?" e o botão **Marcar como nota fiscal**;
+   - num documento comum (ou numa NF enviada antes desta versão), só uma linha discreta: "É uma nota fiscal?
+     **Marcar como nota fiscal**". Nada de cartão, para não pesar na página de cada contrato.
+
+   Marcar coloca o documento no fluxo, sem chamar a IA; em seguida o cartão pede a conta (ou "Deixar para a
+   contabilidade decidir"). Se o documento já estava **concluído**, a contabilidade recebe o e-mail assim que a conta é
+   escolhida (uma vez só).
 6. No menu, **Notas fiscais** lista as NFs que ele enviou ou que chegaram para ele assinar.
 
 **NF enviada pela API ou por modelo:** o documento é criado, mas o envio é recusado (`INVOICE_ACCOUNT_REQUIRED`) até a

@@ -12,7 +12,8 @@
 // largura da tela e as abas "E-mail"/"Nenhum" do diálogo têm 32 px). Depois abre a página "Notas fiscais": botões da
 // página com 44 px e nenhuma rolagem horizontal da página inteira (a tabela rola dentro do próprio quadro).
 // Depois: NF escaneada no diálogo de envio ("Responda para enviar" e o botão de enviar bloqueado até "Sim"/"Não"),
-// NF v1 no editor antigo (o bloco da NF no topo) e "Marcar como nota fiscal" no cartão de um documento já enviado.
+// NF v1 no editor antigo (o bloco da NF no topo), o link discreto "Marcar como nota fiscal" num documento comum já
+// enviado (o cartão só aparece depois de marcar) e o cartão com a pergunta numa NF escaneada enviada sem resposta.
 // Em cada passo tira um print e confere:
 //   - sem rolagem horizontal (document.scrollingElement.scrollWidth <= 360);
 //   - todo botão visível (button / role=button) com altura >= 44 px;
@@ -161,6 +162,20 @@ const runHost = async () => {
 
     await distribute(common.id);
     senderEnv.SENT_DOC_URL = `${BASE_URL}/t/${teamUrl}/documents/${common.id}`;
+
+    // NF escaneada enviada pela API sem resposta: fica UNKNOWN (o servidor não exige a resposta).
+    const sentScanned = await createEnvelope({
+      title: `[TESTE NF] Celular escaneada enviada ${new Date().toISOString()}`,
+      pdf: await writeScannedFixture(outDir),
+      recipients: [{ email: `celular-nf-esc-env-${Date.now()}@revalle.com.br`, name: 'Teste' }],
+    });
+
+    if (sentScanned.status !== 200) {
+      throw new Error(`criar nota escaneada enviada: HTTP ${sentScanned.status} ${sentScanned.text}`);
+    }
+
+    await distribute(sentScanned.id);
+    senderEnv.SENT_SCANNED_URL = `${BASE_URL}/t/${teamUrl}/documents/${sentScanned.id}`;
   } else {
     console.log('- sem REVSIGN_USER_EMAIL/REVSIGN_USER_PASSWORD: passo da nota fiscal pulado');
   }
@@ -514,15 +529,36 @@ const runBrowser = async () => {
       await sender.getByTestId('invoice-account-panel').waitFor();
       await check('00f-nf-editor-antigo', sender, '[data-testid="invoice-account-panel"]');
 
-      // Documento comum já enviado: "Marcar como nota fiscal" e, em seguida, a escolha da conta no mesmo cartão.
+      // Documento comum já enviado: sem o cartão, só o link discreto "É uma nota fiscal? Marcar como nota fiscal"
+      // (44 px de toque); marcar abre o cartão com a escolha da conta.
       await sender.goto(process.env.SENT_DOC_URL, { waitUntil: 'networkidle' });
+
+      const markLink = sender.getByTestId('invoice-mark-link');
+
+      await markLink.waitFor();
+
+      if ((await sender.getByTestId('invoice-account-card').count()) > 0) {
+        throw new Error('documento comum: o cartão "Conta contábil" não deveria aparecer antes de marcar');
+      }
+
+      await markLink.scrollIntoViewIfNeeded();
+      await check('00g-nf-link-marcar', sender, '[data-testid="invoice-mark-link"]');
+      await markLink.getByRole('button', { name: 'Marcar como nota fiscal' }).click();
 
       const card = sender.getByTestId('invoice-account-card');
 
-      await card.scrollIntoViewIfNeeded();
-      await card.getByRole('button', { name: 'Marcar como nota fiscal' }).click();
       await card.getByRole('button', { name: 'Deixar para a contabilidade decidir' }).waitFor();
-      await check('00g-nf-marcar', sender, '[data-testid="invoice-account-card"]');
+      await card.scrollIntoViewIfNeeded();
+      await check('00h-nf-marcada', sender, '[data-testid="invoice-account-card"]');
+
+      // NF escaneada enviada sem resposta (UNKNOWN, pela API): o cartão inteiro, com a pergunta.
+      await sender.goto(process.env.SENT_SCANNED_URL, { waitUntil: 'networkidle' });
+
+      const unknownCard = sender.getByTestId('invoice-account-card');
+
+      await unknownCard.getByText('Este documento é uma nota fiscal?').waitFor();
+      await unknownCard.scrollIntoViewIfNeeded();
+      await check('00i-nf-escaneada-enviada', sender, '[data-testid="invoice-account-card"]');
     } catch (error) {
       await sender.screenshot({ path: `${out}/erro-nf.png` }).catch(() => {});
       steps.push({ step: 'nf', scrollWidth: null, problems: [{ kind: 'flow-error', detail: String(error) }] });

@@ -4650,3 +4650,6 @@ msgstr "Responda para enviar"
 
 msgid "Se este documento for uma nota fiscal, marque aqui para escolher a conta contábil."
 msgstr "Se este documento for uma nota fiscal, marque aqui para escolher a conta contábil."
+
+msgid "É uma nota fiscal?"
+msgstr "É uma nota fiscal?"

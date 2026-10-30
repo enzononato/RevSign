@@ -286,7 +286,7 @@ Vale para quem atualiza uma instalação que já está em uso. A Fase 5 traz a n
 4. **Prompt e e-mail da contabilidade.** Na mesma tela, escreva o prompt (as regras da empresa para escolher a conta) e o **E-mail da contabilidade**, e clique em **Salvar**. Sem e-mail, ninguém recebe o PDF das notas concluídas.
 5. **Conferência.** Na tela de admin, a linha de estado deve dizer "Gemini configurado (modelo …)". Envie uma nota fiscal de teste: o diálogo de envio mostra o bloco "Nota fiscal · Conta contábil" com a sugestão; depois de assinada, ela aparece no menu **Notas fiscais** e a contabilidade recebe o e-mail.
 6. **Avise os remetentes** de que notas fiscais enviadas pela API ou por modelo precisam ser terminadas na tela (seção abaixo).
-7. **NFs enviadas antes desta atualização não têm classificação.** Elas não aparecem no menu **Notas fiscais** nem na planilha, e a contabilidade não recebe e-mail delas. Se precisar de uma delas no fluxo, o dono (ou o admin) abre a página do documento e usa **Marcar como nota fiscal** no cartão "Conta contábil"; se ela já estiver concluída, a contabilidade recebe o e-mail quando a conta for escolhida.
+7. **NFs enviadas antes desta atualização não têm classificação.** Elas não aparecem no menu **Notas fiscais** nem na planilha, e a contabilidade não recebe e-mail delas. Se precisar de uma delas no fluxo, o dono (ou o admin) abre a página do documento e clica em "É uma nota fiscal? **Marcar como nota fiscal**" e escolhe a conta; se ela já estiver concluída, a contabilidade recebe o e-mail quando a conta for escolhida.
 
 ## Notas fiscais enviadas pela API ou por modelo (Fase 5)
 
