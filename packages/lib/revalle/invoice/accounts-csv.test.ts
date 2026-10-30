@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseAccountsCsv } from './accounts-csv';
+import { decodeCsvBytes, parseAccountsCsv } from './accounts-csv';
 
 const HEADER = 'numero;nome;descricao;tipo';
 
@@ -64,5 +64,43 @@ describe('parseAccountsCsv', () => {
     const result = parseAccountsCsv(`${HEADER}\n1.1;"Água; luz";"Contas ""fixas""";pagar\n`);
 
     expect(result.accounts[0]).toMatchObject({ name: 'Água; luz', description: 'Contas "fixas"' });
+  });
+
+  it('aceita descrição entre aspas com várias linhas e conta a linha seguinte certo', () => {
+    const result = parseAccountsCsv(`${HEADER}\n1.1;Caixa;"linha um\nlinha dois";\n2.1;;x;\n`);
+
+    expect(result.accounts[0]?.description).toBe('linha um\nlinha dois');
+    expect(result.errors).toEqual([{ line: 4, message: 'Falta o nome da conta' }]);
+  });
+
+  it('dá erro na linha onde começa uma aspa sem fechar', () => {
+    const result = parseAccountsCsv(`${HEADER}\n1.1;Caixa;;\n2.1;Banco;"sem fim;\n3.1;Outro;;\n`);
+
+    expect(result.errors).toEqual([{ line: 3, message: 'Aspas sem fechar' }]);
+  });
+
+  it('pede UTF-8 quando o texto tem caractere de substituição', () => {
+    const result = parseAccountsCsv(`${HEADER}\n1.1;Manuten\uFFFD\uFFFDo;;\n`);
+
+    expect(result.accounts).toEqual([]);
+    expect(result.errors).toEqual([
+      { line: 1, message: 'Salve o arquivo como CSV UTF-8 (no Excel: Salvar como → CSV UTF-8).' },
+    ]);
+  });
+});
+
+describe('decodeCsvBytes', () => {
+  it('lê UTF-8', () => {
+    const bytes = new TextEncoder().encode('numero;nome;descrição;tipo');
+
+    expect(decodeCsvBytes(bytes)).toEqual({ text: 'numero;nome;descrição;tipo', encoding: 'utf-8' });
+  });
+
+  it('cai para windows-1252 com cabeçalho em Latin-1', () => {
+    const bytes = Uint8Array.from(
+      [...'numero;nome;descri'].map((char) => char.charCodeAt(0)).concat([0xe7, 0xe3, 0x6f]),
+    );
+
+    expect(decodeCsvBytes(bytes)).toEqual({ text: 'numero;nome;descrição', encoding: 'windows-1252' });
   });
 });

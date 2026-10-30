@@ -54,6 +54,22 @@ describe('buildInvoiceExportCsv', () => {
     expect(lines(csv)[1]).toContain(';não;');
   });
 
+  it('neutraliza fórmulas nos textos livres e preserva códigos e links', () => {
+    const csv = buildInvoiceExportCsv([
+      { ...baseRow, title: '=HYPERLINK("x")', senderName: '+55 Maria', accountName: '@conta' },
+      { ...baseRow, title: '-1', senderName: '\tTab', accountName: '\rCR' },
+    ]);
+    const [, first, second] = csv.split('\r\n');
+
+    expect(first).toContain(';"\'=HYPERLINK(""x"")";\'+55 Maria;');
+    expect(first).toContain(";'@conta;");
+    expect(second).toContain(";'-1;'\tTab;");
+    expect(csv).toContain(';"\'\rCR";');
+    expect(first?.startsWith('42;')).toBe(true);
+    expect(first).toContain(';2.1.03;');
+    expect(first?.endsWith(';https://assinaturas.example/documents/42')).toBe(true);
+  });
+
   it('deixa vazio o que não existe', () => {
     const csv = buildInvoiceExportCsv([
       {

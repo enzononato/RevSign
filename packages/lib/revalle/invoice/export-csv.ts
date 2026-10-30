@@ -39,6 +39,10 @@ const BOM = '﻿';
 
 const escapeCell = (value: string) => (/[;"\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
 
+const FORMULA_START = /^[=+\-@\t\r]/;
+
+const safeText = (value: string) => (FORMULA_START.test(value) ? `'${value}` : value);
+
 const formatDate = (date: Date | null) => (date ? formatRevalleDateTime(date) : '');
 
 const formatKind = (kind: InvoiceExportRow['accountKind']) => {
@@ -63,13 +67,13 @@ export const buildInvoiceExportCsv = (rows: InvoiceExportRow[]): string => {
 
     return [
       String(row.id),
-      row.title,
-      row.senderName,
+      safeText(row.title),
+      safeText(row.senderName),
       formatDate(row.sentAt),
       formatDate(row.completedAt),
       row.status,
       isDeferred ? INVOICE_DEFER_LABEL : (row.choice ?? ''),
-      isDeferred ? '' : (row.accountName ?? ''),
+      isDeferred ? '' : safeText(row.accountName ?? ''),
       isDeferred ? '' : formatKind(row.accountKind),
       row.suggestedCode ?? '',
       row.confidence ?? '',

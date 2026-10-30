@@ -12,36 +12,76 @@ export type AccountsCsvResult = {
 
 const EXPECTED_HEADER = ['numero', 'nome', 'descricao', 'tipo'];
 
-const splitRow = (row: string): string[] => {
-  const cells: string[] = [];
+type CsvRecord = { line: number; cells: string[]; unterminated: boolean };
+
+const splitRecords = (text: string): CsvRecord[] => {
+  const records: CsvRecord[] = [];
+  let cells: string[] = [];
   let current = '';
   let quoted = false;
+  let line = 1;
+  let recordLine = 1;
 
-  for (let index = 0; index < row.length; index++) {
-    const char = row[index];
+  const endRecord = (unterminated: boolean) => {
+    cells.push(current);
+    records.push({ line: recordLine, cells: cells.map((cell) => cell.trim()), unterminated });
+    cells = [];
+    current = '';
+  };
+
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index];
 
     if (quoted) {
-      if (char === '"' && row[index + 1] === '"') {
+      if (char === '"' && text[index + 1] === '"') {
         current += '"';
         index++;
       } else if (char === '"') {
         quoted = false;
       } else {
+        if (char === '\n') {
+          line++;
+        }
+
         current += char;
       }
-    } else if (char === '"') {
+
+      continue;
+    }
+
+    if (char === '"') {
       quoted = true;
     } else if (char === ';') {
       cells.push(current);
       current = '';
+    } else if (char === '\r' || char === '\n') {
+      if (char === '\r' && text[index + 1] === '\n') {
+        index++;
+      }
+
+      endRecord(false);
+      line++;
+      recordLine = line;
     } else {
       current += char;
     }
   }
 
-  cells.push(current);
+  if (quoted) {
+    endRecord(true);
+  } else if (current !== '' || cells.length > 0) {
+    endRecord(false);
+  }
 
-  return cells.map((cell) => cell.trim());
+  return records;
+};
+
+export const decodeCsvBytes = (bytes: Uint8Array): { text: string; encoding: 'utf-8' | 'windows-1252' } => {
+  try {
+    return { text: new TextDecoder('utf-8', { fatal: true }).decode(bytes), encoding: 'utf-8' };
+  } catch {
+    return { text: new TextDecoder('windows-1252').decode(bytes), encoding: 'windows-1252' };
+  }
 };
 
 const normalizeHeader = (cell: string) => cell.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -69,17 +109,26 @@ export const parseAccountsCsv = (text: string): AccountsCsvResult => {
   const errors: AccountsCsvResult['errors'] = [];
   const seen = new Set<string>();
 
-  const lines = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  const content = text.replace(/^\uFEFF/, '');
+
+  if (content.includes('\uFFFD')) {
+    return {
+      accounts,
+      errors: [{ line: 1, message: 'Salve o arquivo como CSV UTF-8 (no Excel: Salvar como → CSV UTF-8).' }],
+    };
+  }
+
   let headerFound = false;
 
-  for (const [index, rawLine] of lines.entries()) {
-    const line = index + 1;
-
-    if (rawLine.trim() === '') {
-      continue;
+  for (const { line, cells, unterminated } of splitRecords(content)) {
+    if (unterminated) {
+      errors.push({ line, message: 'Aspas sem fechar' });
+      break;
     }
 
-    const cells = splitRow(rawLine);
+    if (cells.every((cell) => cell === '')) {
+      continue;
+    }
 
     if (!headerFound) {
       headerFound = true;
@@ -120,7 +169,7 @@ export const parseAccountsCsv = (text: string): AccountsCsvResult => {
     accounts.push({ code, name, description, kind });
   }
 
-  if (!headerFound) {
+  if (!headerFound && errors.length === 0) {
     errors.push({ line: 1, message: 'O arquivo está vazio' });
   }
 
