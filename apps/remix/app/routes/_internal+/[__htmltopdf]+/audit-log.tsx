@@ -67,7 +67,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   const messages = await getTranslations(documentLanguage);
 
   return {
-    auditLogs,
+    // REVALLE: a conta contábil da NF fica fora do PDF (selado ou baixado).
+    auditLogs: auditLogs.filter((auditLog) => auditLog.type !== 'REVALLE_INVOICE_ACCOUNT_SET'),
     document: {
       id: mapSecondaryIdToDocumentId(envelope.secondaryId),
       title: envelope.title,

@@ -5,6 +5,11 @@
 // (termo, CPF/data de nascimento do Fernando fictício do dev-seed.sql, "sou eu"), assina um campo de assinatura e
 // um de texto, abre e fecha os diálogos "Baixar PDF" e "Recusar" do menu de ações (e confere que, depois de cada um, o
 // 1º toque num campo abre o campo), pede o código por e-mail (lido no Mailpit) e conclui.
+// Antes, se houver sessão do remetente (REVSIGN_USER_EMAIL/REVSIGN_USER_PASSWORD, dono do token), confere o envio de
+// uma nota fiscal fictícia no celular: o diálogo de envio com o bloco "Nota fiscal · Conta contábil", a escolha
+// "Deixar para a contabilidade decidir", o envio e o cartão "Conta contábil" da página do documento. Nesses passos a
+// conferência vale só para o bloco/cartão: o editor do upstream não é feito para celular (a 360 px a página passa da
+// largura da tela e as abas "E-mail"/"Nenhum" do diálogo têm 32 px).
 // Em cada passo tira um print e confere:
 //   - sem rolagem horizontal (document.scrollingElement.scrollWidth <= 360);
 //   - todo botão visível (button / role=button) com altura >= 44 px;
@@ -78,6 +83,30 @@ const runHost = async () => {
 
   console.log(`- documento ${created.id} enviado para ${email}`);
 
+  // A sessão vai para o container pelo ambiente (`-e NOME` sem valor): não aparece na linha de comando.
+  const senderEnv = {};
+
+  if (process.env.REVSIGN_USER_EMAIL && process.env.REVSIGN_USER_PASSWORD) {
+    const { signIn } = await import('./tests/helpers.mjs');
+    const nf = await createEnvelope({
+      title: `[TESTE NF] Celular ${new Date().toISOString()}`,
+      pdf: await writeInvoiceFixture(outDir),
+      recipients: [{ email: `celular-nf-${Date.now()}@revalle.com.br`, name: 'Teste' }],
+    });
+
+    if (nf.status !== 200) {
+      throw new Error(`criar nota fiscal: HTTP ${nf.status} ${nf.text}`);
+    }
+
+    const teamUrl = db(`select t.url from "Team" t join "Envelope" e on e."teamId" = t.id where e.id = '${nf.id}'`);
+
+    senderEnv.SENDER_COOKIE = await signIn(process.env.REVSIGN_USER_EMAIL, process.env.REVSIGN_USER_PASSWORD);
+    senderEnv.EDITOR_URL = `${BASE_URL}/t/${teamUrl}/documents/${nf.id}/edit`;
+    console.log(`- nota fiscal ${nf.id} (rascunho) para o passo do remetente`);
+  } else {
+    console.log('- sem REVSIGN_USER_EMAIL/REVSIGN_USER_PASSWORD: passo da nota fiscal pulado');
+  }
+
   const result = spawnSync(
     'docker',
     [
@@ -102,6 +131,7 @@ const runHost = async () => {
       `SIGNER_CPF=${FERNANDO.cpf}`,
       '-e',
       `SIGNER_BIRTH_DATE=${FERNANDO.birthDate}`,
+      ...Object.keys(senderEnv).flatMap((name) => ['-e', name]),
       '-v',
       `${ROOT}:/repo:ro`,
       '-v',
@@ -112,7 +142,7 @@ const runHost = async () => {
       'node',
       'scripts/revalle/mobile-check.mjs',
     ],
-    { stdio: 'inherit' },
+    { stdio: 'inherit', env: { ...process.env, ...senderEnv } },
   );
 
   db(`delete from "RevalleEmailLink" where cpf = '${FERNANDO.cpf}'`);
@@ -120,14 +150,47 @@ const runHost = async () => {
   process.exit(result.status ?? 1);
 };
 
+// DANFE fictício (chave de acesso fictícia com DV válido), para o passo do remetente.
+const writeInvoiceFixture = async (dir) => {
+  const { PDFDocument, StandardFonts } = await import('@cantoo/pdf-lib');
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const page = doc.addPage([595, 842]);
+  const lines = [
+    'DANFE - Documento Auxiliar da Nota Fiscal Eletronica',
+    'Chave de Acesso',
+    '2924 1012 3456 7800 0195 5500 1000 0123 4511 2345 6784',
+    'Emitente: Distribuidora Ficticia Ltda   CNPJ 12.345.678/0001-95',
+    `Referencia: celular ${Date.now()}`,
+    'Valor Total da Nota: R$ 150,00',
+  ];
+
+  for (const [index, line] of lines.entries()) {
+    page.drawText(line, { x: 40, y: 800 - index * 16, size: 10, font });
+  }
+
+  const file = path.join(dir, 'nf-celular.pdf');
+
+  writeFileSync(file, await doc.save());
+
+  return file;
+};
+
 // ---------------------------------------------------------------------------------------------------------------
 // Parte 2 (no container): navegador.
 // ---------------------------------------------------------------------------------------------------------------
 
 // Roda dentro da página: devolve os problemas de layout do estado atual.
-const inspectLayout = ({ minTarget }) => {
+// `scope` (seletor): confere só dentro desse elemento (diálogo/cartão), inclusive a rolagem horizontal dele.
+const inspectLayout = ({ minTarget, scope }) => {
   const vw = window.innerWidth;
   const problems = [];
+  const root = scope ? document.querySelector(scope) : document.body;
+
+  if (!root) {
+    return { scrollWidth: null, problems: [{ kind: 'missing-scope', detail: scope }] };
+  }
+
   const describe = (el) => {
     const label = (el.getAttribute('aria-label') || el.innerText || el.getAttribute('title') || '')
       .trim()
@@ -155,14 +218,15 @@ const inspectLayout = ({ minTarget }) => {
     return true;
   };
 
-  const scrollWidth = document.scrollingElement.scrollWidth;
+  const scrollWidth = scope ? root.scrollWidth : document.scrollingElement.scrollWidth;
+  const maxWidth = scope ? Math.min(root.clientWidth, vw) : vw;
 
-  if (scrollWidth > vw) {
-    problems.push({ kind: 'horizontal-scroll', detail: `scrollWidth ${scrollWidth} > ${vw}` });
+  if (scrollWidth > maxWidth + (scope ? 1 : 0)) {
+    problems.push({ kind: 'horizontal-scroll', detail: `scrollWidth ${scrollWidth} > ${maxWidth}` });
   }
 
   // Botões: altura mínima de toque. Caixa de seleção/rádio/switch valem pela área do <label> que os envolve.
-  for (const el of document.querySelectorAll('button, [role="button"]')) {
+  for (const el of root.querySelectorAll('button, [role="button"]')) {
     if (!isShown(el)) {
       continue;
     }
@@ -184,7 +248,7 @@ const inspectLayout = ({ minTarget }) => {
   // Cortado à direita: passa da largura da tela sem um contêiner (que não seja html/body) que o recorte de propósito.
   const offenders = new Set();
 
-  for (const el of document.body.querySelectorAll('*')) {
+  for (const el of root.querySelectorAll('*')) {
     if (!isShown(el)) {
       continue;
     }
@@ -251,11 +315,11 @@ const runBrowser = async () => {
     await page.touchscreen.tap(box.x + box.width * x, box.y + box.height * y);
   };
 
-  const check = async (name) => {
-    await page.waitForTimeout(600); // animações dos diálogos
-    await page.screenshot({ path: `${out}/${name}.png` });
+  const check = async (name, onPage = page, scope = undefined) => {
+    await onPage.waitForTimeout(600); // animações dos diálogos
+    await onPage.screenshot({ path: `${out}/${name}.png` });
 
-    const { scrollWidth, problems } = await page.evaluate(inspectLayout, { minTarget: MIN_TARGET });
+    const { scrollWidth, problems } = await onPage.evaluate(inspectLayout, { minTarget: MIN_TARGET, scope });
 
     steps.push({ step: name, scrollWidth, problems });
     console.log(`${problems.length === 0 ? 'ok  ' : 'FALHA'} ${name} (scrollWidth ${scrollWidth})`);
@@ -264,6 +328,70 @@ const runBrowser = async () => {
       console.log(`      ${p.kind}: ${p.detail}`);
     }
   };
+
+  // 0. Remetente: envio de uma nota fiscal (opcional, com a sessão vinda do host).
+  if (process.env.SENDER_COOKIE && process.env.EDITOR_URL) {
+    const senderContext = await browser.newContext({
+      viewport: { width: WIDTH, height: HEIGHT },
+      deviceScaleFactor: 2,
+      isMobile: true,
+      hasTouch: true,
+      locale: 'pt-BR',
+    });
+    const sender = await senderContext.newPage();
+    const editorUrl = new URL(process.env.EDITOR_URL);
+
+    sender.setDefaultTimeout(30_000);
+    await senderContext.addCookies(
+      process.env.SENDER_COOKIE.split('; ').map((pair) => {
+        const index = pair.indexOf('=');
+
+        return { name: pair.slice(0, index), value: pair.slice(index + 1), url: editorUrl.origin };
+      }),
+    );
+
+    try {
+      await sender.goto(editorUrl.href, { waitUntil: 'networkidle' });
+      await sender
+        .getByRole('button', { name: /enviar documento/i })
+        .filter({ visible: true })
+        .first()
+        .click();
+
+      const panel = sender.getByTestId('invoice-account-panel');
+
+      await panel.waitFor();
+      // Espera a sugestão terminar (ou a tela desistir, em 30 s).
+      await panel.getByText('Buscando sugestão…').waitFor({ state: 'detached', timeout: 40_000 });
+      await check('00a-nf-envio', sender, '[data-testid="invoice-account-panel"]');
+
+      await panel.getByRole('button', { name: 'Deixar para a contabilidade decidir' }).click();
+      await panel.getByText('Escolha: deixar para a contabilidade decidir').waitFor();
+      await check('00b-nf-escolhida', sender, '[data-testid="invoice-account-panel"]');
+
+      await sender
+        .getByRole('dialog')
+        .getByRole('button', { name: /^(enviar|gerar links)$/i })
+        .click();
+      await sender.waitForURL(/\/documents\/[^/?]+(\?.*)?$/, { timeout: 60_000 });
+      await sender.waitForLoadState('networkidle');
+
+      // Enviado sem e-mail ("Gerar links"): a página abre o diálogo dos links por cima; fecha para ver o cartão.
+      if (await sender.getByRole('dialog').isVisible()) {
+        await sender.keyboard.press('Escape');
+        await sender.getByRole('dialog').waitFor({ state: 'detached' });
+      }
+
+      await sender.getByTestId('invoice-account-card').scrollIntoViewIfNeeded();
+      await check('00c-nf-cartao', sender, '[data-testid="invoice-account-card"]');
+    } catch (error) {
+      await sender.screenshot({ path: `${out}/erro-nf.png` }).catch(() => {});
+      steps.push({ step: 'nf', scrollWidth: null, problems: [{ kind: 'flow-error', detail: String(error) }] });
+      console.log(`FALHA no passo da nota fiscal: ${error}`);
+    } finally {
+      await senderContext.close();
+    }
+  }
 
   try {
     // 1. Portão: termo.

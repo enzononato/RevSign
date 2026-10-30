@@ -477,6 +477,46 @@ aiTest('PDF só imagem: UNKNOWN sem chamada; "Sim" do remetente chama uma vez CO
   assert.equal((await calls()).length, before + 1);
 });
 
+aiTest(
+  'contrato com texto + NF escaneada: UNKNOWN; "Sim" manda SÓ o PDF escaneado (sem o texto do contrato)',
+  async () => {
+    await fake('/__program', { mode: 'ok', accountCode: '2.1.03' });
+
+    const before = (await calls()).length;
+    const envelope = await newEnvelopeWithFiles(
+      [
+        writeFixture('contrato-capa.pdf', await contractPdf()),
+        writeFixture('nf-escaneada.pdf', await imagePdf(`com-contrato-${RUN}`)),
+      ],
+      'contrato + escaneada',
+    );
+
+    // Um arquivo sem texto e nenhum NF: pode ser a NF digitalizada, o remetente decide.
+    const state = await classify(envelope.id);
+
+    assert.equal(state.isInvoice, 'UNKNOWN');
+    assert.equal(state.suggestionStatus, 'SKIPPED');
+    await sleep(1000);
+    assert.equal((await calls()).length, before);
+
+    const flagged = await invoice('mutation', 'setInvoiceFlag', { envelopeId: envelope.id, isInvoice: true });
+
+    assert.equal(flagged.status, 200, flagged.text);
+    assert.equal((await waitSettled(envelope.id)).suggestionStatus, 'DONE');
+
+    const received = (await calls()).slice(before);
+
+    assert.equal(received.length, 1);
+    assert.equal(received[0].hasPdf, true);
+    assert.equal(received[0].hasText, false);
+
+    const request = JSON.stringify(received[0]);
+
+    assert.ok(!request.includes(CONTRACT_PHRASE), 'texto do contrato chegou à IA');
+    assert.ok(!request.includes('Maria Fictícia'), 'texto do contrato chegou à IA');
+  },
+);
+
 const expectFailure = async (mode, reason, variant) => {
   await fake('/__program', { mode });
 

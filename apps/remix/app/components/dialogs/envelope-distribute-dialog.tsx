@@ -40,6 +40,7 @@ import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router';
 import { match } from 'ts-pattern';
 import * as z from 'zod';
+import { InvoiceAccountPanel } from '~/components/revalle/invoice/invoice-account-panel'; // REVALLE:
 import { getDistributeErrorMessage } from '~/utils/toast-error-messages';
 
 export type EnvelopeDistributeDialogProps = {
@@ -76,6 +77,7 @@ export const EnvelopeDistributeDialog = ({
 
   const [isOpen, setIsOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isInvoiceReady, setIsInvoiceReady] = useState(false); // REVALLE: NF só sai com a conta escolhida
 
   const { mutateAsync: distributeEnvelope } = trpcReact.envelope.distribute.useMutation();
 
@@ -255,7 +257,8 @@ export const EnvelopeDistributeDialog = ({
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
 
-      <DialogContent className="max-w-md" hideClose>
+      {/* REVALLE: com o bloco da nota fiscal, o conteúdo pode passar da altura da tela do celular: rola. */}
+      <DialogContent className="max-h-[100dvh] max-w-md overflow-y-auto" hideClose>
         <DialogHeader>
           <DialogTitle>
             <Trans>Send Document</Trans>
@@ -270,6 +273,9 @@ export const EnvelopeDistributeDialog = ({
           <Form {...form}>
             <form onSubmit={handleSubmit(onFormSubmit)}>
               <fieldset disabled={isSubmitting}>
+                {/* REVALLE: nota fiscal · conta contábil */}
+                <InvoiceAccountPanel envelopeId={envelope.id} onReadyChange={setIsInvoiceReady} />
+
                 {hasOverlappingEnvelopeFields && (
                   <Alert variant="warning" className="mb-4 flex flex-row items-start gap-3">
                     <AlertTriangleIcon className="mt-0.5 h-5 w-5 flex-shrink-0" />
@@ -475,7 +481,7 @@ export const EnvelopeDistributeDialog = ({
                     </Button>
                   </DialogClose>
 
-                  <Button loading={isSubmitting} disabled={isSyncing} type="submit">
+                  <Button loading={isSubmitting} disabled={isSyncing || !isInvoiceReady} type="submit">
                     {distributionMethod === DocumentDistributionMethod.EMAIL ? (
                       <Trans>Send</Trans>
                     ) : (

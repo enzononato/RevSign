@@ -4412,3 +4412,95 @@ msgstr "Tipo"
 
 msgid "Ver prévia"
 msgstr "Ver prévia"
+
+# REVALLE: Fase 5, escolha da conta contábil no envio da nota fiscal (msgids já em pt-BR).
+
+msgid "A definir pela contabilidade."
+msgstr "A definir pela contabilidade."
+
+msgid "Buscando sugestão…"
+msgstr "Buscando sugestão…"
+
+msgid "Buscar conta por número ou nome"
+msgstr "Buscar conta por número ou nome"
+
+msgid "Conferindo se é nota fiscal…"
+msgstr "Conferindo se é nota fiscal…"
+
+msgid "Conta contábil"
+msgstr "Conta contábil"
+
+msgid "Conta contábil atualizada."
+msgstr "Conta contábil atualizada."
+
+msgid "Conta contábil escolhida: {to}"
+msgstr "Conta contábil escolhida: {to}"
+
+msgid "Conta contábil trocada: {from} → {to}"
+msgstr "Conta contábil trocada: {from} → {to}"
+
+msgid "Conta escolhida: {choiceCode} · {choiceName}"
+msgstr "Conta escolhida: {choiceCode} · {choiceName}"
+
+msgid "deixar para a contabilidade decidir"
+msgstr "deixar para a contabilidade decidir"
+
+msgid "Deixar para a contabilidade decidir"
+msgstr "Deixar para a contabilidade decidir"
+
+msgid "Desfazer"
+msgstr "Desfazer"
+
+msgid "Escolha a conta contábil ou deixe para a contabilidade decidir."
+msgstr "Escolha a conta contábil ou deixe para a contabilidade decidir."
+
+msgid "Escolha: deixar para a contabilidade decidir"
+msgstr "Escolha: deixar para a contabilidade decidir"
+
+msgid "Este documento é uma nota fiscal?"
+msgstr "Este documento é uma nota fiscal?"
+
+msgid "Limite de sugestões atingido. Escolha na lista."
+msgstr "Limite de sugestões atingido. Escolha na lista."
+
+msgid "Marcado como não sendo nota fiscal."
+msgstr "Marcado como não sendo nota fiscal."
+
+msgid "Mostrando {shown} de {total} contas. Digite para encontrar as outras."
+msgstr "Mostrando {shown} de {total} contas. Digite para encontrar as outras."
+
+msgid "Não"
+msgstr "Não"
+
+msgid "Não é nota fiscal"
+msgstr "Não é nota fiscal"
+
+msgid "Não foi possível salvar. Tente de novo."
+msgstr "Não foi possível salvar. Tente de novo."
+
+msgid "Não foi possível sugerir; escolha na lista"
+msgstr "Não foi possível sugerir; escolha na lista"
+
+msgid "Nenhuma conta escolhida."
+msgstr "Nenhuma conta escolhida."
+
+msgid "Nota fiscal · Conta contábil"
+msgstr "Nota fiscal · Conta contábil"
+
+msgid "Nota fiscal sem conta contábil"
+msgstr "Nota fiscal sem conta contábil"
+
+msgid "Sim"
+msgstr "Sim"
+
+msgid "Sugerir de novo"
+msgstr "Sugerir de novo"
+
+msgid "Sugestão da IA: {suggestionCode} · {suggestionName} (confira)"
+msgstr "Sugestão da IA: {suggestionCode} · {suggestionName} (confira)"
+
+msgid "Trocar"
+msgstr "Trocar"
+
+msgid "Usar sugestão"
+msgstr "Usar sugestão"

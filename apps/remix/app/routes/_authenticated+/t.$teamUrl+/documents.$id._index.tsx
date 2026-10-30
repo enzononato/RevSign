@@ -38,6 +38,7 @@ import { GenericErrorLayout } from '~/components/general/generic-error-layout';
 import { EnvelopePdfViewer } from '~/components/general/pdf-viewer/envelope-pdf-viewer';
 import PDFViewerLazy from '~/components/general/pdf-viewer/pdf-viewer-lazy';
 import { StackAvatarsWithTooltip } from '~/components/general/stack-avatars-with-tooltip';
+import { InvoiceAccountCard } from '~/components/revalle/invoice/invoice-account-card'; // REVALLE:
 import { useCurrentTeam } from '~/providers/team';
 
 import type { Route } from './+types/documents.$id._index';
@@ -251,6 +252,9 @@ export default function DocumentPage({ params }: Route.ComponentProps) {
 
             {/* Document information section. */}
             <DocumentPageViewInformation envelope={envelope} userId={user.id} />
+
+            {/* REVALLE: conta contábil da nota fiscal (dono e admin podem trocar depois do envio). */}
+            <InvoiceAccountCard envelope={envelope} />
 
             {/* Recipients section. */}
             <DocumentPageViewRecipients envelope={envelope} documentRootPath={documentRootPath} />

@@ -1,8 +1,14 @@
 import { prisma } from '@documenso/prisma';
 import type { RevalleInvoiceClassification } from '@prisma/client';
-import { Prisma, RevalleInvoiceDetectedBy, RevalleInvoiceStatus, RevalleSuggestionStatus } from '@prisma/client';
+import {
+  DocumentStatus,
+  Prisma,
+  RevalleInvoiceDetectedBy,
+  RevalleInvoiceStatus,
+  RevalleSuggestionStatus,
+} from '@prisma/client';
 
-import { detectInvoice } from '../../../revalle/invoice/detect-invoice';
+import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { filesKey, loadEnvelopeFiles, readFilesContent } from './envelope-files';
 import { getRevalleInvoiceAiConfig } from './settings';
 import type { InvoiceFailureReason, InvoiceRequester } from './suggest';
@@ -112,30 +118,67 @@ const expireStalePending = async (row: RevalleInvoiceClassification) => {
   return await prisma.revalleInvoiceClassification.findUniqueOrThrow({ where: { envelopeId: row.envelopeId } });
 };
 
+/** Escolha da conta zerada: ela vale para um conjunto de arquivos (trocou o arquivo, escolhe de novo). */
+const CLEARED_CHOICE = {
+  choiceCode: null,
+  choiceDefer: false,
+  choiceById: null,
+  choiceAt: null,
+  acceptedSuggestion: null,
+};
+
+/** Documento já enviado que nunca foi classificado (ex.: enviado antes desta versão): não é tratado como NF. */
+const unclassifiedState = (): InvoiceState => ({
+  isInvoice: 'NO',
+  detectedBy: 'TEXT',
+  suggestionStatus: 'SKIPPED',
+  suggestion: null,
+  failureReason: null,
+  choice: null,
+  aiAvailable: getRevalleInvoiceAiConfig().status === 'CONFIGURED',
+});
+
+export const isEnvelopeDraft = async (envelopeId: string) => {
+  const envelope = await prisma.envelope.findUnique({ where: { id: envelopeId }, select: { status: true } });
+
+  return envelope?.status === DocumentStatus.DRAFT;
+};
+
 /**
  * Classifica o documento (idempotente). Lê os PDFs originais de todos os itens; se o conjunto de SHA-256 não mudou
- * desde a última vez, mantém a classificação (inclusive a decisão do remetente). Se mudou (ou é a primeira vez),
- * detecta pelo texto (até 5 páginas por arquivo; basta um arquivo ser NF) e zera a sugestão. Documento NF com a IA
- * ligada começa a sugestão (cache, ou job em segundo plano).
+ * desde a última vez, mantém a classificação (inclusive a decisão e a escolha do remetente). Se mudou (ou é a
+ * primeira vez), detecta pelo texto (até 5 páginas por arquivo), zera a sugestão e a escolha da conta. É NF se um
+ * arquivo for NF; senão, `UNKNOWN` se algum arquivo não tiver texto (escaneado: o remetente decide); senão, `NO`.
+ * Documento NF com a IA ligada começa a sugestão (cache, ou job em segundo plano), salvo `startSuggestion: false`.
+ *
+ * Só rascunho é (re)classificado: depois do envio a classificação fica congelada. O envio pode trocar o PDF
+ * (`formValues` gera outro arquivo) e isso não pode apagar a conta escolhida.
  */
-export const classifyEnvelope = async (envelopeId: string, requester: InvoiceRequester = {}): Promise<InvoiceState> => {
+export const classifyEnvelope = async (
+  envelopeId: string,
+  requester: InvoiceRequester = {},
+  { startSuggestion = true }: { startSuggestion?: boolean } = {},
+): Promise<InvoiceState> => {
+  let row = await prisma.revalleInvoiceClassification.findUnique({ where: { envelopeId } });
+
+  if (!(await isEnvelopeDraft(envelopeId))) {
+    return row ? await toInvoiceState(await expireStalePending(row)) : unclassifiedState();
+  }
+
   const files = await loadEnvelopeFiles(envelopeId);
   const key = filesKey(files);
-  let row = await prisma.revalleInvoiceClassification.findUnique({ where: { envelopeId } });
 
   if (!row || row.fileSha256 !== key) {
     const contents = await readFilesContent(files);
     const invoiceFiles = contents.filter((content) => content.detection.status === 'YES');
-    // Basta um arquivo ser NF. Sem nenhum, o conjunto decide entre NO e UNKNOWN (todo escaneado = UNKNOWN).
-    const overall = detectInvoice(contents.flatMap((content) => content.pages)).status;
+    // Um arquivo escaneado ao lado de outro com texto (ex.: NF digitalizada + folha de rosto) pode ser a NF.
+    const hasScannedFile = contents.some((content) => content.detection.status === 'UNKNOWN');
     const isInvoice =
-      files.length === 0
-        ? RevalleInvoiceStatus.NO
-        : invoiceFiles.length > 0
-          ? RevalleInvoiceStatus.YES
-          : overall === 'UNKNOWN'
-            ? RevalleInvoiceStatus.UNKNOWN
-            : RevalleInvoiceStatus.NO;
+      invoiceFiles.length > 0
+        ? RevalleInvoiceStatus.YES
+        : hasScannedFile
+          ? RevalleInvoiceStatus.UNKNOWN
+          : RevalleInvoiceStatus.NO;
 
     const data = {
       isInvoice,
@@ -144,6 +187,7 @@ export const classifyEnvelope = async (envelopeId: string, requester: InvoiceReq
       fileSha256: key,
       suggestionStatus: RevalleSuggestionStatus.SKIPPED,
       suggestion: Prisma.DbNull,
+      ...CLEARED_CHOICE,
     };
 
     // Escrita condicionada ao que foi lido: se outro pedido já reclassificou (ou criou), este não desfaz o trabalho
@@ -164,7 +208,11 @@ export const classifyEnvelope = async (envelopeId: string, requester: InvoiceReq
   }
 
   // Também cobre a IA ligada depois da classificação (YES que ficou SKIPPED por falta de chave).
-  if (row.isInvoice === RevalleInvoiceStatus.YES && row.suggestionStatus === RevalleSuggestionStatus.SKIPPED) {
+  if (
+    startSuggestion &&
+    row.isInvoice === RevalleInvoiceStatus.YES &&
+    row.suggestionStatus === RevalleSuggestionStatus.SKIPPED
+  ) {
     await startInvoiceSuggestion({ envelopeId, fileSha256: row.fileSha256, requester });
   }
 
@@ -195,6 +243,10 @@ export const setInvoiceFlag = async ({
   isInvoice: boolean;
   requester?: InvoiceRequester;
 }): Promise<InvoiceState> => {
+  if (!(await isEnvelopeDraft(envelopeId))) {
+    throw new AppError(AppErrorCode.INVALID_REQUEST, { message: 'O documento já foi enviado.' });
+  }
+
   // Garante a linha e o hash atual dos arquivos.
   await classifyEnvelope(envelopeId, requester);
 

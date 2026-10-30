@@ -5,8 +5,10 @@ import { adminImportAccountsRoute } from './admin-import-accounts';
 import { adminPreviewAccountsRoute } from './admin-preview-accounts';
 import { adminUpdateSettingsRoute } from './admin-update-settings';
 import { classifyInvoiceRoute } from './classify';
+import { findInvoiceAccountsRoute } from './find-accounts';
 import { getInvoiceRoute } from './get';
 import { resuggestInvoiceRoute } from './resuggest';
+import { setInvoiceChoiceRoute } from './set-choice';
 import { setInvoiceFlagRoute } from './set-invoice-flag';
 
 export const invoiceRouter = router({
@@ -19,4 +21,6 @@ export const invoiceRouter = router({
   classify: classifyInvoiceRoute,
   setInvoiceFlag: setInvoiceFlagRoute,
   resuggest: resuggestInvoiceRoute,
+  setChoice: setInvoiceChoiceRoute,
+  findAccounts: findInvoiceAccountsRoute,
 });

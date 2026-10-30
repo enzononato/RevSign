@@ -404,10 +404,13 @@ export const runInvoiceSuggestion = async ({
     ]);
 
     // Só os arquivos detectados como NF vão para a IA: num documento com contrato + NF, o contrato fica de fora.
-    // Sem nenhum arquivo NF (o remetente disse "Sim"), vai o texto dos arquivos com texto e o PDF dos escaneados.
+    // Sem nenhum arquivo NF (o remetente disse "Sim"): se há escaneados, a NF é um deles e vai SÓ o PDF deles (o
+    // texto dos outros, ex. um contrato com dados pessoais, fica de fora); sem escaneados, vai o texto dos arquivos.
     const invoiceFiles = contents.filter((content) => content.detection.status === 'YES');
-    const textFiles = invoiceFiles.length > 0 ? invoiceFiles : contents.filter((content) => !content.isSparse);
-    const scannedFiles = invoiceFiles.length > 0 ? [] : contents.filter((content) => content.isSparse);
+    const sparseFiles = contents.filter((content) => content.isSparse);
+    const textFiles =
+      invoiceFiles.length > 0 ? invoiceFiles : sparseFiles.length > 0 ? [] : contents.filter((c) => !c.isSparse);
+    const scannedFiles = invoiceFiles.length > 0 ? [] : sparseFiles;
 
     const texts = textFiles.map((content) => content.pages.join('\n')).filter((text) => text.trim());
     const text = texts.join('\n\n');

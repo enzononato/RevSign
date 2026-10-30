@@ -22,6 +22,11 @@ export const getDistributeErrorMessage = (code: string): ToastMessageDescriptor 
   return match(code)
     .with('RECIPIENT_LIMIT_EXCEEDED', () => RECIPIENT_LIMIT_EXCEEDED_ERROR_MESSAGE)
     .with(AppErrorCode.TOO_MANY_REQUESTS, () => FAIR_USE_LIMIT_EXCEEDED_ERROR_MESSAGE)
+    .with('INVOICE_ACCOUNT_REQUIRED', () => ({
+      // REVALLE: nota fiscal sem conta contábil (o servidor recusa o envio).
+      title: msg`Nota fiscal sem conta contábil`,
+      description: msg`Escolha a conta contábil ou deixe para a contabilidade decidir.`,
+    }))
     .otherwise(() => ({
       title: msg`Something went wrong`,
       description: msg`An error occurred while distributing the document.`,

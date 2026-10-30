@@ -346,6 +346,7 @@ export class AppError extends Error {
         AppErrorCode.CSC_ALGORITHM_REFUSED,
         AppErrorCode.CSC_SAD_EXPIRED_PRE_SIGN,
         AppErrorCode.CSC_EMBED_FAILED,
+        'INVOICE_ACCOUNT_REQUIRED', // REVALLE: NF sem conta contábil (API v1 responde 400 com a mensagem)
         () => 400 as const,
       )
       .with(AppErrorCode.UNAUTHORIZED, () => 401 as const)
