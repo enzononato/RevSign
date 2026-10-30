@@ -46,15 +46,27 @@ export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition
   const { documentId, sendEmail = true, isResealing = false, requestMetadata } = payload;
 
   // REVALLE: defesa em profundidade. Os pontos de disparo já conferem, mas qualquer caminho que chegue aqui (reselagem
-  // pelo admin, varredura, um disparo novo do upstream) não sela NF aguardando a aprovação do Financeiro. O job termina
-  // sem erro (sem retry) e o documento continua PENDING; a aprovação dispara a selagem de novo.
+  // pelo admin, varredura, um disparo novo do upstream) não sela NF aguardando a aprovação do Financeiro nem versão
+  // substituída. O job termina sem erro (sem retry) e o documento continua PENDING; a aprovação dispara a selagem.
+  // Disparo duplicado (aprovação e última assinatura ao mesmo tempo, varredura): documento já selado só é selado de
+  // novo pela reselagem (`isResealing`, que parte do PDF original); sem isso os campos seriam carimbados de novo.
   const revalleEnvelope = await prisma.envelope.findFirst({
     where: { type: EnvelopeType.DOCUMENT, secondaryId: mapDocumentIdToSecondaryId(documentId) },
-    select: { id: true },
+    select: { id: true, status: true },
   });
 
+  if (
+    revalleEnvelope &&
+    !isResealing &&
+    (revalleEnvelope.status === DocumentStatus.COMPLETED || revalleEnvelope.status === DocumentStatus.REJECTED)
+  ) {
+    io.logger.info(`Seal skipped, already sealed: document ${documentId} (${revalleEnvelope.id})`);
+
+    return;
+  }
+
   if (revalleEnvelope && (await holdSealForFinance(revalleEnvelope.id))) {
-    io.logger.info(`Seal held for finance approval: document ${documentId} (${revalleEnvelope.id})`);
+    io.logger.info(`Seal held for finance: document ${documentId} (${revalleEnvelope.id})`);
 
     return;
   }

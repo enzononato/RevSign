@@ -9,6 +9,9 @@
 //     grava `APPROVED` e quem/quando, registra o evento (também no log em PDF), sela e a contabilidade recebe 1 e-mail;
 //     a 2ª chamada devolve `{ approved: false }` sem nada a mais;
 //   - aprovar antes de todos assinarem: o último a assinar sela direto;
+//   - disparo duplicado numa NF já concluída não carimba de novo; aprovação simultânea = 1 evento e 1 selagem;
+//   - a varredura conta a aprovação como atividade: aprovada há 20 minutos (assinaturas há 7 horas) é selada, há 5
+//     minutos ainda não; versão substituída (`SUPERSEDED`, no banco) nunca é selada e não pede aprovação;
 //   - os outros dois pontos de disparo também retêm: o admin remove o último pendente, e a NF só com CC (o atalho de
 //     selagem do envio) sai e fica PENDING; nos dois, a aprovação sela;
 //   - NF `LEGACY` e documento comum concluem sem retenção; NF recusada fica REJECTED sem retenção.
@@ -87,6 +90,12 @@ const sealJobs = (doc) =>
     .filter(Boolean);
 const itemData = (envelopeId) =>
   db(`select "documentDataId" from "EnvelopeItem" where "envelopeId" = '${envelopeId}' order by "order" limit 1`);
+
+// Hash do PDF selado atual e quantas selagens o histórico tem (um carimbo a mais muda os dois).
+const sealedHash = (itemId) =>
+  db(
+    `select h."finalSha256" || '|' || (select count(*) from "RevalleSealedHash" s where s."documentHashId" = h.id) from "RevalleDocumentHash" h where h."envelopeItemId" = '${itemId}'`,
+  );
 
 const mailsTo = async (to) =>
   (await fetchIdempotent(`${MAILPIT}/search?query=${encodeURIComponent(`to:${to}`)}`, {}, (res) => res.json()))
@@ -499,6 +508,133 @@ sessionTest(
     await sleep(4000);
     assert.equal((await accountingMails(held)).length, 1);
     assert.equal(auditCount(held.id, 'DOCUMENT_COMPLETED'), 1);
+  },
+);
+
+sessionTest('disparo duplicado da selagem numa NF já concluída: nada é carimbado de novo', async () => {
+  assert.ok(held, 'depende do primeiro caso');
+  assert.equal(status(held.id), 'COMPLETED');
+
+  const before = [itemData(held.id), sealedHash(held.item.id)];
+  // O mesmo job que a aprovação e a última assinatura disparam (sem `isResealing`), pelo mecanismo do app.
+  const job = await runJobLikeTheApp({
+    jobId: 'internal.seal-document',
+    name: 'Seal Document',
+    version: '1.0.0',
+    payload: { documentId: held.documentId },
+  });
+
+  assert.equal(job, 'COMPLETED');
+  assert.deepEqual([itemData(held.id), sealedHash(held.item.id)], before, 'o PDF selado mudou');
+  assert.equal(auditCount(held.id, 'DOCUMENT_COMPLETED'), 1);
+});
+
+sessionTest('aprovação simultânea (clique duplo): 1 evento, 1 selagem', async () => {
+  const doc = await newInvoice('simultanea');
+
+  await sign(doc, 0);
+  await sign(doc, 1);
+  assert.equal(financeStatus(doc.id), 'PENDING_APPROVAL');
+
+  const results = await Promise.all([approve(doc.id), approve(doc.id)]);
+
+  for (const res of results) {
+    assert.equal(res.status, 200, res.text);
+  }
+
+  assert.deepEqual(results.map((res) => data(res).approved).sort(), [false, true]);
+  assert.equal(await waitStatus(doc.id, 'COMPLETED'), 'COMPLETED');
+  await sleep(3000);
+  assert.equal(auditCount(doc.id, 'REVALLE_FINANCE_APPROVED'), 1);
+  assert.equal(auditCount(doc.id, 'DOCUMENT_COMPLETED'), 1);
+  assert.equal(sealJobs(doc).length, 1);
+});
+
+sessionTest(
+  'varredura e aprovação: aprovada há 20 minutos (assinada há 7 horas) é selada; aprovada há 5 minutos, ainda não',
+  async () => {
+    // Estado de uma aprovação cuja selagem se perdeu: todos assinaram, APPROVED, ainda PENDING.
+    const lost = await newInvoice('varredura-aprovada-20');
+    const recent = await newInvoice('varredura-aprovada-5');
+
+    for (const doc of [lost, recent]) {
+      await sign(doc, 0);
+      await sign(doc, 1);
+    }
+
+    await sleep(2000);
+
+    for (const [doc, minutes] of [
+      [lost, 20],
+      [recent, 5],
+    ]) {
+      assert.equal(status(doc.id), 'PENDING');
+      db(
+        `update "RevalleInvoiceClassification" set "financeStatus" = 'APPROVED', "approvedById" = ${adminId}, "approvedAt" = now() - interval '${minutes} minutes' where "envelopeId" = '${doc.id}'`,
+      );
+      // Fora da janela de 6 horas das assinaturas: só a aprovação recente põe o documento na varredura.
+      db(`update "Recipient" set "signedAt" = now() - interval '7 hours' where "envelopeId" = '${doc.id}'`);
+    }
+
+    const swept = await runJobLikeTheApp({
+      jobId: 'internal.seal-document-sweep',
+      name: 'Seal Document Sweep',
+      version: '1.0.0',
+      payload: {},
+    });
+
+    assert.equal(swept, 'COMPLETED');
+    assert.equal(await waitStatus(lost.id, 'COMPLETED'), 'COMPLETED', 'a varredura não recuperou a NF aprovada');
+    assert.equal(sealJobs(lost).length, 1);
+    assert.equal(status(recent.id), 'PENDING');
+    assert.deepEqual(sealJobs(recent), [], 'a varredura correu com a selagem da aprovação recente');
+  },
+);
+
+sessionTest(
+  'versão substituída (SUPERSEDED) não concluída: nunca é selada (conclusão, varredura e reselagem), sem e-mail',
+  async () => {
+    const doc = await newInvoice('substituida');
+
+    await sign(doc, 0);
+    // A Task 4 cria a versão substituída de verdade; aqui, no banco, antes da última assinatura.
+    db(`update "RevalleInvoiceClassification" set "financeStatus" = 'SUPERSEDED' where "envelopeId" = '${doc.id}'`);
+    await sign(doc, 1);
+    await sleep(3000);
+    assert.equal(status(doc.id), 'PENDING');
+    assert.deepEqual(sealJobs(doc), [], 'a conclusão disparou a selagem');
+
+    db(`update "Recipient" set "signedAt" = now() - interval '20 minutes' where "envelopeId" = '${doc.id}'`);
+
+    const swept = await runJobLikeTheApp({
+      jobId: 'internal.seal-document-sweep',
+      name: 'Seal Document Sweep',
+      version: '1.0.0',
+      payload: {},
+    });
+
+    assert.equal(swept, 'COMPLETED');
+    await sleep(2000);
+    assert.deepEqual(sealJobs(doc), [], 'a varredura disparou a selagem');
+
+    const before = itemData(doc.id);
+    const resealed = await trpcAs(adminCookie, 'mutation', 'admin.document.reseal', { id: doc.id });
+
+    assert.ok(resealed.ok, resealed.text);
+
+    for (let i = 0; i < 30 && sealJobs(doc).at(-1) !== 'COMPLETED'; i += 1) {
+      await sleep(1000);
+    }
+
+    assert.deepEqual(sealJobs(doc), ['COMPLETED'], 'o job de selagem falhou ou não rodou');
+    assert.equal(status(doc.id), 'PENDING');
+    assert.equal(itemData(doc.id), before, 'o PDF foi selado');
+    assert.equal(auditCount(doc.id, 'DOCUMENT_COMPLETED'), 0);
+    assert.equal((await approvalMails(doc)).length, 0, 'versão substituída não pede aprovação');
+    assert.equal(
+      db(`select "approvalRequestedAt" is null from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`),
+      't',
+    );
   },
 );
 

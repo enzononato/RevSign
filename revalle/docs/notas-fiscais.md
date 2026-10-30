@@ -111,7 +111,9 @@ o mesmo PDF for enviado de novo, a sugestão vem do cache, sem nova chamada. Por
    o documento é selado na hora e a contabilidade recebe o e-mail. Se o Financeiro aprovar antes de todos assinarem, a
    NF é concluída normalmente quando o último assinar. A retenção vale em todos os caminhos que selam (conclusão,
    varredura automática, remoção de destinatário pelo admin, reselagem pelo admin). NF recusada não é retida, e as NFs
-   de antes da Fase 6 (`LEGACY`) concluem como antes. A aprovação fica no log de auditoria do documento (também no PDF).
+   de antes da Fase 6 (`LEGACY`) concluem como antes. Uma versão **substituída** pelo Financeiro (conta trocada) e
+   ainda não concluída nunca é selada. Se a selagem disparada pela aprovação se perder, a varredura automática a refaz
+   (de 15 minutos a 6 horas depois da aprovação). A aprovação fica no log de auditoria do documento (também no PDF).
    Pela API: `revalle.finance.approve({ envelopeId })`, só para membros do Financeiro; repetir não faz nada.
 7. No menu, **Notas fiscais** lista as NFs que ele enviou ou que chegaram para ele assinar.
 

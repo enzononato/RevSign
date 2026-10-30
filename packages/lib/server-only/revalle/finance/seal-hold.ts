@@ -1,5 +1,5 @@
 import { prisma } from '@documenso/prisma';
-import { RevalleFinanceStatus, RevalleInvoiceStatus, SigningStatus } from '@prisma/client';
+import { DocumentStatus, RevalleFinanceStatus, RevalleInvoiceStatus, SigningStatus } from '@prisma/client';
 
 import { jobs } from '../../../jobs/client';
 import { logger } from '../../../utils/logger';
@@ -24,11 +24,35 @@ export const shouldHoldSeal = async (envelopeId: string): Promise<boolean> => {
 };
 
 /**
- * O guard de cada ponto que dispara `internal.seal-document` (e do próprio job): `true` = não selar agora. Na retenção
- * pede o e-mail "aguardando aprovação" aos membros do Financeiro (um por retenção; a marca é reservada no job).
- * Falhar o aviso nunca vira selagem: a NF continua retida e o próximo disparo (ex.: a varredura) tenta de novo.
+ * Versão substituída pelo Financeiro (conta trocada) e ainda não concluída: nunca é selada, nem depois (a nova versão é
+ * que segue). Diferente da retenção: não há aprovação a pedir. Uma versão já concluída continua concluída, e a
+ * reselagem dela pelo admin segue normal.
+ */
+export const isSupersededUnsealed = async (envelopeId: string): Promise<boolean> => {
+  const row = await prisma.revalleInvoiceClassification.findFirst({
+    where: {
+      envelopeId,
+      isInvoice: RevalleInvoiceStatus.YES,
+      financeStatus: RevalleFinanceStatus.SUPERSEDED,
+      envelope: { status: { not: DocumentStatus.COMPLETED } },
+    },
+    select: { envelopeId: true },
+  });
+
+  return row !== null;
+};
+
+/**
+ * O guard de cada ponto que dispara `internal.seal-document` (e do próprio job): `true` = não selar agora. Versão
+ * substituída: bloqueada, sem aviso. Retenção: pede o e-mail "aguardando aprovação" aos membros do Financeiro (um por
+ * retenção; a marca é reservada no job). Falhar o aviso nunca vira selagem: a NF continua retida e o próximo disparo
+ * (ex.: a varredura) tenta de novo.
  */
 export const holdSealForFinance = async (envelopeId: string): Promise<boolean> => {
+  if (await isSupersededUnsealed(envelopeId)) {
+    return true;
+  }
+
   if (!(await shouldHoldSeal(envelopeId))) {
     return false;
   }
