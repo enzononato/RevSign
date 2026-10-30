@@ -501,6 +501,8 @@ model Envelope {
 
   envelopeAttachments EnvelopeAttachment[]
 
+  revalleInvoice RevalleInvoiceClassification? // REVALLE: back-relation (nota fiscal e conta contábil)
+
   @@index([type])
   @@index([status])
   @@index([userId])
@@ -1389,4 +1391,84 @@ model RevalleSignatureProof {
   drewSignature    Boolean
   signatureKind    String // IMAGE | TYPED | NONE
   createdAt        DateTime  @default(now())
+}
+
+/// REVALLE: tipo da conta contábil importada pelo CSV (`pagar` / `receber`).
+enum RevalleAccountKind {
+  PAYABLE
+  RECEIVABLE
+}
+
+/// REVALLE: plano de contas contábeis. Reimportar o CSV desativa (nunca apaga) quem saiu da lista.
+model RevalleAccountingAccount {
+  id          String              @id @default(cuid())
+  code        String              @unique
+  name        String
+  description String              @default("")
+  kind        RevalleAccountKind?
+  active      Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([active])
+}
+
+/// REVALLE: configuração da sugestão de conta (linha única, id = 1).
+model RevalleAccountingSettings {
+  id              Int      @id @default(1)
+  prompt          String   @default("")
+  accountingEmail String?
+  updatedById     Int?
+  updatedAt       DateTime @updatedAt
+}
+
+enum RevalleInvoiceStatus {
+  YES
+  NO
+  UNKNOWN
+}
+
+enum RevalleInvoiceDetectedBy {
+  TEXT
+  SENDER
+}
+
+enum RevalleSuggestionStatus {
+  PENDING
+  DONE
+  FAILED
+  SKIPPED
+}
+
+/// REVALLE: se o documento é nota fiscal, a sugestão da IA e a conta escolhida (`choiceCode` ou `choiceDefer`).
+/// Fora da prova: não entra no certificado, no carimbo nem no PDF selado.
+model RevalleInvoiceClassification {
+  envelopeId            String                   @id
+  envelope              Envelope                 @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
+  isInvoice             RevalleInvoiceStatus
+  detectedBy            RevalleInvoiceDetectedBy
+  /// Quem trocou a marcação "é nota fiscal" pela última vez e quando (sem FK, como choiceById).
+  flagChangedById       Int?
+  flagChangedAt         DateTime?
+  signals               String[]
+  fileSha256            String?
+  suggestionStatus      RevalleSuggestionStatus  @default(SKIPPED)
+  suggestion            Json?
+  suggestionAttempts    Int                      @default(0)
+  choiceCode            String?
+  choiceDefer           Boolean                  @default(false)
+  choiceById            Int?
+  choiceAt              DateTime?
+  acceptedSuggestion    Boolean?
+  accountingEmailSentAt DateTime?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+}
+
+/// REVALLE: sugestão da IA por SHA-256 do arquivo (o mesmo arquivo nunca é enviado ao Gemini duas vezes).
+model RevalleInvoiceSuggestionCache {
+  fileSha256 String   @id
+  suggestion Json
+  model      String
+  createdAt  DateTime @default(now())
 }

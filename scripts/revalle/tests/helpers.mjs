@@ -6,6 +6,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { crc32, deflateSync } from 'node:zlib';
 
 export const BASE_URL = (process.env.REVSIGN_URL ?? 'http://localhost:3000').replace(/\/$/, '');
@@ -282,22 +283,38 @@ export const trpcAs = async (cookie, kind, procedure, input, extraHeaders = {}) 
   );
 };
 
-// Roda ferramentas do poppler (pdftotext, pdfinfo, pdfimages...) num container alpine com `dir` montado em /pdf.
-export const poppler = (dir, script) =>
-  execFileSync(
-    'docker',
-    [
-      'run',
-      '--rm',
-      '-v',
-      `${dir}:/pdf:ro`,
-      'alpine:3.22',
-      'sh',
-      '-c',
-      `apk add --no-cache -q poppler-utils >/dev/null && ${script}`,
-    ],
-    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
-  );
+// Imagem com as ferramentas do poppler (scripts/revalle/tests/poppler.Dockerfile). Construída uma vez, se faltar:
+// antes cada chamada rodava `apk add` num alpine, o que falhava de vez em quando por rede ou disco.
+const POPPLER_IMAGE = 'revsign-test-poppler:local';
+let popplerImageReady = false;
+
+const ensurePopplerImage = () => {
+  if (popplerImageReady) {
+    return;
+  }
+
+  try {
+    execFileSync('docker', ['image', 'inspect', POPPLER_IMAGE], { stdio: 'ignore' });
+  } catch {
+    // Dockerfile pela entrada padrão: sem enviar a pasta de testes como contexto.
+    execFileSync('docker', ['build', '-q', '-t', POPPLER_IMAGE, '-'], {
+      input: readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'poppler.Dockerfile')),
+      stdio: ['pipe', 'ignore', 'inherit'],
+    });
+  }
+
+  popplerImageReady = true;
+};
+
+// Roda ferramentas do poppler (pdftotext, pdfinfo, pdfimages...) num container com `dir` montado em /pdf.
+export const poppler = (dir, script) => {
+  ensurePopplerImage();
+
+  return execFileSync('docker', ['run', '--rm', '-v', `${dir}:/pdf:ro`, POPPLER_IMAGE, 'sh', '-c', script], {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  });
+};
 
 // dd/MM/yyyy HH:mm no fuso de Brasília (America/Bahia), como o carimbo, o certificado e o /verificar.
 export const brasilia = (date) => {
@@ -361,4 +378,46 @@ export const drawingPng = () => {
   ]);
 
   return `data:image/png;base64,${png.toString('base64')}`;
+};
+
+// ---------------------------------------------------------------------------------------------------------------
+// Guarda contra chamadas pagas ao Gemini (Fase 5). As suítes de nota fiscal e o aceite da Fase 5 criam NFs, e cada NF
+// pede uma sugestão: com uma chave de verdade no app e o endereço do Google, isso custa dinheiro. Só seguem quando o
+// app aponta para o servidor falso (compose.test.yml) ou quando não tem chave. A perna real opcional
+// (REVALLE_TEST_GEMINI_API_KEY) passa pelo proxy do servidor falso, então também exige o compose.test.yml.
+// ---------------------------------------------------------------------------------------------------------------
+
+export const APP_CONTAINER = 'revsign-hml-documenso-1';
+export const FAKE_GEMINI_BASE_URL = 'http://fake-gemini:8787/v1beta';
+
+// Variável de ambiente do container do app ('' quando não existe). Nunca imprima o valor de uma chave.
+export const appContainerEnv = (name) =>
+  execFileSync('docker', ['exec', APP_CONTAINER, 'sh', '-c', `printf %s "$${name}"`], { encoding: 'utf8' });
+
+// Puro: a mensagem de parada, ou null quando pode seguir. Nunca inclui a chave.
+// REVALLE_TEST_GEMINI_API_KEY não afrouxa esta guarda: a perna real passa pelo proxy do servidor falso.
+export const paidGeminiGuardMessage = ({ apiKey, baseUrl }) => {
+  if (!apiKey?.trim() || baseUrl?.trim() === FAKE_GEMINI_BASE_URL) {
+    return null;
+  }
+
+  return [
+    'Parado: o app tem GEMINI_API_KEY e não aponta para o servidor falso',
+    `(NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL = "${baseUrl?.trim() ?? ''}", esperado "${FAKE_GEMINI_BASE_URL}").`,
+    'Estes testes criariam notas fiscais e chamariam o Gemini de verdade (pago).',
+    'Suba a stack com compose.test.yml (servidor falso) ou sem a chave; para chamar o Gemini de propósito, defina',
+    'REVALLE_TEST_GEMINI_API_KEY. Ver revalle/docs/testes.md.',
+  ].join(' ');
+};
+
+// Chamada no topo de cada suíte que cria NFs: lança (e a suíte inteira para) antes de qualquer documento.
+export const assertNoPaidGeminiCalls = () => {
+  const message = paidGeminiGuardMessage({
+    apiKey: appContainerEnv('GEMINI_API_KEY'),
+    baseUrl: appContainerEnv('NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL'),
+  });
+
+  if (message) {
+    throw new Error(message);
+  }
 };

@@ -147,6 +147,12 @@ export const useEnvelopeRoute = authenticatedProcedure
       }).catch((err) => {
         console.error(err);
 
+        // REVALLE: como em template-router (useTemplate): o motivo do AppError chega ao cliente (ex.: nota fiscal sem
+        // conta contábil = 400 INVOICE_ACCOUNT_REQUIRED, com o rascunho já criado).
+        if (err instanceof AppError) {
+          throw err;
+        }
+
         throw new AppError('DOCUMENT_SEND_FAILED');
       });
     }

@@ -84,6 +84,12 @@ services:
       # Hash da política no atributo assinado: policy (ETSI, o que o arquivo da política traz) ou lpa (SHA-256 do arquivo).
       NEXT_PRIVATE_REVALLE_ICP_POLICY_HASH: ${NEXT_PRIVATE_REVALLE_ICP_POLICY_HASH:-policy}
       COLABORADORES_DATABASE_URL: ${COLABORADORES_DATABASE_URL:-postgres://revsign_leitura:revsign_leitura_dev@colaboradores-db:5432/colaboradores}
+      # Nota fiscal (Fase 5): sugestão de conta pelo Gemini. Sem chave = sem sugestão (detecção e escolha manual valem).
+      # Nos testes, compose.test.yml aponta para o servidor falso.
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      NEXT_PRIVATE_REVALLE_GEMINI_MODEL: ${NEXT_PRIVATE_REVALLE_GEMINI_MODEL:-}
+      NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL: ${NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL:-}
+      NEXT_PRIVATE_REVALLE_INVOICE_AI: ${NEXT_PRIVATE_REVALLE_INVOICE_AI:-enabled}
       DOCUMENSO_DISABLE_TELEMETRY: 'true'
       NEXT_PUBLIC_REVALLE_SOURCE_URL: https://github.com/enzononato/RevSign
       # Marca: motivo da assinatura no PDF e e-mail de suporte nas telas e nos e-mails.

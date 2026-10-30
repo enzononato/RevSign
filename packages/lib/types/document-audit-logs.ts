@@ -72,6 +72,7 @@ export const ZDocumentAuditLogTypeSchema = z.enum([
   'REVALLE_GATE_UNLOCKED',
   'REVALLE_IDENTITY_SKIPPED',
   'REVALLE_SIGNATURE_STAMPED', // REVALLE: desenhou ou não (carimbo sempre)
+  'REVALLE_INVOICE_ACCOUNT_SET', // REVALLE: conta contábil da nota fiscal escolhida/trocada (fora do PDF selado)
 ]);
 
 export const ZDocumentAuditLogEmailTypeSchema = z.enum([
@@ -883,6 +884,19 @@ export const ZDocumentAuditLogEventRevalleSignatureStampedSchema = z.object({
   data: z.object({ recipientId: z.number(), signatureKind: z.enum(['IMAGE', 'TYPED', 'NONE']) }),
 });
 
+// REVALLE: conta contábil da nota fiscal (de → para). `*Defer` = "Deixar para a contabilidade decidir"; `null` = nenhuma.
+// `reason: FILES_CHANGED`: a escolha foi apagada porque os arquivos do documento mudaram.
+export const ZDocumentAuditLogEventRevalleInvoiceAccountSetSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_ACCOUNT_SET),
+  data: z.object({
+    fromCode: z.string().nullable(),
+    fromDefer: z.boolean(),
+    toCode: z.string().nullable(),
+    toDefer: z.boolean(),
+    reason: z.enum(['FILES_CHANGED']).optional(),
+  }),
+});
+
 export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
   z.union([
     ZDocumentAuditLogEventEnvelopeItemCreatedSchema,
@@ -934,6 +948,7 @@ export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
     ZDocumentAuditLogEventRevalleGateUnlockedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleIdentitySkippedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleSignatureStampedSchema, // REVALLE:
+    ZDocumentAuditLogEventRevalleInvoiceAccountSetSchema, // REVALLE:
   ]),
 );
 

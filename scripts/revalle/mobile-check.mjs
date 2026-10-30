@@ -5,6 +5,15 @@
 // (termo, CPF/data de nascimento do Fernando fictício do dev-seed.sql, "sou eu"), assina um campo de assinatura e
 // um de texto, abre e fecha os diálogos "Baixar PDF" e "Recusar" do menu de ações (e confere que, depois de cada um, o
 // 1º toque num campo abre o campo), pede o código por e-mail (lido no Mailpit) e conclui.
+// Antes, se houver sessão do remetente (REVSIGN_USER_EMAIL/REVSIGN_USER_PASSWORD, dono do token), confere o envio de
+// uma nota fiscal fictícia no celular: o diálogo de envio com o bloco "Nota fiscal · Conta contábil", a escolha
+// "Deixar para a contabilidade decidir", o envio e o cartão "Conta contábil" da página do documento. Nesses passos a
+// conferência vale só para o bloco/cartão: o editor do upstream não é feito para celular (a 360 px a página passa da
+// largura da tela e as abas "E-mail"/"Nenhum" do diálogo têm 32 px). Depois abre a página "Notas fiscais": botões da
+// página com 44 px e nenhuma rolagem horizontal da página inteira (a tabela rola dentro do próprio quadro).
+// Depois: NF escaneada no diálogo de envio ("Responda para enviar" e o botão de enviar bloqueado até "Sim"/"Não"),
+// NF v1 no editor antigo (o bloco da NF no topo), o link discreto "Marcar como nota fiscal" num documento comum já
+// enviado (o cartão só aparece depois de marcar) e o cartão com a pergunta numa NF escaneada enviada sem resposta.
 // Em cada passo tira um print e confere:
 //   - sem rolagem horizontal (document.scrollingElement.scrollWidth <= 360);
 //   - todo botão visível (button / role=button) com altura >= 44 px;
@@ -16,7 +25,7 @@
 // Variáveis: REVSIGN_URL (padrão http://localhost:3000), MOBILE_CHECK_IMAGE (padrão a imagem abaixo).
 // Sai com código 1 se alguma conferência falhar. O resumo fica em <pasta>/report.json.
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -78,6 +87,103 @@ const runHost = async () => {
 
   console.log(`- documento ${created.id} enviado para ${email}`);
 
+  // A sessão vai para o container pelo ambiente (`-e NOME` sem valor): não aparece na linha de comando.
+  const senderEnv = {};
+
+  if (process.env.REVSIGN_USER_EMAIL && process.env.REVSIGN_USER_PASSWORD) {
+    const { assertNoPaidGeminiCalls, signIn } = await import('./tests/helpers.mjs');
+
+    // Os passos de NF pedem sugestão: com uma chave real apontando para o Google, isso seria pago.
+    assertNoPaidGeminiCalls();
+
+    const nf = await createEnvelope({
+      title: `[TESTE NF] Celular ${new Date().toISOString()}`,
+      pdf: await writeInvoiceFixture(outDir),
+      recipients: [{ email: `celular-nf-${Date.now()}@revalle.com.br`, name: 'Teste' }],
+    });
+
+    if (nf.status !== 200) {
+      throw new Error(`criar nota fiscal: HTTP ${nf.status} ${nf.text}`);
+    }
+
+    const teamUrl = db(`select t.url from "Team" t join "Envelope" e on e."teamId" = t.id where e.id = '${nf.id}'`);
+
+    senderEnv.SENDER_COOKIE = await signIn(process.env.REVSIGN_USER_EMAIL, process.env.REVSIGN_USER_PASSWORD);
+    senderEnv.EDITOR_URL = `${BASE_URL}/t/${teamUrl}/documents/${nf.id}/edit`;
+    console.log(`- nota fiscal ${nf.id} (rascunho) para o passo do remetente`);
+
+    // NF escaneada (só imagem: "É nota fiscal?"): "Enviar" bloqueado até a resposta.
+    const scanned = await createEnvelope({
+      title: `[TESTE NF] Celular escaneada ${new Date().toISOString()}`,
+      pdf: await writeScannedFixture(outDir),
+      recipients: [{ email: `celular-nf-esc-${Date.now()}@revalle.com.br`, name: 'Teste' }],
+    });
+
+    if (scanned.status !== 200) {
+      throw new Error(`criar nota escaneada: HTTP ${scanned.status} ${scanned.text}`);
+    }
+
+    senderEnv.SCANNED_EDITOR_URL = `${BASE_URL}/t/${teamUrl}/documents/${scanned.id}/edit`;
+
+    // NF v1 (abre no editor antigo, que também tem o bloco da NF).
+    const form = new FormData();
+
+    form.append(
+      'payload',
+      JSON.stringify({
+        title: `[TESTE NF] Celular v1 ${new Date().toISOString()}`,
+        meta: { distributionMethod: 'NONE' },
+        recipients: [{ email: `celular-nf-v1-${Date.now()}@revalle.com.br`, name: 'Teste', role: 'SIGNER' }],
+      }),
+    );
+    form.append(
+      'file',
+      new File([readFileSync(await writeInvoiceFixture(outDir))], 'nf-v1.pdf', { type: 'application/pdf' }),
+    );
+
+    const v1 = await fetch(`${BASE_URL}/api/v2-beta/document/create`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.REVSIGN_API_TOKEN}` },
+      body: form,
+    });
+    const v1Body = await v1.json();
+
+    if (v1.status !== 200) {
+      throw new Error(`criar nota v1: HTTP ${v1.status} ${JSON.stringify(v1Body)}`);
+    }
+
+    senderEnv.LEGACY_EDITOR_URL = `${BASE_URL}/t/${teamUrl}/documents/${v1Body.envelopeId}/legacy_editor`;
+
+    // Documento comum já enviado: o cartão "Conta contábil" oferece "Marcar como nota fiscal".
+    const common = await createEnvelope({
+      title: `[TESTE] Celular marcar NF ${new Date().toISOString()}`,
+      recipients: [{ email: `celular-marcar-${Date.now()}@revalle.com.br`, name: 'Teste' }],
+    });
+
+    if (common.status !== 200) {
+      throw new Error(`criar documento comum: HTTP ${common.status} ${common.text}`);
+    }
+
+    await distribute(common.id);
+    senderEnv.SENT_DOC_URL = `${BASE_URL}/t/${teamUrl}/documents/${common.id}`;
+
+    // NF escaneada enviada pela API sem resposta: fica UNKNOWN (o servidor não exige a resposta).
+    const sentScanned = await createEnvelope({
+      title: `[TESTE NF] Celular escaneada enviada ${new Date().toISOString()}`,
+      pdf: await writeScannedFixture(outDir),
+      recipients: [{ email: `celular-nf-esc-env-${Date.now()}@revalle.com.br`, name: 'Teste' }],
+    });
+
+    if (sentScanned.status !== 200) {
+      throw new Error(`criar nota escaneada enviada: HTTP ${sentScanned.status} ${sentScanned.text}`);
+    }
+
+    await distribute(sentScanned.id);
+    senderEnv.SENT_SCANNED_URL = `${BASE_URL}/t/${teamUrl}/documents/${sentScanned.id}`;
+  } else {
+    console.log('- sem REVSIGN_USER_EMAIL/REVSIGN_USER_PASSWORD: passo da nota fiscal pulado');
+  }
+
   const result = spawnSync(
     'docker',
     [
@@ -102,6 +208,7 @@ const runHost = async () => {
       `SIGNER_CPF=${FERNANDO.cpf}`,
       '-e',
       `SIGNER_BIRTH_DATE=${FERNANDO.birthDate}`,
+      ...Object.keys(senderEnv).flatMap((name) => ['-e', name]),
       '-v',
       `${ROOT}:/repo:ro`,
       '-v',
@@ -112,7 +219,7 @@ const runHost = async () => {
       'node',
       'scripts/revalle/mobile-check.mjs',
     ],
-    { stdio: 'inherit' },
+    { stdio: 'inherit', env: { ...process.env, ...senderEnv } },
   );
 
   db(`delete from "RevalleEmailLink" where cpf = '${FERNANDO.cpf}'`);
@@ -120,14 +227,65 @@ const runHost = async () => {
   process.exit(result.status ?? 1);
 };
 
+// "NF escaneada": só uma imagem (o desenho dos testes), nenhum texto.
+const writeScannedFixture = async (dir) => {
+  const { PDFDocument } = await import('@cantoo/pdf-lib');
+  const { drawingPng } = await import('./tests/helpers.mjs');
+  const doc = await PDFDocument.create();
+  const png = await doc.embedPng(Buffer.from(drawingPng().split(',')[1], 'base64'));
+  const page = doc.addPage([595, 842]);
+
+  page.drawImage(png, { x: 40, y: 500, width: 500, height: 170 });
+  doc.setTitle(`NF digitalizada celular ${Date.now()}`);
+
+  const file = path.join(dir, 'nf-escaneada-celular.pdf');
+
+  writeFileSync(file, await doc.save());
+
+  return file;
+};
+
+// DANFE fictício (chave de acesso fictícia com DV válido), para o passo do remetente.
+const writeInvoiceFixture = async (dir) => {
+  const { PDFDocument, StandardFonts } = await import('@cantoo/pdf-lib');
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const page = doc.addPage([595, 842]);
+  const lines = [
+    'DANFE - Documento Auxiliar da Nota Fiscal Eletronica',
+    'Chave de Acesso',
+    '2924 1012 3456 7800 0195 5500 1000 0123 4511 2345 6784',
+    'Emitente: Distribuidora Ficticia Ltda   CNPJ 12.345.678/0001-95',
+    `Referencia: celular ${Date.now()}`,
+    'Valor Total da Nota: R$ 150,00',
+  ];
+
+  for (const [index, line] of lines.entries()) {
+    page.drawText(line, { x: 40, y: 800 - index * 16, size: 10, font });
+  }
+
+  const file = path.join(dir, 'nf-celular.pdf');
+
+  writeFileSync(file, await doc.save());
+
+  return file;
+};
+
 // ---------------------------------------------------------------------------------------------------------------
 // Parte 2 (no container): navegador.
 // ---------------------------------------------------------------------------------------------------------------
 
 // Roda dentro da página: devolve os problemas de layout do estado atual.
-const inspectLayout = ({ minTarget }) => {
+// `scope` (seletor): confere só dentro desse elemento (diálogo/cartão), inclusive a rolagem horizontal dele.
+const inspectLayout = ({ minTarget, scope, pageScroll = false }) => {
   const vw = window.innerWidth;
   const problems = [];
+  const root = scope ? document.querySelector(scope) : document.body;
+
+  if (!root) {
+    return { scrollWidth: null, problems: [{ kind: 'missing-scope', detail: scope }] };
+  }
+
   const describe = (el) => {
     const label = (el.getAttribute('aria-label') || el.innerText || el.getAttribute('title') || '')
       .trim()
@@ -155,14 +313,23 @@ const inspectLayout = ({ minTarget }) => {
     return true;
   };
 
-  const scrollWidth = document.scrollingElement.scrollWidth;
+  const scrollWidth = scope ? root.scrollWidth : document.scrollingElement.scrollWidth;
+  const maxWidth = scope ? Math.min(root.clientWidth, vw) : vw;
 
-  if (scrollWidth > vw) {
-    problems.push({ kind: 'horizontal-scroll', detail: `scrollWidth ${scrollWidth} > ${vw}` });
+  if (scrollWidth > maxWidth + (scope ? 1 : 0)) {
+    problems.push({ kind: 'horizontal-scroll', detail: `scrollWidth ${scrollWidth} > ${maxWidth}` });
+  }
+
+  // `pageScroll`: com escopo, confere também a rolagem horizontal da página inteira.
+  if (scope && pageScroll && document.scrollingElement.scrollWidth > vw) {
+    problems.push({
+      kind: 'page-horizontal-scroll',
+      detail: `scrollWidth ${document.scrollingElement.scrollWidth} > ${vw}`,
+    });
   }
 
   // Botões: altura mínima de toque. Caixa de seleção/rádio/switch valem pela área do <label> que os envolve.
-  for (const el of document.querySelectorAll('button, [role="button"]')) {
+  for (const el of root.querySelectorAll('button, [role="button"]')) {
     if (!isShown(el)) {
       continue;
     }
@@ -184,7 +351,7 @@ const inspectLayout = ({ minTarget }) => {
   // Cortado à direita: passa da largura da tela sem um contêiner (que não seja html/body) que o recorte de propósito.
   const offenders = new Set();
 
-  for (const el of document.body.querySelectorAll('*')) {
+  for (const el of root.querySelectorAll('*')) {
     if (!isShown(el)) {
       continue;
     }
@@ -251,11 +418,15 @@ const runBrowser = async () => {
     await page.touchscreen.tap(box.x + box.width * x, box.y + box.height * y);
   };
 
-  const check = async (name) => {
-    await page.waitForTimeout(600); // animações dos diálogos
-    await page.screenshot({ path: `${out}/${name}.png` });
+  const check = async (name, onPage = page, scope = undefined, { pageScroll = false } = {}) => {
+    await onPage.waitForTimeout(600); // animações dos diálogos
+    await onPage.screenshot({ path: `${out}/${name}.png` });
 
-    const { scrollWidth, problems } = await page.evaluate(inspectLayout, { minTarget: MIN_TARGET });
+    const { scrollWidth, problems } = await onPage.evaluate(inspectLayout, {
+      minTarget: MIN_TARGET,
+      scope,
+      pageScroll,
+    });
 
     steps.push({ step: name, scrollWidth, problems });
     console.log(`${problems.length === 0 ? 'ok  ' : 'FALHA'} ${name} (scrollWidth ${scrollWidth})`);
@@ -264,6 +435,142 @@ const runBrowser = async () => {
       console.log(`      ${p.kind}: ${p.detail}`);
     }
   };
+
+  // 0. Remetente: envio de uma nota fiscal (opcional, com a sessão vinda do host).
+  if (process.env.SENDER_COOKIE && process.env.EDITOR_URL) {
+    const senderContext = await browser.newContext({
+      viewport: { width: WIDTH, height: HEIGHT },
+      deviceScaleFactor: 2,
+      isMobile: true,
+      hasTouch: true,
+      locale: 'pt-BR',
+    });
+    const sender = await senderContext.newPage();
+    const editorUrl = new URL(process.env.EDITOR_URL);
+
+    sender.setDefaultTimeout(30_000);
+    await senderContext.addCookies(
+      process.env.SENDER_COOKIE.split('; ').map((pair) => {
+        const index = pair.indexOf('=');
+
+        return { name: pair.slice(0, index), value: pair.slice(index + 1), url: editorUrl.origin };
+      }),
+    );
+
+    try {
+      await sender.goto(editorUrl.href, { waitUntil: 'networkidle' });
+      await sender
+        .getByRole('button', { name: /enviar documento/i })
+        .filter({ visible: true })
+        .first()
+        .click();
+
+      const panel = sender.getByTestId('invoice-account-panel');
+
+      await panel.waitFor();
+      // Espera a sugestão terminar (ou a tela desistir, em 30 s).
+      await panel.getByText('Buscando sugestão…').waitFor({ state: 'detached', timeout: 40_000 });
+      await check('00a-nf-envio', sender, '[data-testid="invoice-account-panel"]');
+
+      await panel.getByRole('button', { name: 'Deixar para a contabilidade decidir' }).click();
+      await panel.getByText('Escolha: deixar para a contabilidade decidir').waitFor();
+      await check('00b-nf-escolhida', sender, '[data-testid="invoice-account-panel"]');
+
+      await sender
+        .getByRole('dialog')
+        .getByRole('button', { name: /^(enviar|gerar links)$/i })
+        .click();
+      await sender.waitForURL(/\/documents\/[^/?]+(\?.*)?$/, { timeout: 60_000 });
+      await sender.waitForLoadState('networkidle');
+
+      // Enviado sem e-mail ("Gerar links"): a página abre o diálogo dos links por cima; fecha para ver o cartão.
+      if (await sender.getByRole('dialog').isVisible()) {
+        await sender.keyboard.press('Escape');
+        await sender.getByRole('dialog').waitFor({ state: 'detached' });
+      }
+
+      await sender.getByTestId('invoice-account-card').scrollIntoViewIfNeeded();
+      await check('00c-nf-cartao', sender, '[data-testid="invoice-account-card"]');
+
+      // Página "Notas fiscais": a tabela rola dentro do quadro, nunca a página. Os toques valem dentro da página (os
+      // ícones de busca e menu do cabeçalho do upstream têm 24 px).
+      await sender.goto(`${editorUrl.origin}/notas-fiscais`, { waitUntil: 'networkidle' });
+      await sender.getByTestId('invoices-page').locator('tbody tr').first().waitFor();
+      await check('00d-notas-fiscais', sender, '[data-testid="invoices-page"]', { pageScroll: true });
+
+      // NF escaneada: "Este documento é uma nota fiscal?" com "Responda para enviar" e o botão de enviar bloqueado até
+      // a resposta; "Não" libera.
+      await sender.goto(process.env.SCANNED_EDITOR_URL, { waitUntil: 'networkidle' });
+      await sender
+        .getByRole('button', { name: /enviar documento/i })
+        .filter({ visible: true })
+        .first()
+        .click();
+
+      const question = sender.getByTestId('invoice-question');
+      const sendButton = sender.getByRole('dialog').getByRole('button', { name: /^(enviar|gerar links)$/i });
+
+      await question.getByText('Responda para enviar').waitFor();
+
+      if (!(await sendButton.isDisabled())) {
+        throw new Error('NF escaneada sem resposta: o botão de enviar deveria estar bloqueado');
+      }
+
+      await check('00e-nf-escaneada', sender, '[data-testid="invoice-question"]');
+      // A 360 px o editor do upstream passa da largura da tela e o diálogo fica deslocado: o "Não" fica fora da tela
+      // (limite já conhecido do editor, ver o topo do arquivo). O clique vai pelo DOM; a conferência vale para o bloco.
+      await question.getByRole('button', { name: 'Não', exact: true }).evaluate((button) => button.click());
+      await question.waitFor({ state: 'detached' });
+      await sender.waitForFunction(
+        () =>
+          [...document.querySelectorAll('[role="dialog"] button[type="submit"]')].some((button) => !button.disabled),
+        undefined,
+        { timeout: 10_000 },
+      );
+
+      // Documento v1: o editor antigo mostra o bloco da NF no topo.
+      await sender.goto(process.env.LEGACY_EDITOR_URL, { waitUntil: 'networkidle' });
+      await sender.getByTestId('invoice-account-panel').waitFor();
+      await check('00f-nf-editor-antigo', sender, '[data-testid="invoice-account-panel"]');
+
+      // Documento comum já enviado: sem o cartão, só o link discreto "É uma nota fiscal? Marcar como nota fiscal"
+      // (44 px de toque); marcar abre o cartão com a escolha da conta.
+      await sender.goto(process.env.SENT_DOC_URL, { waitUntil: 'networkidle' });
+
+      const markLink = sender.getByTestId('invoice-mark-link');
+
+      await markLink.waitFor();
+
+      if ((await sender.getByTestId('invoice-account-card').count()) > 0) {
+        throw new Error('documento comum: o cartão "Conta contábil" não deveria aparecer antes de marcar');
+      }
+
+      await markLink.scrollIntoViewIfNeeded();
+      await check('00g-nf-link-marcar', sender, '[data-testid="invoice-mark-link"]');
+      await markLink.getByRole('button', { name: 'Marcar como nota fiscal' }).click();
+
+      const card = sender.getByTestId('invoice-account-card');
+
+      await card.getByRole('button', { name: 'Deixar para a contabilidade decidir' }).waitFor();
+      await card.scrollIntoViewIfNeeded();
+      await check('00h-nf-marcada', sender, '[data-testid="invoice-account-card"]');
+
+      // NF escaneada enviada sem resposta (UNKNOWN, pela API): o cartão inteiro, com a pergunta.
+      await sender.goto(process.env.SENT_SCANNED_URL, { waitUntil: 'networkidle' });
+
+      const unknownCard = sender.getByTestId('invoice-account-card');
+
+      await unknownCard.getByText('Este documento é uma nota fiscal?').waitFor();
+      await unknownCard.scrollIntoViewIfNeeded();
+      await check('00i-nf-escaneada-enviada', sender, '[data-testid="invoice-account-card"]');
+    } catch (error) {
+      await sender.screenshot({ path: `${out}/erro-nf.png` }).catch(() => {});
+      steps.push({ step: 'nf', scrollWidth: null, problems: [{ kind: 'flow-error', detail: String(error) }] });
+      console.log(`FALHA no passo da nota fiscal: ${error}`);
+    } finally {
+      await senderContext.close();
+    }
+  }
 
   try {
     // 1. Portão: termo.

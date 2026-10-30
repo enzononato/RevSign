@@ -52,6 +52,7 @@ export const AppNavMobile = ({ isMenuOpen, onMenuOpenChange }: AppNavMobileProps
           href: '/inbox',
           text: t`Inbox`,
         },
+        { href: '/notas-fiscais', text: t`Notas fiscais` }, // REVALLE:
         ...(currentOrganisation && canAccessOrganisationAnalytics(currentOrganisation.currentOrganisationRole)
           ? [{ href: formatOrganisationAnalyticsPath(currentOrganisation.url), text: t`Analytics` }]
           : []),
@@ -77,6 +78,7 @@ export const AppNavMobile = ({ isMenuOpen, onMenuOpenChange }: AppNavMobileProps
         href: '/inbox',
         text: t`Inbox`,
       },
+      { href: '/notas-fiscais', text: t`Notas fiscais` }, // REVALLE:
       ...(canExecuteTeamAction('MANAGE_TEAM', navigationTeam.currentTeamRole)
         ? [{ href: formatAnalyticsPath(teamUrl), text: t`Analytics` }]
         : []),

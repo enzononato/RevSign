@@ -46,6 +46,7 @@ import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { insertFormValuesInPdf } from '../pdf/insert-form-values-in-pdf';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { computeOriginalHashes, saveOriginalHashes } from '../revalle/document-hashes'; // REVALLE:
+import { assertInvoiceChoiceBeforeSend } from '../revalle/invoice/choice'; // REVALLE:
 import { assertUserNotDisabledById } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
 
@@ -127,6 +128,12 @@ export const sendDocument = async ({ id, userId, teamId, sendEmail, requestMetad
 
   if (isDocumentCompleted(envelope.status)) {
     throw new Error('Can not send completed document');
+  }
+
+  // REVALLE: nota fiscal só sai com a conta contábil escolhida (ou deixada para a contabilidade). Só no primeiro
+  // envio: reenviar um documento já enviado nunca é bloqueado. Antes da injeção de formValues (que troca o PDF).
+  if (envelope.status === DocumentStatus.DRAFT) {
+    await assertInvoiceChoiceBeforeSend(envelope.id);
   }
 
   const legacyDocumentId = mapSecondaryIdToDocumentId(envelope.secondaryId);

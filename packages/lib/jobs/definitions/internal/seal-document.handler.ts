@@ -23,6 +23,7 @@ import { insertFieldInPDFV1 } from '../../../server-only/pdf/insert-field-in-pdf
 import { insertFieldInPDFV2 } from '../../../server-only/pdf/insert-field-in-pdf-v2';
 import { legacy_insertFieldInPDF } from '../../../server-only/pdf/legacy-insert-field-in-pdf';
 import { recordFinalHash } from '../../../server-only/revalle/document-hashes'; // REVALLE:
+import { shouldEmailInvoiceAccounting } from '../../../server-only/revalle/invoice/accounting-email'; // REVALLE:
 import { loadRevalleStamps } from '../../../server-only/revalle/proof/load-stamps'; // REVALLE:
 import { getTeamSettings } from '../../../server-only/team/get-team-settings';
 import { triggerWebhook } from '../../../server-only/webhooks/trigger/trigger-webhook';
@@ -371,6 +372,23 @@ export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition
         requestMetadata,
       },
     });
+  }
+
+  // REVALLE: nota fiscal concluída: avisa a contabilidade. É um processo interno, independente de `sendEmail` e dos
+  // e-mails dos participantes. Não vale para documento recusado nem para reselagem de documento já concluído; o job
+  // ainda confere o status e reserva `accountingEmailSentAt`, então só envia uma vez. Uma falha aqui nunca derruba a selagem.
+  if (!isRejected && !(isResealing && isDocumentCompleted(envelopeStatus))) {
+    try {
+      if (await shouldEmailInvoiceAccounting(envelopeId)) {
+        await jobs.triggerJob({ name: 'send.revalle.invoice.accounting.email', payload: { envelopeId } });
+      }
+    } catch (error) {
+      io.logger.error({
+        msg: 'Falha ao agendar o e-mail da contabilidade',
+        envelopeId,
+        error: error instanceof Error ? error.message : 'erro desconhecido',
+      });
+    }
   }
 };
 

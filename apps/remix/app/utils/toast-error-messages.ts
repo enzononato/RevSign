@@ -22,6 +22,11 @@ export const getDistributeErrorMessage = (code: string): ToastMessageDescriptor 
   return match(code)
     .with('RECIPIENT_LIMIT_EXCEEDED', () => RECIPIENT_LIMIT_EXCEEDED_ERROR_MESSAGE)
     .with(AppErrorCode.TOO_MANY_REQUESTS, () => FAIR_USE_LIMIT_EXCEEDED_ERROR_MESSAGE)
+    .with('INVOICE_ACCOUNT_REQUIRED', () => ({
+      // REVALLE: nota fiscal sem conta contábil (o servidor recusa o envio).
+      title: msg`Nota fiscal sem conta contábil`,
+      description: msg`Escolha a conta contábil ou deixe para a contabilidade decidir.`,
+    }))
     .otherwise(() => ({
       title: msg`Something went wrong`,
       description: msg`An error occurred while distributing the document.`,
@@ -125,6 +130,11 @@ export const getTemplateUseErrorMessage = (code: string): ToastMessageDescriptor
     .with('DOCUMENT_SEND_FAILED', () => ({
       title: msg`Error`,
       description: msg`The document was created but could not be sent to recipients.`,
+    }))
+    .with('INVOICE_ACCOUNT_REQUIRED', () => ({
+      // REVALLE: nota fiscal criada a partir do modelo fica como rascunho até alguém escolher a conta contábil.
+      title: msg`Nota fiscal sem conta contábil`,
+      description: msg`O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e envie.`,
     }))
     .with(AppErrorCode.MISSING_SIGNATURE_FIELD, () => ({
       title: msg`Missing signature fields`,

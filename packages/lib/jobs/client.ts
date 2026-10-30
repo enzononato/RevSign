@@ -1,4 +1,5 @@
 import { JobClient } from './client/client';
+import { REVALLE_SEND_INVOICE_ACCOUNTING_EMAIL_JOB_DEFINITION } from './definitions/emails/revalle-send-invoice-accounting-email'; // REVALLE: e-mail da contabilidade
 import { SEND_ACCOUNT_DISABLED_EMAIL_JOB_DEFINITION } from './definitions/emails/send-account-disabled-email';
 import { SEND_ADMIN_RECIPIENT_REMOVED_EMAILS_JOB_DEFINITION } from './definitions/emails/send-admin-recipient-removed-emails';
 import { SEND_ADMIN_USER_CREATED_EMAIL_JOB_DEFINITION } from './definitions/emails/send-admin-user-created-email';
@@ -30,6 +31,7 @@ import { EXECUTE_WEBHOOK_JOB_DEFINITION } from './definitions/internal/execute-w
 import { EXPIRE_RECIPIENTS_SWEEP_JOB_DEFINITION } from './definitions/internal/expire-recipients-sweep';
 import { PROCESS_RECIPIENT_EXPIRED_JOB_DEFINITION } from './definitions/internal/process-recipient-expired';
 import { PROCESS_SIGNING_REMINDER_JOB_DEFINITION } from './definitions/internal/process-signing-reminder';
+import { REVALLE_INVOICE_SUGGEST_JOB_DEFINITION } from './definitions/internal/revalle-invoice-suggest'; // REVALLE: sugestão de conta da nota fiscal
 import { SEAL_DOCUMENT_JOB_DEFINITION } from './definitions/internal/seal-document';
 import { SEAL_DOCUMENT_SWEEP_JOB_DEFINITION } from './definitions/internal/seal-document-sweep';
 import { SEND_SIGNING_REMINDERS_SWEEP_JOB_DEFINITION } from './definitions/internal/send-signing-reminders-sweep';
@@ -77,6 +79,10 @@ export const jobsClient = new JobClient([
   ALERT_ORGANISATION_SEAT_DRIFT_JOB_DEFINITION,
   CANCEL_ORGANISATION_SUBSCRIPTION_JOB_DEFINITION,
   SYNC_ORGANISATION_SEATS_JOB_DEFINITION,
+  // REVALLE: sugestão de conta contábil da nota fiscal (Fase 5).
+  REVALLE_INVOICE_SUGGEST_JOB_DEFINITION,
+  // REVALLE: e-mail para a contabilidade na conclusão da nota fiscal (Fase 5).
+  REVALLE_SEND_INVOICE_ACCOUNTING_EMAIL_JOB_DEFINITION,
 ] as const);
 
 export const jobs = jobsClient;

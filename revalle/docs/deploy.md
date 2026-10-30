@@ -187,6 +187,16 @@ Por quê: copia o banco todo dia, cifrado, para fora da VPS. Detalhes em `backup
    - Esperado: o IP público do celular (confira em https://meuip.com.br no mesmo celular).
    - Se aparecer um IP interno (começa com `10.`, `172.` ou `192.168.`), o proxy do EasyPanel não está repassando o IP real. Avise o desenvolvedor.
 
+## Backup antes de atualizar
+
+Faça sempre antes de trocar a versão (as migrações rodam sozinhas na subida e não há volta automática):
+
+1. No EasyPanel, abra o serviço `revsign-backup` → aba **Console** (terminal do container).
+2. Rode: `/usr/local/bin/backup.sh`
+3. Espere a última linha `backup concluido` (leva de segundos a poucos minutos). Se aparecer `ERRO: ...`, PARE e não atualize: veja "Se der erro" em `backup.md`.
+4. Confira: `cat /backups/last-run.json` deve mostrar `"status":"ok"` e o nome do arquivo novo (`revsign-AAAAMMDD-HHMMSS.dump.age`). Com cópia remota ligada, o mesmo arquivo aparece na pasta `revsign-backups` do cPanel (**File Manager**).
+5. Só então siga para a atualização.
+
 ## Antes de atualizar para esta versão (Fase 3)
 
 Faça estas duas conferências antes de trocar a imagem de uma instalação que já está em uso. Numa instalação nova (sem dados) não há nada a conferir na primeira.
@@ -221,7 +231,7 @@ Vale para quem atualiza uma instalação que já está em uso, vinda da Fase 3. 
    - o `/verificar`, aberto pelo código de quem assinou depois, lista só quem tem prova; quem assinou antes não aparece;
    - o certificado da primeira selagem sai sem a linha `SHA-256 do original` (ela só aparece numa reselagem).
    Se não der para terminar algum, ele continua válido; só a prova fica parcial.
-2. **Backup antes** (passo 7, item 8). As migrações abaixo rodam sozinhas na subida e só ACRESCENTAM tabelas e colunas; nenhuma apaga dados:
+2. **Backup antes** (seção "Backup antes de atualizar"). As migrações abaixo rodam sozinhas na subida e só ACRESCENTAM tabelas e colunas; nenhuma apaga dados:
    - `20261030100000_revalle_document_hashes` (SHA-256 do original e do PDF selado);
    - `20261030120000_revalle_signature_proof` (prova congelada de cada pessoa);
    - `20261030130000_revalle_signature_kind` (tipo da assinatura visual, preenchido a partir da prova);
@@ -245,7 +255,7 @@ Vale para quem atualiza uma instalação que já está em uso, vinda da Fase 4 (
    - `NEXT_PRIVATE_SIGNING_REASON=Selado pelo RevSign da Revalle`: troque se estiver com o valor antigo `Selado pelo RevSign (Revalle)` (os parênteses saíam com barras no PDF), ou apague a linha para usar o padrão;
    - `NEXT_PUBLIC_SUPPORT_EMAIL=projetos.ti@revalle.com.br`: e-mail de suporte das telas e dos e-mails (redefinir senha, conta criada pelo admin). Acrescente, ou ponha o e-mail que a TI quer receber.
    Salve e faça o **Deploy** com a imagem nova.
-2. **(Opcional) Nome da organização e da equipe pessoais em pt-BR.** Contas novas já nascem com "Organização pessoal" e "Equipe pessoal". As contas antigas continuam com "Personal Organisation" / "Personal Team" no menu até alguém renomear. Para renomear todas de uma vez, faça o backup antes (passo 7, item 8) e, no EasyPanel, abra o serviço do Postgres do RevSign (`revsign-db`) → **Console**, rode `psql -U <usuario> -d <banco>` (como na Fase 3) e cole:
+2. **(Opcional) Nome da organização e da equipe pessoais em pt-BR.** Contas novas já nascem com "Organização pessoal" e "Equipe pessoal". As contas antigas continuam com "Personal Organisation" / "Personal Team" no menu até alguém renomear. Para renomear todas de uma vez, faça o backup antes (seção "Backup antes de atualizar") e, no EasyPanel, abra o serviço do Postgres do RevSign (`revsign-db`) → **Console**, rode `psql -U <usuario> -d <banco>` (como na Fase 3) e cole:
    ```sql
    SET client_encoding = 'UTF8';
    BEGIN;
@@ -259,6 +269,33 @@ Vale para quem atualiza uma instalação que já está em uso, vinda da Fase 4 (
    - Tudo certo: digite `COMMIT;`. Algo estranho: digite `ROLLBACK;` (nada muda) e avise o desenvolvedor.
 3. **Verificação em duas etapas (2FA) e chave de acesso (passkey).** O nome no aplicativo autenticador e no gerenciador de senhas passou de "Documenso" para "RevSign" só para o que for cadastrado a partir desta versão. Quem já tinha 2FA ou passkey continua vendo "Documenso" no celular, e os códigos continuam valendo normalmente. Para ver "RevSign", basta desativar e cadastrar de novo (ou renomear a entrada no próprio aplicativo).
 4. **Links públicos de compartilhamento.** O RevSign não cria mais link público de compartilhamento (`/share/<código>`, o "Compartilhar" do Documenso), e os links criados antes desta versão param de funcionar. O link do QR do certificado (`/share/qr_…`) continua valendo.
+
+## Antes de atualizar (Fase 5)
+
+Vale para quem atualiza uma instalação que já está em uso. A Fase 5 traz a nota fiscal com conta contábil sugerida; o guia completo (lista de contas, prompt, o que o remetente vê, planilha) está em `notas-fiscais.md`.
+
+1. **Backup antes.** No EasyPanel, serviço `revsign-backup` → **Console**, rode `/usr/local/bin/backup.sh` e espere `backup concluido`; depois `cat /backups/last-run.json` tem de mostrar `"status":"ok"` (passo a passo: seção "Backup antes de atualizar"). As migrações abaixo rodam sozinhas na subida e só ACRESCENTAM tabelas e colunas; nenhuma apaga dados:
+   - `20261031100000_revalle_invoice` (plano de contas, configurações, classificação de cada documento e cache da sugestão);
+   - `20261031110000_revalle_invoice_flag_audit` (quem marcou "é / não é nota fiscal" e quando).
+2. **Variáveis novas** (serviço `revsign` → **Environment**; ver a tabela abaixo). Nenhuma é obrigatória:
+   - `GEMINI_API_KEY`: a chave do Google AI Studio. Sem ela, a nota fiscal é detectada e a conta é escolhida à mão, sem sugestão;
+   - `NEXT_PRIVATE_REVALLE_GEMINI_MODEL`: só para trocar o modelo (padrão `gemini-3.6-flash`);
+   - `NEXT_PRIVATE_REVALLE_INVOICE_AI=disabled`: só para desligar a sugestão sem apagar a chave.
+   **Nunca** defina `NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL` (é só dos testes).
+3. **Logo depois de atualizar, importe a lista de contas.** Enquanto a lista estiver vazia, o remetente de uma nota fiscal só consegue "Deixar para a contabilidade decidir". No site, com a conta de administrador: **Admin → Contas contábeis** → envie o CSV (`notas-fiscais.md`, seção 1) → **Aplicar**.
+4. **Prompt e e-mail da contabilidade.** Na mesma tela, escreva o prompt (as regras da empresa para escolher a conta) e o **E-mail da contabilidade**, e clique em **Salvar**. Sem e-mail, ninguém recebe o PDF das notas concluídas.
+5. **Conferência.** Na tela de admin, a linha de estado deve dizer "Gemini configurado (modelo …)". Envie uma nota fiscal de teste: o diálogo de envio mostra o bloco "Nota fiscal · Conta contábil" com a sugestão; depois de assinada, ela aparece no menu **Notas fiscais** e a contabilidade recebe o e-mail.
+6. **Avise os remetentes** de que notas fiscais enviadas pela API ou por modelo precisam ser terminadas na tela (seção abaixo).
+7. **NFs enviadas antes desta atualização não têm classificação.** Elas não aparecem no menu **Notas fiscais** nem na planilha, e a contabilidade não recebe e-mail delas. Se precisar de uma delas no fluxo, o dono (ou o admin) abre a página do documento e clica em "É uma nota fiscal? **Marcar como nota fiscal**" e escolhe a conta; se ela já estiver concluída, a contabilidade recebe o e-mail quando a conta for escolhida.
+
+## Notas fiscais enviadas pela API ou por modelo (Fase 5)
+
+Uma nota fiscal só é enviada para assinatura com a conta contábil escolhida (ou "Deixar para a contabilidade decidir"). A escolha é feita na tela, no diálogo **Enviar documento** (ou pela rota `revalle.invoice.setChoice` da sessão). Por isso:
+
+- **API (v1 e v2).** Criar o documento funciona; o envio (`/envelope/distribute`, `/api/v1/documents/:id/send`, `/envelope/use` com `distributeDocument`) de uma nota fiscal sem conta responde **400** com o código `INVOICE_ACCOUNT_REQUIRED` e a mensagem "Escolha a conta contábil ou deixe para a contabilidade decidir.". O documento fica como **rascunho**: abra-o no site, escolha a conta e envie. A escolha fica no bloco **Nota fiscal · Conta contábil**: no editor novo, dentro do diálogo **Enviar documento**; num documento v1 (criado por `/api/v2-beta/document/create`, pela API v1 com transporte S3 ou por um modelo antigo), que abre no editor antigo, no topo da página do editor. Documentos que não são nota fiscal não mudam em nada.
+- **PDF escaneado pela API.** Na tela, o remetente precisa responder "Este documento é uma nota fiscal?" para enviar. Pela API, o servidor não exige a resposta: o PDF escaneado é enviado como documento comum (fora da lista de notas e sem e-mail para a contabilidade). Se era uma NF, o dono ou o admin usa **Marcar como nota fiscal** na página do documento e escolhe a conta.
+- **Usar modelo com "enviar" e envio em lote.** Se o PDF do modelo for uma nota fiscal, o documento é criado como rascunho e não é enviado; a tela avisa e o e-mail de conclusão do envio em lote mostra `INVOICE_ACCOUNT_REQUIRED` na linha. Abra cada rascunho, escolha a conta e envie.
+- Reenviar um documento já enviado nunca é bloqueado.
 
 ## Tabela de todas as variáveis
 
@@ -305,6 +342,10 @@ Legenda de "segredo?": **sim** = nunca no repositório, só no EasyPanel e no co
 | `NEXT_PRIVATE_REVALLE_ICP_PDF_DICT` | Nomes no dicionário da assinatura: `etsi` (padrão: `Adobe.PPKLite` / `ETSI.CAdES.detached`) ou `pbad` (`PBAD_PAdES` / `PBAD.PAdES`, como a política escreve). Só troque se o validar.iti.gov.br reclamar do dicionário (ver `certificado.md`) | não definir (vale `etsi`) | não |
 | `NEXT_PRIVATE_REVALLE_ICP_POLICY_HASH` | Hash da política no atributo assinado: `policy` (padrão: o hash ETSI que o arquivo da política traz) ou `lpa` (SHA-256 do arquivo, como na LPA). Só troque se o validar.iti.gov.br acusar hash da política diferente (ver `certificado.md`) | não definir (vale `policy`) | não |
 | `NEXT_PRIVATE_REVALLE_GEOIP_DB_PATH` | (Opcional) caminho da base DB-IP Lite City (`.mmdb`) usada para a "Localização aproximada (IP)" do certificado. A imagem já traz a base em `/app/geoip/dbip-city-lite.mmdb`, baixada no build e congelada até a próxima imagem (a DB-IP publica uma base por mês). Só defina para usar outro arquivo (ex.: um volume montado com uma base mais nova). Base ausente ou vazia: o app funciona, o log mostra um aviso na subida e o certificado diz `não identificada` | não definir (vale `/app/geoip/dbip-city-lite.mmdb`) | não |
+| `GEMINI_API_KEY` | (Opcional, Fase 5) chave da API do Gemini (Google AI Studio) para sugerir a conta contábil da nota fiscal. Sem ela, a nota é detectada e a conta é escolhida à mão, sem sugestão | chave do Google AI Studio, ou não definir | sim |
+| `NEXT_PRIVATE_REVALLE_GEMINI_MODEL` | (Opcional) modelo do Gemini usado na sugestão. Precisa ser **Gemini 2.5 ou mais novo** (o app pede raciocínio mínimo, `thinkingLevel`/`thinkingBudget`, que modelos mais antigos não aceitam) | não definir (vale `gemini-3.6-flash`) | não |
+| `NEXT_PRIVATE_REVALLE_INVOICE_AI` | `enabled` (padrão) ou `disabled`: desliga a sugestão sem apagar a chave | não definir (vale `enabled`) | não |
+| `NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL` | Endereço da API do Gemini. Só os testes usam (servidor falso, `compose.test.yml`) | **não definir** (vale o endereço do Google) | não |
 
 ### Serviço Postgres (`revsign-db`)
 
@@ -337,4 +378,4 @@ Variáveis só do ensaio local (não use no EasyPanel): `REVSIGN_IMAGE`, `REVSIG
 0. Antes de trocar a versão, confirme que as DUAS imagens existem para a tag nova: `ghcr.io/enzononato/revsign:<tag>` e `ghcr.io/enzononato/revsign-backup:<tag>` (GitHub → Packages; os dois jobs de publicação são independentes e um pode falhar sozinho).
 1. Em **Source**, troque o número da versão na imagem (`...:v2.21.1-revalle.N`).
 2. Clique em **Deploy**.
-3. Rode as checagens do passo 9. Faça o backup antes (passo 7, item 8).
+3. Rode as checagens do passo 9. Faça o backup antes (seção "Backup antes de atualizar").

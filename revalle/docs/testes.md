@@ -41,9 +41,58 @@ Pulados aparecem como `skipped` no resumo. "Tudo verde" de verdade é: `fail 0`.
 
 `share-hardening.test.mjs` confere que o RevSign não cria link público de compartilhamento: `document.share` (tRPC) é recusado com o token do destinatário e com o dono logado (sem gravar linha em `DocumentShareLink`), e `/share/<slug>/opengraph` responde 404 (o teste insere e apaga uma linha própria).
 
+`invoice-admin.test.mjs` (Fase 5) usa as sessões de `REVSIGN_ADMIN_*` (rotas `revalle.invoice.admin*`) e de `REVSIGN_USER_*` (recusa ao usuário comum). Ele **apaga e recria a lista de contas contábeis** da stack local e grava prompt e e-mail da contabilidade. O teste do estado da IA lê dentro do container se `GEMINI_API_KEY` está definida (sem mostrar o valor) e `NEXT_PRIVATE_REVALLE_INVOICE_AI`; vale para a stack subida com ou sem a chave.
+
+`invoice-classify.test.mjs` (Fase 5) cria notas fiscais FICTÍCIAS no próprio teste (com `@cantoo/pdf-lib`: um DANFE com a chave de acesso fictícia `29241012345678000195550010000123451123456784`, uma NFS-e e um PDF "escaneado", só com imagem), envia pela API v2 e chama as rotas `revalle.invoice.get/classify/setInvoiceFlag/resuggest` com a sessão de `REVSIGN_USER_*`. Ele **substitui a lista de contas contábeis** da stack pela dele (importada pela sessão de `REVSIGN_ADMIN_*`, porque `invoice-admin.test.mjs` apaga a lista) e apaga os contadores de limite `revalle.invoice*`. Os casos com IA precisam da stack subida com o servidor falso do Gemini (seção abaixo); sem ele, só roda o caso "sem IA" (`aiAvailable: false`, a detecção funciona e nada quebra) e os outros aparecem como pulados. O caso de acesso usa também `REVSIGN_SENDER_API_TOKEN` (documento de outro time). Ele também confere: que só o arquivo detectado como NF chega à IA (um contrato no mesmo envelope fica de fora), que o CPF chega mascarado, que pedidos simultâneos geram uma chamada só, e o limite de 6 chamadas à IA por documento.
+
+`invoice-send.test.mjs` (Fase 5) confere a escolha da conta contábil no envio: NF sem escolha é recusada (`INVOICE_ACCOUNT_REQUIRED`, 400) pela API v2, pela tela (tRPC) e pela API v1, mesmo enviada logo depois de criada; "Deixar para a contabilidade decidir" e uma conta ativa enviam; conta inativa ou inexistente dá 400; o `assets/example.pdf` envia sem nada; a troca depois do envio (dono e admin) gera um evento `REVALLE_INVOICE_ACCOUNT_SET` por troca; trocar um arquivo apaga a escolha. Usa as mesmas sessões de `invoice-classify.test.mjs` e também **reimporta a lista de contas** (com uma conta `9.9.99` que fica inativa). Com o servidor falso do Gemini, confere ainda `acceptedSuggestion` contra a sugestão; sem ele, roda com escolha manual.
+
+`invoice-email.test.mjs` (Fase 5) conclui NFs fictícias de verdade e confere o Mailpit: o e-mail da contabilidade tem o assunto exato (`Nota fiscal assinada: {título} · Conta {código} – {nome}` ou `Conta: a definir pela contabilidade`) e o PDF selado igual ao dos participantes; a reselagem pelo admin não reenvia; sem e-mail configurado e documento comum não enviam. Usa as sessões `REVSIGN_ADMIN_*` e `REVSIGN_USER_*`, importa as próprias contas (a tabela é apagada pelo `invoice-admin.test.mjs`) e troca o e-mail da contabilidade por `adminUpdateSettings`, restaurando o valor anterior no final.
+
+Em `invoice-email.test.mjs`: a suíte roda com `--test-concurrency=1`, o que importa também porque a primeira chamada de `helpers.poppler` constrói a imagem (duas construções em paralelo se atropelariam). O e-mail da contabilidade é independente dos e-mails dos participantes (sai também com eles desligados, e nunca para documento recusado ou reselagem de documento já concluído). Ele é **no máximo uma vez**: o job reserva `accountingEmailSentAt` antes de enviar e só devolve a reserva se o envio falhar com erro; se o processo cair entre a reserva e o envio, aquele e-mail se perde (aceito, em vez de arriscar duplicar). Limite do teste: `sendEmail=false` do job de selagem não é alcançável por nenhuma rota do app (só por payload direto), então o teste desliga os e-mails dos participantes pelas configurações do documento; reenviar o job direto exigiria assinar a chamada ao `/api/jobs` com a chave do app, o que o teste não faz.
+
+Poppler: `helpers.poppler` roda `pdftotext`, `pdfinfo` etc. na imagem local `revsign-test-poppler:local`, construída uma vez a partir de `scripts/revalle/tests/poppler.Dockerfile` (alpine:3.22 + poppler-utils) se ainda não existir. Não há mais `apk add` a cada chamada, que falhava de vez em quando por rede ou disco. Para refazer a imagem: `docker rmi revsign-test-poppler:local`.
+
 Os testes usam `docker exec revsign-hml-database-1 psql` (nome fixo do container), o Mailpit em `http://localhost:8025` e, para simular código vencido, `docker exec revsign-hml-documenso-1 node` (o código é calculado dentro do container; a chave não sai de lá).
 
 Conexões ociosas: o app fecha conexões keep-alive paradas. Depois de uma espera longa (selagem, reselagem), o próximo pedido pode cair numa conexão já fechada (`EPIPE`, `ECONNRESET` ou `UND_ERR_SOCKET` "other side closed"). Os ajudantes (`helpers.mjs`) repetem **uma vez** os pedidos que podem ser repetidos sem efeito colateral (GET: API, downloads, Mailpit, consultas tRPC) com `fetchIdempotent`/`retryOnStaleSocket`. Pedidos POST não são repetidos, com uma exceção: a criação de documento nos testes de carimbo, selagem e aceite (`retryCreateOnStaleSocket`), nos mesmos três erros. Risco aceito: um `UND_ERR_SOCKET` pode chegar depois de o servidor já ter criado o documento; aí a repetição cria outro e o primeiro fica como envelope de teste órfão (inofensivo na stack local descartável; o teste segue com o segundo). Não dá para restringir a repetição a `EPIPE`/`ECONNRESET`: o erro que aparece na prática nessa criação é justamente o `UND_ERR_SOCKET` do socket ocioso.
+
+## Servidor falso do Gemini (Fase 5)
+
+A sugestão de conta contábil da nota fiscal chama o Gemini, uma API externa e paga. Os testes não chamam o Google: o app fala com `scripts/revalle/tests/fake-gemini.mjs`, um servidor falso que responde no formato da API `generateContent`. É uma exceção deliberada à regra "sem mock": o dublê fica na **fronteira de rede**, no lugar do Google; o app é o mesmo, só muda o endereço (`NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL`). Tudo dentro do app (texto do PDF, detecção, cache, job, limites, validação da resposta) roda de verdade.
+
+Subir a stack com o servidor falso (por cima do `compose.hml.yml`):
+
+```sh
+docker compose -f revalle/deploy/compose.hml.yml -f revalle/deploy/compose.test.yml --env-file ../local-hml/hml.env up -d
+```
+
+- `compose.test.yml` acrescenta o serviço `fake-gemini` (imagem `node:24-alpine`, script montado só para leitura, porta `127.0.0.1:8787`) e define no app `GEMINI_API_KEY=test-key` e `NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL=http://fake-gemini:8787/v1beta`. Nunca use esse arquivo em homologação ou produção.
+- Para voltar à stack sem IA, suba de novo só com o `compose.hml.yml` (o app é recriado sem a chave; o `fake-gemini` pode ser parado com `docker compose -f revalle/deploy/compose.hml.yml -f revalle/deploy/compose.test.yml --env-file ../local-hml/hml.env stop fake-gemini`).
+- Depois de editar `fake-gemini.mjs`, recrie o serviço (`... up -d --force-recreate fake-gemini`): o arquivo é montado sozinho e o container continua vendo a versão antiga.
+- A suíte inteira deve passar nos dois jeitos: com o `compose.test.yml` (caminho da IA) e sem ele (sem chave, `aiAvailable: false`).
+- **Guarda contra chamada paga:** `invoice-classify`, `invoice-send`, `invoice-email` e `acceptance-f5` chamam `assertNoPaidGeminiCalls()` (`helpers.mjs`) antes de criar qualquer NF. Se o app tiver `GEMINI_API_KEY` e `NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL` não for `http://fake-gemini:8787/v1beta` (ex.: uma chave de verdade no `hml.env` para teste manual), a suíte para com a mensagem "Parado: o app tem GEMINI_API_KEY e não aponta para o servidor falso…". Para chamar o Gemini de propósito, defina `REVALLE_TEST_GEMINI_API_KEY`. O teste puro da guarda é `gemini-guard.test.mjs`.
+
+O que o servidor falso faz (o teste o controla pela porta 8787 do host):
+
+| Rota | Para que serve |
+|---|---|
+| `POST /v1beta/models/{modelo}:generateContent` | O que o app chama. Responde no formato do Gemini com o JSON do modo programado. Confere a chave `test-key` no cabeçalho `x-goog-api-key` |
+| `POST /__program {"mode": ..., "accountCode": ...}` | Modo da próxima resposta: `ok` (a conta de `accountCode`, ou a primeira da lista), `unknown-account` (conta que não existe), `garbage` (texto que não é JSON), `slow` (25 s; o app desiste em 20 s), `error` (HTTP 500) |
+| `GET /__calls` | Chamadas recebidas: modelo, se veio PDF ou texto, tamanhos, as instruções e as partes da mensagem |
+| `POST /__reset` | Apaga as chamadas e volta ao modo `ok` |
+
+Rodar só este teste (com a stack subida com o `compose.test.yml`):
+
+```sh
+REVSIGN_API_TOKEN=api_... REVSIGN_USER_EMAIL=... REVSIGN_USER_PASSWORD=... \
+REVSIGN_ADMIN_EMAIL=... REVSIGN_ADMIN_PASSWORD=... REVSIGN_SENDER_API_TOKEN=api_... \
+node --test --test-concurrency=1 scripts/revalle/tests/invoice-classify.test.mjs
+```
+
+- `REVSIGN_FAKE_GEMINI_URL`: endereço do servidor falso visto do host (padrão `http://localhost:8787`).
+- **Perna opcional com o Gemini de verdade:** com `REVALLE_TEST_GEMINI_API_KEY=<chave>` no ambiente do teste, um caso programa o servidor falso no modo `proxy`, que repassa UMA chamada (o DANFE fictício) ao Google com essa chave, e confere só que a resposta passa na validação ou vira `FAILED` com um código curto. A chave fica só na memória do servidor falso (não é devolvida nem registrada). Sem a variável, o caso é pulado. Custa uma chamada paga.
+- O caso "o log do app não tem o texto da NF" lê `docker logs revsign-hml-documenso-1` desde o início do teste e procura uma frase da NF fictícia e a chave de acesso.
 
 ## Tradução (overlay pt-BR)
 
@@ -77,6 +126,33 @@ node --test --test-concurrency=1 scripts/revalle/tests/acceptance-f4.test.mjs
 - Leva cerca de 1 minuto (três conclusões, a selagem e o poppler).
 - Vínculos: o vínculo e-mail ↔ CPF é permanente e o CPF é único. Por isso cada execução usa e-mails novos para os signatários 2 e 3 e solta antes os vínculos dos CPFs fictícios 8 e 9. O remetente fica vinculado ao CPF fictício 7; se outro teste soltar esse vínculo, o aceite o refaz com um documento descartável (que ele mesmo exclui).
 - Esperado: todos os testes `ok`, nenhum `skipped` no arquivo do aceite.
+
+## Aceite da Fase 5
+
+`scripts/revalle/tests/acceptance-f5.test.mjs` é o aceite das notas fiscais (spec §8, §9 e §11), de ponta a ponta:
+
+1. o admin (`REVSIGN_ADMIN_*`) importa 4 contas próprias do teste e grava um prompt e um e-mail da contabilidade novo a cada execução;
+2. um remetente da empresa sobe um DANFE fictício; com o servidor falso do Gemini a sugestão sai e ele aceita (sem o servidor falso, escolhe a mesma conta na lista);
+3. uma NFS-e com "Deixar para a contabilidade decidir" (o servidor falso responde erro: fica sem sugestão);
+4. um contrato comum (`assets/example.pdf`), enviado e deixado pendente;
+5. dois signatários assinam cada NF (portão com a Maria fictícia + código por e-mail) e as NFs são concluídas;
+6. `revalle.invoice.find`: 2 NFs para o remetente, 0 para um terceiro sem envolvimento, só a NF em que é signatário para um colega (destinatário pelo e-mail), as 2 para o admin (contrato fora); filtros de período, status, conta e "deixadas"; `/notas-fiscais` abre com sessão e manda para o login sem;
+7. `/notas-fiscais/csv`: `text/csv; charset=utf-8`, `notas-fiscais-AAAA-MM-DD.csv` (data de Brasília), BOM, cabeçalho exato, 2 linhas com as contas certas (`aceitou_sugestao` e `sugestao_ia` vazios sem sugestão); os mesmos filtros da tela; terceiro = só o cabeçalho; sem sessão = login; filtro inválido = 400;
+8. 2 e-mails para a contabilidade, com os assuntos exatos (nenhum para o contrato);
+9. `/privacidade` tem a frase exata da spec §9;
+10. o PDF selado das duas NFs (com o certificado e o log de auditoria anexados) não tem o número, o nome da conta nem "conta contábil" (`pdftotext` pelo `helpers.poppler`).
+11. o remetente exclui a NFS-e (`/envelope/delete`, exclusão suave de documento concluído): ela some da tela e da planilha dele; o admin continua vendo, com `deleted` e `excluído pelo remetente` na coluna `status`.
+
+O remetente, o terceiro e o colega são **contas novas a cada execução** (`f5-…@revalle.com.br`: cadastro, confirmação pelo link do Mailpit e login, como em `branding.test.mjs`); o token de API do remetente é criado pela rota `apiToken.create` da sessão dele. O prompt e o e-mail da contabilidade anteriores voltam no final. A lista de contas fica com as 4 do aceite (os outros testes de NF importam a própria).
+
+```sh
+REVSIGN_API_TOKEN=api_... REVSIGN_ADMIN_EMAIL=... REVSIGN_ADMIN_PASSWORD=... \
+node --test --test-concurrency=1 scripts/revalle/tests/acceptance-f5.test.mjs
+```
+
+- Rode com a stack subida com o `compose.test.yml` (caminho da IA) e também sem ele; os dois caminhos devem passar.
+- O limite de 10.000 linhas da planilha não é exercitado aqui (exigiria criar 10.001 notas); a decisão (`isOverInvoiceExportLimit`) tem teste Vitest e o código conta antes de montar a planilha.
+- `invoice-send`, `invoice-email` e este aceite só seguem o caminho da IA com o app configurado (`aiStatus = CONFIGURED`) E o servidor falso no ar; com o app sem chave, os casos de IA são pulados mesmo com o container `fake-gemini` de pé.
 
 ## Teste de fumaça (smoke)
 
@@ -119,6 +195,8 @@ sh scripts/revalle/inspect-pdf-signature.sh smoke-output/final.pdf --full   # es
 - sem rolagem horizontal (`document.scrollingElement.scrollWidth <= 360`);
 - todo botão visível (`button` ou `role=button`) com pelo menos 44 px de altura (caixa de seleção vale pela área do `<label>` dela);
 - nada cortado para fora da tela à direita.
+
+Com `REVSIGN_USER_EMAIL` e `REVSIGN_USER_PASSWORD` (sessão do dono do token), antes do caminho de quem assina ele também confere o **envio de uma nota fiscal fictícia** no celular: abre o editor, o diálogo de envio com o bloco "Nota fiscal · Conta contábil" (`00a-nf-envio.png`), escolhe "Deixar para a contabilidade decidir" (`00b-nf-escolhida.png`), envia e confere o cartão "Conta contábil" da página do documento (`00c-nf-cartao.png`). Nesses três passos a conferência vale só dentro do bloco da nota fiscal e do cartão: o editor do upstream não foi feito para celular (a 360 px a página passa da largura da tela e as abas "E-mail"/"Nenhum" do diálogo de envio têm 32 px). Depois abre a página **Notas fiscais** do remetente (`00d-notas-fiscais.png`), conferida assim: filtros e botões da página com 44 px e nenhuma rolagem horizontal da página inteira (a tabela rola dentro do próprio quadro). Os ícones de busca e menu do cabeçalho do upstream (24 px) ficam fora dessa conferência. A sessão vai para o container pelo ambiente, nunca na linha de comando. Sem essas variáveis, o passo é pulado.
 
 ```sh
 REVSIGN_API_TOKEN=api_... node scripts/revalle/mobile-check.mjs /tmp/prints-celular

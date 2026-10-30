@@ -40,8 +40,11 @@ export const AppNavDesktop = ({ className, setIsCommandMenuOpen, ...props }: App
       teamUrl = organisations[0].teams[0].url;
     }
 
+    // REVALLE: "Notas fiscais" para todo usuário logado, com ou sem time no contexto.
+    const invoicesLink = { href: '/notas-fiscais', label: msg`Notas fiscais` };
+
     if (!teamUrl) {
-      return [];
+      return [invoicesLink];
     }
 
     return [
@@ -53,6 +56,7 @@ export const AppNavDesktop = ({ className, setIsCommandMenuOpen, ...props }: App
         href: `/t/${teamUrl}/templates`,
         label: msg`Templates`,
       },
+      invoicesLink, // REVALLE:
     ];
   }, [currentTeam, organisations]);
 

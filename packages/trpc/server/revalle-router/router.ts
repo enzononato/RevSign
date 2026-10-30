@@ -4,6 +4,7 @@ import { adminDeleteLinkRoute } from './admin-delete-link';
 import { adminFindGatesRoute } from './admin-find-gates';
 import { adminUnlockGateRoute } from './admin-unlock-gate';
 import { confirmIdentityRoute } from './confirm-identity';
+import { invoiceRouter } from './invoice/router';
 import { recipientLinkStatusRoute } from './recipient-link-status';
 import { verifyIdentityRoute } from './verify-identity';
 
@@ -19,4 +20,5 @@ export const revalleRouter = router({
     unlockGate: adminUnlockGateRoute,
     deleteLink: adminDeleteLinkRoute,
   }),
+  invoice: invoiceRouter,
 });

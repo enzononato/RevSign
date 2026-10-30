@@ -9,6 +9,7 @@ import {
   AlertTriangleIcon,
   BarChart3,
   Building2Icon,
+  Calculator, // REVALLE:
   FileStack,
   LineChartIcon,
   MailIcon,
@@ -205,6 +206,21 @@ export default function AdminLayout({ loaderData }: Route.ComponentProps) {
             <Link to="/admin/revalle-verificacoes">
               <ShieldCheck className="mr-2 h-5 w-5" />
               Verificações
+            </Link>
+          </Button>
+
+          {/* REVALLE: */}
+          <Button
+            variant="ghost"
+            className={cn(
+              'justify-start md:w-full',
+              pathname?.startsWith('/admin/revalle-contas-contabeis') && 'bg-secondary',
+            )}
+            asChild
+          >
+            <Link to="/admin/revalle-contas-contabeis">
+              <Calculator className="mr-2 h-5 w-5" />
+              Contas contábeis
             </Link>
           </Button>
         </div>
