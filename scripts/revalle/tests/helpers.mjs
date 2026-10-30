@@ -383,8 +383,8 @@ export const drawingPng = () => {
 // ---------------------------------------------------------------------------------------------------------------
 // Guarda contra chamadas pagas ao Gemini (Fase 5). As suítes de nota fiscal e o aceite da Fase 5 criam NFs, e cada NF
 // pede uma sugestão: com uma chave de verdade no app e o endereço do Google, isso custa dinheiro. Só seguem quando o
-// app aponta para o servidor falso (compose.test.yml), quando não tem chave, ou quando REVALLE_TEST_GEMINI_API_KEY
-// diz que a chamada paga é de propósito.
+// app aponta para o servidor falso (compose.test.yml) ou quando não tem chave. A perna real opcional
+// (REVALLE_TEST_GEMINI_API_KEY) passa pelo proxy do servidor falso, então também exige o compose.test.yml.
 // ---------------------------------------------------------------------------------------------------------------
 
 export const APP_CONTAINER = 'revsign-hml-documenso-1';
@@ -395,8 +395,9 @@ export const appContainerEnv = (name) =>
   execFileSync('docker', ['exec', APP_CONTAINER, 'sh', '-c', `printf %s "$${name}"`], { encoding: 'utf8' });
 
 // Puro: a mensagem de parada, ou null quando pode seguir. Nunca inclui a chave.
-export const paidGeminiGuardMessage = ({ apiKey, baseUrl, optIn }) => {
-  if (optIn || !apiKey?.trim() || baseUrl?.trim() === FAKE_GEMINI_BASE_URL) {
+// REVALLE_TEST_GEMINI_API_KEY não afrouxa esta guarda: a perna real passa pelo proxy do servidor falso.
+export const paidGeminiGuardMessage = ({ apiKey, baseUrl }) => {
+  if (!apiKey?.trim() || baseUrl?.trim() === FAKE_GEMINI_BASE_URL) {
     return null;
   }
 
@@ -414,7 +415,6 @@ export const assertNoPaidGeminiCalls = () => {
   const message = paidGeminiGuardMessage({
     apiKey: appContainerEnv('GEMINI_API_KEY'),
     baseUrl: appContainerEnv('NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL'),
-    optIn: process.env.REVALLE_TEST_GEMINI_API_KEY,
   });
 
   if (message) {

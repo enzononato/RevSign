@@ -91,7 +91,11 @@ const runHost = async () => {
   const senderEnv = {};
 
   if (process.env.REVSIGN_USER_EMAIL && process.env.REVSIGN_USER_PASSWORD) {
-    const { signIn } = await import('./tests/helpers.mjs');
+    const { assertNoPaidGeminiCalls, signIn } = await import('./tests/helpers.mjs');
+
+    // Os passos de NF pedem sugestão: com uma chave real apontando para o Google, isso seria pago.
+    assertNoPaidGeminiCalls();
+
     const nf = await createEnvelope({
       title: `[TESTE NF] Celular ${new Date().toISOString()}`,
       pdf: await writeInvoiceFixture(outDir),

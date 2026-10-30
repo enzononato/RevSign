@@ -6,6 +6,7 @@ import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { RequestMetadata } from '../../../universal/extract-request-metadata';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { isAdmin } from '../../../utils/is-admin';
+import { logger } from '../../../utils/logger';
 import { emailAccountingIfCompleted } from './accounting-email';
 import type { InvoiceState } from './classify';
 import { classifyEnvelope, getInvoiceState, isEnvelopeDraft, toInvoiceState } from './classify';
@@ -17,6 +18,20 @@ export const INVOICE_DRAFT_CREATED_MESSAGE =
   'O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e envie.';
 
 export type InvoiceChoice = { code: string } | { defer: true };
+
+// A escolha já foi gravada: uma falha ao disparar o e-mail não pode virar erro para quem escolheu. Repetir a mesma
+// escolha chama de novo (a reserva do job garante um e-mail só).
+const notifyAccountingIfCompleted = async (envelopeId: string) => {
+  try {
+    await emailAccountingIfCompleted(envelopeId);
+  } catch (error) {
+    logger.warn({
+      msg: 'revalle invoice: falha ao disparar e-mail da contabilidade',
+      envelopeId,
+      error: String(error),
+    });
+  }
+};
 
 /**
  * Conferência do envio (`sendDocument`), só no primeiro envio (rascunho). Classifica na hora se ainda não foi
@@ -95,6 +110,10 @@ export const setInvoiceChoice = async ({
   }
 
   if (sameChoice(state, choice)) {
+    if (!isDraft) {
+      await notifyAccountingIfCompleted(envelopeId);
+    }
+
     return state;
   }
 
@@ -138,7 +157,7 @@ export const setInvoiceChoice = async ({
   });
 
   if (!isDraft) {
-    await emailAccountingIfCompleted(envelopeId);
+    await notifyAccountingIfCompleted(envelopeId);
   }
 
   return await getInvoiceState(envelopeId);

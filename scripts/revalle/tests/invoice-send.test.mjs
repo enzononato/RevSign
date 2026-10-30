@@ -294,6 +294,14 @@ sessionTest('"Deixar para a contabilidade decidir": envia, e o log de auditoria 
   assert.equal(sent.status, 200, sent.text);
   assert.equal(status(env.id), 'PENDING');
 
+  // Depois do envio a classificação fica congelada: "Sugerir de novo" é recusado e não conta tentativa.
+  const attemptsBefore = row(env.id, `"suggestionAttempts"`);
+  const resuggest = await invoice('mutation', 'resuggest', { envelopeId: env.id });
+
+  assert.equal(resuggest.status, 400, resuggest.text);
+  assert.ok(resuggest.text.includes('Depois do envio, a sugestão automática não roda.'), resuggest.text);
+  assert.equal(row(env.id, `"suggestionAttempts"`), attemptsBefore);
+
   const events = JSON.parse(accountEvents(env.id));
 
   assert.equal(events.length, 1);

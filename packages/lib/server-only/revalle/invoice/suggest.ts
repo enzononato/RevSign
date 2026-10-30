@@ -235,6 +235,13 @@ export const resuggestInvoice = async ({
     throw new AppError(AppErrorCode.INVALID_REQUEST, { message: 'O documento não está marcado como nota fiscal.' });
   }
 
+  const envelope = await prisma.envelope.findUnique({ where: { id: envelopeId }, select: { status: true } });
+
+  // Depois do envio a classificação fica congelada: nada de IA (nem marcando como NF depois).
+  if (envelope?.status !== 'DRAFT') {
+    throw new AppError(AppErrorCode.INVALID_REQUEST, { message: 'Depois do envio, a sugestão automática não roda.' });
+  }
+
   if (!isAiAvailable()) {
     throw new AppError(AppErrorCode.INVALID_REQUEST, { message: 'A sugestão automática está desligada.' });
   }

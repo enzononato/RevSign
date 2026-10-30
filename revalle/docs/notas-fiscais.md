@@ -104,8 +104,8 @@ o mesmo PDF for enviado de novo, a sugestão vem do cache, sem nova chamada. Por
 6. No menu, **Notas fiscais** lista as NFs que ele enviou ou que chegaram para ele assinar.
 
 **NF enviada pela API ou por modelo:** o documento é criado, mas o envio é recusado (`INVOICE_ACCOUNT_REQUIRED`) até a
-conta ser escolhida na tela. O documento fica como rascunho: abra-o no site, escolha a conta e envie. Documento v1
-(ex.: criado pela API v1) abre no editor antigo, que mostra o bloco **Nota fiscal · Conta contábil** no topo. Usar
+conta ser escolhida na tela. O documento fica como rascunho: abra-o no site, escolha a conta e envie. Documento na versão antiga
+(criado por um modelo antigo ou pela API v2-beta de documento) abre no editor antigo, que mostra o bloco **Nota fiscal · Conta contábil** no topo. Usar
 modelo com "enviar" e envio em lote fazem o mesmo. Detalhes em `revalle/docs/deploy.md`, seção "Notas fiscais enviadas
 pela API ou por modelo".
 
