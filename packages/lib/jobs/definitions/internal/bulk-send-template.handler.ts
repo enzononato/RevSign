@@ -11,6 +11,7 @@ import { getI18nInstance } from '../../../client-only/providers/i18n-server';
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../../constants/app';
 import { AppError } from '../../../errors/app-error';
 import { getEmailContext } from '../../../server-only/email/get-email-context';
+import { INVOICE_DRAFT_CREATED_MESSAGE } from '../../../server-only/revalle/invoice/choice'; // REVALLE:
 import { renderEmailWithI18N } from '../../../utils/render-email-with-i18n';
 import type { JobRunIO } from '../../client/_internal/job';
 import type { TBulkSendTemplateJobDefinition } from './bulk-send-template';
@@ -91,8 +92,10 @@ export const run = async ({ payload, io }: { payload: TBulkSendTemplateJobDefini
       });
 
       if (sendImmediately) {
-        await io.runTask(`send-document-${rowIndex}`, async () => {
-          await sendDocument({
+        // REVALLE: `runTask` troca qualquer erro por "Task failed". A recusa da nota fiscal sem conta contábil volta
+        // como resultado da tarefa, para o e-mail de conclusão dizer o motivo da linha.
+        const sent = await io.runTask(`send-document-${rowIndex}`, async () => {
+          return await sendDocument({
             id: {
               type: 'envelopeId',
               id: envelope.id,
@@ -104,12 +107,26 @@ export const run = async ({ payload, io }: { payload: TBulkSendTemplateJobDefini
               auth: 'session',
               requestMetadata: requestMetadata || {},
             },
-          }).catch((err) => {
-            console.error(err);
+          })
+            .then(() => null)
+            .catch((err) => {
+              console.error(err);
 
-            throw new AppError('DOCUMENT_SEND_FAILED');
-          });
+              // REVALLE:
+              if (err instanceof AppError && err.code === 'INVOICE_ACCOUNT_REQUIRED') {
+                return { invoiceAccountRequired: true };
+              }
+
+              throw new AppError('DOCUMENT_SEND_FAILED');
+            });
         });
+
+        // REVALLE:
+        if (sent && typeof sent === 'object' && 'invoiceAccountRequired' in sent) {
+          throw new AppError('INVOICE_ACCOUNT_REQUIRED', {
+            message: `INVOICE_ACCOUNT_REQUIRED: ${INVOICE_DRAFT_CREATED_MESSAGE}`,
+          });
+        }
       }
 
       results.success += 1;

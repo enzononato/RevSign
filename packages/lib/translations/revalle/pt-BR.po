@@ -4463,8 +4463,8 @@ msgstr "Este documento é uma nota fiscal?"
 msgid "Limite de sugestões atingido. Escolha na lista."
 msgstr "Limite de sugestões atingido. Escolha na lista."
 
-msgid "Marcado como não sendo nota fiscal."
-msgstr "Marcado como não sendo nota fiscal."
+msgid "Você marcou que não é nota fiscal."
+msgstr "Você marcou que não é nota fiscal."
 
 msgid "Mostrando {shown} de {total} contas. Digite para encontrar as outras."
 msgstr "Mostrando {shown} de {total} contas. Digite para encontrar as outras."
@@ -4504,3 +4504,9 @@ msgstr "Trocar"
 
 msgid "Usar sugestão"
 msgstr "Usar sugestão"
+
+msgid "Conta contábil apagada porque o arquivo foi alterado (era {from})"
+msgstr "Conta contábil apagada porque o arquivo foi alterado (era {from})"
+
+msgid "O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e envie."
+msgstr "O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e envie."

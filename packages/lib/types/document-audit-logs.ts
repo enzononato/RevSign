@@ -885,6 +885,7 @@ export const ZDocumentAuditLogEventRevalleSignatureStampedSchema = z.object({
 });
 
 // REVALLE: conta contábil da nota fiscal (de → para). `*Defer` = "Deixar para a contabilidade decidir"; `null` = nenhuma.
+// `reason: FILES_CHANGED`: a escolha foi apagada porque os arquivos do documento mudaram.
 export const ZDocumentAuditLogEventRevalleInvoiceAccountSetSchema = z.object({
   type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_ACCOUNT_SET),
   data: z.object({
@@ -892,6 +893,7 @@ export const ZDocumentAuditLogEventRevalleInvoiceAccountSetSchema = z.object({
     fromDefer: z.boolean(),
     toCode: z.string().nullable(),
     toDefer: z.boolean(),
+    reason: z.enum(['FILES_CHANGED']).optional(),
   }),
 });
 

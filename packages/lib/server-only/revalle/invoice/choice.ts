@@ -7,9 +7,13 @@ import type { RequestMetadata } from '../../../universal/extract-request-metadat
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { isAdmin } from '../../../utils/is-admin';
 import type { InvoiceState } from './classify';
-import { classifyEnvelope, getInvoiceState, isEnvelopeDraft } from './classify';
+import { classifyEnvelope, getInvoiceState, isEnvelopeDraft, toInvoiceState } from './classify';
 
 export const INVOICE_ACCOUNT_REQUIRED_MESSAGE = 'Escolha a conta contábil ou deixe para a contabilidade decidir.';
+
+/** Modelo e envio em lote: o documento é criado, mas o envio da nota fiscal espera a conta. */
+export const INVOICE_DRAFT_CREATED_MESSAGE =
+  'O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e envie.';
 
 export type InvoiceChoice = { code: string } | { defer: true };
 
@@ -64,10 +68,16 @@ export const setInvoiceChoice = async ({
     }
   }
 
-  // No rascunho, garante a classificação dos arquivos atuais (a escolha vale para eles).
-  const state = isDraft ? await classifyEnvelope(envelopeId, { userId: user.id }) : await getInvoiceState(envelopeId);
+  // No rascunho, garante a classificação dos arquivos atuais (a escolha vale para eles). Depois, UMA leitura da
+  // linha dá o estado (sugestão) e a condição da gravação: as duas valem para a mesma versão.
+  if (isDraft) {
+    await classifyEnvelope(envelopeId, { userId: user.id });
+  }
 
-  if (state.isInvoice !== 'YES') {
+  const row = await prisma.revalleInvoiceClassification.findUnique({ where: { envelopeId } });
+  const state = row ? await toInvoiceState(row) : null;
+
+  if (!row || !state || state.isInvoice !== 'YES') {
     throw new AppError(AppErrorCode.INVALID_REQUEST, { message: 'O documento não está marcado como nota fiscal.' });
   }
 
@@ -86,7 +96,6 @@ export const setInvoiceChoice = async ({
     return state;
   }
 
-  const row = await prisma.revalleInvoiceClassification.findUniqueOrThrow({ where: { envelopeId } });
   const toCode = 'code' in choice ? choice.code : null;
   const toDefer = 'defer' in choice;
 

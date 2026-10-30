@@ -84,8 +84,10 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
     enabled: isInvoice,
   });
 
-  // Sem estado (erro na consulta), o envio segue: o servidor confere de qualquer forma.
-  const isReady = isError || (state !== undefined && (!isInvoice || state.choice !== null));
+  // O diálogo desmonta o bloco ao fechar: ao abrir de novo, o estado guardado da vez anterior não libera o envio
+  // antes da classificação nova (os arquivos podem ter mudado). Sem estado (erro na consulta), o envio segue: o
+  // servidor confere de qualquer forma.
+  const isReady = isClassified && (isError || (state !== undefined && (!isInvoice || state.choice !== null)));
 
   useEffect(() => {
     onReadyChange(isReady);
@@ -152,7 +154,7 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
     return (
       <div className="mb-4 flex flex-wrap items-center gap-x-2 text-muted-foreground text-sm">
         <span>
-          <Trans>Marcado como não sendo nota fiscal.</Trans>
+          <Trans>Você marcou que não é nota fiscal.</Trans>
         </span>
         <Button type="button" variant="link" className="h-11 px-0" disabled={isBusy} onClick={() => void onFlag(true)}>
           <Trans>Desfazer</Trans>

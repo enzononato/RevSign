@@ -260,6 +260,14 @@ Vale para quem atualiza uma instalação que já está em uso, vinda da Fase 4 (
 3. **Verificação em duas etapas (2FA) e chave de acesso (passkey).** O nome no aplicativo autenticador e no gerenciador de senhas passou de "Documenso" para "RevSign" só para o que for cadastrado a partir desta versão. Quem já tinha 2FA ou passkey continua vendo "Documenso" no celular, e os códigos continuam valendo normalmente. Para ver "RevSign", basta desativar e cadastrar de novo (ou renomear a entrada no próprio aplicativo).
 4. **Links públicos de compartilhamento.** O RevSign não cria mais link público de compartilhamento (`/share/<código>`, o "Compartilhar" do Documenso), e os links criados antes desta versão param de funcionar. O link do QR do certificado (`/share/qr_…`) continua valendo.
 
+## Notas fiscais enviadas pela API ou por modelo (Fase 5)
+
+Uma nota fiscal só é enviada para assinatura com a conta contábil escolhida (ou "Deixar para a contabilidade decidir"). A escolha é feita na tela, no diálogo **Enviar documento** (ou pela rota `revalle.invoice.setChoice` da sessão). Por isso:
+
+- **API (v1 e v2).** Criar o documento funciona; o envio (`/envelope/distribute`, `/api/v1/documents/:id/send`, `/envelope/use` com `distributeDocument`) de uma nota fiscal sem conta responde **400** com o código `INVOICE_ACCOUNT_REQUIRED` e a mensagem "Escolha a conta contábil ou deixe para a contabilidade decidir.". O documento fica como **rascunho**: abra-o no site, escolha a conta e envie. Documentos que não são nota fiscal não mudam em nada.
+- **Usar modelo com "enviar" e envio em lote.** Se o PDF do modelo for uma nota fiscal, o documento é criado como rascunho e não é enviado; a tela avisa e o e-mail de conclusão do envio em lote mostra `INVOICE_ACCOUNT_REQUIRED` na linha. Abra cada rascunho, escolha a conta e envie.
+- Reenviar um documento já enviado nunca é bloqueado.
+
 ## Tabela de todas as variáveis
 
 Legenda de "segredo?": **sim** = nunca no repositório, só no EasyPanel e no cofre.

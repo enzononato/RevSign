@@ -9,6 +9,8 @@ import {
 } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
+import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
+import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { filesKey, loadEnvelopeFiles, readFilesContent } from './envelope-files';
 import { getRevalleInvoiceAiConfig } from './settings';
 import type { InvoiceFailureReason, InvoiceRequester } from './suggest';
@@ -193,9 +195,40 @@ export const classifyEnvelope = async (
     // Escrita condicionada ao que foi lido: se outro pedido já reclassificou (ou criou), este não desfaz o trabalho
     // dele (inclusive uma sugestão já em andamento).
     if (row) {
-      await prisma.revalleInvoiceClassification.updateMany({
-        where: { envelopeId, fileSha256: row.fileSha256 },
-        data,
+      const previous = row;
+      const hadChoice = previous.choiceCode !== null || previous.choiceDefer;
+      const user =
+        hadChoice && requester.userId !== undefined
+          ? await prisma.user.findUnique({
+              where: { id: requester.userId },
+              select: { id: true, name: true, email: true },
+            })
+          : null;
+
+      await prisma.$transaction(async (tx) => {
+        const { count } = await tx.revalleInvoiceClassification.updateMany({
+          where: { envelopeId, fileSha256: previous.fileSha256 },
+          data,
+        });
+
+        // A escolha apagada pela troca de arquivo também vai para o histórico (sem usuário = o próprio sistema).
+        if (count > 0 && hadChoice) {
+          await tx.documentAuditLog.create({
+            data: createDocumentAuditLogData({
+              type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_ACCOUNT_SET,
+              envelopeId,
+              data: {
+                fromCode: previous.choiceCode,
+                fromDefer: previous.choiceDefer,
+                toCode: null,
+                toDefer: false,
+                reason: 'FILES_CHANGED',
+              },
+              user,
+              requestMetadata: requester.ipAddress ? { ipAddress: requester.ipAddress } : undefined,
+            }),
+          });
+        }
       });
     } else {
       await prisma.revalleInvoiceClassification.createMany({

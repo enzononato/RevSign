@@ -481,7 +481,12 @@ export const EnvelopeDistributeDialog = ({
                     </Button>
                   </DialogClose>
 
-                  <Button loading={isSubmitting} disabled={isSyncing || !isInvoiceReady} type="submit">
+                  <Button
+                    loading={isSubmitting}
+                    // REVALLE: nota fiscal sem conta contábil não envia (`!isInvoiceReady`).
+                    disabled={isSyncing || !isInvoiceReady}
+                    type="submit"
+                  >
                     {distributionMethod === DocumentDistributionMethod.EMAIL ? (
                       <Trans>Send</Trans>
                     ) : (
