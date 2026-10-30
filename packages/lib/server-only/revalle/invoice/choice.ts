@@ -6,6 +6,7 @@ import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { RequestMetadata } from '../../../universal/extract-request-metadata';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { isAdmin } from '../../../utils/is-admin';
+import { emailAccountingIfCompleted } from './accounting-email';
 import type { InvoiceState } from './classify';
 import { classifyEnvelope, getInvoiceState, isEnvelopeDraft, toInvoiceState } from './classify';
 
@@ -40,7 +41,8 @@ const sameChoice = (state: InvoiceState, choice: InvoiceChoice) =>
  * Grava a conta escolhida (só conta ativa) ou "Deixar para a contabilidade decidir", com quem e quando, e registra
  * no log de auditoria (de → para). `acceptedSuggestion`: se havia sugestão, se a escolha é a conta sugerida; sem
  * sugestão, vazio. No rascunho, quem acessa o documento; depois do envio (inclusive concluído), só o dono e o admin.
- * A mesma escolha de novo não grava nada.
+ * A mesma escolha de novo não grava nada. Documento concluído que ainda não avisou a contabilidade (marcado como NF
+ * depois do envio): a escolha dispara o e-mail (uma vez só; trocar a conta de uma NF já avisada não reenvia).
  */
 export const setInvoiceChoice = async ({
   envelopeId,
@@ -134,6 +136,10 @@ export const setInvoiceChoice = async ({
       }),
     });
   });
+
+  if (!isDraft) {
+    await emailAccountingIfCompleted(envelopeId);
+  }
 
   return await getInvoiceState(envelopeId);
 };

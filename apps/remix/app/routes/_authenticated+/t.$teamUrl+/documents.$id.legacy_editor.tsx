@@ -5,6 +5,7 @@ import { isDocumentCompleted } from '@documenso/lib/utils/document';
 import { logDocumentAccess } from '@documenso/lib/utils/logger';
 import { canAccessTeamDocument, formatDocumentsPath } from '@documenso/lib/utils/teams';
 import { Plural, Trans } from '@lingui/react/macro';
+import { DocumentStatus as DocumentStatusEnum } from '@prisma/client'; // REVALLE:
 import { ChevronLeft, Users2 } from 'lucide-react';
 import { Link, redirect } from 'react-router';
 
@@ -13,6 +14,7 @@ import { DocumentEditForm } from '~/components/general/document/document-edit-fo
 import { DocumentStatus } from '~/components/general/document/document-status';
 import { LegacyFieldWarningPopover } from '~/components/general/legacy-field-warning-popover';
 import { StackAvatarsWithTooltip } from '~/components/general/stack-avatars-with-tooltip';
+import { InvoiceAccountPanel } from '~/components/revalle/invoice/invoice-account-panel'; // REVALLE:
 import { superLoaderJson, useSuperLoaderData } from '~/utils/super-json-loader';
 
 import type { Route } from './+types/documents.$id.edit';
@@ -124,6 +126,15 @@ export default function DocumentEditPage() {
           {document.useLegacyFieldInsertion && <LegacyFieldWarningPopover type="document" documentId={document.id} />}
         </div>
       </div>
+
+      {/* REVALLE: nota fiscal · conta contábil. Documento v1 (ex.: criado pela API) abre neste editor, que não tem o
+          diálogo de envio novo: o bloco fica aqui, no rascunho. O servidor recusa o envio da NF sem conta
+          (INVOICE_ACCOUNT_REQUIRED), então o botão de enviar deste editor não precisa ser bloqueado. */}
+      {document.status === DocumentStatusEnum.DRAFT && (
+        <div className="mt-6 max-w-2xl empty:hidden">
+          <InvoiceAccountPanel envelopeId={document.envelopeId} onReadyChange={() => undefined} />
+        </div>
+      )}
 
       <DocumentEditForm className="mt-6" initialDocument={document} documentRootPath={documentRootPath} />
     </div>

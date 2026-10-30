@@ -12,13 +12,19 @@ import { AccountCombobox } from './account-combobox';
 
 export type InvoiceAccountPanelProps = {
   envelopeId: string;
-  /** `false` enquanto a NF não tem escolha (ou o estado ainda não chegou): o botão de enviar fica bloqueado. */
+  /**
+   * `false` enquanto a NF não tem escolha, enquanto "É nota fiscal?" (UNKNOWN) não foi respondida, ou enquanto o estado
+   * ainda não chegou: o botão de enviar fica bloqueado.
+   */
   onReadyChange: (ready: boolean) => void;
 };
 
 const POLL_INTERVAL_MS = 2_000;
 // Depois disso a tela desiste de esperar (o servidor desiste em 20 s; aqui sobra margem para o job começar).
 const POLL_LIMIT_MS = 30_000;
+// O servidor só dá um PENDING esquecido como TIMEOUT depois de 60 s (INVOICE_SUGGESTION_STALE_MS), numa leitura: a
+// tela que desistiu consulta uma vez depois disso, para "Sugerir de novo" aparecer sem reabrir o diálogo.
+const STALE_REFETCH_MS = 61_000;
 
 /**
  * Bloco "Nota fiscal · Conta contábil" do diálogo de envio. Classifica ao abrir, consulta a sugestão enquanto ela
@@ -50,7 +56,11 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
       .finally(() => setIsClassified(true));
   }, [envelopeId]);
 
-  const { data: state, isError } = trpc.revalle.invoice.get.useQuery(
+  const {
+    data: state,
+    isError,
+    refetch,
+  } = trpc.revalle.invoice.get.useQuery(
     { envelopeId },
     {
       ...DO_NOT_INVALIDATE_QUERY_ON_MUTATION,
@@ -77,6 +87,17 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
     return () => clearTimeout(timer);
   }, [isPending]);
 
+  useEffect(() => {
+    if (!isPending || !hasGivenUp) {
+      return;
+    }
+
+    const elapsed = Date.now() - (pendingSince.current ?? Date.now());
+    const timer = setTimeout(() => void refetch(), Math.max(0, STALE_REFETCH_MS - elapsed));
+
+    return () => clearTimeout(timer);
+  }, [isPending, hasGivenUp]);
+
   const isInvoice = state?.isInvoice === 'YES';
 
   const { data: accountsData } = trpc.revalle.invoice.findAccounts.useQuery(undefined, {
@@ -86,8 +107,11 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
 
   // O diálogo desmonta o bloco ao fechar: ao abrir de novo, o estado guardado da vez anterior não libera o envio
   // antes da classificação nova (os arquivos podem ter mudado). Sem estado (erro na consulta), o envio segue: o
-  // servidor confere de qualquer forma.
-  const isReady = isClassified && (isError || (state !== undefined && (!isInvoice || state.choice !== null)));
+  // servidor confere de qualquer forma. Escaneado (UNKNOWN) só libera com "Sim" (e a conta) ou "Não": uma NF tirada
+  // no celular não pode sair do fluxo da contabilidade com um toque em "Enviar". O servidor não exige a resposta (API).
+  const isReady =
+    isClassified &&
+    (isError || (state !== undefined && state.isInvoice !== 'UNKNOWN' && (!isInvoice || state.choice !== null)));
 
   useEffect(() => {
     onReadyChange(isReady);
@@ -165,7 +189,7 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
 
   if (state.isInvoice === 'UNKNOWN') {
     return (
-      <section className="mb-4 rounded-lg border p-3">
+      <section className="mb-4 rounded-lg border p-3" data-testid="invoice-question">
         <p className="font-medium text-sm">
           <Trans>Este documento é uma nota fiscal?</Trans>
         </p>
@@ -190,6 +214,10 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
             <Trans>Não</Trans>
           </Button>
         </div>
+
+        <p className="mt-2 text-amber-700 text-sm dark:text-amber-400">
+          <Trans>Responda para enviar</Trans>
+        </p>
       </section>
     );
   }

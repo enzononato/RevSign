@@ -8,6 +8,7 @@ import { classifyInvoiceRoute } from './classify';
 import { findInvoicesRoute } from './find';
 import { findInvoiceAccountsRoute } from './find-accounts';
 import { getInvoiceRoute } from './get';
+import { markAsInvoiceRoute } from './mark-as-invoice';
 import { resuggestInvoiceRoute } from './resuggest';
 import { setInvoiceChoiceRoute } from './set-choice';
 import { setInvoiceFlagRoute } from './set-invoice-flag';
@@ -23,6 +24,7 @@ export const invoiceRouter = router({
   setInvoiceFlag: setInvoiceFlagRoute,
   resuggest: resuggestInvoiceRoute,
   setChoice: setInvoiceChoiceRoute,
+  markAsInvoice: markAsInvoiceRoute,
   findAccounts: findInvoiceAccountsRoute,
   find: findInvoicesRoute,
 });

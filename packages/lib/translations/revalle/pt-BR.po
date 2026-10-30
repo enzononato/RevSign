@@ -4641,3 +4641,12 @@ msgstr "A data inicial é depois da data final."
 
 msgid "excluído pelo remetente"
 msgstr "excluído pelo remetente"
+
+msgid "Marcar como nota fiscal"
+msgstr "Marcar como nota fiscal"
+
+msgid "Responda para enviar"
+msgstr "Responda para enviar"
+
+msgid "Se este documento for uma nota fiscal, marque aqui para escolher a conta contábil."
+msgstr "Se este documento for uma nota fiscal, marque aqui para escolher a conta contábil."
