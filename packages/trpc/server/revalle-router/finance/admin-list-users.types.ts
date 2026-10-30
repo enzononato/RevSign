@@ -13,6 +13,9 @@ export const ZAdminListFinanceUsersResponseSchema = z.object({
       isFinance: z.boolean(),
     }),
   ),
+  memberCount: z.number(),
+  /** NFs retidas ("Deixar para o Financeiro") esperando a conta. */
+  awaitingAccountCount: z.number(),
 });
 
 export type TAdminListFinanceUsersResponse = z.infer<typeof ZAdminListFinanceUsersResponseSchema>;

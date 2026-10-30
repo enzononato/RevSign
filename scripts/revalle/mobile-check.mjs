@@ -7,7 +7,8 @@
 // 1º toque num campo abre o campo), pede o código por e-mail (lido no Mailpit) e conclui.
 // Antes, se houver sessão do remetente (REVSIGN_USER_EMAIL/REVSIGN_USER_PASSWORD, dono do token), confere o envio de
 // uma nota fiscal fictícia no celular: o diálogo de envio com o bloco "Nota fiscal · Conta contábil", a escolha
-// "Deixar para a contabilidade decidir", o envio e o cartão "Conta contábil" da página do documento. Nesses passos a
+// "Deixar para o Financeiro", o envio retido (aviso "Enviado para o Financeiro…" e o bloco só de leitura ao reabrir) e
+// o cartão "Conta contábil" (só leitura, "Aguardando aprovação do Financeiro") de uma NF enviada com conta. Nesses passos a
 // conferência vale só para o bloco/cartão: o editor do upstream não é feito para celular (a 360 px a página passa da
 // largura da tela e as abas "E-mail"/"Nenhum" do diálogo têm 32 px). Depois abre a página "Notas fiscais": botões da
 // página com 44 px e nenhuma rolagem horizontal da página inteira (a tabela rola dentro do próprio quadro).
@@ -111,6 +112,36 @@ const runHost = async () => {
     senderEnv.SENDER_COOKIE = await signIn(process.env.REVSIGN_USER_EMAIL, process.env.REVSIGN_USER_PASSWORD);
     senderEnv.EDITOR_URL = `${BASE_URL}/t/${teamUrl}/documents/${nf.id}/edit`;
     console.log(`- nota fiscal ${nf.id} (rascunho) para o passo do remetente`);
+
+    // NF enviada com conta (escolhida pelo remetente): o cartão da página do documento, só leitura.
+    const { trpcAs } = await import('./tests/helpers.mjs');
+    const accountCode = db(`select code from "RevalleAccountingAccount" where active order by code limit 1`);
+
+    if (!accountCode) {
+      throw new Error('nenhuma conta contábil ativa: importe a lista (Admin → Contas contábeis) ou rode a suíte antes');
+    }
+
+    const sentNf = await createEnvelope({
+      title: `[TESTE NF] Celular enviada ${new Date().toISOString()}`,
+      pdf: await writeInvoiceFixture(outDir),
+      recipients: [{ email: `celular-nf-env-${Date.now()}@revalle.com.br`, name: 'Teste' }],
+    });
+
+    if (sentNf.status !== 200) {
+      throw new Error(`criar nota enviada: HTTP ${sentNf.status} ${sentNf.text}`);
+    }
+
+    const chosen = await trpcAs(senderEnv.SENDER_COOKIE, 'mutation', 'revalle.invoice.setChoice', {
+      envelopeId: sentNf.id,
+      choice: { code: accountCode },
+    });
+
+    if (chosen.status !== 200) {
+      throw new Error(`escolher a conta da nota enviada: HTTP ${chosen.status} ${chosen.text}`);
+    }
+
+    await distribute(sentNf.id);
+    senderEnv.SENT_INVOICE_URL = `${BASE_URL}/t/${teamUrl}/documents/${sentNf.id}`;
 
     // NF escaneada (só imagem: "É nota fiscal?"): "Enviar" bloqueado até a resposta.
     const scanned = await createEnvelope({
@@ -472,24 +503,57 @@ const runBrowser = async () => {
       await panel.getByText('Buscando sugestão…').waitFor({ state: 'detached', timeout: 40_000 });
       await check('00a-nf-envio', sender, '[data-testid="invoice-account-panel"]');
 
-      await panel.getByRole('button', { name: 'Deixar para a contabilidade decidir' }).click();
-      await panel.getByText('Escolha: deixar para a contabilidade decidir').waitFor();
+      await panel.getByRole('button', { name: 'Deixar para o Financeiro' }).click();
+      await panel.getByText('Escolha: deixar para o Financeiro').waitFor();
       await check('00b-nf-escolhida', sender, '[data-testid="invoice-account-panel"]');
 
+      // Envio retido: o aviso de sucesso e a volta para a lista; o documento continua rascunho.
       await sender
         .getByRole('dialog')
         .getByRole('button', { name: /^(enviar|gerar links)$/i })
         .click();
-      await sender.waitForURL(/\/documents\/[^/?]+(\?.*)?$/, { timeout: 60_000 });
-      await sender.waitForLoadState('networkidle');
+      // O toast também é lido num aviso para leitor de tela (aria-live): o texto exato pega só o toast visível.
+      await sender
+        .getByText('Enviado para o Financeiro definir a conta. Os convites saem depois disso.', { exact: true })
+        .waitFor();
+      await sender.waitForURL(/\/documents\/?(\?.*)?$/, { timeout: 60_000 });
 
-      // Enviado sem e-mail ("Gerar links"): a página abre o diálogo dos links por cima; fecha para ver o cartão.
-      if (await sender.getByRole('dialog').isVisible()) {
-        await sender.keyboard.press('Escape');
-        await sender.getByRole('dialog').waitFor({ state: 'detached' });
+      // Reaberto: o bloco só mostra o estado, sem escolha, e o botão de enviar fica bloqueado.
+      await sender.goto(editorUrl.href, { waitUntil: 'networkidle' });
+      await sender
+        .getByRole('button', { name: /enviar documento/i })
+        .filter({ visible: true })
+        .first()
+        .click();
+      await panel.getByText('Aguardando o Financeiro definir a conta').waitFor();
+
+      if ((await panel.getByRole('button').count()) > 0) {
+        throw new Error('NF retida: o bloco não deveria ter botões');
       }
 
-      await sender.getByTestId('invoice-account-card').scrollIntoViewIfNeeded();
+      if (
+        !(await sender
+          .getByRole('dialog')
+          .getByRole('button', { name: /^(enviar|gerar links)$/i })
+          .isDisabled())
+      ) {
+        throw new Error('NF retida: o botão de enviar deveria estar bloqueado');
+      }
+
+      await check('00b2-nf-retida', sender, '[data-testid="invoice-account-panel"]');
+
+      // NF enviada com conta: o cartão só mostra a conta e o estado no Financeiro.
+      await sender.goto(process.env.SENT_INVOICE_URL, { waitUntil: 'networkidle' });
+
+      const sentCard = sender.getByTestId('invoice-account-card');
+
+      await sentCard.getByText('Aguardando aprovação do Financeiro').waitFor();
+
+      if ((await sentCard.getByRole('button').count()) > 0) {
+        throw new Error('NF enviada: o cartão do remetente não deveria ter botões');
+      }
+
+      await sentCard.scrollIntoViewIfNeeded();
       await check('00c-nf-cartao', sender, '[data-testid="invoice-account-card"]');
 
       // Página "Notas fiscais": a tabela rola dentro do quadro, nunca a página. Os toques valem dentro da página (os
@@ -551,7 +615,7 @@ const runBrowser = async () => {
 
       const card = sender.getByTestId('invoice-account-card');
 
-      await card.getByRole('button', { name: 'Deixar para a contabilidade decidir' }).waitFor();
+      await card.getByText('Nenhuma conta escolhida.').waitFor();
       await card.scrollIntoViewIfNeeded();
       await check('00h-nf-marcada', sender, '[data-testid="invoice-account-card"]');
 

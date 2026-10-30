@@ -46,6 +46,12 @@ import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { insertFormValuesInPdf } from '../pdf/insert-form-values-in-pdf';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { computeOriginalHashes, saveOriginalHashes } from '../revalle/document-hashes'; // REVALLE:
+import {
+  assertHeldInvoiceSendable,
+  holdInvoiceForFinance,
+  invoiceHeldForFinanceError,
+  markInvoiceAwaitingApproval,
+} from '../revalle/finance/hold'; // REVALLE:
 import { assertInvoiceChoiceBeforeSend } from '../revalle/invoice/choice'; // REVALLE:
 import { assertUserNotDisabledById } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
@@ -130,10 +136,18 @@ export const sendDocument = async ({ id, userId, teamId, sendEmail, requestMetad
     throw new Error('Can not send completed document');
   }
 
-  // REVALLE: nota fiscal só sai com a conta contábil escolhida (ou deixada para a contabilidade). Só no primeiro
+  // REVALLE: nota fiscal só sai com a conta contábil escolhida (ou deixada para o Financeiro). Só no primeiro
   // envio: reenviar um documento já enviado nunca é bloqueado. Antes da injeção de formValues (que troca o PDF).
-  if (envelope.status === DocumentStatus.DRAFT) {
-    await assertInvoiceChoiceBeforeSend(envelope.id);
+  // "Deixar para o Financeiro" (Fase 6): o envio fica RETIDO (rascunho, sem convites) até o Financeiro definir a conta,
+  // e a resposta é o erro 409 INVOICE_HELD_FOR_FINANCE (nada foi distribuído; a tela mostra como sucesso).
+  const revalleInvoiceSend =
+    envelope.status === DocumentStatus.DRAFT ? await assertInvoiceChoiceBeforeSend(envelope.id) : 'NONE';
+
+  if (revalleInvoiceSend === 'HOLD') {
+    assertHeldInvoiceSendable({ recipients: envelope.recipients, fields: envelope.fields });
+    await holdInvoiceForFinance(envelope.id);
+
+    throw invoiceHeldForFinanceError();
   }
 
   const legacyDocumentId = mapSecondaryIdToDocumentId(envelope.secondaryId);
@@ -237,6 +251,11 @@ export const sendDocument = async ({ id, userId, teamId, sendEmail, requestMetad
     throw new AppError(AppErrorCode.MISSING_SIGNATURE_FIELD, {
       message: `The following recipients are missing required fields: ${missingRecipientDescriptions}. Signers must have at least one signature field.`,
     });
+  }
+
+  // REVALLE: NF com conta sai aguardando a aprovação do Financeiro (antes do atalho de selagem logo abaixo).
+  if (revalleInvoiceSend === 'APPROVAL') {
+    await markInvoiceAwaitingApproval(envelope.id);
   }
 
   const allRecipientsHaveNoActionToTake = envelope.recipients.every(

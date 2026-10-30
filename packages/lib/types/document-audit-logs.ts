@@ -73,6 +73,7 @@ export const ZDocumentAuditLogTypeSchema = z.enum([
   'REVALLE_IDENTITY_SKIPPED',
   'REVALLE_SIGNATURE_STAMPED', // REVALLE: desenhou ou não (carimbo sempre)
   'REVALLE_INVOICE_ACCOUNT_SET', // REVALLE: conta contábil da nota fiscal escolhida/trocada (fora do PDF selado)
+  'REVALLE_FINANCE_ACCOUNT_DEFINED', // REVALLE: o Financeiro definiu a conta da NF retida (já aprovada) e enviou
 ]);
 
 export const ZDocumentAuditLogEmailTypeSchema = z.enum([
@@ -884,7 +885,7 @@ export const ZDocumentAuditLogEventRevalleSignatureStampedSchema = z.object({
   data: z.object({ recipientId: z.number(), signatureKind: z.enum(['IMAGE', 'TYPED', 'NONE']) }),
 });
 
-// REVALLE: conta contábil da nota fiscal (de → para). `*Defer` = "Deixar para a contabilidade decidir"; `null` = nenhuma.
+// REVALLE: conta contábil da nota fiscal (de → para). `*Defer` = "Deixar para o Financeiro"; `null` = nenhuma.
 // `reason: FILES_CHANGED`: a escolha foi apagada porque os arquivos do documento mudaram.
 export const ZDocumentAuditLogEventRevalleInvoiceAccountSetSchema = z.object({
   type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_ACCOUNT_SET),
@@ -895,6 +896,12 @@ export const ZDocumentAuditLogEventRevalleInvoiceAccountSetSchema = z.object({
     toDefer: z.boolean(),
     reason: z.enum(['FILES_CHANGED']).optional(),
   }),
+});
+
+// REVALLE: "Deixar para o Financeiro": quem é do Financeiro definiu a conta (já vale como aprovada) e o documento saiu.
+export const ZDocumentAuditLogEventRevalleFinanceAccountDefinedSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_FINANCE_ACCOUNT_DEFINED),
+  data: z.object({ code: z.string(), name: z.string().nullable() }),
 });
 
 export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
@@ -949,6 +956,7 @@ export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
     ZDocumentAuditLogEventRevalleIdentitySkippedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleSignatureStampedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleInvoiceAccountSetSchema, // REVALLE:
+    ZDocumentAuditLogEventRevalleFinanceAccountDefinedSchema, // REVALLE:
   ]),
 );
 

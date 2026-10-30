@@ -2,6 +2,7 @@ import { prisma } from '@documenso/prisma';
 import {
   DocumentStatus,
   Prisma,
+  RevalleFinanceStatus,
   RevalleInvoiceDetectedBy,
   RevalleInvoiceStatus,
   RevalleSuggestionStatus,
@@ -18,8 +19,9 @@ import { filesKey, loadEnvelopeFiles } from './envelope-files';
  * Documento JÁ ENVIADO (pendente ou concluído) que não ficou como NF (`UNKNOWN`, `NO` ou sem classificação, ex.: NF
  * escaneada enviada sem responder "É nota fiscal?"): o dono ou o admin marca como NF na página do documento.
  * A classificação continua congelada (nada é relido nem reclassificado) e a IA não é chamada: grava `isInvoice = YES`,
- * `detectedBy = SENDER` e quem/quando. A escolha da conta vem em seguida, no mesmo cartão (`setInvoiceChoice`); num
- * documento concluído, é ela que dispara o e-mail da contabilidade. Já marcado como NF: devolve o estado, sem gravar.
+ * `detectedBy = SENDER`, quem/quando e (Fase 6) `PENDING_APPROVAL`: a NF passa pelo Financeiro. A primeira conta vem
+ * em seguida, no mesmo cartão (`setInvoiceChoice`); num documento concluído, é ela que dispara o e-mail da
+ * contabilidade. Já marcado como NF: devolve o estado, sem gravar.
  */
 export const markSentEnvelopeAsInvoice = async ({
   envelopeId,
@@ -65,6 +67,8 @@ export const markSentEnvelopeAsInvoice = async ({
     // Sem IA depois do envio: a sugestão fica de fora.
     suggestionStatus: RevalleSuggestionStatus.SKIPPED,
     suggestion: Prisma.DbNull,
+    // Fase 6: NF marcada depois do envio também passa pelo Financeiro.
+    financeStatus: RevalleFinanceStatus.PENDING_APPROVAL,
   };
 
   if (row) {

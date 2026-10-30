@@ -187,7 +187,8 @@ const settleSuggestion = async (envelopeId, accountCode) => {
 
 // Cria o documento, escolhe a conta (se `choice`), envia, passa pelo portão e conclui (ou recusa, com `reject`).
 // `suggestion`: undefined = não pede sugestão; string = o servidor falso sugere essa conta; null = a sugestão falha.
-const completeDocument = async ({ label, pdf, choice, meta, reject = false, suggestion }) => {
+// `afterSend(id)`: roda logo depois do envio (ex.: simular no banco uma NF de antes da Fase 6).
+const completeDocument = async ({ label, pdf, choice, meta, reject = false, suggestion, afterSend }) => {
   const email = `nf-email-${label}-${RUN}@revalle.com.br`;
   const title = `[TESTE NF] email ${label} ${RUN}`;
   const created = await retryCreateOnStaleSocket(() => createEnvelope({ recipients: [{ email }], pdf, title, meta }));
@@ -208,6 +209,9 @@ const completeDocument = async ({ label, pdf, choice, meta, reject = false, sugg
   }
 
   const [recipient] = await distribute(created.id);
+
+  afterSend?.(created.id);
+
   const documentId = Number.parseInt(created.envelope.secondaryId.split('_')[1], 10);
   const field = created.envelope.fields.find((f) => f.recipientId === recipient.id && f.type === 'SIGNATURE');
 
@@ -456,16 +460,28 @@ sessionTest('reselagem pelo admin não reenvia e não mexe em accountingEmailSen
   );
 });
 
-sessionTest('"Deixar para a contabilidade decidir": assunto e corpo com a definir pela contabilidade', async () => {
-  const doc = await completeDocument({ label: 'defer', pdf: await danfe('defer'), choice: { defer: true } });
+// Fase 6: "Deixar para o Financeiro" retém o envio até o Financeiro definir a conta, então uma NF só termina sem conta
+// se for de antes da Fase 6 (`LEGACY`, escolhida como "deixar para a contabilidade"): simulada no banco depois do envio.
+const legacyDeferred = (envelopeId) =>
+  db(
+    `update "RevalleInvoiceClassification" set "choiceCode" = null, "choiceDefer" = true, "acceptedSuggestion" = null, "financeStatus" = 'LEGACY' where "envelopeId" = '${envelopeId}'`,
+  );
+
+sessionTest('NF sem conta de antes da Fase 6: assunto e corpo com a definir pelo Financeiro', async () => {
+  const doc = await completeDocument({
+    label: 'defer',
+    pdf: await danfe('defer'),
+    choice: { code: '2.1.03' },
+    afterSend: legacyDeferred,
+  });
   const messages = await waitAccountingMail(doc);
 
   assert.equal(messages.length, 1);
-  assert.equal(messages[0].Subject, `Nota fiscal assinada: ${doc.title} · Conta: a definir pela contabilidade`);
+  assert.equal(messages[0].Subject, `Nota fiscal assinada: ${doc.title} · Conta: a definir pelo Financeiro`);
 
   const text = await bodyOf(messages[0]);
 
-  assert.ok(text.includes('Conta: a definir pela contabilidade'), text);
+  assert.ok(text.includes('Conta: a definir pelo Financeiro'), text);
   assert.ok(!text.includes('Conta contábil:'), text);
   assert.ok(!text.includes(ORIGIN_ACCEPTED) && !text.includes(ORIGIN_CHOSEN), text);
 });
@@ -493,7 +509,7 @@ sessionTest('NF recusada: nenhum e-mail para a contabilidade', async () => {
   const doc = await completeDocument({
     label: 'recusada',
     pdf: await danfe('recusada'),
-    choice: { defer: true },
+    choice: { code: '2.1.03' },
     reject: true,
   });
 
@@ -506,7 +522,7 @@ sessionTest('sem e-mail da contabilidade configurado: nenhum e-mail', async () =
   await settings('');
 
   try {
-    const doc = await completeDocument({ label: 'sem', pdf: await danfe('sem'), choice: { defer: true } });
+    const doc = await completeDocument({ label: 'sem', pdf: await danfe('sem'), choice: { code: '2.1.03' } });
 
     await sleep(5000);
     assert.equal((await accountingMails(doc)).length, 0);
@@ -566,14 +582,15 @@ sessionTest(
     assert.equal(attachmentCount(await readMessage(messages[0].ID)), 1);
     assert.equal(sentAt(doc.id), 't');
 
-    // Trocar a conta depois (dono e admin) e marcar de novo não reenviam.
+    // Fase 6: depois da primeira conta, o dono e o admin não trocam mais (quem troca é o Financeiro); marcar de novo
+    // não reenvia.
     for (const [cookie, choice] of [
       [userCookie, { code: '2.1.03' }],
       [adminCookie, { defer: true }],
     ]) {
       const changed = await trpcAs(cookie, 'mutation', 'revalle.invoice.setChoice', { envelopeId: doc.id, choice });
 
-      assert.equal(changed.status, 200, changed.text);
+      assert.equal(changed.status, 403, changed.text);
     }
 
     assert.equal(

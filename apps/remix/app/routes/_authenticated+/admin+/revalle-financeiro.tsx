@@ -48,6 +48,8 @@ export default function AdminRevalleFinanceiroPage() {
   };
 
   const users = data?.users ?? [];
+  const awaitingCount = data?.awaitingAccountCount ?? 0;
+  const hasNoMembers = data?.memberCount === 0;
 
   return (
     <div>
@@ -64,6 +66,18 @@ export default function AdminRevalleFinanceiroPage() {
           mudança vale na hora.
         </Trans>
       </p>
+
+      {hasNoMembers && awaitingCount > 0 && (
+        <p
+          role="alert"
+          className="mt-4 max-w-2xl rounded-md border border-amber-500/50 bg-amber-50 p-3 text-amber-800 text-sm dark:bg-amber-950/30 dark:text-amber-300"
+        >
+          <Trans>
+            Notas fiscais aguardando o Financeiro definir a conta: {awaitingCount}. Ninguém está marcado como
+            Financeiro: marque alguém abaixo para que essas notas possam ser enviadas.
+          </Trans>
+        </p>
+      )}
 
       <Input
         className="mt-6 max-w-sm"

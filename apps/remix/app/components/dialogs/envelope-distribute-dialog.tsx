@@ -41,6 +41,10 @@ import { useNavigate } from 'react-router';
 import { match } from 'ts-pattern';
 import * as z from 'zod';
 import { InvoiceAccountPanel } from '~/components/revalle/invoice/invoice-account-panel'; // REVALLE:
+import {
+  INVOICE_HELD_FOR_FINANCE_TOAST,
+  isInvoiceHeldForFinance,
+} from '~/components/revalle/invoice/invoice-held-toast'; // REVALLE:
 import { getDistributeErrorMessage } from '~/utils/toast-error-messages';
 
 export type EnvelopeDistributeDialogProps = {
@@ -203,6 +207,20 @@ export const EnvelopeDistributeDialog = ({
       setIsOpen(false);
     } catch (err) {
       const error = AppError.parseError(err);
+
+      // REVALLE: NF "Deixar para o Financeiro": envio retido (o rascunho fica; os convites saem depois).
+      if (isInvoiceHeldForFinance(error.code)) {
+        toast({
+          title: i18n._(INVOICE_HELD_FOR_FINANCE_TOAST.title),
+          description: i18n._(INVOICE_HELD_FOR_FINANCE_TOAST.description),
+          duration: 7500,
+        });
+
+        setIsOpen(false);
+        await navigate(documentRootPath);
+
+        return;
+      }
 
       analytics.captureException(err, {
         source: 'editor',

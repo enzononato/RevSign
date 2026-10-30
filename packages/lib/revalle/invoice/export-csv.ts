@@ -1,7 +1,7 @@
 import { formatRevalleDateTime } from '../date-format';
 
 export const INVOICE_DEFER_CHOICE = 'DEFER';
-export const INVOICE_DEFER_LABEL = 'a definir pela contabilidade';
+export const INVOICE_DEFER_LABEL = 'a definir pelo Financeiro';
 
 export type InvoiceExportRow = {
   id: number | string;

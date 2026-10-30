@@ -715,7 +715,7 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
     // REVALLE:
     .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_ACCOUNT_SET }, ({ data }) => {
       const label = (code: string | null, defer: boolean) =>
-        defer ? i18n._(msg`deixar para a contabilidade decidir`) : (code ?? '');
+        defer ? i18n._(msg`deixar para o Financeiro`) : (code ?? '');
       const from = label(data.fromCode, data.fromDefer);
       const to = label(data.toCode, data.toDefer);
       const text =
@@ -724,6 +724,13 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
           : from
             ? msg`Conta contábil trocada: ${from} → ${to}`
             : msg`Conta contábil escolhida: ${to}`;
+
+      return { anonymous: text, you: text, user: text };
+    })
+    // REVALLE:
+    .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_FINANCE_ACCOUNT_DEFINED }, ({ data }) => {
+      const account = data.name ? `${data.code} – ${data.name}` : data.code;
+      const text = msg`Conta contábil definida pelo Financeiro: ${account} (já aprovada)`;
 
       return { anonymous: text, you: text, user: text };
     })

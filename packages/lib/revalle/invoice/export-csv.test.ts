@@ -44,12 +44,12 @@ describe('buildInvoiceExportCsv', () => {
     expect(csv).toContain('42;"NF; ""teste""\nfim";Maria');
   });
 
-  it('mostra DEFER como a definir pela contabilidade', () => {
+  it('mostra DEFER como a definir pelo Financeiro', () => {
     const csv = buildInvoiceExportCsv([
       { ...baseRow, choice: 'DEFER', accountName: null, accountKind: null, acceptedSuggestion: false },
     ]);
 
-    expect(lines(csv)[1]).toContain(';a definir pela contabilidade;;;');
+    expect(lines(csv)[1]).toContain(';a definir pelo Financeiro;;;');
     expect(lines(csv)[1]).not.toContain('DEFER');
     expect(lines(csv)[1]).toContain(';não;');
   });

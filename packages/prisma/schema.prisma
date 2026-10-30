@@ -1468,6 +1468,8 @@ model RevalleInvoiceClassification {
   /// Quem do Financeiro aprovou (ou definiu) a conta e quando (sem FK, como choiceById).
   approvedById           Int?
   approvedAt             DateTime?
+  /// "Deixar para o Financeiro": quando o e-mail "aguardando o Financeiro" saiu para os membros (um por retenção).
+  accountRequestedAt     DateTime?
   /// Versão substituída por outra com a conta trocada pelo Financeiro: quando, quem, o motivo e a nova versão.
   supersededAt           DateTime?
   supersededById         Int?

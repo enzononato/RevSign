@@ -16,7 +16,7 @@ import type { TRevalleSendInvoiceAccountingEmailJobDefinition } from './revalle-
 export const buildInvoiceAccountingSubject = (title: string, account: { code: string; name: string } | null) =>
   account
     ? `Nota fiscal assinada: ${title} · Conta ${account.code} – ${account.name}`
-    : `Nota fiscal assinada: ${title} · Conta: a definir pela contabilidade`;
+    : `Nota fiscal assinada: ${title} · Conta: a definir pelo Financeiro`;
 
 /**
  * Envia o PDF selado da nota fiscal concluída para a contabilidade, uma única vez por documento.
@@ -66,7 +66,7 @@ export const run = async ({
     return;
   }
 
-  // Sem escolha (documento antigo que chegou ao fim sem conta) segue o texto de "a contabilidade decide".
+  // Sem escolha (documento antigo que chegou ao fim sem conta) segue o texto de "a definir pelo Financeiro".
   const account =
     !classification.choiceDefer && classification.choiceCode
       ? await prisma.revalleAccountingAccount.findUnique({
@@ -102,7 +102,7 @@ export const run = async ({
     senderEmail: envelope.user.email,
     completedAt: formatRevalleDateTime(envelope.completedAt ?? new Date(), { withZoneLabel: true }),
     account: account ? `${account.code} – ${account.name}` : null,
-    // "Escolhida pelo remetente" só faz sentido quando há conta; "deixar para a contabilidade" não tem linha de origem.
+    // "Escolhida pelo remetente" só faz sentido quando há conta; "deixar para o Financeiro" não tem linha de origem.
     origin: !account
       ? null
       : classification.acceptedSuggestion === true

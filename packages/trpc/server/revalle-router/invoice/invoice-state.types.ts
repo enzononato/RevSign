@@ -26,6 +26,7 @@ export const ZInvoiceStateSchema = z.object({
     ])
     .nullable(),
   choice: z.object({ code: z.string(), name: z.string().optional() }).nullable(),
+  financeStatus: z.enum(['AWAITING_ACCOUNT', 'PENDING_APPROVAL', 'APPROVED', 'SUPERSEDED', 'LEGACY']).nullable(),
   aiAvailable: z.boolean(),
 });
 

@@ -21,7 +21,7 @@ export const shouldEmailInvoiceAccounting = async (envelopeId: string): Promise<
 
 /**
  * Documento JÁ CONCLUÍDO marcado como NF depois do envio (ex.: NF escaneada enviada sem resposta): quando a conta
- * (ou "Deixar para a contabilidade decidir") é gravada, a contabilidade recebe o e-mail que não saiu na conclusão.
+ * (ou "Deixar para o Financeiro", NF de antes da Fase 6) é gravada, a contabilidade recebe o e-mail que não saiu na conclusão.
  * O job reserva `accountingEmailSentAt` antes de enviar: uma NF gera no máximo um e-mail, e trocar a conta de uma NF
  * já avisada não reenvia. Sem escolha, nada sai (a tela exige a escolha logo depois de marcar).
  */

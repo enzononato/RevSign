@@ -319,7 +319,7 @@ export default function InvoicesPage() {
 
 const InvoiceTableRow = ({ row }: { row: InvoiceRow }) => {
   const account = row.deferred ? (
-    <Trans>A definir pela contabilidade</Trans>
+    <Trans>A definir pelo Financeiro</Trans>
   ) : row.account ? (
     <span>
       <span className="font-mono">{row.account.code}</span>

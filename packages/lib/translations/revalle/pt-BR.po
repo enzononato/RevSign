@@ -4415,9 +4415,6 @@ msgstr "Ver prévia"
 
 # REVALLE: Fase 5, escolha da conta contábil no envio da nota fiscal (msgids já em pt-BR).
 
-msgid "A definir pela contabilidade."
-msgstr "A definir pela contabilidade."
-
 msgid "Buscando sugestão…"
 msgstr "Buscando sugestão…"
 
@@ -4442,20 +4439,8 @@ msgstr "Conta contábil trocada: {from} → {to}"
 msgid "Conta escolhida: {choiceCode} · {choiceName}"
 msgstr "Conta escolhida: {choiceCode} · {choiceName}"
 
-msgid "deixar para a contabilidade decidir"
-msgstr "deixar para a contabilidade decidir"
-
-msgid "Deixar para a contabilidade decidir"
-msgstr "Deixar para a contabilidade decidir"
-
 msgid "Desfazer"
 msgstr "Desfazer"
-
-msgid "Escolha a conta contábil ou deixe para a contabilidade decidir."
-msgstr "Escolha a conta contábil ou deixe para a contabilidade decidir."
-
-msgid "Escolha: deixar para a contabilidade decidir"
-msgstr "Escolha: deixar para a contabilidade decidir"
 
 msgid "Este documento é uma nota fiscal?"
 msgstr "Este documento é uma nota fiscal?"
@@ -4523,9 +4508,6 @@ msgstr "Concluído em {completedAt}"
 msgid "Conta contábil: {account}"
 msgstr "Conta contábil: {account}"
 
-msgid "Conta: a definir pela contabilidade"
-msgstr "Conta: a definir pela contabilidade"
-
 msgid "Documento: {documentName}"
 msgstr "Documento: {documentName}"
 
@@ -4548,9 +4530,6 @@ msgstr "{count} notas fiscais"
 
 msgid "1 nota fiscal"
 msgstr "1 nota fiscal"
-
-msgid "A definir pela contabilidade"
-msgstr "A definir pela contabilidade"
 
 msgid "Anterior"
 msgstr "Anterior"
@@ -4687,3 +4666,65 @@ msgstr "Quem é do Financeiro vê todas as notas fiscais e aprova a conta contá
 
 msgid "Todas as notas fiscais enviadas para assinatura (você é do Financeiro)."
 msgstr "Todas as notas fiscais enviadas para assinatura (você é do Financeiro)."
+
+# REVALLE: Fase 6, "Deixar para o Financeiro", envio retido e estado no cartão do remetente (msgids já em pt-BR).
+
+msgid "A definir pelo Financeiro"
+msgstr "A definir pelo Financeiro"
+
+msgid "A definir pelo Financeiro."
+msgstr "A definir pelo Financeiro."
+
+msgid "Abrir Notas fiscais"
+msgstr "Abrir Notas fiscais"
+
+msgid "Aguardando aprovação do Financeiro"
+msgstr "Aguardando aprovação do Financeiro"
+
+msgid "Aguardando o Financeiro definir a conta"
+msgstr "Aguardando o Financeiro definir a conta"
+
+msgid "Aprovada pelo Financeiro"
+msgstr "Aprovada pelo Financeiro"
+
+msgid "Conta contábil definida pelo Financeiro: {account} (já aprovada)"
+msgstr "Conta contábil definida pelo Financeiro: {account} (já aprovada)"
+
+msgid "Conta: a definir pelo Financeiro"
+msgstr "Conta: a definir pelo Financeiro"
+
+msgid "deixar para o Financeiro"
+msgstr "deixar para o Financeiro"
+
+msgid "Deixar para o Financeiro"
+msgstr "Deixar para o Financeiro"
+
+msgid "Enviado para o Financeiro definir a conta. Os convites saem depois disso."
+msgstr "Enviado para o Financeiro definir a conta. Os convites saem depois disso."
+
+msgid "Escolha a conta contábil ou deixe para o Financeiro."
+msgstr "Escolha a conta contábil ou deixe para o Financeiro."
+
+msgid "Escolha a conta contábil. Depois, quem aprova ou troca é o Financeiro."
+msgstr "Escolha a conta contábil. Depois, quem aprova ou troca é o Financeiro."
+
+msgid "Escolha: deixar para o Financeiro"
+msgstr "Escolha: deixar para o Financeiro"
+
+msgid "Nota fiscal aguardando o Financeiro: {documentName}"
+msgstr "Nota fiscal aguardando o Financeiro: {documentName}"
+
+msgid "Nota fiscal enviada para o Financeiro"
+msgstr "Nota fiscal enviada para o Financeiro"
+
+msgid "Notas fiscais aguardando o Financeiro definir a conta: {awaitingCount}. Ninguém está marcado como Financeiro: marque alguém abaixo para que essas notas possam ser enviadas."
+msgstr "Notas fiscais aguardando o Financeiro definir a conta: {awaitingCount}. Ninguém está marcado como Financeiro: marque alguém abaixo para que essas notas possam ser enviadas."
+
+msgid "O remetente escolheu \"Deixar para o Financeiro\". Os convites para assinar só saem depois que alguém do Financeiro definir a conta."
+msgstr "O remetente escolheu \"Deixar para o Financeiro\". Os convites para assinar só saem depois que alguém do Financeiro definir a conta."
+
+msgid "Os convites saem depois que o Financeiro definir a conta."
+msgstr "Os convites saem depois que o Financeiro definir a conta."
+
+msgid "Uma nota fiscal aguarda o Financeiro definir a conta contábil"
+msgstr "Uma nota fiscal aguarda o Financeiro definir a conta contábil"

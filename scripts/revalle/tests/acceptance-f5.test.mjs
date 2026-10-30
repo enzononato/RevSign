@@ -2,7 +2,8 @@
 // ponta, na ordem do plano:
 //   1. o admin importa 4 contas e define o prompt e o e-mail da contabilidade;
 //   2. um remetente da empresa (conta nova, criada pelo teste) sobe um DANFE fictício; a sugestão sai e ele aceita;
-//   3. segundo documento: NFS-e com "Deixar para a contabilidade decidir";
+//   3. segundo documento: NFS-e sem conta (Fase 6: "Deixar para o Financeiro" retém o envio, então a NFS-e é uma NF
+//      de antes da Fase 6, deixada para a contabilidade, simulada no banco logo depois do envio);
 //   4. terceiro documento: contrato comum;
 //   5. dois signatários assinam cada NF (portão + código por e-mail); as NFs são concluídas;
 //   6. a página "Notas fiscais" (rota `revalle.invoice.find`) lista as 2 NFs para o remetente, 0 para um terceiro
@@ -270,8 +271,11 @@ const waitStatus = async (envelopeId, wanted) => {
 };
 
 // Portão (termo, CPF + data de nascimento da Maria fictícia, "sou eu"), assinatura e conclusão com o código.
-const signAll = async (doc) => {
+// `afterSend(id)`: roda logo depois do envio.
+const signAll = async (doc, { afterSend } = {}) => {
   const recipients = await distribute(doc.id, { apiToken: fx.senderToken });
+
+  afterSend?.(doc.id);
   const documentId = Number.parseInt(doc.envelope.secondaryId.split('_')[1], 10);
 
   for (const recipient of recipients) {
@@ -399,7 +403,8 @@ before(async () => {
     await setChoice(fx.danfe.id, { code: '4.1.07' });
   }
 
-  // 3. NFS-e: "Deixar para a contabilidade decidir", sem sugestão (o servidor falso responde erro).
+  // 3. NFS-e sem sugestão (o servidor falso responde erro), enviada com uma conta e convertida depois do envio numa NF
+  //    de antes da Fase 6 deixada para a contabilidade (`LEGACY`, sem conta).
   fx.nfse = await create({
     label: 'NFS-e',
     pdf: await nfsePdf(),
@@ -410,7 +415,7 @@ before(async () => {
     await fake('/__program', { mode: 'error' });
   }
 
-  await setChoice(fx.nfse.id, { defer: true });
+  await setChoice(fx.nfse.id, { code: '4.2.19' });
 
   if (fakeUp) {
     assert.equal((await waitSuggestion(fx.nfse.id)).suggestionStatus, 'FAILED');
@@ -426,7 +431,12 @@ before(async () => {
 
   // 5. Dois signatários em cada NF.
   // A NFS-e (criada depois) é enviada ANTES do DANFE: a ordem por data de envio difere da ordem de criação.
-  await signAll(fx.nfse);
+  await signAll(fx.nfse, {
+    afterSend: (id) =>
+      db(
+        `update "RevalleInvoiceClassification" set "choiceCode" = null, "choiceDefer" = true, "acceptedSuggestion" = null, "financeStatus" = 'LEGACY' where "envelopeId" = '${id}'`,
+      ),
+  });
   await signAll(fx.danfe);
 
   fx.ready = true;
@@ -576,7 +586,7 @@ testStep('7. planilha: BOM, cabeçalho exato, 2 linhas com as contas certas, fil
 
   const nfse = cells(fx.nfse.id);
 
-  assert.equal(nfse.conta, 'a definir pela contabilidade');
+  assert.equal(nfse.conta, 'a definir pelo Financeiro');
   assert.equal(nfse.nome_conta, '');
   assert.equal(nfse.tipo, '');
   assert.equal(nfse.sugestao_ia, '');
@@ -641,7 +651,7 @@ testStep('8. a contabilidade recebeu 2 e-mails (um por NF)', async () => {
     subjects,
     [
       `Nota fiscal assinada: ${fx.danfe.title} · Conta 4.1.07 – Fornecedores Aceite Cinco`,
-      `Nota fiscal assinada: ${fx.nfse.title} · Conta: a definir pela contabilidade`,
+      `Nota fiscal assinada: ${fx.nfse.title} · Conta: a definir pelo Financeiro`,
     ].sort(),
   );
 
@@ -688,7 +698,7 @@ testStep('10. o PDF selado (com certificado e log) não tem o número nem o nome
       assert.ok(!text.includes(account.name), `${doc.title}: o PDF tem o nome ${account.name}`);
     }
 
-    assert.ok(!text.includes('a definir pela contabilidade'), `${doc.title}: o PDF fala da contabilidade`);
+    assert.ok(!text.includes('a definir pelo Financeiro'), `${doc.title}: o PDF fala da conta a definir`);
     assert.ok(!/conta cont[aá]bil/i.test(text), `${doc.title}: o PDF fala de conta contábil`);
   }
 });

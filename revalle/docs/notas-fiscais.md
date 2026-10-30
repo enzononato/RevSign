@@ -6,7 +6,7 @@ Guia para o Enzo e para a TI. Explica como configurar a sugestão de conta cont�
 ## Como funciona, em uma frase
 
 Quando alguém envia uma nota fiscal (NF) para assinatura, o RevSign percebe que é uma NF, pede ao Gemini (Google) uma
-sugestão de conta contábil e obriga o remetente a escolher a conta (ou "Deixar para a contabilidade decidir") antes de
+sugestão de conta contábil e obriga o remetente a escolher a conta (ou "Deixar para o Financeiro") antes de
 enviar. Quando todos assinam, a contabilidade recebe o PDF assinado por e-mail.
 
 - A conta **não** entra no PDF assinado, no carimbo nem no certificado. Ela pode ser trocada depois sem mexer na prova.
@@ -84,23 +84,27 @@ o mesmo PDF for enviado de novo, a sugestão vem do cache, sem nova chamada. Por
 1. Ele sobe o PDF e clica em **Enviar documento**. Se for NF, o diálogo mostra o bloco **Nota fiscal · Conta contábil**.
 2. Enquanto a IA pensa, aparece "Buscando sugestão…" (até uns 20 segundos). Depois, a sugestão com o motivo e o
    botão **Usar sugestão**. Ele também pode buscar outra conta na lista (por número ou nome) ou escolher **Deixar para
-   a contabilidade decidir**.
-3. O botão **Enviar** só libera depois da escolha.
+   o Financeiro**.
+3. O botão **Enviar** só libera depois da escolha. Com uma conta, o documento sai e a NF fica aguardando a aprovação do
+   Financeiro. Com **Deixar para o Financeiro**, o envio fica **retido**: o documento continua rascunho, nenhum convite
+   sai, a tela avisa "Enviado para o Financeiro definir a conta. Os convites saem depois disso." e os membros do
+   Financeiro recebem o e-mail "Nota fiscal aguardando o Financeiro: {título}". Quando alguém do Financeiro define a
+   conta, o RevSign envia o documento em nome do dono (a conta já conta como aprovada).
 4. Se o RevSign não tiver certeza (PDF escaneado, sem texto), pergunta "Este documento é uma nota fiscal?" e o botão
    **Enviar** fica bloqueado até a resposta ("Responda para enviar"). Com "Sim", o PDF vai para a IA e a conta é
    escolhida como numa NF comum; com "Não", o documento segue como um documento comum. Se o RevSign errou e não é NF,
    há o botão **Não é nota fiscal**.
 5. Depois do envio, a página do documento mostra ao dono e ao admin:
-   - numa NF, o cartão **Conta contábil**, onde ele troca a conta. Cada troca fica no histórico do documento (não no
-     PDF);
+   - numa NF, o cartão **Conta contábil**, só de leitura: a conta e a situação no Financeiro ("Aguardando aprovação
+     do Financeiro", "Aprovada pelo Financeiro"). Depois do envio, quem troca a conta é o Financeiro;
    - num PDF escaneado enviado sem a resposta (pela API), o cartão **Conta contábil** com a pergunta "Este documento é
      uma nota fiscal?" e o botão **Marcar como nota fiscal**;
    - num documento comum (ou numa NF enviada antes desta versão), só uma linha discreta: "É uma nota fiscal?
      **Marcar como nota fiscal**". Nada de cartão, para não pesar na página de cada contrato.
 
-   Marcar coloca o documento no fluxo, sem chamar a IA; em seguida o cartão pede a conta (ou "Deixar para a
-   contabilidade decidir"). Se o documento já estava **concluído**, a contabilidade recebe o e-mail assim que a conta é
-   escolhida (uma vez só).
+   Marcar coloca o documento no fluxo, sem chamar a IA, aguardando a aprovação do Financeiro; em seguida o cartão pede
+   a conta (só a primeira escolha; depois, quem troca é o Financeiro). Se o documento já estava **concluído**, a
+   contabilidade recebe o e-mail assim que a conta é escolhida (uma vez só).
 6. No menu, **Notas fiscais** lista as NFs que ele enviou ou que chegaram para ele assinar.
 
 **NF enviada pela API ou por modelo:** o documento é criado, mas o envio é recusado (`INVOICE_ACCOUNT_REQUIRED`) até a
@@ -127,7 +131,7 @@ coluna `status` diz `excluído pelo remetente`.
 
 A lista vem da mais recente para a mais antiga pela **data de envio**.
 
-Colunas: título, remetente, data de envio, status, conta (número · nome, ou "A definir pela contabilidade") e
+Colunas: título, remetente, data de envio, status, conta (número · nome, ou "A definir pelo Financeiro", numa NF de antes da Fase 6) e
 "Sugestão aceita?" (Sim, Não ou "sem sugestão", quando não havia sugestão na hora da escolha).
 
 Filtros: período de envio (dias no horário de Brasília), status, número da conta e "Só as deixadas para a
@@ -145,7 +149,7 @@ O arquivo abre direto no Excel (separador `;`, UTF-8 com BOM). Colunas:
 | `enviado_em` | Data e hora do envio (Brasília, `dd/mm/aaaa hh:mm`) |
 | `concluido_em` | Data e hora em que todos assinaram (vazio se ainda não concluiu) |
 | `status` | Pendente, Concluído, Recusado, Cancelado, ou `excluído pelo remetente` (só na planilha do admin) |
-| `conta` | Número da conta, ou `a definir pela contabilidade` |
+| `conta` | Número da conta, ou `a definir pelo Financeiro` (NF de antes da Fase 6 deixada para a contabilidade) |
 | `nome_conta` | Nome da conta (vazio quando ficou para a contabilidade) |
 | `tipo` | `pagar`, `receber` ou vazio |
 | `sugestao_ia` | Número da conta que a IA sugeriu (vazio se não houve sugestão) |
