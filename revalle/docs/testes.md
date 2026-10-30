@@ -126,6 +126,31 @@ node --test --test-concurrency=1 scripts/revalle/tests/acceptance-f4.test.mjs
 - Vínculos: o vínculo e-mail ↔ CPF é permanente e o CPF é único. Por isso cada execução usa e-mails novos para os signatários 2 e 3 e solta antes os vínculos dos CPFs fictícios 8 e 9. O remetente fica vinculado ao CPF fictício 7; se outro teste soltar esse vínculo, o aceite o refaz com um documento descartável (que ele mesmo exclui).
 - Esperado: todos os testes `ok`, nenhum `skipped` no arquivo do aceite.
 
+## Aceite da Fase 5
+
+`scripts/revalle/tests/acceptance-f5.test.mjs` é o aceite das notas fiscais (spec §8, §9 e §11), de ponta a ponta:
+
+1. o admin (`REVSIGN_ADMIN_*`) importa 4 contas próprias do teste e grava um prompt e um e-mail da contabilidade novo a cada execução;
+2. um remetente da empresa sobe um DANFE fictício; com o servidor falso do Gemini a sugestão sai e ele aceita (sem o servidor falso, escolhe a mesma conta na lista);
+3. uma NFS-e com "Deixar para a contabilidade decidir" (o servidor falso responde erro: fica sem sugestão);
+4. um contrato comum (`assets/example.pdf`), enviado e deixado pendente;
+5. dois signatários assinam cada NF (portão com a Maria fictícia + código por e-mail) e as NFs são concluídas;
+6. `revalle.invoice.find`: 2 NFs para o remetente, 0 para um terceiro sem envolvimento, só a NF em que é signatário para um colega (destinatário pelo e-mail), as 2 para o admin (contrato fora); filtros de período, status, conta e "deixadas"; `/notas-fiscais` abre com sessão e manda para o login sem;
+7. `/notas-fiscais/csv`: `text/csv; charset=utf-8`, `notas-fiscais-AAAA-MM-DD.csv` (data de Brasília), BOM, cabeçalho exato, 2 linhas com as contas certas (`aceitou_sugestao` e `sugestao_ia` vazios sem sugestão); os mesmos filtros da tela; terceiro = só o cabeçalho; sem sessão = login; filtro inválido = 400;
+8. 2 e-mails para a contabilidade, com os assuntos exatos (nenhum para o contrato);
+9. `/privacidade` tem a frase exata da spec §9;
+10. o PDF selado das duas NFs (com o certificado e o log de auditoria anexados) não tem o número, o nome da conta nem "conta contábil" (`pdftotext` pelo `helpers.poppler`).
+
+O remetente, o terceiro e o colega são **contas novas a cada execução** (`f5-…@revalle.com.br`: cadastro, confirmação pelo link do Mailpit e login, como em `branding.test.mjs`); o token de API do remetente é criado pela rota `apiToken.create` da sessão dele. O prompt e o e-mail da contabilidade anteriores voltam no final. A lista de contas fica com as 4 do aceite (os outros testes de NF importam a própria).
+
+```sh
+REVSIGN_API_TOKEN=api_... REVSIGN_ADMIN_EMAIL=... REVSIGN_ADMIN_PASSWORD=... \
+node --test --test-concurrency=1 scripts/revalle/tests/acceptance-f5.test.mjs
+```
+
+- Rode com a stack subida com o `compose.test.yml` (caminho da IA) e também sem ele; os dois caminhos devem passar.
+- O limite de 10.000 linhas da planilha não é exercitado aqui (exigiria criar 10.001 notas); ele está no código (`exportInvoicesCsv`) e no texto da tela.
+
 ## Teste de fumaça (smoke)
 
 Cria um documento, envia, passa pelo portão, assina, espera a selagem e baixa o PDF original e o final.
@@ -168,7 +193,7 @@ sh scripts/revalle/inspect-pdf-signature.sh smoke-output/final.pdf --full   # es
 - todo botão visível (`button` ou `role=button`) com pelo menos 44 px de altura (caixa de seleção vale pela área do `<label>` dela);
 - nada cortado para fora da tela à direita.
 
-Com `REVSIGN_USER_EMAIL` e `REVSIGN_USER_PASSWORD` (sessão do dono do token), antes do caminho de quem assina ele também confere o **envio de uma nota fiscal fictícia** no celular: abre o editor, o diálogo de envio com o bloco "Nota fiscal · Conta contábil" (`00a-nf-envio.png`), escolhe "Deixar para a contabilidade decidir" (`00b-nf-escolhida.png`), envia e confere o cartão "Conta contábil" da página do documento (`00c-nf-cartao.png`). Nesses três passos a conferência vale só dentro do bloco da nota fiscal e do cartão: o editor do upstream não foi feito para celular (a 360 px a página passa da largura da tela e as abas "E-mail"/"Nenhum" do diálogo de envio têm 32 px). A sessão vai para o container pelo ambiente, nunca na linha de comando. Sem essas variáveis, o passo é pulado.
+Com `REVSIGN_USER_EMAIL` e `REVSIGN_USER_PASSWORD` (sessão do dono do token), antes do caminho de quem assina ele também confere o **envio de uma nota fiscal fictícia** no celular: abre o editor, o diálogo de envio com o bloco "Nota fiscal · Conta contábil" (`00a-nf-envio.png`), escolhe "Deixar para a contabilidade decidir" (`00b-nf-escolhida.png`), envia e confere o cartão "Conta contábil" da página do documento (`00c-nf-cartao.png`). Nesses três passos a conferência vale só dentro do bloco da nota fiscal e do cartão: o editor do upstream não foi feito para celular (a 360 px a página passa da largura da tela e as abas "E-mail"/"Nenhum" do diálogo de envio têm 32 px). Depois abre a página **Notas fiscais** do remetente (`00d-notas-fiscais.png`), conferida assim: filtros e botões da página com 44 px e nenhuma rolagem horizontal da página inteira (a tabela rola dentro do próprio quadro). Os ícones de busca e menu do cabeçalho do upstream (24 px) ficam fora dessa conferência. A sessão vai para o container pelo ambiente, nunca na linha de comando. Sem essas variáveis, o passo é pulado.
 
 ```sh
 REVSIGN_API_TOKEN=api_... node scripts/revalle/mobile-check.mjs /tmp/prints-celular

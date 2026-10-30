@@ -82,6 +82,10 @@ const waitMail = async (to, timeoutMs = 30_000) => {
   return [];
 };
 
+// Na busca do Mailpit `Attachments` é um número; na mensagem completa, a lista de anexos.
+const attachmentCount = (message) =>
+  Array.isArray(message.Attachments) ? message.Attachments.length : Number(message.Attachments ?? 0);
+
 const readMessage = (id) => fetchIdempotent(`${MAILPIT}/message/${id}`, {}, (res) => res.json());
 
 const readPart = (id, partId) =>
@@ -333,7 +337,7 @@ sessionTest(
     assert.ok(!text.includes(ORIGIN_ACCEPTED) && !text.includes(ORIGIN_CHOSEN), text);
 
     // Mesmos arquivos dos participantes: o PDF selado de cada item.
-    assert.equal(mail.Attachments.length, 1, JSON.stringify(mail.Attachments));
+    assert.equal(attachmentCount(mail), 1, JSON.stringify(mail.Attachments));
     assert.equal(mail.Attachments[0].ContentType, 'application/pdf');
 
     const pdf = await readPart(messages[0].ID, mail.Attachments[0].PartID);
@@ -448,7 +452,7 @@ sessionTest('e-mails dos participantes desligados: a contabilidade recebe mesmo 
 
   // Confere que o e-mail de conclusão dos participantes de fato não saiu (nenhum e-mail com anexo ao signatário).
   await sleep(3000);
-  assert.equal((await emailsTo(doc.email)).filter((m) => m.Attachments > 0).length, 0);
+  assert.equal((await emailsTo(doc.email)).filter((m) => attachmentCount(m) > 0).length, 0);
 
   const messages = await waitAccountingMail(doc);
 

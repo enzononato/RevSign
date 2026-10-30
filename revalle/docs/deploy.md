@@ -260,6 +260,23 @@ Vale para quem atualiza uma instalação que já está em uso, vinda da Fase 4 (
 3. **Verificação em duas etapas (2FA) e chave de acesso (passkey).** O nome no aplicativo autenticador e no gerenciador de senhas passou de "Documenso" para "RevSign" só para o que for cadastrado a partir desta versão. Quem já tinha 2FA ou passkey continua vendo "Documenso" no celular, e os códigos continuam valendo normalmente. Para ver "RevSign", basta desativar e cadastrar de novo (ou renomear a entrada no próprio aplicativo).
 4. **Links públicos de compartilhamento.** O RevSign não cria mais link público de compartilhamento (`/share/<código>`, o "Compartilhar" do Documenso), e os links criados antes desta versão param de funcionar. O link do QR do certificado (`/share/qr_…`) continua valendo.
 
+## Antes de atualizar (Fase 5)
+
+Vale para quem atualiza uma instalação que já está em uso. A Fase 5 traz a nota fiscal com conta contábil sugerida; o guia completo (lista de contas, prompt, o que o remetente vê, planilha) está em `notas-fiscais.md`.
+
+1. **Backup antes** (passo 7, item 8). As migrações abaixo rodam sozinhas na subida e só ACRESCENTAM tabelas e colunas; nenhuma apaga dados:
+   - `20261031100000_revalle_invoice` (plano de contas, configurações, classificação de cada documento e cache da sugestão);
+   - `20261031110000_revalle_invoice_flag_audit` (quem marcou "é / não é nota fiscal" e quando).
+2. **Variáveis novas** (serviço `revsign` → **Environment**; ver a tabela abaixo). Nenhuma é obrigatória:
+   - `GEMINI_API_KEY`: a chave do Google AI Studio. Sem ela, a nota fiscal é detectada e a conta é escolhida à mão, sem sugestão;
+   - `NEXT_PRIVATE_REVALLE_GEMINI_MODEL`: só para trocar o modelo (padrão `gemini-3.6-flash`);
+   - `NEXT_PRIVATE_REVALLE_INVOICE_AI=disabled`: só para desligar a sugestão sem apagar a chave.
+   **Nunca** defina `NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL` (é só dos testes).
+3. **Logo depois de atualizar, importe a lista de contas.** Enquanto a lista estiver vazia, o remetente de uma nota fiscal só consegue "Deixar para a contabilidade decidir". No site, com a conta de administrador: **Admin → Contas contábeis** → envie o CSV (`notas-fiscais.md`, seção 1) → **Aplicar**.
+4. **Prompt e e-mail da contabilidade.** Na mesma tela, escreva o prompt (as regras da empresa para escolher a conta) e o **E-mail da contabilidade**, e clique em **Salvar**. Sem e-mail, ninguém recebe o PDF das notas concluídas.
+5. **Conferência.** Na tela de admin, a linha de estado deve dizer "Gemini configurado (modelo …)". Envie uma nota fiscal de teste: o diálogo de envio mostra o bloco "Nota fiscal · Conta contábil" com a sugestão; depois de assinada, ela aparece no menu **Notas fiscais** e a contabilidade recebe o e-mail.
+6. **Avise os remetentes** de que notas fiscais enviadas pela API ou por modelo precisam ser terminadas na tela (seção abaixo).
+
 ## Notas fiscais enviadas pela API ou por modelo (Fase 5)
 
 Uma nota fiscal só é enviada para assinatura com a conta contábil escolhida (ou "Deixar para a contabilidade decidir"). A escolha é feita na tela, no diálogo **Enviar documento** (ou pela rota `revalle.invoice.setChoice` da sessão). Por isso:

@@ -71,6 +71,14 @@ export default function PrivacidadePage() {
           Os provedores de hospedagem e de envio de e-mail atuam como operadores, em nome da Revalle, e não como
           terceiros que recebem os dados para uso próprio.
         </p>
+        <p>
+          As notas fiscais enviadas para assinatura são analisadas por um serviço de inteligência artificial (Google
+          Gemini) apenas para sugerir a conta contábil.
+        </p>
+        <p className="text-muted-foreground text-sm">
+          Vai para essa análise apenas o conteúdo da nota fiscal. Nunca enviamos o CPF, a data de nascimento nem os
+          dados da verificação de quem assina.
+        </p>
       </section>
 
       <section className="space-y-2">

@@ -4540,3 +4540,98 @@ msgstr "O PDF assinado está em anexo."
 
 msgid "Uma nota fiscal foi assinada"
 msgstr "Uma nota fiscal foi assinada"
+
+# REVALLE: Fase 5, página "Notas fiscais" e menu (msgids já em pt-BR).
+
+msgid "{count} notas fiscais"
+msgstr "{count} notas fiscais"
+
+msgid "1 nota fiscal"
+msgstr "1 nota fiscal"
+
+msgid "A definir pela contabilidade"
+msgstr "A definir pela contabilidade"
+
+msgid "Anterior"
+msgstr "Anterior"
+
+msgid "As notas fiscais que você enviou ou que chegaram para você assinar."
+msgstr "As notas fiscais que você enviou ou que chegaram para você assinar."
+
+msgid "até"
+msgstr "até"
+
+msgid "Cancelado"
+msgstr "Cancelado"
+
+msgid "Carregando…"
+msgstr "Carregando…"
+
+msgid "Concluído"
+msgstr "Concluído"
+
+msgid "Conta"
+msgstr "Conta"
+
+msgid "Conta (número)"
+msgstr "Conta (número)"
+
+msgid "Enviadas de"
+msgstr "Enviadas de"
+
+msgid "Enviado em"
+msgstr "Enviado em"
+
+msgid "Ex.: 2.1.03"
+msgstr "Ex.: 2.1.03"
+
+msgid "Exportar planilha"
+msgstr "Exportar planilha"
+
+msgid "Limpar filtros"
+msgstr "Limpar filtros"
+
+msgid "Não foi possível carregar as notas fiscais. Tente de novo."
+msgstr "Não foi possível carregar as notas fiscais. Tente de novo."
+
+msgid "Nenhuma nota fiscal ainda. Quando você enviar uma nota fiscal para assinatura, ela aparece aqui."
+msgstr "Nenhuma nota fiscal ainda. Quando você enviar uma nota fiscal para assinatura, ela aparece aqui."
+
+msgid "Nenhuma nota fiscal com esses filtros."
+msgstr "Nenhuma nota fiscal com esses filtros."
+
+msgid "Notas fiscais"
+msgstr "Notas fiscais"
+
+msgid "Página {0} de {1}"
+msgstr "Página {0} de {1}"
+
+msgid "Pendente"
+msgstr "Pendente"
+
+msgid "Próxima"
+msgstr "Próxima"
+
+msgid "Recusado"
+msgstr "Recusado"
+
+msgid "Remetente"
+msgstr "Remetente"
+
+msgid "sem sugestão"
+msgstr "sem sugestão"
+
+msgid "Só as deixadas para a contabilidade"
+msgstr "Só as deixadas para a contabilidade"
+
+msgid "Sugestão aceita?"
+msgstr "Sugestão aceita?"
+
+msgid "Título"
+msgstr "Título"
+
+msgid "Todas as notas fiscais enviadas para assinatura (você é administrador)."
+msgstr "Todas as notas fiscais enviadas para assinatura (você é administrador)."
+
+msgid "Todos"
+msgstr "Todos"

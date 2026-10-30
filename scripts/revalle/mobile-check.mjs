@@ -9,7 +9,8 @@
 // uma nota fiscal fictícia no celular: o diálogo de envio com o bloco "Nota fiscal · Conta contábil", a escolha
 // "Deixar para a contabilidade decidir", o envio e o cartão "Conta contábil" da página do documento. Nesses passos a
 // conferência vale só para o bloco/cartão: o editor do upstream não é feito para celular (a 360 px a página passa da
-// largura da tela e as abas "E-mail"/"Nenhum" do diálogo têm 32 px).
+// largura da tela e as abas "E-mail"/"Nenhum" do diálogo têm 32 px). Depois abre a página "Notas fiscais": botões da
+// página com 44 px e nenhuma rolagem horizontal da página inteira (a tabela rola dentro do próprio quadro).
 // Em cada passo tira um print e confere:
 //   - sem rolagem horizontal (document.scrollingElement.scrollWidth <= 360);
 //   - todo botão visível (button / role=button) com altura >= 44 px;
@@ -182,7 +183,7 @@ const writeInvoiceFixture = async (dir) => {
 
 // Roda dentro da página: devolve os problemas de layout do estado atual.
 // `scope` (seletor): confere só dentro desse elemento (diálogo/cartão), inclusive a rolagem horizontal dele.
-const inspectLayout = ({ minTarget, scope }) => {
+const inspectLayout = ({ minTarget, scope, pageScroll = false }) => {
   const vw = window.innerWidth;
   const problems = [];
   const root = scope ? document.querySelector(scope) : document.body;
@@ -223,6 +224,14 @@ const inspectLayout = ({ minTarget, scope }) => {
 
   if (scrollWidth > maxWidth + (scope ? 1 : 0)) {
     problems.push({ kind: 'horizontal-scroll', detail: `scrollWidth ${scrollWidth} > ${maxWidth}` });
+  }
+
+  // `pageScroll`: com escopo, confere também a rolagem horizontal da página inteira.
+  if (scope && pageScroll && document.scrollingElement.scrollWidth > vw) {
+    problems.push({
+      kind: 'page-horizontal-scroll',
+      detail: `scrollWidth ${document.scrollingElement.scrollWidth} > ${vw}`,
+    });
   }
 
   // Botões: altura mínima de toque. Caixa de seleção/rádio/switch valem pela área do <label> que os envolve.
@@ -315,11 +324,15 @@ const runBrowser = async () => {
     await page.touchscreen.tap(box.x + box.width * x, box.y + box.height * y);
   };
 
-  const check = async (name, onPage = page, scope = undefined) => {
+  const check = async (name, onPage = page, scope = undefined, { pageScroll = false } = {}) => {
     await onPage.waitForTimeout(600); // animações dos diálogos
     await onPage.screenshot({ path: `${out}/${name}.png` });
 
-    const { scrollWidth, problems } = await onPage.evaluate(inspectLayout, { minTarget: MIN_TARGET, scope });
+    const { scrollWidth, problems } = await onPage.evaluate(inspectLayout, {
+      minTarget: MIN_TARGET,
+      scope,
+      pageScroll,
+    });
 
     steps.push({ step: name, scrollWidth, problems });
     console.log(`${problems.length === 0 ? 'ok  ' : 'FALHA'} ${name} (scrollWidth ${scrollWidth})`);
@@ -384,6 +397,12 @@ const runBrowser = async () => {
 
       await sender.getByTestId('invoice-account-card').scrollIntoViewIfNeeded();
       await check('00c-nf-cartao', sender, '[data-testid="invoice-account-card"]');
+
+      // Página "Notas fiscais": a tabela rola dentro do quadro, nunca a página. Os toques valem dentro da página (os
+      // ícones de busca e menu do cabeçalho do upstream têm 24 px).
+      await sender.goto(`${editorUrl.origin}/notas-fiscais`, { waitUntil: 'networkidle' });
+      await sender.getByTestId('invoices-page').locator('tbody tr').first().waitFor();
+      await check('00d-notas-fiscais', sender, '[data-testid="invoices-page"]', { pageScroll: true });
     } catch (error) {
       await sender.screenshot({ path: `${out}/erro-nf.png` }).catch(() => {});
       steps.push({ step: 'nf', scrollWidth: null, problems: [{ kind: 'flow-error', detail: String(error) }] });
