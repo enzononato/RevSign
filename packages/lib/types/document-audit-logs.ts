@@ -75,6 +75,7 @@ export const ZDocumentAuditLogTypeSchema = z.enum([
   'REVALLE_INVOICE_ACCOUNT_SET', // REVALLE: conta contábil da nota fiscal escolhida/trocada (fora do PDF selado)
   'REVALLE_FINANCE_ACCOUNT_DEFINED', // REVALLE: o Financeiro definiu a conta da NF retida (já aprovada) e enviou
   'REVALLE_FINANCE_APPROVED', // REVALLE: o Financeiro aprovou a conta da NF (libera a selagem)
+  'REVALLE_FINANCE_ACCOUNT_CHANGED', // REVALLE: o Financeiro trocou a conta: versão substituída e nova versão
 ]);
 
 export const ZDocumentAuditLogEmailTypeSchema = z.enum([
@@ -911,6 +912,21 @@ export const ZDocumentAuditLogEventRevalleFinanceApprovedSchema = z.object({
   data: z.object({ code: z.string(), name: z.string().nullable() }),
 });
 
+// REVALLE: o Financeiro trocou a conta (com o motivo): fica nas duas versões, com o id da outra. `isNewVersion`: este
+// evento está na versão nova (senão, na substituída). `fromCode` nulo = NF antiga com "deixar para o Financeiro".
+export const ZDocumentAuditLogEventRevalleFinanceAccountChangedSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_FINANCE_ACCOUNT_CHANGED),
+  data: z.object({
+    fromCode: z.string().nullable(),
+    fromName: z.string().nullable(),
+    toCode: z.string(),
+    toName: z.string().nullable(),
+    reason: z.string(),
+    otherEnvelopeId: z.string(),
+    isNewVersion: z.boolean(),
+  }),
+});
+
 export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
   z.union([
     ZDocumentAuditLogEventEnvelopeItemCreatedSchema,
@@ -965,6 +981,7 @@ export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
     ZDocumentAuditLogEventRevalleInvoiceAccountSetSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleFinanceAccountDefinedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleFinanceApprovedSchema, // REVALLE:
+    ZDocumentAuditLogEventRevalleFinanceAccountChangedSchema, // REVALLE:
   ]),
 );
 

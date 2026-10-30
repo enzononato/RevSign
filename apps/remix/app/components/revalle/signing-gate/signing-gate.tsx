@@ -5,6 +5,7 @@ import { useRevalidator } from 'react-router';
 import { ConfirmStep } from './confirm-step';
 import { IdentityStep } from './identity-step';
 import { LockedView } from './locked-view';
+import { SupersededView } from './superseded-view';
 import { TermStep } from './term-step';
 import { UnavailableView } from './unavailable-view';
 
@@ -51,6 +52,8 @@ export const RevalleSigningGate = ({ revalleGate, token, recipientName, senderNa
       {revalleGate.status === 'LOCKED' && <LockedView />}
 
       {revalleGate.status === 'UNAVAILABLE' && <UnavailableView onRetry={onStepDone} />}
+
+      {revalleGate.status === 'SUPERSEDED' && <SupersededView />}
     </main>
   );
 };

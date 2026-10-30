@@ -3,6 +3,7 @@ import { prisma } from '@documenso/prisma';
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import type { RequestMetadata } from '../../../universal/extract-request-metadata';
 import { assertRevalleGatePassed } from './assert-gate-passed';
+import { REVALLE_DOCUMENT_SUPERSEDED_CODE } from './superseded-version';
 
 /**
  * Para as rotas de arquivo (Hono) que aceitam o token do destinatário: devolve `true` quando o portão do dono do token
@@ -30,7 +31,10 @@ export const isRevalleGateBlockingToken = async (
 
     return false;
   } catch (error) {
-    if (error instanceof AppError && error.code === AppErrorCode.UNAUTHORIZED) {
+    if (
+      error instanceof AppError &&
+      (error.code === AppErrorCode.UNAUTHORIZED || error.code === REVALLE_DOCUMENT_SUPERSEDED_CODE)
+    ) {
       return true;
     }
 

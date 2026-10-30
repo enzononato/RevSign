@@ -5,6 +5,7 @@ import { RecipientRole } from '@prisma/client';
 import { isDeepEqual } from 'remeda';
 import { match } from 'ts-pattern';
 
+import { formatInvoiceAccount } from '../revalle/finance/account-change'; // REVALLE:
 import type {
   TDocumentAuditLog,
   TDocumentAuditLogDocumentMetaDiffSchema,
@@ -738,6 +739,19 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
     .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_FINANCE_APPROVED }, ({ data }) => {
       const account = data.name ? `${data.code} – ${data.name}` : data.code;
       const text = msg`Conta contábil aprovada pelo Financeiro: ${account}`;
+
+      return { anonymous: text, you: text, user: text };
+    })
+    // REVALLE:
+    .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_FINANCE_ACCOUNT_CHANGED }, ({ data }) => {
+      const from = data.fromCode
+        ? formatInvoiceAccount(data.fromCode, data.fromName)
+        : i18n._(msg`a definir pelo Financeiro`);
+      const to = formatInvoiceAccount(data.toCode, data.toName);
+      const reason = data.reason;
+      const text = data.isNewVersion
+        ? msg`Nova versão criada pelo Financeiro com a conta contábil ${to} (antes ${from}). Motivo: ${reason}`
+        : msg`Conta contábil trocada pelo Financeiro de ${from} para ${to}: substituído por uma nova versão. Motivo: ${reason}`;
 
       return { anonymous: text, you: text, user: text };
     })

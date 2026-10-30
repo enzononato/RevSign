@@ -3,6 +3,7 @@ import { DocumentStatus, EnvelopeType, SigningStatus } from '@prisma/client';
 
 import type { RequestMetadata } from '../../../universal/extract-request-metadata';
 import { getRevalleGateState } from './get-gate-state';
+import { isSupersededPendingVersion } from './superseded-version';
 import type { RevalleGateState } from './types';
 
 export type RevalleGateLoaderPayload = {
@@ -20,6 +21,22 @@ export const getRevalleGateLoaderPayload = async (
   token: string,
   requestMetadata?: RequestMetadata,
 ): Promise<RevalleGateLoaderPayload | null> => {
+  // Versão substituída pelo Financeiro: a mensagem vale para qualquer destinatário (inclusive quem já assinou), mesmo
+  // com a versão escondida das listas (excluída) e antes de qualquer dado do documento.
+  const superseded = await prisma.recipient.findFirst({
+    where: { token, envelope: { type: EnvelopeType.DOCUMENT } },
+    select: { id: true, name: true, envelope: { select: { user: { select: { name: true } } } } },
+  });
+
+  if (superseded && (await isSupersededPendingVersion({ recipientId: superseded.id }))) {
+    return {
+      revalleGate: { status: 'SUPERSEDED' },
+      token,
+      recipientName: superseded.name,
+      senderName: superseded.envelope.user.name,
+    };
+  }
+
   const recipient = await prisma.recipient.findFirst({
     where: {
       token,

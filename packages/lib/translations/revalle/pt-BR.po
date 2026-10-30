@@ -4740,3 +4740,27 @@ msgstr "Todos já assinaram. O documento só é concluído (e enviado à contabi
 
 msgid "Conta contábil aprovada pelo Financeiro: {account}"
 msgstr "Conta contábil aprovada pelo Financeiro: {account}"
+
+msgid "Este documento foi substituído por uma nova versão (conta contábil alterada)."
+msgstr "Este documento foi substituído por uma nova versão (conta contábil alterada)."
+
+msgid "O convite da nova versão chega por e-mail."
+msgstr "O convite da nova versão chega por e-mail."
+
+msgid "Conta contábil da nota fiscal alterada pelo Financeiro: {documentName}"
+msgstr "Conta contábil da nota fiscal alterada pelo Financeiro: {documentName}"
+
+msgid "A conta contábil de uma nota fiscal foi alterada"
+msgstr "A conta contábil de uma nota fiscal foi alterada"
+
+msgid "A versão anterior não vale mais para assinatura. A nova versão, {newDocumentName}, precisa ser assinada de novo por todos; o convite chega em outro e-mail."
+msgstr "A versão anterior não vale mais para assinatura. A nova versão, {newDocumentName}, precisa ser assinada de novo por todos; o convite chega em outro e-mail."
+
+msgid "Nova versão criada pelo Financeiro com a conta contábil {to} (antes {from}). Motivo: {reason}"
+msgstr "Nova versão criada pelo Financeiro com a conta contábil {to} (antes {from}). Motivo: {reason}"
+
+msgid "Conta contábil trocada pelo Financeiro de {from} para {to}: substituído por uma nova versão. Motivo: {reason}"
+msgstr "Conta contábil trocada pelo Financeiro de {from} para {to}: substituído por uma nova versão. Motivo: {reason}"
+
+msgid "a definir pelo Financeiro"
+msgstr "a definir pelo Financeiro"

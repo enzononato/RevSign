@@ -645,18 +645,23 @@ sessionTest(
 );
 
 sessionTest(
-  'versão substituída (SUPERSEDED) não concluída: nunca é selada (conclusão, varredura e reselagem), sem e-mail',
+  'versão substituída (SUPERSEDED) não concluída: nunca é selada (varredura e reselagem) e não pede aprovação',
   async () => {
     const doc = await newInvoice('substituida');
 
+    // Desde a Task 4 o portão recusa qualquer ação de quem assina numa versão substituída: os dois assinam antes (NF
+    // retida, 1 pedido de aprovação) e ela vira SUPERSEDED no banco depois. A troca de verdade, com a última assinatura
+    // recusada, está em finance-change.test.mjs.
     await sign(doc, 0);
-    // A Task 4 cria a versão substituída de verdade; aqui, no banco, antes da última assinatura.
-    db(`update "RevalleInvoiceClassification" set "financeStatus" = 'SUPERSEDED' where "envelopeId" = '${doc.id}'`);
     await sign(doc, 1);
     await sleep(3000);
     assert.equal(status(doc.id), 'PENDING');
-    assert.deepEqual(sealJobs(doc), [], 'a conclusão disparou a selagem');
+    assert.deepEqual(sealJobs(doc), [], 'a conclusão disparou a selagem da NF retida');
+    assert.equal((await waitMails(admin.email, (m) => m.Subject === APPROVAL_SUBJECT(doc.title))).length, 1);
 
+    db(
+      `update "RevalleInvoiceClassification" set "financeStatus" = 'SUPERSEDED', "approvalRequestedAt" = null where "envelopeId" = '${doc.id}'`,
+    );
     db(`update "Recipient" set "signedAt" = now() - interval '20 minutes' where "envelopeId" = '${doc.id}'`);
 
     const swept = await runJobLikeTheApp({
@@ -683,7 +688,7 @@ sessionTest(
     assert.equal(status(doc.id), 'PENDING');
     assert.equal(itemData(doc.id), before, 'o PDF foi selado');
     assert.equal(auditCount(doc.id, 'DOCUMENT_COMPLETED'), 0);
-    assert.equal((await approvalMails(doc)).length, 0, 'versão substituída não pede aprovação');
+    assert.equal((await approvalMails(doc)).length, 1, 'versão substituída pediu aprovação');
     assert.equal(
       db(`select "approvalRequestedAt" is null from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`),
       't',
@@ -814,16 +819,16 @@ sessionTest('um signatário recusa: o documento fica REJECTED sem retenção', a
 sessionTest('versão substituída com recusa: é selada como recusada (a recusa vale também para ela)', async () => {
   const doc = await newInvoice('substituida-recusa', { signers: 1 });
 
+  // Desde a Task 4 o portão recusa a recusa numa versão substituída, e a troca recusa NF com recusa: a recusa que
+  // chegou junto com a troca fica simulada no banco, e a reselagem do admin sela como recusada.
   db(`update "RevalleInvoiceClassification" set "financeStatus" = 'SUPERSEDED' where "envelopeId" = '${doc.id}'`);
-  await gate(doc.recipients[0].token);
+  db(
+    `update "Recipient" set "signingStatus" = 'REJECTED', "rejectionReason" = 'Teste', "signedAt" = now() where "envelopeId" = '${doc.id}'`,
+  );
 
-  const rejected = await trpc('recipient.rejectDocumentWithToken', {
-    token: doc.recipients[0].token,
-    documentId: doc.documentId,
-    reason: 'Teste',
-  });
+  const resealed = await trpcAs(adminCookie, 'mutation', 'admin.document.reseal', { id: doc.id });
 
-  assert.equal(rejected.status, 200, rejected.text);
+  assert.ok(resealed.ok, resealed.text);
   assert.equal(await waitStatus(doc.id, 'REJECTED'), 'REJECTED');
   assert.equal((await approvalMails(doc)).length, 0);
 });

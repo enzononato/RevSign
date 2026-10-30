@@ -148,6 +148,8 @@ export const genericErrorCodeToTrpcErrorCodeMap: Record<string, { code: string; 
   [AppErrorCode.CSC_REQUEST_FAILED]: { code: 'INTERNAL_SERVER_ERROR', status: 500 },
   // REVALLE: NF com "Deixar para o Financeiro": envio retido, nada distribuído (API v2 responde 409).
   INVOICE_HELD_FOR_FINANCE: { code: 'CONFLICT', status: 409 },
+  // REVALLE: versão de NF substituída pelo Financeiro: nenhuma ação de quem assina vale mais nela (409).
+  REVALLE_DOCUMENT_SUPERSEDED: { code: 'CONFLICT', status: 409 },
 };
 
 export const ZAppErrorJsonSchema = z.object({

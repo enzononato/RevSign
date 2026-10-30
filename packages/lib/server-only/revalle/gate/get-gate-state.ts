@@ -11,6 +11,7 @@ import { env } from '../../../utils/env';
 import { logger } from '../../../utils/logger';
 import type { Colaborador } from '../colaboradores/repository';
 import { getColaboradoresRepository } from '../colaboradores/repository';
+import { isSupersededPendingVersion } from './superseded-version';
 import { REVALLE_MAX_ATTEMPTS, type RevalleGateRecipient, type RevalleGateState } from './types';
 
 export const isRevalleIdentityCheckDisabled = () => env('NEXT_PRIVATE_REVALLE_IDENTITY_CHECK') === 'disabled';
@@ -147,6 +148,11 @@ export const getRevalleGateState = async (
   recipient: RevalleGateRecipient,
   requestMetadata?: RequestMetadata,
 ): Promise<RevalleGateState> => {
+  // Versão substituída pelo Financeiro vale para todos os papéis, inclusive quem já assinou: ela não segue mais.
+  if (await isSupersededPendingVersion({ recipientId: recipient.id })) {
+    return { status: 'SUPERSEDED' };
+  }
+
   // CC e VIEWER não assinam (não passam pelo portão); quem já assinou (inclusive antes da Fase 3) lê sem portão.
   if (recipient.role === 'CC' || recipient.role === 'VIEWER' || recipient.signingStatus === 'SIGNED') {
     return { status: 'PASSED' };
