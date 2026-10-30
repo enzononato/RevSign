@@ -76,8 +76,9 @@ export default function PrivacidadePage() {
           Gemini) apenas para sugerir a conta contábil.
         </p>
         <p className="text-muted-foreground text-sm">
-          Vai para essa análise apenas o conteúdo da nota fiscal. Nunca enviamos o CPF, a data de nascimento nem os
-          dados da verificação de quem assina.
+          Vai para essa análise apenas o conteúdo da nota fiscal. No texto da nota, números de CPF são mascarados antes
+          do envio; uma nota digitalizada (imagem) é enviada como está. Nunca enviamos a data de nascimento nem os dados
+          da verificação de quem assina.
         </p>
       </section>
 
