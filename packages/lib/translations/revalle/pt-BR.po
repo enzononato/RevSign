@@ -4510,3 +4510,33 @@ msgstr "Conta contábil apagada porque o arquivo foi alterado (era {from})"
 
 msgid "O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e envie."
 msgstr "O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e envie."
+
+msgid "A conta foi escolhida pelo remetente."
+msgstr "A conta foi escolhida pelo remetente."
+
+msgid "A conta foi sugerida pela IA e aceita pelo remetente."
+msgstr "A conta foi sugerida pela IA e aceita pelo remetente."
+
+msgid "Concluído em {completedAt}"
+msgstr "Concluído em {completedAt}"
+
+msgid "Conta contábil: {account}"
+msgstr "Conta contábil: {account}"
+
+msgid "Conta: a definir pela contabilidade"
+msgstr "Conta: a definir pela contabilidade"
+
+msgid "Documento: {documentName}"
+msgstr "Documento: {documentName}"
+
+msgid "Enviado por {senderName} ({senderEmail})"
+msgstr "Enviado por {senderName} ({senderEmail})"
+
+msgid "Nota fiscal assinada: {documentName}"
+msgstr "Nota fiscal assinada: {documentName}"
+
+msgid "O PDF assinado está em anexo."
+msgstr "O PDF assinado está em anexo."
+
+msgid "Uma nota fiscal foi assinada"
+msgstr "Uma nota fiscal foi assinada"

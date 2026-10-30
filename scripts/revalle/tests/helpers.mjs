@@ -6,6 +6,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { crc32, deflateSync } from 'node:zlib';
 
 export const BASE_URL = (process.env.REVSIGN_URL ?? 'http://localhost:3000').replace(/\/$/, '');
@@ -282,22 +283,38 @@ export const trpcAs = async (cookie, kind, procedure, input, extraHeaders = {}) 
   );
 };
 
-// Roda ferramentas do poppler (pdftotext, pdfinfo, pdfimages...) num container alpine com `dir` montado em /pdf.
-export const poppler = (dir, script) =>
-  execFileSync(
-    'docker',
-    [
-      'run',
-      '--rm',
-      '-v',
-      `${dir}:/pdf:ro`,
-      'alpine:3.22',
-      'sh',
-      '-c',
-      `apk add --no-cache -q poppler-utils >/dev/null && ${script}`,
-    ],
-    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
-  );
+// Imagem com as ferramentas do poppler (scripts/revalle/tests/poppler.Dockerfile). Construída uma vez, se faltar:
+// antes cada chamada rodava `apk add` num alpine, o que falhava de vez em quando por rede ou disco.
+const POPPLER_IMAGE = 'revsign-test-poppler:local';
+let popplerImageReady = false;
+
+const ensurePopplerImage = () => {
+  if (popplerImageReady) {
+    return;
+  }
+
+  try {
+    execFileSync('docker', ['image', 'inspect', POPPLER_IMAGE], { stdio: 'ignore' });
+  } catch {
+    // Dockerfile pela entrada padrão: sem enviar a pasta de testes como contexto.
+    execFileSync('docker', ['build', '-q', '-t', POPPLER_IMAGE, '-'], {
+      input: readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'poppler.Dockerfile')),
+      stdio: ['pipe', 'ignore', 'inherit'],
+    });
+  }
+
+  popplerImageReady = true;
+};
+
+// Roda ferramentas do poppler (pdftotext, pdfinfo, pdfimages...) num container com `dir` montado em /pdf.
+export const poppler = (dir, script) => {
+  ensurePopplerImage();
+
+  return execFileSync('docker', ['run', '--rm', '-v', `${dir}:/pdf:ro`, POPPLER_IMAGE, 'sh', '-c', script], {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  });
+};
 
 // dd/MM/yyyy HH:mm no fuso de Brasília (America/Bahia), como o carimbo, o certificado e o /verificar.
 export const brasilia = (date) => {

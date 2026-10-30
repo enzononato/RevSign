@@ -23,6 +23,7 @@ import { insertFieldInPDFV1 } from '../../../server-only/pdf/insert-field-in-pdf
 import { insertFieldInPDFV2 } from '../../../server-only/pdf/insert-field-in-pdf-v2';
 import { legacy_insertFieldInPDF } from '../../../server-only/pdf/legacy-insert-field-in-pdf';
 import { recordFinalHash } from '../../../server-only/revalle/document-hashes'; // REVALLE:
+import { shouldEmailInvoiceAccounting } from '../../../server-only/revalle/invoice/accounting-email'; // REVALLE:
 import { loadRevalleStamps } from '../../../server-only/revalle/proof/load-stamps'; // REVALLE:
 import { getTeamSettings } from '../../../server-only/team/get-team-settings';
 import { triggerWebhook } from '../../../server-only/webhooks/trigger/trigger-webhook';
@@ -371,6 +372,11 @@ export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition
         requestMetadata,
       },
     });
+
+    // REVALLE: nota fiscal concluída: avisa a contabilidade (o job é idempotente e só envia uma vez).
+    if (await shouldEmailInvoiceAccounting(envelopeId)) {
+      await jobs.triggerJob({ name: 'send.revalle.invoice.accounting.email', payload: { envelopeId } });
+    }
   }
 };
 
