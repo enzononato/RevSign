@@ -4653,3 +4653,37 @@ msgstr "Se este documento for uma nota fiscal, marque aqui para escolher a conta
 
 msgid "É uma nota fiscal?"
 msgstr "É uma nota fiscal?"
+
+# REVALLE: Fase 6, tela Admin → Financeiro e página "Notas fiscais" (msgids já em pt-BR).
+msgid "{name} agora é do Financeiro."
+msgstr "{name} agora é do Financeiro."
+
+msgid "{name} saiu do Financeiro."
+msgstr "{name} saiu do Financeiro."
+
+msgid "Buscar por nome ou e-mail"
+msgstr "Buscar por nome ou e-mail"
+
+msgid "E-mail"
+msgstr "E-mail"
+
+msgid "Financeiro"
+msgstr "Financeiro"
+
+msgid "Financeiro: {0}"
+msgstr "Financeiro: {0}"
+
+msgid "Mostrando os primeiros {USERS_LIMIT}. Use a busca para achar os outros."
+msgstr "Mostrando os primeiros {USERS_LIMIT}. Use a busca para achar os outros."
+
+msgid "Não foi possível carregar os usuários. Tente de novo."
+msgstr "Não foi possível carregar os usuários. Tente de novo."
+
+msgid "Nenhum usuário encontrado."
+msgstr "Nenhum usuário encontrado."
+
+msgid "Quem é do Financeiro vê todas as notas fiscais e aprova a conta contábil de cada uma. Marque quem faz parte; a mudança vale na hora."
+msgstr "Quem é do Financeiro vê todas as notas fiscais e aprova a conta contábil de cada uma. Marque quem faz parte; a mudança vale na hora."
+
+msgid "Todas as notas fiscais enviadas para assinatura (você é do Financeiro)."
+msgstr "Todas as notas fiscais enviadas para assinatura (você é do Financeiro)."

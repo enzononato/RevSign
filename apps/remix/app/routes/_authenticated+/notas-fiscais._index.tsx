@@ -57,6 +57,9 @@ export default function InvoicesPage() {
     { placeholderData: (previous) => previous, enabled: dateError === null },
   );
 
+  // Fase 6: quem é do Financeiro vê todas as NFs (o servidor decide; aqui só muda o texto).
+  const { data: financeProfile } = trpc.revalle.finance.me.useQuery(undefined, { enabled: !isAdmin(user) });
+
   const data = dateError ? undefined : query.data;
   const { isPending, isError } = query;
 
@@ -121,6 +124,8 @@ export default function InvoicesPage() {
         <p className="mt-1 text-muted-foreground">
           {isAdmin(user) ? (
             <Trans>Todas as notas fiscais enviadas para assinatura (você é administrador).</Trans>
+          ) : financeProfile?.isFinance ? (
+            <Trans>Todas as notas fiscais enviadas para assinatura (você é do Financeiro).</Trans>
           ) : (
             <Trans>As notas fiscais que você enviou ou que chegaram para você assinar.</Trans>
           )}

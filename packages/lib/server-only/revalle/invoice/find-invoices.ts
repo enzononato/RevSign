@@ -18,6 +18,7 @@ import {
   type TInvoiceFilters,
 } from '../../../revalle/invoice/invoice-filters';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
+import { isFinanceMember } from '../finance/members';
 
 export type InvoiceViewer = { userId: number; isAdmin: boolean };
 
@@ -36,7 +37,7 @@ export type InvoiceListRow = {
   deferred: boolean;
   suggestion: { code: string; confidence: string } | null;
   acceptedSuggestion: boolean | null;
-  /** Caminho do documento para quem está vendo: o dono abre no time, o admin no painel; signatário não tem link. */
+  /** Caminho do documento para quem vê: o dono abre no time, o admin no painel; signatário e Financeiro, sem link. */
   link: string | null;
 };
 
@@ -50,13 +51,15 @@ const SENT = DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_SENT;
 
 /**
  * Visibilidade igual à do documento no RevSign (só organizações pessoais): o dono, quem é destinatário pelo e-mail (sem
- * ter escondido o documento) e o admin, que vê todas. Só NF já enviada (rascunho não entra). NF excluída pelo remetente
- * some para o dono e para os destinatários, mas o admin continua vendo (a contabilidade pode já ter lançado).
+ * ter escondido o documento) e o admin, que vê todas. Fase 6: quem é do Financeiro também vê todas (conferido no banco
+ * a cada pedido: desmarcado, deixa de ver na hora). Só NF já enviada (rascunho não entra). NF excluída pelo remetente
+ * some para o dono, para os destinatários e para o Financeiro, mas o admin continua vendo (a contabilidade pode já ter
+ * lançado).
  */
 const buildInvoiceWhere = async ({ userId, isAdmin, filters }: InvoiceViewer & { filters: TInvoiceFilters }) => {
   const conditions: Prisma.EnvelopeWhereInput[] = [];
 
-  if (!isAdmin) {
+  if (!isAdmin && !(await isFinanceMember(userId))) {
     const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
 
     conditions.push({
