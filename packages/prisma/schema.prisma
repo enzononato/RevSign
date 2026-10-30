@@ -1392,6 +1392,8 @@ model RevalleSignatureProof {
   deviceLocation   Json
   drewSignature    Boolean
   signatureKind    String // IMAGE | TYPED | NONE
+  /// Fase 6: { code, name } da conta contábil da NF vista ao assinar (congelada). Nula em documento comum.
+  invoiceAccount   Json?
   createdAt        DateTime  @default(now())
 }
 

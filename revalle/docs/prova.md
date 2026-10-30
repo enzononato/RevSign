@@ -43,6 +43,7 @@ No topo de cada página do certificado:
 
 - `Horários em horário de Brasília (UTC−3)`: todas as datas do certificado estão no horário de Brasília;
 - `SHA-256 do original: <64 letras e números>`: a "impressão digital" do PDF **como foi enviado**, antes de qualquer assinatura. Se alguém tiver uma cópia do original, dá para conferir que é o mesmo arquivo.
+- Só em nota fiscal aprovada pelo Financeiro (Fase 6): `Conta contábil: <código> – <nome> · aprovada pelo Financeiro (<nome>) em <dd/MM/aaaa HH:mm> (horário de Brasília)`.
 
 No rodapé: o **ID do Envelope** (identificador único do documento), um **QR code** que leva à página pública do documento (ver seção 3) e, quando o documento tem prova congelada, a atribuição "IP Geolocation by DB-IP".
 
@@ -82,6 +83,7 @@ Cada pessoa ocupa um bloco com três colunas. Em ordem, para cada uma:
 | Localização aproximada (IP) | Cidade/UF e país estimados pelo endereço IP, ex.: `Juazeiro/BA, Brasil`. A consulta é feita numa base dentro do próprio servidor; o IP não é enviado a ninguém. `não identificada` quando não dá para saber (rede interna, IP de teste) | Base DB-IP offline |
 | Localização do aparelho | Latitude, longitude e precisão, ex.: `-9,4167, -40,5033 (±25 m)`, **se a pessoa autorizou** no navegador. Senão: `não autorizada` (recusou), `indisponível` (o aparelho não respondeu a tempo, ou a assinatura foi feita dentro de outro site, onde o navegador não deixa perguntar) ou `não solicitada` (nada foi pedido: quem só visualiza ou recebe cópia não passa pelo termo, então a localização do aparelho nunca é pedida a essas pessoas) | Navegador, opcional |
 | Assinatura visual | `imagem (desenho/arquivo)`, `texto digitado` ou `somente carimbo`. Só para quem assina | Prova congelada |
+| Conta contábil vista ao assinar | Só em nota fiscal (Fase 6): o número da conta contábil que a pessoa viu na tela ao assinar | Prova congelada |
 | Código de verificação | O mesmo código do carimbo | Prova congelada |
 
 As formas de **Verificação**:
@@ -103,6 +105,7 @@ Destinatário de documento assinado antes da Fase 4 não tem prova congelada: o 
    - o título do documento;
    - a situação: `Concluído em <data>`, `Recusado em <data>` ou `Em andamento`;
    - **Participantes**: nome (o da base de RH; sem ele, por exemplo para quem só visualiza, o nome cadastrado no documento), CPF mascarado e a data em que cada um assinou (ou aprovou, visualizou…);
+   - em nota fiscal (Fase 6): a conta contábil e a aprovação do Financeiro (quem e quando), ou `Aguardando aprovação do Financeiro`. Se a conta foi trocada, a versão antiga mostra `Substituído por uma nova versão em <data> (conta contábil alterada)`; nada da nova versão aparece (ela tem os próprios códigos);
    - **SHA-256 do documento final** (só quando concluído). Se o documento foi **reselado** (ex.: troca do certificado da empresa), aparecem também as **versões seladas anteriores**, cada uma com a data da selagem.
 4. Para saber se o PDF que você tem nas mãos é o mesmo que foi assinado, vá em **"Conferir um arquivo"** (aparece quando o documento já foi concluído) e escolha o PDF. A conta é feita no seu próprio navegador: o arquivo **não é enviado** para lugar nenhum. Resultado:
    - `Este arquivo confere com a versão selada em <data> (horário de Brasília).`: é um PDF final selado deste documento, sem nenhuma alteração;

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildRevalleCertificateRows,
+  buildRevalleInvoiceCertificateLine,
   getRevalleSigningPositions,
   type RevalleCertificateProof,
 } from './certificate-rows';
@@ -228,5 +229,51 @@ describe('getRevalleSigningPositions', () => {
         ),
       ).not.toContain('Ordem de assinatura');
     }
+  });
+});
+
+describe('conta contábil da NF no certificado (Fase 6)', () => {
+  it('quem assinou uma NF: "Conta contábil vista ao assinar" logo antes do código de verificação', () => {
+    const rows = buildRevalleCertificateRows(
+      { ...minimalProof, invoiceAccount: { code: '2.1.03', name: 'Fornecedores' } },
+      { role: 'SIGNER' },
+    );
+
+    expect(rows.slice(-2)).toEqual([
+      { label: 'Conta contábil vista ao assinar', value: '2.1.03' },
+      { label: 'Código de verificação', value: 'ABCD-2345' },
+    ]);
+  });
+
+  it('documento comum, prova anterior à Fase 6 ou conta malformada: a linha não existe', () => {
+    for (const invoiceAccount of [null, undefined, { name: 'Sem código' }, 'texto']) {
+      const rows = buildRevalleCertificateRows({ ...minimalProof, invoiceAccount }, { role: 'SIGNER' });
+
+      expect(rows.some((row) => row.label === 'Conta contábil vista ao assinar')).toBe(false);
+    }
+  });
+
+  it('linha do documento: conta, quem aprovou e quando, em horário de Brasília', () => {
+    expect(
+      buildRevalleInvoiceCertificateLine({
+        code: '2.1.03',
+        name: 'Fornecedores',
+        approverName: 'Rosa do Financeiro',
+        approvedAt: new Date('2026-10-30T21:05:00.000Z'),
+      }),
+    ).toBe(
+      'Conta contábil: 2.1.03 – Fornecedores · aprovada pelo Financeiro (Rosa do Financeiro) em 30/10/2026 18:05 (horário de Brasília)',
+    );
+  });
+
+  it('linha do documento sem o nome da conta (conta fora da lista): só o código', () => {
+    expect(
+      buildRevalleInvoiceCertificateLine({
+        code: '2.1.03',
+        name: '',
+        approverName: 'Rosa',
+        approvedAt: '2026-10-30T21:05:00.000Z',
+      }),
+    ).toBe('Conta contábil: 2.1.03 · aprovada pelo Financeiro (Rosa) em 30/10/2026 18:05 (horário de Brasília)');
   });
 });

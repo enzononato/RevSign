@@ -9,7 +9,9 @@ Quando alguém envia uma nota fiscal (NF) para assinatura, o RevSign percebe que
 sugestão de conta contábil e obriga o remetente a escolher a conta (ou "Deixar para o Financeiro") antes de
 enviar. Quando todos assinam, a contabilidade recebe o PDF assinado por e-mail.
 
-- A conta **não** entra no PDF assinado, no carimbo nem no certificado. Ela pode ser trocada depois sem mexer na prova.
+- Desde a Fase 6, a conta **faz parte do que é assinado**: quem assina vê "Nota fiscal · Conta contábil: {código} – {nome}",
+  ela fica na prova de cada signatário e no certificado (com a aprovação do Financeiro). Ver `prova.md`. O carimbo não
+  muda. Trocar a conta depois do envio cria uma nova versão, que todos assinam de novo.
 - A sugestão é só uma sugestão: o RevSign nunca escolhe a conta sozinho.
 - Sem a chave do Gemini, tudo funciona do mesmo jeito, só que sem sugestão: o remetente escolhe na lista.
 

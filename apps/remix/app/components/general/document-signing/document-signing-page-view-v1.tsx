@@ -42,6 +42,7 @@ import { DocumentSigningRejectDialog } from '~/components/general/document-signi
 import { DocumentSigningSignatureField } from '~/components/general/document-signing/document-signing-signature-field';
 import { DocumentSigningTextField } from '~/components/general/document-signing/document-signing-text-field';
 import PDFViewerLazy from '~/components/general/pdf-viewer/pdf-viewer-lazy';
+import { SigningInvoiceAccountBlock } from '~/components/revalle/invoice/signing-invoice-account'; // REVALLE:
 import { useDeviceLocation } from '~/components/revalle/use-device-location'; // REVALLE:
 
 import { useRequiredDocumentSigningAuthContext } from './document-signing-auth-provider';
@@ -248,6 +249,9 @@ export const DocumentSigningPageViewV1 = ({
             <DocumentSigningRejectDialog documentId={document.id} token={recipient.token} />
           </div>
         </div>
+
+        {/* REVALLE: conta da NF (Fase 6) */}
+        <SigningInvoiceAccountBlock className="mt-4 sm:mt-6" />
 
         <div className="relative mt-4 flex w-full flex-col gap-x-6 gap-y-8 sm:mt-8 md:flex-row lg:gap-x-8 lg:gap-y-0">
           <div className="flex-1">

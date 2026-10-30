@@ -1,5 +1,11 @@
 import { prisma } from '@documenso/prisma';
-import { DocumentStatus, type RecipientRole, SigningStatus } from '@prisma/client';
+import {
+  DocumentStatus,
+  type RecipientRole,
+  RevalleFinanceStatus,
+  RevalleInvoiceStatus,
+  SigningStatus,
+} from '@prisma/client';
 
 import { VERIFICATION_CODE_ALPHABET, VERIFICATION_CODE_REGEX } from './verification-code';
 
@@ -30,7 +36,23 @@ export type RevalleProofLookup = {
    */
   items: { title: string; finalSha256: string | null; sealedVersions: { sha256: string; sealedAt: Date }[] }[];
   signers: { nome: string; cpfMasked: string | null; signedAt: Date; role: RecipientRole }[];
+  /**
+   * Fase 6, só em NF que passou pelo Financeiro: a conta desta versão, a aprovação (nome de quem aprovou, nunca o
+   * e-mail) e, se a conta foi trocada, quando esta versão foi substituída. Nada da nova versão (nem códigos, nem id).
+   */
+  invoice: {
+    account: { code: string; name: string } | null;
+    approval: { approverName: string | null; approvedAt: Date } | null;
+    isAwaitingApproval: boolean;
+    supersededAt: Date | null;
+  } | null;
 };
+
+const FINANCE_STATUSES_SHOWN: RevalleFinanceStatus[] = [
+  RevalleFinanceStatus.PENDING_APPROVAL,
+  RevalleFinanceStatus.APPROVED,
+  RevalleFinanceStatus.SUPERSEDED,
+];
 
 /**
  * Consulta pública pelo código de verificação. Devolve só o que pode ser público:
@@ -75,6 +97,17 @@ export const findRevalleProofByCode = async (code: string): Promise<RevalleProof
                   revalleProof: { select: { signedAt: true, employee: true } },
                 },
               },
+              revalleInvoice: {
+                select: {
+                  isInvoice: true,
+                  financeStatus: true,
+                  choiceCode: true,
+                  choiceDefer: true,
+                  approvedById: true,
+                  approvedAt: true,
+                  supersededAt: true,
+                },
+              },
             },
           },
         },
@@ -83,9 +116,15 @@ export const findRevalleProofByCode = async (code: string): Promise<RevalleProof
   });
 
   const envelope = proof?.recipient.envelope;
+  const invoiceRow = envelope?.revalleInvoice;
+  const isSuperseded =
+    invoiceRow?.isInvoice === RevalleInvoiceStatus.YES &&
+    invoiceRow.financeStatus === RevalleFinanceStatus.SUPERSEDED &&
+    invoiceRow.supersededAt !== null;
 
-  // Excluído ou cancelado: some da consulta pública.
-  if (!envelope || envelope.deletedAt || envelope.status === DocumentStatus.CANCELLED) {
+  // Excluído ou cancelado: some da consulta pública. A versão de NF substituída pelo Financeiro é escondida das listas
+  // como excluída, mas quem tem o código dela vê que foi substituída.
+  if (!envelope || (envelope.deletedAt && !isSuperseded) || envelope.status === DocumentStatus.CANCELLED) {
     return null;
   }
 
@@ -133,5 +172,47 @@ export const findRevalleProofByCode = async (code: string): Promise<RevalleProof
     finalSha256: items.length === 1 ? items[0].finalSha256 : null,
     items,
     signers,
+    invoice: await loadInvoiceSummary(invoiceRow),
+  };
+};
+
+type InvoiceRow = {
+  isInvoice: RevalleInvoiceStatus;
+  financeStatus: RevalleFinanceStatus | null;
+  choiceCode: string | null;
+  choiceDefer: boolean;
+  approvedById: number | null;
+  approvedAt: Date | null;
+  supersededAt: Date | null;
+};
+
+const loadInvoiceSummary = async (row: InvoiceRow | null | undefined): Promise<RevalleProofLookup['invoice']> => {
+  if (!row || row.isInvoice !== RevalleInvoiceStatus.YES || !row.financeStatus) {
+    return null;
+  }
+
+  if (!FINANCE_STATUSES_SHOWN.includes(row.financeStatus)) {
+    return null;
+  }
+
+  const code = !row.choiceDefer && row.choiceCode ? row.choiceCode : null;
+  const isApproved =
+    row.approvedAt !== null && row.approvedById !== null && row.financeStatus !== RevalleFinanceStatus.PENDING_APPROVAL;
+
+  const [account, approver] = await Promise.all([
+    code ? prisma.revalleAccountingAccount.findUnique({ where: { code }, select: { name: true } }) : null,
+    isApproved && row.approvedById !== null
+      ? prisma.user.findUnique({ where: { id: row.approvedById }, select: { name: true } })
+      : null,
+  ]);
+
+  return {
+    account: code ? { code, name: account?.name ?? '' } : null,
+    approval:
+      isApproved && row.approvedAt
+        ? { approverName: approver?.name?.trim() || null, approvedAt: row.approvedAt }
+        : null,
+    isAwaitingApproval: row.financeStatus === RevalleFinanceStatus.PENDING_APPROVAL,
+    supersededAt: row.financeStatus === RevalleFinanceStatus.SUPERSEDED ? row.supersededAt : null,
   };
 };

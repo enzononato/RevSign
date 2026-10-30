@@ -15,6 +15,8 @@
 // Depois: NF escaneada no diálogo de envio ("Responda para enviar" e o botão de enviar bloqueado até "Sim"/"Não"),
 // NF v1 no editor antigo (o bloco da NF no topo), o link discreto "Marcar como nota fiscal" num documento comum já
 // enviado (o cartão só aparece depois de marcar) e o cartão com a pergunta numa NF escaneada enviada sem resposta.
+// Fase 6: quem assina essa NF enviada (portão com a Maria fictícia) vê, no celular, o bloco "Nota fiscal · Conta
+// contábil: {código} – {nome}" acima do documento.
 // Em cada passo tira um print e confere:
 //   - sem rolagem horizontal (document.scrollingElement.scrollWidth <= 360);
 //   - todo botão visível (button / role=button) com altura >= 44 px;
@@ -37,6 +39,8 @@ const WIDTH = 360;
 const HEIGHT = 740;
 const MIN_TARGET = 44;
 const FERNANDO = { cpf: '93457210888', birthDate: '31/12/1999' };
+// Quem assina a NF do passo da conta (Fase 6): outra pessoa fictícia, para não mexer no vínculo do Fernando.
+const MARIA = { cpf: '39053344705', birthDate: '07/03/1990' };
 // Campos do documento de teste (em % da página 1) e o centro de cada um, para o toque no canvas.
 const FIELD_BOXES = {
   signature: { type: 'SIGNATURE', page: 1, positionX: 10, positionY: 70, width: 35, height: 8 },
@@ -140,8 +144,13 @@ const runHost = async () => {
       throw new Error(`escolher a conta da nota enviada: HTTP ${chosen.status} ${chosen.text}`);
     }
 
-    await distribute(sentNf.id);
+    const [nfSigner] = await distribute(sentNf.id);
+
     senderEnv.SENT_INVOICE_URL = `${BASE_URL}/t/${teamUrl}/documents/${sentNf.id}`;
+    // Fase 6: a mesma NF aberta por quem assina mostra a conta escolhida.
+    senderEnv.NF_SIGN_URL = `${BASE_URL}/sign/${nfSigner.token}`;
+    senderEnv.NF_ACCOUNT_CODE = accountCode;
+    db(`delete from "RevalleEmailLink" where cpf = '${MARIA.cpf}'`);
 
     // NF escaneada (só imagem: "É nota fiscal?"): "Enviar" bloqueado até a resposta.
     const scanned = await createEnvelope({
@@ -239,6 +248,10 @@ const runHost = async () => {
       `SIGNER_CPF=${FERNANDO.cpf}`,
       '-e',
       `SIGNER_BIRTH_DATE=${FERNANDO.birthDate}`,
+      '-e',
+      `NF_SIGNER_CPF=${MARIA.cpf}`,
+      '-e',
+      `NF_SIGNER_BIRTH_DATE=${MARIA.birthDate}`,
       ...Object.keys(senderEnv).flatMap((name) => ['-e', name]),
       '-v',
       `${ROOT}:/repo:ro`,
@@ -254,6 +267,7 @@ const runHost = async () => {
   );
 
   db(`delete from "RevalleEmailLink" where cpf = '${FERNANDO.cpf}'`);
+  db(`delete from "RevalleEmailLink" where cpf = '${MARIA.cpf}'`);
 
   process.exit(result.status ?? 1);
 };
@@ -633,6 +647,62 @@ const runBrowser = async () => {
       console.log(`FALHA no passo da nota fiscal: ${error}`);
     } finally {
       await senderContext.close();
+    }
+  }
+
+  // 0b. Fase 6: quem assina a NF vê a conta contábil acima do documento, também no celular.
+  if (process.env.NF_SIGN_URL) {
+    const nfContext = await browser.newContext({
+      viewport: { width: WIDTH, height: HEIGHT },
+      deviceScaleFactor: 2,
+      isMobile: true,
+      hasTouch: true,
+      locale: 'pt-BR',
+    });
+    const nfPage = await nfContext.newPage();
+
+    nfPage.setDefaultTimeout(30_000);
+
+    try {
+      await nfPage.goto(process.env.NF_SIGN_URL, { waitUntil: 'networkidle' });
+      await nfPage.getByText('Antes de assinar').waitFor();
+      await nfPage.locator('label[for="revalle-term-accept"]').click();
+      await nfPage.getByRole('button', { name: 'Continuar' }).click();
+      await nfPage.getByText('Confirme que é você').waitFor();
+      await nfPage.getByLabel('CPF').fill(process.env.NF_SIGNER_CPF);
+      await nfPage.getByLabel('Data de nascimento').fill(process.env.NF_SIGNER_BIRTH_DATE);
+      await nfPage.getByRole('button', { name: 'Confirmar', exact: true }).click();
+      await nfPage.getByRole('button', { name: 'Sim, sou eu' }).click();
+      await nfPage.locator('.konva-container canvas').first().waitFor({ timeout: 60_000 });
+      await nfPage.waitForLoadState('networkidle');
+
+      const block = nfPage.getByTestId('invoice-signing-account');
+
+      await block.waitFor();
+
+      const text = (await block.innerText()).replace(/\s+/g, ' ');
+
+      if (!text.startsWith(`Nota fiscal · Conta contábil: ${process.env.NF_ACCOUNT_CODE} – `)) {
+        throw new Error(`bloco da conta com texto inesperado: "${text}"`);
+      }
+
+      const box = await block.boundingBox();
+
+      if (!box || box.y + box.height > HEIGHT) {
+        throw new Error('o bloco da conta não aparece na primeira tela do celular');
+      }
+
+      await check('00j-nf-conta-ao-assinar', nfPage);
+    } catch (error) {
+      await nfPage.screenshot({ path: `${out}/erro-nf-assinatura.png` }).catch(() => {});
+      steps.push({
+        step: 'nf-assinatura',
+        scrollWidth: null,
+        problems: [{ kind: 'flow-error', detail: String(error) }],
+      });
+      console.log(`FALHA no passo da conta ao assinar: ${error}`);
+    } finally {
+      await nfContext.close();
     }
   }
 

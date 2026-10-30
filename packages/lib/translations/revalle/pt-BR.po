@@ -4767,3 +4767,9 @@ msgstr "a definir pelo Financeiro"
 
 msgid "Conta aprovada pelo Financeiro. O envio anterior falhou: corrija o rascunho e envie."
 msgstr "Conta aprovada pelo Financeiro. O envio anterior falhou: corrija o rascunho e envie."
+
+msgid "Nota fiscal · Conta contábil: {label}"
+msgstr "Nota fiscal · Conta contábil: {label}"
+
+msgid "Você receberá o documento assinado por e-mail quando for aprovado."
+msgstr "Você receberá o documento assinado por e-mail quando for aprovado."

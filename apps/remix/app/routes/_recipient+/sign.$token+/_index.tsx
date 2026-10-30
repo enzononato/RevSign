@@ -23,6 +23,7 @@ import { getRecipientByToken } from '@documenso/lib/server-only/recipient/get-re
 import { getRecipientSignatures } from '@documenso/lib/server-only/recipient/get-recipient-signatures';
 import { getRecipientsForAssistant } from '@documenso/lib/server-only/recipient/get-recipients-for-assistant';
 import { getRevalleGateLoaderPayload } from '@documenso/lib/server-only/revalle/gate/get-gate-state-for-loader'; // REVALLE:
+import { findSigningInvoiceAccountForToken } from '@documenso/lib/server-only/revalle/invoice/signing-account'; // REVALLE:
 import { getTeamSettings } from '@documenso/lib/server-only/team/get-team-settings';
 import { assertSenderNotDisabled } from '@documenso/lib/server-only/user/assert-user-not-disabled';
 import { getUserByEmail } from '@documenso/lib/server-only/user/get-user-by-email';
@@ -50,6 +51,7 @@ import { DocumentSigningProvider } from '~/components/general/document-signing/d
 import { DocumentSigningSenderDisabledPage } from '~/components/general/document-signing/document-signing-sender-disabled-page';
 import { EnvelopeSigningProvider } from '~/components/general/document-signing/envelope-signing-provider';
 import { RecipientBranding } from '~/components/general/recipient-branding';
+import { SigningInvoiceAccountProvider } from '~/components/revalle/invoice/signing-invoice-account'; // REVALLE:
 import { RevalleSigningGate } from '~/components/revalle/signing-gate/signing-gate'; // REVALLE:
 import { useCspNonce } from '~/utils/nonce';
 import { superLoaderJson, useSuperLoaderData } from '~/utils/super-json-loader';
@@ -406,6 +408,7 @@ export async function loader(loaderArgs: Route.LoaderArgs) {
         version: 2,
         payload: payloadV2,
         branding,
+        revalleInvoiceAccount: await loadRevalleInvoiceAccount(token, payloadV2), // REVALLE:
       } as const,
       responseHeaders ? { headers: responseHeaders } : undefined,
     );
@@ -418,8 +421,15 @@ export async function loader(loaderArgs: Route.LoaderArgs) {
     version: 1,
     payload: payloadV1,
     branding,
+    revalleInvoiceAccount: await loadRevalleInvoiceAccount(token, payloadV1), // REVALLE:
   } as const);
 }
+
+// REVALLE: conta da NF só com o documento aberto para quem assina (portão passado e acesso válido), nunca antes.
+const loadRevalleInvoiceAccount = async (token: string, payload: object) =>
+  'revalleGate' in payload || !('isDocumentAccessValid' in payload) || payload.isDocumentAccessValid !== true
+    ? null
+    : await findSigningInvoiceAccountForToken(token);
 
 export default function SigningPage() {
   const data = useSuperLoaderData<typeof loader>();
@@ -432,7 +442,10 @@ export default function SigningPage() {
   return (
     <>
       <RecipientBranding branding={data.branding} cspNonce={cspNonce} />
-      {data.version === 2 ? <SigningPageV2 data={data.payload} /> : <SigningPageV1 data={data.payload} />}
+      <SigningInvoiceAccountProvider account={data.revalleInvoiceAccount}>
+        {/* REVALLE: conta da NF para as telas V1 e V2 */}
+        {data.version === 2 ? <SigningPageV2 data={data.payload} /> : <SigningPageV1 data={data.payload} />}
+      </SigningInvoiceAccountProvider>
     </>
   );
 }

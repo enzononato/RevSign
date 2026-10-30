@@ -32,6 +32,7 @@ import { useEmbedSigningContext } from '~/components/embed/embed-signing-context
 import { EnvelopeSignerPageRenderer } from '~/components/general/envelope-signing/envelope-signer-page-renderer';
 import { EnvelopePdfViewer } from '~/components/general/pdf-viewer/envelope-pdf-viewer';
 import { PublicLegalLinks } from '~/components/general/public-legal-links';
+import { SigningInvoiceAccountBlock } from '~/components/revalle/invoice/signing-invoice-account'; // REVALLE:
 
 import { BrandingLogo } from '../branding-logo';
 import { DocumentSigningAttachmentsPopover } from '../document-signing/document-signing-attachments-popover';
@@ -240,6 +241,9 @@ export const DocumentSigningPageViewV2 = () => {
 
         <div className="embed--DocumentContainer min-w-0 flex-1 overflow-y-auto" ref={scrollableContainerRef}>
           <div className="flex flex-col">
+            {/* REVALLE: conta da NF (Fase 6) */}
+            <SigningInvoiceAccountBlock className="mx-2 mt-2 sm:mx-4 sm:mt-4" />
+
             {/* Horizontal envelope item selector */}
             {envelopeItems.length > 1 && (
               <div className="flex h-fit space-x-2 overflow-x-auto p-2 pt-4 sm:p-4">

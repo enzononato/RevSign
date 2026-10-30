@@ -5,20 +5,22 @@
 //   3. segundo documento: NFS-e sem conta (Fase 6: "Deixar para o Financeiro" retém o envio, então a NFS-e é uma NF
 //      de antes da Fase 6, deixada para a contabilidade, simulada no banco logo depois do envio);
 //   4. terceiro documento: contrato comum;
-//   5. dois signatários assinam cada NF (portão + código por e-mail); as NFs são concluídas (Fase 6: o aceite é o da
-//      Fase 5, sem o Financeiro, então o DANFE também vira NF de antes da Fase 6, `LEGACY`, logo depois do envio; o
-//      fluxo com a aprovação do Financeiro está em finance-approve.test.mjs);
+//   5. dois signatários assinam cada NF (portão + código por e-mail); as NFs são concluídas (Fase 6: o DANFE fica
+//      retido depois das duas assinaturas e o Financeiro, o admin marcado aqui, aprova pela rota; a NFS-e é de antes
+//      da Fase 6 e conclui sem aprovação);
 //   6. a página "Notas fiscais" (rota `revalle.invoice.find`) lista as 2 NFs para o remetente, 0 para um terceiro
 //      usuário sem envolvimento, só a NF em que é signatário para um colega, e as 2 para o admin; filtros;
 //   7. a planilha (`/notas-fiscais/csv`) tem BOM, o cabeçalho exato, 2 linhas e as contas certas, e respeita os filtros;
 //   8. chegaram 2 e-mails para a contabilidade;
 //   9. a política de privacidade tem a frase da spec §9 e diz com exatidão o que acontece com o CPF;
-//  10. o PDF selado (com o certificado e o log anexados) não tem o número nem o nome da conta.
+//  10. Fase 6: o PDF selado do DANFE traz a conta no certificado (linha do documento com a aprovação e "Conta contábil
+//      vista ao assinar" em cada signatário); o da NFS-e (de antes da Fase 6, sem conta) não fala de conta.
 //  11. o remetente exclui a NFS-e: some para ele e o admin continua vendo, marcada "excluído pelo remetente".
 //
 // Com o servidor falso do Gemini (compose.test.yml) a sugestão do passo 2 sai de verdade; sem ele (sem chave), o
 // remetente escolhe a mesma conta na lista e a planilha fica sem sugestão (o resto do aceite é igual).
-// Sessão: REVSIGN_ADMIN_* (conta ADMIN). O remetente, o terceiro e o colega são contas novas a cada execução.
+// Sessão: REVSIGN_ADMIN_* (conta ADMIN, marcada como Financeiro). O remetente, o terceiro e o colega são contas novas a
+// cada execução.
 // O prompt e o e-mail da contabilidade anteriores são restaurados no final. Ver revalle/docs/testes.md.
 
 import assert from 'node:assert/strict';
@@ -64,7 +66,7 @@ const PRIVACY_SENTENCE =
 // O que de fato vai ao Gemini: o texto com o CPF mascarado; a NF digitalizada vai como imagem, sem máscara possível.
 const PRIVACY_CPF_SENTENCE =
   'No texto da nota, números de CPF são mascarados antes do envio; uma nota digitalizada (imagem) é enviada como está. Nunca enviamos a data de nascimento nem os dados da verificação de quem assina.';
-// Números e nomes que não aparecem por acaso num PDF (datas, IPs, hashes), para o passo 10 valer.
+// Números e nomes que não aparecem por acaso num PDF (datas, IPs, hashes), para o passo 10 valer nos dois sentidos.
 const ACCOUNTS = [
   { code: '4.1.07', name: 'Fornecedores Aceite Cinco', kind: 'pagar' },
   { code: '4.2.19', name: 'Serviços Tomados Aceite Cinco', kind: 'pagar' },
@@ -273,8 +275,9 @@ const waitStatus = async (envelopeId, wanted) => {
 };
 
 // Portão (termo, CPF + data de nascimento da Maria fictícia, "sou eu"), assinatura e conclusão com o código.
-// `afterSend(id)`: roda logo depois do envio.
-const signAll = async (doc, { afterSend } = {}) => {
+// `afterSend(id)`: roda logo depois do envio. `approve`: NF da Fase 6, retida depois da última assinatura até o
+// Financeiro aprovar pela rota.
+const signAll = async (doc, { afterSend, approve = false } = {}) => {
   const recipients = await distribute(doc.id, { apiToken: fx.senderToken });
 
   afterSend?.(doc.id);
@@ -303,6 +306,17 @@ const signAll = async (doc, { afterSend } = {}) => {
   }
 
   db(`delete from "RevalleEmailLink" where cpf = '${MARIA.cpf}'`);
+
+  if (approve) {
+    await sleep(2000);
+    assert.equal(db(`select status from "Envelope" where id = '${doc.id}'`), 'PENDING', 'a NF não ficou retida');
+
+    const approved = await trpcAs(adminCookie, 'mutation', 'revalle.finance.approve', { envelopeId: doc.id });
+
+    assert.equal(approved.status, 200, approved.text);
+    assert.equal(data(approved).approved, true);
+  }
+
   assert.equal(await waitStatus(doc.id, 'COMPLETED'), 'COMPLETED');
 };
 
@@ -345,6 +359,16 @@ before(async () => {
   }
 
   adminCookie = await signIn(admin.email, admin.password);
+  fx.adminId = Number(db(`select id from "User" where email = '${admin.email}'`));
+  fx.adminName = db(`select coalesce(nullif(trim(name), ''), email) from "User" where id = ${fx.adminId}`);
+
+  // Fase 6: o admin é do Financeiro (aprova o DANFE no passo 5).
+  const marked = await trpcAs(adminCookie, 'mutation', 'revalle.finance.adminSetMember', {
+    userId: fx.adminId,
+    member: true,
+  });
+
+  assert.equal(marked.status, 200, marked.text);
   previous = await getSettings();
   // O caminho da IA exige o servidor falso no ar E o app subido com ele (compose.test.yml): o container do servidor
   // falso pode continuar de pé com o app já recriado sem a chave.
@@ -439,11 +463,8 @@ before(async () => {
         `update "RevalleInvoiceClassification" set "choiceCode" = null, "choiceDefer" = true, "acceptedSuggestion" = null, "financeStatus" = 'LEGACY' where "envelopeId" = '${id}'`,
       ),
   });
-  // Fase 6: sem `LEGACY`, o DANFE ficaria retido esperando o Financeiro, e a aprovação entraria no log do PDF (passo 10).
-  await signAll(fx.danfe, {
-    afterSend: (id) =>
-      db(`update "RevalleInvoiceClassification" set "financeStatus" = 'LEGACY' where "envelopeId" = '${id}'`),
-  });
+  // Fase 6: o DANFE fica retido depois das duas assinaturas e o Financeiro aprova pela rota.
+  await signAll(fx.danfe, { approve: true });
 
   fx.ready = true;
 });
@@ -681,33 +702,64 @@ testStep('9. a política de privacidade tem a frase do Gemini (spec §9) e a do 
   assert.ok(!/Nunca enviamos o CPF/i.test(text), 'a política ainda promete nunca enviar o CPF');
 });
 
-testStep('10. o PDF selado (com certificado e log) não tem o número nem o nome da conta', async () => {
-  for (const doc of [fx.danfe, fx.nfse]) {
-    const dir = mkdtempSync(path.join(tmp, 'selado-'));
+// Texto do PDF selado (documento, certificado e log anexados), com os espaços normalizados.
+const sealedText = async (doc) => {
+  const dir = mkdtempSync(path.join(tmp, 'selado-'));
 
-    writeFileSync(
-      path.join(dir, 'signed.pdf'),
-      await downloadItem(doc.item.id, 'signed', { apiToken: fx.senderToken }),
+  writeFileSync(path.join(dir, 'signed.pdf'), await downloadItem(doc.item.id, 'signed', { apiToken: fx.senderToken }));
+
+  const pages = Number(poppler(dir, 'pdfinfo /pdf/signed.pdf').match(/Pages:\s+(\d+)/)?.[1]);
+  const text = poppler(dir, 'pdftotext /pdf/signed.pdf -').replace(/\s+/g, ' ');
+
+  // O certificado e o log de auditoria vão anexados ao PDF selado: a conferência abaixo vale para os três.
+  assert.ok(pages > 1, `${doc.title}: ${pages} página(s)`);
+  assert.ok(text.includes('Certificado de Assinatura'), `${doc.title}: sem o certificado`);
+  assert.ok(text.includes('Log de Auditoria'), `${doc.title}: sem o log de auditoria`);
+  assert.ok(text.includes(doc.id), `${doc.title}: o certificado não é deste documento`);
+
+  return text;
+};
+
+testStep(
+  '10. o certificado do DANFE traz a conta e a aprovação; o da NFS-e (sem conta) não fala de conta',
+  async () => {
+    // Fase 6 (substitui a regra da Fase 5 de deixar a conta fora do certificado): a conta faz parte do que é assinado.
+    const danfe = await sealedText(fx.danfe);
+    const approvedAt = db(
+      `select to_char(("approvedAt" at time zone 'UTC') at time zone 'America/Bahia', 'DD/MM/YYYY HH24:MI') from "RevalleInvoiceClassification" where "envelopeId" = '${fx.danfe.id}'`,
     );
 
-    const pages = Number(poppler(dir, 'pdfinfo /pdf/signed.pdf').match(/Pages:\s+(\d+)/)?.[1]);
-    const text = poppler(dir, 'pdftotext -layout /pdf/signed.pdf -').replace(/\s+/g, ' ');
+    assert.match(approvedAt, /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/);
+    assert.ok(
+      danfe.includes(
+        `Conta contábil: 4.1.07 – Fornecedores Aceite Cinco · aprovada pelo Financeiro (${fx.adminName}) em ${approvedAt} (horário de Brasília)`,
+      ),
+      'DANFE: sem a linha da conta e da aprovação no certificado',
+    );
+    assert.equal(
+      danfe.split('Conta contábil vista ao assinar: 4.1.07').length - 1,
+      2,
+      'DANFE: "Conta contábil vista ao assinar" em cada um dos 2 signatários',
+    );
 
-    // O certificado e o log de auditoria vão anexados ao PDF selado: a conferência abaixo vale para os três.
-    assert.ok(pages > 1, `${doc.title}: ${pages} página(s)`);
-    assert.ok(text.includes('Certificado de Assinatura'), `${doc.title}: sem o certificado`);
-    assert.ok(text.includes('Log de Auditoria'), `${doc.title}: sem o log de auditoria`);
-    assert.ok(text.includes(doc.id), `${doc.title}: o certificado não é deste documento`);
-
-    for (const account of ACCOUNTS) {
-      assert.ok(!text.includes(account.code), `${doc.title}: o PDF tem o número ${account.code}`);
-      assert.ok(!text.includes(account.name), `${doc.title}: o PDF tem o nome ${account.name}`);
+    // Só a conta escolhida: as outras contas da lista não aparecem.
+    for (const account of ACCOUNTS.filter((a) => a.code !== '4.1.07')) {
+      assert.ok(!danfe.includes(account.code), `DANFE: o PDF tem o número ${account.code}`);
+      assert.ok(!danfe.includes(account.name), `DANFE: o PDF tem o nome ${account.name}`);
     }
 
-    assert.ok(!text.includes('a definir pelo Financeiro'), `${doc.title}: o PDF fala da conta a definir`);
-    assert.ok(!/conta cont[aá]bil/i.test(text), `${doc.title}: o PDF fala de conta contábil`);
-  }
-});
+    // NFS-e de antes da Fase 6, deixada para a contabilidade: ninguém viu conta ao assinar, nada de conta no PDF.
+    const nfse = await sealedText(fx.nfse);
+
+    for (const account of ACCOUNTS) {
+      assert.ok(!nfse.includes(account.code), `NFS-e: o PDF tem o número ${account.code}`);
+      assert.ok(!nfse.includes(account.name), `NFS-e: o PDF tem o nome ${account.name}`);
+    }
+
+    assert.ok(!nfse.includes('a definir pelo Financeiro'), 'NFS-e: o PDF fala da conta a definir');
+    assert.ok(!/conta cont[aá]bil/i.test(nfse), 'NFS-e: o PDF fala de conta contábil');
+  },
+);
 
 testStep(
   '11. NF excluída pelo remetente: some para ele e continua para o admin, marcada na tela e na planilha',

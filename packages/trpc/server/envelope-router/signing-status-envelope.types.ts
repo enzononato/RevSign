@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-export const EnvelopeSigningStatus = z.enum(['PENDING', 'PROCESSING', 'COMPLETED', 'REJECTED']);
+// REVALLE: AWAITING_FINANCE = todos concluíram e a NF espera a aprovação do Financeiro (Fase 6).
+export const EnvelopeSigningStatus = z.enum(['PENDING', 'PROCESSING', 'COMPLETED', 'REJECTED', 'AWAITING_FINANCE']);
 
 export const ZSigningStatusEnvelopeRequestSchema = z.object({
   token: z.string().describe('The recipient token to check the signing status for'),

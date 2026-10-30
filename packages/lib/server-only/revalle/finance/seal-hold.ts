@@ -1,6 +1,12 @@
 import { prisma } from '@documenso/prisma';
 import type { Prisma } from '@prisma/client';
-import { DocumentStatus, RevalleFinanceStatus, RevalleInvoiceStatus, SigningStatus } from '@prisma/client';
+import {
+  DocumentStatus,
+  RecipientRole,
+  RevalleFinanceStatus,
+  RevalleInvoiceStatus,
+  SigningStatus,
+} from '@prisma/client';
 
 import { jobs } from '../../../jobs/client';
 import { logger } from '../../../utils/logger';
@@ -17,6 +23,34 @@ export const shouldHoldSeal = async (envelopeId: string): Promise<boolean> => {
       isInvoice: RevalleInvoiceStatus.YES,
       financeStatus: RevalleFinanceStatus.PENDING_APPROVAL,
       envelope: { recipients: { none: { signingStatus: SigningStatus.REJECTED } } },
+    },
+    select: { envelopeId: true },
+  });
+
+  return row !== null;
+};
+
+/**
+ * Para quem assina: todos os que agem já concluíram e a NF está retida esperando a aprovação do Financeiro (a página de
+ * conclusão diz isso em vez de "Processando documento", que pode durar dias).
+ */
+export const isWaitingForFinanceApproval = async (envelopeId: string): Promise<boolean> => {
+  const row = await prisma.revalleInvoiceClassification.findFirst({
+    where: {
+      envelopeId,
+      isInvoice: RevalleInvoiceStatus.YES,
+      financeStatus: RevalleFinanceStatus.PENDING_APPROVAL,
+      envelope: {
+        status: DocumentStatus.PENDING,
+        recipients: {
+          none: {
+            OR: [
+              { signingStatus: SigningStatus.REJECTED },
+              { role: { not: RecipientRole.CC }, signingStatus: { not: SigningStatus.SIGNED } },
+            ],
+          },
+        },
+      },
     },
     select: { envelopeId: true },
   });
