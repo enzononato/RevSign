@@ -110,8 +110,11 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
   // servidor confere de qualquer forma. Escaneado (UNKNOWN) só libera com "Sim" (e a conta) ou "Não": uma NF tirada
   // no celular não pode sair do fluxo da contabilidade com um toque em "Enviar". O servidor não exige a resposta (API).
   // Retida para o Financeiro ("Deixar para o Financeiro" já enviado; ou com a conta definida e o envio do Financeiro
-  // em andamento): quem envia agora é o Financeiro.
-  const isHeld = isInvoice && (state?.financeStatus === 'AWAITING_ACCOUNT' || state?.financeStatus === 'APPROVED');
+  // em andamento): quem envia agora é o Financeiro. Conta aprovada cujo envio pelo Financeiro falhou (reserva solta):
+  // a conta fica travada, mas o rascunho pode sair por aqui.
+  const isReleased = isInvoice && state?.financeStatus === 'APPROVED' && state.isFinanceSendReleased;
+  const isHeld =
+    isInvoice && !isReleased && (state?.financeStatus === 'AWAITING_ACCOUNT' || state?.financeStatus === 'APPROVED');
   const isReady =
     isClassified &&
     !isHeld &&
@@ -221,6 +224,22 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
 
         <p className="mt-2 text-amber-700 text-sm dark:text-amber-400">
           <Trans>Responda para enviar</Trans>
+        </p>
+      </section>
+    );
+  }
+
+  if (isReleased) {
+    return (
+      <section className="mb-4 flex flex-col gap-1 rounded-lg border p-3" data-testid="invoice-account-panel">
+        <h3 className="font-medium text-sm">
+          <Trans>Nota fiscal · Conta contábil</Trans>
+        </h3>
+        <p className="text-sm">
+          {state.choice?.name ? `${state.choice.code} – ${state.choice.name}` : state.choice?.code}
+        </p>
+        <p className="text-muted-foreground text-sm">
+          <Trans>Conta aprovada pelo Financeiro. O envio anterior falhou: corrija o rascunho e envie.</Trans>
         </p>
       </section>
     );

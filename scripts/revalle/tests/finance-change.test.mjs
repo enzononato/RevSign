@@ -32,6 +32,7 @@ import { PDFDocument, rgb, StandardFonts } from '@cantoo/pdf-lib';
 
 import {
   APP_CONTAINER,
+  api,
   assertNoPaidGeminiCalls,
   BASE_URL,
   completeWithCode,
@@ -227,13 +228,12 @@ const loadVersion = (envelopeId) => {
 };
 
 // Cria a NF com a conta 2.1.03, envia pela API v2 (dono = usuário comum) e devolve a versão lida do banco.
-const newInvoice = async (label, { signers = 2, meta } = {}) => {
+const newInvoice = async (label, { signers = 2, meta, sequential = false } = {}) => {
   const emails = Array.from({ length: signers }, (_, index) => `f6-troca-${label}-${index + 1}-${RUN}@revalle.com.br`);
   const title = `[TESTE NF] financeiro troca ${label} ${RUN}`;
   const pdf = await danfe(label);
-  const created = await retryCreateOnStaleSocket(() =>
-    createEnvelope({ recipients: emails.map((email) => ({ email })), pdf, title, meta }),
-  );
+  const recipients = emails.map((email, index) => (sequential ? { email, signingOrder: index + 1 } : { email }));
+  const created = await retryCreateOnStaleSocket(() => createEnvelope({ recipients, pdf, title, meta }));
 
   assert.equal(created.status, 200, created.text);
 
@@ -321,6 +321,10 @@ const runJobLikeTheApp = async ({ jobId, name, version, payload }) => {
 
   return one(`select status from "BackgroundJob" where id = '${id}'`);
 };
+
+const errorOf = (res) => res.body?.error?.json ?? {};
+const defineAccount = (envelopeId, code) =>
+  trpcAs(adminCookie, 'mutation', 'revalle.finance.defineAccount', { envelopeId, code });
 
 const changed = (res) => {
   assert.equal(res.status, 200, res.text);
@@ -499,6 +503,17 @@ sessionTest(
       assert.ok(
         await waitInvite(recipient.email, recipient.token),
         `o convite da v2 não chegou para ${recipient.email}`,
+      );
+    }
+
+    // A versão antiga foi escondida sem o e-mail de cancelamento do upstream ("Documento cancelado").
+    for (const recipient of main.recipients) {
+      const cancelled = (await mailsTo(recipient.email)).filter((m) => /cancel/i.test(m.Subject));
+
+      assert.deepEqual(
+        cancelled.map((m) => m.Subject),
+        [],
+        `e-mail de cancelamento para ${recipient.email}`,
       );
     }
   },
@@ -743,46 +758,100 @@ sessionTest('falha ao criar a v2 (cota zerada): a troca é desfeita, nada fica S
   changed(await change(doc.id));
 });
 
+// Troca cujo envio da v2 é recusado (destinatário de fora dos domínios, posto no banco): 409 claro e a v2 em rascunho.
+const changeWithFailedSend = async (label) => {
+  const doc = await newInvoice(label, { signers: 1 });
+
+  db(`update "Recipient" set email = 'f6-troca-fora-${label}-${RUN}@example.com' where "envelopeId" = '${doc.id}'`);
+
+  const res = await change(doc.id);
+
+  assert.equal(res.status, 409, res.text);
+  assert.equal(errorOf(res).data?.code, 'FINANCE_NEW_VERSION_NOT_SENT', res.text);
+  assert.ok(
+    errorOf(res).message?.startsWith(
+      `A conta foi trocada e a nova versão "${doc.title} (v2)" foi criada, mas não foi enviada: `,
+    ),
+    res.text,
+  );
+  assert.ok(
+    errorOf(res).message?.endsWith(
+      '. O remetente pode corrigir o rascunho e enviá-lo, ou o Financeiro envia de novo (mesma conta) depois da correção.',
+    ),
+    res.text,
+  );
+
+  const [v2] = successors(doc.id);
+
+  assert.ok(v2, 'a v2 não ficou criada');
+  assert.equal(status(v2), 'DRAFT');
+  assert.equal(released(v2), 'APPROVED|3.1.01|true');
+  assert.equal(financeStatus(doc.id), 'SUPERSEDED');
+  assert.equal(
+    one(`select "supersededByEnvelopeId" from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`),
+    v2,
+  );
+
+  return { doc, v2 };
+};
+
+const released = (envelopeId) =>
+  one(
+    `select "financeStatus" || '|' || "choiceCode" || '|' || ("approvedAt" is null) from "RevalleInvoiceClassification" where "envelopeId" = '${envelopeId}'`,
+  );
+
 sessionTest(
-  'falha ao enviar a v2: erro claro, v2 em rascunho APPROVED com a reserva solta; corrigida, defineAccount envia',
+  'falha ao enviar a v2: 409 claro; defineAccount só reenvia a mesma conta e uma 2ª falha não apaga a conta; corrigida, envia',
   async () => {
-    const doc = await newInvoice('envio-falha', { signers: 1 });
-    const outside = `f6-troca-fora-${RUN}@example.com`;
+    const { v2 } = await changeWithFailedSend('envio-falha');
 
-    db(`update "Recipient" set email = '${outside}' where "envelopeId" = '${doc.id}'`);
+    const other = await defineAccount(v2, '2.1.03');
 
-    const res = await change(doc.id);
+    assert.equal(other.status, 400, other.text);
+    assert.equal(
+      errorOf(other).message,
+      'Esta versão já tem a conta definida pela troca. Envie-a e, se precisar, use Trocar conta.',
+    );
 
-    assert.ok(!res.ok, `o envio da v2 com destinatário de fora passou: ${res.text}`);
-    assert.ok(res.text.includes('nova versão'), res.text);
+    // 2ª falha (o destinatário continua de fora): a v2 continua aprovada com a conta e a reserva solta.
+    const again = await defineAccount(v2, '3.1.01');
 
-    const [v2] = successors(doc.id);
-
-    assert.ok(v2, 'a v2 não ficou criada');
+    assert.ok(again.status >= 400 && again.status < 500, again.text);
     assert.equal(status(v2), 'DRAFT');
-    assert.equal(
-      one(
-        `select "financeStatus" || '|' || "choiceCode" || '|' || ("approvedAt" is null) from "RevalleInvoiceClassification" where "envelopeId" = '${v2}'`,
-      ),
-      'APPROVED|3.1.01|true',
-    );
-    assert.equal(financeStatus(doc.id), 'SUPERSEDED');
-    assert.equal(
-      one(`select "supersededByEnvelopeId" from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`),
-      v2,
-    );
+    assert.equal(released(v2), 'APPROVED|3.1.01|true');
 
     db(`update "Recipient" set email = 'f6-troca-corrigido-${RUN}@revalle.com.br' where "envelopeId" = '${v2}'`);
 
-    const retried = await trpcAs(adminCookie, 'mutation', 'revalle.finance.defineAccount', {
-      envelopeId: v2,
-      code: '3.1.01',
-    });
+    const retried = await defineAccount(v2, '3.1.01');
 
     assert.equal(retried.status, 200, retried.text);
     assert.deepEqual(data(retried), { sent: true });
     assert.equal(await waitStatus(v2, 'PENDING', 10), 'PENDING');
-    assert.equal(financeStatus(v2), 'APPROVED');
+    assert.equal(released(v2), 'APPROVED|3.1.01|false');
+  },
+);
+
+sessionTest(
+  'falha ao enviar a v2: o remetente corrige o rascunho e envia; a aprovação fica com a data da troca',
+  async () => {
+    const { v2 } = await changeWithFailedSend('envio-falha-dono');
+    const state = await trpcAs(userCookie, 'query', 'revalle.invoice.get', { envelopeId: v2 });
+
+    assert.equal(state.status, 200, state.text);
+    assert.equal(data(state)?.isFinanceSendReleased, true, 'o bloco do envio não libera o rascunho');
+
+    db(`update "Recipient" set email = 'f6-troca-dono-${RUN}@revalle.com.br' where "envelopeId" = '${v2}'`);
+
+    const sent = await api('POST', '/envelope/distribute', { envelopeId: v2 });
+
+    assert.equal(sent.status, 200, sent.text);
+    assert.equal(await waitStatus(v2, 'PENDING', 10), 'PENDING');
+    assert.equal(
+      one(
+        `select "financeStatus" || '|' || ("approvedAt" = "choiceAt") || '|' || ("approvedById" = ${adminId}) from "RevalleInvoiceClassification" where "envelopeId" = '${v2}'`,
+      ),
+      'APPROVED|true|true',
+    );
   },
 );
 
@@ -814,5 +883,101 @@ sessionTest(
       `${REASON}|${v2}`,
     );
     assert.equal(await waitStatus(v2, 'PENDING', 10), 'PENDING');
+  },
+);
+
+sessionTest('nova versão apagada: outra troca retoma a antiga na hora', async () => {
+  const doc = await newInvoice('sucessora-apagada', { signers: 1 });
+  const first = changed(await change(doc.id));
+
+  db(`delete from "Envelope" where id = '${first}'`);
+
+  const second = changed(await change(doc.id));
+
+  assert.notEqual(second, first);
+  assert.deepEqual(successors(doc.id), [second]);
+  assert.equal(
+    one(`select "supersededByEnvelopeId" from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`),
+    second,
+  );
+  assert.equal(await waitStatus(second, 'PENDING', 10), 'PENDING');
+});
+
+sessionTest('recusada, excluída ou com o dono desativado: 400, nada muda', async () => {
+  const rejected = await newInvoice('recusada', { signers: 1 });
+
+  await gate(rejected.recipients[0].token);
+
+  const refused = await trpc('recipient.rejectDocumentWithToken', {
+    token: rejected.recipients[0].token,
+    documentId: rejected.documentId,
+    reason: 'Teste',
+  });
+
+  assert.equal(refused.status, 200, refused.text);
+  assert.equal((await change(rejected.id)).status, 400);
+  assert.deepEqual(successors(rejected.id), []);
+
+  const deleted = await newInvoice('excluida', { signers: 1 });
+
+  db(`update "Envelope" set "deletedAt" = now() where id = '${deleted.id}'`);
+  assert.equal((await change(deleted.id)).status, 400);
+  assert.equal(financeStatus(deleted.id), 'PENDING_APPROVAL');
+
+  const disabledOwner = await newInvoice('dono-desativado', { signers: 1 });
+  let res;
+
+  db(`update "User" set disabled = true where id = ${userId}`);
+
+  try {
+    res = await change(disabledOwner.id);
+  } finally {
+    db(`update "User" set disabled = false where id = ${userId}`);
+  }
+
+  assert.equal(res.status, 400, res.text);
+  assert.ok(errorOf(res).message?.includes('O dono do documento está desativado'), res.text);
+  assert.equal(financeStatus(disabledOwner.id), 'PENDING_APPROVAL');
+  assert.deepEqual(successors(disabledOwner.id), []);
+});
+
+sessionTest(
+  'a v2 leva as configurações (idioma, ordem SEQUENTIAL, expiração, lembretes); os prazos da antiga são zerados',
+  async () => {
+    const doc = await newInvoice('configuracoes', {
+      sequential: true,
+      meta: {
+        language: 'en',
+        signingOrder: 'SEQUENTIAL',
+        envelopeExpirationPeriod: { unit: 'week', amount: 2 },
+        reminderSettings: { sendAfter: { unit: 'day', amount: 3 }, repeatEvery: { unit: 'day', amount: 1 } },
+      },
+    });
+    const metaOf = (envelopeId) =>
+      one(
+        `select m.language || '|' || m."signingOrder" || '|' || m."envelopeExpirationPeriod"::text || '|' || m."reminderSettings"::text from "DocumentMeta" m join "Envelope" e on e."documentMetaId" = m.id where e.id = '${envelopeId}'`,
+      );
+    const withExpiry = (envelopeId) =>
+      Number(
+        one(
+          `select count(*) from "Recipient" where "envelopeId" = '${envelopeId}' and "signingStatus" = 'NOT_SIGNED' and "expiresAt" is not null`,
+        ),
+      );
+
+    assert.ok(metaOf(doc.id).startsWith('en|SEQUENTIAL|'), metaOf(doc.id));
+    assert.ok(withExpiry(doc.id) > 0, 'o envio não deu prazo aos destinatários (o caso não provaria nada)');
+
+    const v2 = changed(await change(doc.id));
+
+    assert.equal(metaOf(v2), metaOf(doc.id));
+    assert.deepEqual(
+      loadVersion(v2).recipients.map((r) => [r.email, r.signingOrder]),
+      doc.recipients.map((r) => [r.email, r.signingOrder]),
+    );
+    assert.deepEqual(
+      doc.recipients.map((r) => r.signingOrder),
+      ['1', '2'],
+    );
+    assert.equal(withExpiry(doc.id), 0, 'a versão antiga ficou com prazo de expiração');
   },
 );

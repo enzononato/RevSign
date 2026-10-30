@@ -23,18 +23,22 @@ export const supersededVersionError = () =>
 export const isSupersededPendingVersion = async (
   where: { recipientId: number } | { envelopeId: string },
 ): Promise<boolean> => {
-  const row = await prisma.revalleInvoiceClassification.findFirst({
-    where: {
-      isInvoice: RevalleInvoiceStatus.YES,
-      financeStatus: RevalleFinanceStatus.SUPERSEDED,
-      ...('envelopeId' in where ? { envelopeId: where.envelopeId } : {}),
-      envelope: {
-        status: { not: DocumentStatus.COMPLETED },
-        ...('recipientId' in where ? { recipients: { some: { id: where.recipientId } } } : {}),
-      },
-    },
-    select: { envelopeId: true },
-  });
+  // Pela chave primária (o portão roda em cada ação de quem assina): o envelope com a linha da NF.
+  const select = {
+    status: true,
+    revalleInvoice: { select: { isInvoice: true, financeStatus: true } },
+  } as const;
 
-  return row !== null;
+  const envelope =
+    'envelopeId' in where
+      ? await prisma.envelope.findUnique({ where: { id: where.envelopeId }, select })
+      : (await prisma.recipient.findUnique({ where: { id: where.recipientId }, select: { envelope: { select } } }))
+          ?.envelope;
+
+  return (
+    envelope?.status !== undefined &&
+    envelope.status !== DocumentStatus.COMPLETED &&
+    envelope.revalleInvoice?.isInvoice === RevalleInvoiceStatus.YES &&
+    envelope.revalleInvoice.financeStatus === RevalleFinanceStatus.SUPERSEDED
+  );
 };

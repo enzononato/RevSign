@@ -1,5 +1,5 @@
 import { prisma } from '@documenso/prisma';
-import type { Recipient, RevalleInvoiceClassification } from '@prisma/client';
+import type { EnvelopeAttachment, Recipient, RevalleInvoiceClassification } from '@prisma/client';
 import {
   DocumentStatus,
   EnvelopeType,
@@ -31,6 +31,9 @@ export type ChangeInvoiceAccountResult = { newEnvelopeId: string };
  */
 export const FINANCE_CHANGE_LEASE_MS = 5 * 60 * 1000;
 
+// `createdAt` do envelope vem do relógio do banco; a tentativa começa no relógio do app.
+const ORPHAN_CLOCK_MARGIN_MS = 1000;
+
 const REASON_MESSAGE = 'Escreva o motivo da troca (de 10 a 500 caracteres).';
 const NOT_CHANGEABLE_MESSAGE =
   'Só dá para trocar a conta de uma nota fiscal enviada (aguardando aprovação ou aprovada) ou concluída.';
@@ -39,8 +42,11 @@ const DELETED_MESSAGE = 'Este documento foi excluído.';
 const SAME_ACCOUNT_MESSAGE = 'Escolha uma conta diferente da atual.';
 const INACTIVE_ACCOUNT_MESSAGE = 'Conta contábil inativa ou inexistente.';
 const IN_PROGRESS_MESSAGE = 'A conta desta nota fiscal está sendo trocada agora. Atualize a página em instantes.';
-const NOT_SENT_MESSAGE =
-  'A conta foi trocada e a nova versão foi criada, mas o envio dela falhou. Corrija o problema e envie a nova versão em "Definir conta e enviar".';
+const OWNER_UNAVAILABLE_MESSAGE =
+  'O dono do documento está desativado ou não tem mais acesso a ele: a nova versão não pode ser criada em nome dele.';
+
+const notSentMessage = (title: string, cause: string) =>
+  `A conta foi trocada e a nova versão "${title}" foi criada, mas não foi enviada: ${cause.trim().replace(/[.!?…]+$/, '')}. O remetente pode corrigir o rascunho e enviá-lo, ou o Financeiro envia de novo (mesma conta) depois da correção.`;
 
 const invalid = (message: string) => new AppError(AppErrorCode.INVALID_REQUEST, { message, userMessage: message });
 
@@ -60,11 +66,26 @@ const CHANGEABLE: Partial<Record<DocumentStatus, RevalleFinanceStatus[]>> = {
   ],
 };
 
-const isStaleClaim = (row: RevalleInvoiceClassification, now: Date) =>
-  row.financeStatus === RevalleFinanceStatus.SUPERSEDED &&
-  row.supersededByEnvelopeId === null &&
-  row.supersededAt !== null &&
-  now.getTime() - row.supersededAt.getTime() >= FINANCE_CHANGE_LEASE_MS;
+/**
+ * Marca `SUPERSEDED` que outra troca pode retomar: sem sucessora há mais que o prazo (troca que morreu no meio), ou com
+ * uma sucessora que não existe mais (a nova versão foi apagada).
+ */
+const isStaleClaim = async (row: RevalleInvoiceClassification, now: Date) => {
+  if (row.financeStatus !== RevalleFinanceStatus.SUPERSEDED || row.supersededAt === null) {
+    return false;
+  }
+
+  if (row.supersededByEnvelopeId === null) {
+    return now.getTime() - row.supersededAt.getTime() >= FINANCE_CHANGE_LEASE_MS;
+  }
+
+  const successor = await prisma.envelope.findUnique({
+    where: { id: row.supersededByEnvelopeId },
+    select: { id: true },
+  });
+
+  return successor === null;
+};
 
 /**
  * "Trocar conta" (o membro do Financeiro já foi conferido pela rota): a versão atual da NF é substituída por uma NOVA
@@ -111,6 +132,9 @@ export const changeInvoiceAccount = async ({
       userId: true,
       teamId: true,
       folderId: true,
+      externalId: true,
+      user: { select: { disabled: true } },
+      envelopeAttachments: { select: { type: true, label: true, data: true } },
       recipients: { select: { email: true, signingStatus: true, authOptions: true } },
       revalleInvoice: true,
     },
@@ -123,13 +147,14 @@ export const changeInvoiceAccount = async ({
   }
 
   const now = new Date();
-  const isTakeover = isStaleClaim(row, now);
+  const isTakeover = await isStaleClaim(row, now);
 
   if (row.financeStatus === RevalleFinanceStatus.SUPERSEDED && !isTakeover) {
     throw row.supersededByEnvelopeId ? invalid(ALREADY_SUPERSEDED_MESSAGE) : inProgressError();
   }
 
-  if (envelope.deletedAt) {
+  // Na retomada, a versão pendente já foi escondida (excluída) pela troca anterior.
+  if (envelope.deletedAt && !isTakeover) {
     throw invalid(DELETED_MESSAGE);
   }
 
@@ -153,25 +178,27 @@ export const changeInvoiceAccount = async ({
     throw invalid(INACTIVE_ACCOUNT_MESSAGE);
   }
 
+  if (envelope.user.disabled) {
+    throw invalid(OWNER_UNAVAILABLE_MESSAGE);
+  }
+
   const { count } = await prisma.revalleInvoiceClassification.updateMany({
     where: {
       envelopeId,
       isInvoice: RevalleInvoiceStatus.YES,
       choiceCode: row.choiceCode,
       choiceDefer: row.choiceDefer,
-      ...(isTakeover
-        ? {
-            financeStatus: RevalleFinanceStatus.SUPERSEDED,
-            supersededAt: row.supersededAt,
-            supersededByEnvelopeId: null,
-          }
-        : { financeStatus: { in: allowed }, supersededAt: null }),
+      // O estado exato que foi lido (com a selagem, que trava esta linha antes de concluir, a ordem fica definida).
+      financeStatus: row.financeStatus,
+      supersededAt: row.supersededAt,
+      supersededByEnvelopeId: row.supersededByEnvelopeId,
     },
     data: {
       financeStatus: RevalleFinanceStatus.SUPERSEDED,
       supersededAt: now,
       supersededById: user.id,
       supersedeReason,
+      supersededByEnvelopeId: null,
     },
   });
 
@@ -216,6 +243,8 @@ type PreviousVersion = {
     userId: number;
     teamId: number;
     folderId: string | null;
+    externalId: string | null;
+    envelopeAttachments: Pick<EnvelopeAttachment, 'type' | 'label' | 'data'>[];
     recipients: Pick<Recipient, 'email' | 'authOptions'>[];
   };
   row: RevalleInvoiceClassification;
@@ -249,7 +278,12 @@ const createNewVersionOrUndo = async (options: NewVersionOptions) => {
 
     return { newEnvelopeId: duplicated.id, title };
   } catch (error) {
-    await undoSupersede({ envelopeId, row, now: options.now, newEnvelopeId });
+    await undoSupersede({ envelopeId, envelope, row, now: options.now, newEnvelopeId });
+
+    // `duplicateEnvelope` procura o documento pelo acesso do dono: sem acesso (saiu do time), "Document not found".
+    if (newEnvelopeId === null && AppError.parseError(error).code === AppErrorCode.NOT_FOUND) {
+      throw invalid(OWNER_UNAVAILABLE_MESSAGE);
+    }
 
     throw error;
   }
@@ -308,7 +342,17 @@ const createNewVersion = async ({
   };
 
   await prisma.$transaction(async (tx) => {
-    await tx.envelope.update({ where: { id: newEnvelopeId }, data: { title, folderId: envelope.folderId } });
+    await tx.envelope.update({
+      where: { id: newEnvelopeId },
+      data: { title, folderId: envelope.folderId, externalId: envelope.externalId },
+    });
+
+    // Anexos do envelope (links/arquivos de apoio): o `duplicateEnvelope` do upstream não copia.
+    if (envelope.envelopeAttachments.length > 0) {
+      await tx.envelopeAttachment.createMany({
+        data: envelope.envelopeAttachments.map((attachment) => ({ ...attachment, envelopeId: newEnvelopeId })),
+      });
+    }
 
     // O `duplicateEnvelope` do upstream não copia a autenticação de cada destinatário.
     for (const recipient of envelope.recipients) {
@@ -386,11 +430,13 @@ const createNewVersion = async ({
  */
 const undoSupersede = async ({
   envelopeId,
+  envelope,
   row,
   now,
   newEnvelopeId,
 }: {
   envelopeId: string;
+  envelope: Pick<PreviousVersion['envelope'], 'title' | 'userId' | 'teamId'>;
   row: RevalleInvoiceClassification;
   now: Date;
   newEnvelopeId: string | null;
@@ -398,6 +444,19 @@ const undoSupersede = async ({
   try {
     if (newEnvelopeId) {
       await prisma.envelope.deleteMany({ where: { id: newEnvelopeId, status: DocumentStatus.DRAFT } });
+    } else {
+      // `duplicateEnvelope` pode falhar depois de criar o envelope, sem devolver o id: a cópia dele tem o título
+      // "{título} (copy)", é rascunho do dono, foi criada nesta tentativa e não tem classificação.
+      await prisma.envelope.deleteMany({
+        where: {
+          userId: envelope.userId,
+          teamId: envelope.teamId,
+          title: `${envelope.title} (copy)`,
+          status: DocumentStatus.DRAFT,
+          createdAt: { gte: new Date(now.getTime() - ORPHAN_CLOCK_MARGIN_MS) },
+          revalleInvoice: { is: null },
+        },
+      });
     }
 
     await prisma.revalleInvoiceClassification.updateMany({
@@ -412,6 +471,7 @@ const undoSupersede = async ({
         supersededAt: row.supersededAt,
         supersededById: row.supersededById,
         supersedeReason: row.supersedeReason,
+        supersededByEnvelopeId: row.supersededByEnvelopeId,
       },
     });
   } catch (error) {
@@ -471,7 +531,7 @@ const sendNewVersion = async ({
     });
 
     const cause = AppError.parseError(error);
-    const message = `${NOT_SENT_MESSAGE} Nova versão: ${newTitle}. Erro: ${cause.userMessage ?? cause.message}`;
+    const message = notSentMessage(newTitle, cause.userMessage || cause.message || cause.code);
 
     throw new AppError('FINANCE_NEW_VERSION_NOT_SENT', { message, userMessage: message, statusCode: 409 });
   }

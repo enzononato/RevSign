@@ -1,4 +1,5 @@
 import { prisma } from '@documenso/prisma';
+import type { Prisma } from '@prisma/client';
 import { DocumentStatus, RevalleFinanceStatus, RevalleInvoiceStatus, SigningStatus } from '@prisma/client';
 
 import { jobs } from '../../../jobs/client';
@@ -43,6 +44,21 @@ export const isSupersededUnsealed = async (envelopeId: string): Promise<boolean>
   });
 
   return row !== null;
+};
+
+/**
+ * Na transação final da selagem: trava a linha da NF (`FOR UPDATE`) e confere de novo se ela foi substituída. A troca
+ * de conta grava `SUPERSEDED` nessa mesma linha, então as duas ficam em ordem: se a troca venceu, a selagem não conclui;
+ * se a selagem venceu, a troca encontra a versão concluída (que continua concluída e visível).
+ */
+export const lockSupersededInvoiceForSealing = async (tx: Prisma.TransactionClient, envelopeId: string) => {
+  const rows = await tx.$queryRaw<{ financeStatus: string | null }[]>`
+    SELECT "financeStatus"::text AS "financeStatus"
+    FROM "RevalleInvoiceClassification"
+    WHERE "envelopeId" = ${envelopeId} AND "isInvoice" = 'YES'
+    FOR UPDATE`;
+
+  return rows[0]?.financeStatus === RevalleFinanceStatus.SUPERSEDED;
 };
 
 /**

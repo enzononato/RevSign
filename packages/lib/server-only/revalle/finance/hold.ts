@@ -1,5 +1,5 @@
 import { prisma } from '@documenso/prisma';
-import type { Field, Recipient } from '@prisma/client';
+import type { Field, Prisma, Recipient } from '@prisma/client';
 import { RevalleFinanceStatus, RevalleInvoiceStatus } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
@@ -104,6 +104,21 @@ export const markInvoiceAwaitingApproval = async (envelopeId: string) => {
     },
     data: { financeStatus: RevalleFinanceStatus.PENDING_APPROVAL },
   });
+};
+
+/**
+ * Na transação do envio: `APPROVED` com a reserva solta (o envio do Financeiro falhou) que sai agora por quem tem o
+ * rascunho. A aprovação foi a escolha do Financeiro (mesmo ato, mesma hora): `approvedAt` = `choiceAt`, para o
+ * certificado ter a data. Só grava junto com o envio: um envio que falha deixa a reserva solta.
+ */
+export const stampReleasedApproval = async (envelopeId: string, tx: Prisma.TransactionClient) => {
+  await tx.$executeRaw`
+    UPDATE "RevalleInvoiceClassification"
+    SET "approvedAt" = "choiceAt"
+    WHERE "envelopeId" = ${envelopeId}
+      AND "financeStatus" = 'APPROVED'
+      AND "approvedAt" IS NULL
+      AND "choiceAt" IS NOT NULL`;
 };
 
 /** NFs retidas (rascunho não excluído) esperando a conta: o admin vê o número na tela Admin → Financeiro. */

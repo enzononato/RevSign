@@ -51,6 +51,7 @@ import {
   holdInvoiceForFinance,
   invoiceHeldForFinanceError,
   markInvoiceAwaitingApproval,
+  stampReleasedApproval,
 } from '../revalle/finance/hold'; // REVALLE:
 import { holdSealForFinance } from '../revalle/finance/seal-hold'; // REVALLE:
 import { assertInvoiceChoiceBeforeSend } from '../revalle/invoice/choice'; // REVALLE:
@@ -317,6 +318,11 @@ export const sendDocument = async ({ id, userId, teamId, sendEmail, requestMetad
   const updatedEnvelope = await prisma.$transaction(async (tx) => {
     // REVALLE: grava os hashes originais junto com o envio.
     await saveOriginalHashes(originalHashes, tx);
+
+    // REVALLE: NF aprovada cujo envio pelo Financeiro falhou, enviada agora pelo remetente: a aprovação ganha a data.
+    if (envelope.status === DocumentStatus.DRAFT) {
+      await stampReleasedApproval(envelope.id, tx);
+    }
 
     if (envelope.status === DocumentStatus.DRAFT) {
       await tx.documentAuditLog.create({

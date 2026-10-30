@@ -23,7 +23,7 @@ import { insertFieldInPDFV1 } from '../../../server-only/pdf/insert-field-in-pdf
 import { insertFieldInPDFV2 } from '../../../server-only/pdf/insert-field-in-pdf-v2';
 import { legacy_insertFieldInPDF } from '../../../server-only/pdf/legacy-insert-field-in-pdf';
 import { recordFinalHash } from '../../../server-only/revalle/document-hashes'; // REVALLE:
-import { holdSealForFinance } from '../../../server-only/revalle/finance/seal-hold'; // REVALLE:
+import { holdSealForFinance, lockSupersededInvoiceForSealing } from '../../../server-only/revalle/finance/seal-hold'; // REVALLE:
 import { shouldEmailInvoiceAccounting } from '../../../server-only/revalle/invoice/accounting-email'; // REVALLE:
 import { loadRevalleStamps } from '../../../server-only/revalle/proof/load-stamps'; // REVALLE:
 import { getTeamSettings } from '../../../server-only/team/get-team-settings';
@@ -323,7 +323,18 @@ export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition
       newDocumentData.push(result);
     }
 
-    await prisma.$transaction(async (tx) => {
+    // REVALLE: `revalleCompleted` = false quando a NF foi substituída pelo Financeiro durante a selagem (nada gravado).
+    const revalleCompleted = await prisma.$transaction(async (tx) => {
+      // REVALLE: a troca de conta que chegou durante a selagem vence (linha da NF travada); recusa e reselagem de
+      // versão já concluída seguem.
+      if (
+        !isRejected &&
+        envelope.status !== DocumentStatus.COMPLETED &&
+        (await lockSupersededInvoiceForSealing(tx, envelope.id))
+      ) {
+        return false;
+      }
+
       for (const { oldDocumentDataId, newDocumentDataId, envelopeItemId, finalSha256 } of newDocumentData) {
         // REVALLE: SHA-256 dos bytes exatos assinados.
         await recordFinalHash(envelopeItemId, finalSha256, tx);
@@ -352,7 +363,16 @@ export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition
       await tx.documentAuditLog.create({
         data: envelopeCompletedAuditLog,
       });
+
+      return true; // REVALLE:
     });
+
+    // REVALLE: substituída durante a selagem: termina como a selagem pulada (sem webhook nem e-mails).
+    if (!revalleCompleted) {
+      io.logger.info(`Seal aborted, superseded by finance: document ${documentId} (${envelope.id})`);
+
+      return { skipped: true as const };
+    }
 
     return {
       envelopeId: envelope.id,

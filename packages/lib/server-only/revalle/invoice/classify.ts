@@ -32,6 +32,11 @@ export type InvoiceState = {
   choice: { code: string | 'DEFER'; name?: string } | null;
   /** Fase 6: estado no Financeiro (nulo = não é NF, ou NF em rascunho que ainda não foi enviada). */
   financeStatus: 'AWAITING_ACCOUNT' | 'PENDING_APPROVAL' | 'APPROVED' | 'SUPERSEDED' | 'LEGACY' | null;
+  /**
+   * `APPROVED` sem reserva de envio (`approvedAt` nulo): o envio feito pelo Financeiro (troca de conta, "Definir conta e
+   * enviar") falhou. A conta continua travada, mas o rascunho pode ser enviado por quem tem acesso a ele.
+   */
+  isFinanceSendReleased: boolean;
   aiAvailable: boolean;
 };
 
@@ -103,6 +108,7 @@ export const toInvoiceState = async (row: RevalleInvoiceClassification): Promise
         : null,
     choice,
     financeStatus: row.financeStatus,
+    isFinanceSendReleased: row.financeStatus === RevalleFinanceStatus.APPROVED && row.approvedAt === null,
     aiAvailable: getRevalleInvoiceAiConfig().status === 'CONFIGURED',
   };
 };
@@ -148,6 +154,7 @@ const unclassifiedState = (): InvoiceState => ({
   failureReason: null,
   choice: null,
   financeStatus: null,
+  isFinanceSendReleased: false,
   aiAvailable: getRevalleInvoiceAiConfig().status === 'CONFIGURED',
 });
 

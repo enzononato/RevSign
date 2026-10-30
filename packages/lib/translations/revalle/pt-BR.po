@@ -4764,3 +4764,6 @@ msgstr "Conta contábil trocada pelo Financeiro de {from} para {to}: substituíd
 
 msgid "a definir pelo Financeiro"
 msgstr "a definir pelo Financeiro"
+
+msgid "Conta aprovada pelo Financeiro. O envio anterior falhou: corrija o rascunho e envie."
+msgstr "Conta aprovada pelo Financeiro. O envio anterior falhou: corrija o rascunho e envie."

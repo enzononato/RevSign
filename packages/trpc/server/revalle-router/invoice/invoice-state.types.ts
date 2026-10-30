@@ -27,6 +27,8 @@ export const ZInvoiceStateSchema = z.object({
     .nullable(),
   choice: z.object({ code: z.string(), name: z.string().optional() }).nullable(),
   financeStatus: z.enum(['AWAITING_ACCOUNT', 'PENDING_APPROVAL', 'APPROVED', 'SUPERSEDED', 'LEGACY']).nullable(),
+  /** `APPROVED` sem reserva de envio (`approvedAt` nulo): o envio do Financeiro falhou e o rascunho pode ser enviado. */
+  isFinanceSendReleased: z.boolean(),
   aiAvailable: z.boolean(),
 });
 

@@ -14,6 +14,8 @@ export type DefineInvoiceAccountResult = { sent: boolean };
 
 const NOT_AWAITING_MESSAGE = 'Esta nota fiscal não está aguardando o Financeiro definir a conta.';
 const IN_PROGRESS_MESSAGE = 'O envio desta nota já está em andamento. Aguarde um instante.';
+const VERSION_ACCOUNT_MESSAGE =
+  'Esta versão já tem a conta definida pela troca. Envie-a e, se precisar, use Trocar conta.';
 
 /**
  * `APPROVED` com o documento ainda em rascunho = o envio do Financeiro está em andamento (a "reserva" é `approvedAt`).
@@ -45,7 +47,9 @@ const isStaleLease = (row: RevalleInvoiceClassification, now: Date) =>
  * - `APPROVED` com o documento em rascunho é a reserva do envio: com menos de 2 minutos, 409 "em andamento"; mais
  *   velha, qualquer conta ativa a retoma (nova `approvedAt`, condicionada à antiga) e envia;
  * - documento já enviado com a mesma conta: `{ sent: false }`, sem reenviar; outra conta é troca (outra rota);
- * - se o envio falhar com o documento ainda em rascunho, a NF volta a aguardar a conta (sem convite, sem evento).
+ * - se o envio falhar com o documento ainda em rascunho, a NF volta ao estado lido (sem convite, sem evento): a retida
+ *   volta a aguardar a conta; a reserva retomada volta `APPROVED` com a conta dela e a reserva solta;
+ * - nova versão de uma troca de conta (`previousEnvelopeId`) só é reenviada com a mesma conta.
  */
 export const defineInvoiceAccountAndSend = async ({
   envelopeId,
@@ -88,6 +92,15 @@ export const defineInvoiceAccountAndSend = async ({
     row.financeStatus !== RevalleFinanceStatus.APPROVED
   ) {
     throw notAwaitingError();
+  }
+
+  // Nova versão criada pela troca de conta (Task 4) cujo envio falhou: aqui só se reenvia, com a mesma conta. Outra
+  // conta seria uma troca sem motivo nem aviso.
+  if (row.previousEnvelopeId && row.financeStatus === RevalleFinanceStatus.APPROVED && row.choiceCode !== code) {
+    throw new AppError(AppErrorCode.INVALID_REQUEST, {
+      message: VERSION_ACCOUNT_MESSAGE,
+      userMessage: VERSION_ACCOUNT_MESSAGE,
+    });
   }
 
   const account = await prisma.revalleAccountingAccount.findUnique({
@@ -149,19 +162,33 @@ export const defineInvoiceAccountAndSend = async ({
     const current = await prisma.envelope.findUnique({ where: { id: envelopeId }, select: { status: true } });
 
     if (current?.status === DocumentStatus.DRAFT) {
-      // Só desfaz a própria reserva (a mesma `approvedAt`): o estado volta a ser o de uma NF retida.
+      // Só desfaz a própria reserva (a mesma `approvedAt`) e volta ao estado LIDO: a NF retida volta a aguardar a
+      // conta; a reserva retomada (ex.: a nova versão de uma troca) volta `APPROVED` com a conta dela e a reserva solta
+      // (`approvedAt` nulo), para o próximo envio sair na hora.
       await prisma.revalleInvoiceClassification.updateMany({
         where: { envelopeId, financeStatus: RevalleFinanceStatus.APPROVED, approvedAt: now },
-        data: {
-          choiceCode: null,
-          choiceDefer: true,
-          choiceById: row.choiceById,
-          choiceAt: row.choiceAt,
-          acceptedSuggestion: null,
-          financeStatus: RevalleFinanceStatus.AWAITING_ACCOUNT,
-          approvedById: null,
-          approvedAt: null,
-        },
+        data:
+          row.financeStatus === RevalleFinanceStatus.AWAITING_ACCOUNT
+            ? {
+                choiceCode: null,
+                choiceDefer: true,
+                choiceById: row.choiceById,
+                choiceAt: row.choiceAt,
+                acceptedSuggestion: null,
+                financeStatus: RevalleFinanceStatus.AWAITING_ACCOUNT,
+                approvedById: null,
+                approvedAt: null,
+              }
+            : {
+                choiceCode: row.choiceCode,
+                choiceDefer: row.choiceDefer,
+                choiceById: row.choiceById,
+                choiceAt: row.choiceAt,
+                acceptedSuggestion: row.acceptedSuggestion,
+                financeStatus: RevalleFinanceStatus.APPROVED,
+                approvedById: row.approvedById,
+                approvedAt: null,
+              },
       });
 
       throw error;
