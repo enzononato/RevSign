@@ -190,6 +190,11 @@ const sentAtOf = (envelope: { createdAt: Date; auditLogs: { createdAt: Date }[] 
 /**
  * Ids na ordem da coluna "Enviado em" (mais recente primeiro; empate pelo id). O Prisma não ordena pelo primeiro evento
  * DOCUMENT_SENT, então a ordem é feita aqui sobre os ids e datas (a planilha já é limitada a 10.000 linhas).
+ *
+ * Limite conhecido (aceito para o volume da Revalle): cada página carrega TODOS os ids que passam no filtro, com o
+ * primeiro DOCUMENT_SENT de cada, e o filtro de período (`auditLogs.some`) não tem índice em `DocumentAuditLog`.
+ * Planejado (Fase 5.1): gravar `sentAt` na linha da classificação no envio, indexar `(isInvoice, sentAt)` e
+ * ordenar/paginar no SQL.
  */
 const findOrderedIds = async (where: Prisma.EnvelopeWhereInput) => {
   const envelopes = await prisma.envelope.findMany({

@@ -5,7 +5,8 @@ import { resuggestInvoice } from '@documenso/lib/server-only/revalle/invoice/sug
 import { authenticatedProcedure } from '../../trpc';
 import { ZResuggestInvoiceRequestSchema, ZResuggestInvoiceResponseSchema } from './resuggest.types';
 
-/** "Sugerir de novo": nova chamada à IA, ignorando o cache. 5 por documento e 60 por usuário por hora (429). */
+/** "Sugerir de novo": nova chamada à IA, ignorando o cache. No máximo 6 chamadas por documento, para sempre (a automática
+ * + 5), e 60 por usuário por hora (429). */
 export const resuggestInvoiceRoute = authenticatedProcedure
   .input(ZResuggestInvoiceRequestSchema)
   .output(ZResuggestInvoiceResponseSchema)

@@ -5,6 +5,7 @@ import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { jobs } from '../../../jobs/client';
 import { firstPagesPdf } from '../../../revalle/invoice/first-pages-pdf';
 import { buildInvoicePrompt } from '../../../revalle/invoice/prompt';
+import { providerStatusCode } from '../../../revalle/invoice/provider-status';
 import type { InvoiceSuggestion } from '../../../revalle/invoice/suggestion';
 import { validateSuggestion, ZInvoiceSuggestionSchema } from '../../../revalle/invoice/suggestion';
 import { logger } from '../../../utils/logger';
@@ -304,6 +305,8 @@ export const runInvoiceSuggestion = async ({
   let model = getRevalleInvoiceAiConfig().model;
   let usage: { inputTokens?: number; outputTokens?: number } = {};
   let input: 'text' | 'pdf' | 'text+pdf' | 'none' = 'none';
+  // Só o código HTTP do provedor (429, 403, 404…), nunca a mensagem nem o corpo do erro.
+  let providerStatus: number | undefined;
 
   const finish = async (outcome: SuggestionOutcome) => {
     if (outcome.status === 'DONE') {
@@ -348,6 +351,7 @@ export const runInvoiceSuggestion = async ({
       durationMs: Date.now() - startedAt,
       inputTokens: usage.inputTokens,
       outputTokens: usage.outputTokens,
+      providerStatusCode: providerStatus,
     });
   };
 
@@ -449,8 +453,10 @@ export const runInvoiceSuggestion = async ({
       usage = result.usage;
 
       await finish(interpretRaw(result.raw, activeCodes));
-    } catch {
-      // O erro do provedor pode trazer o pedido (com o texto da NF): não é registrado.
+    } catch (error) {
+      // O erro do provedor pode trazer o pedido (com o texto da NF) e o corpo da resposta: só o código HTTP vai
+      // para o log (diferencia cota esgotada, chave inválida e modelo retirado).
+      providerStatus = providerStatusCode(error);
       await finish({ status: 'FAILED', reason: signal.aborted ? 'TIMEOUT' : 'PROVIDER_ERROR' });
     }
   } catch {
