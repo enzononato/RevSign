@@ -23,6 +23,7 @@ import { insertFieldInPDFV1 } from '../../../server-only/pdf/insert-field-in-pdf
 import { insertFieldInPDFV2 } from '../../../server-only/pdf/insert-field-in-pdf-v2';
 import { legacy_insertFieldInPDF } from '../../../server-only/pdf/legacy-insert-field-in-pdf';
 import { recordFinalHash } from '../../../server-only/revalle/document-hashes'; // REVALLE:
+import { holdSealForFinance } from '../../../server-only/revalle/finance/seal-hold'; // REVALLE:
 import { shouldEmailInvoiceAccounting } from '../../../server-only/revalle/invoice/accounting-email'; // REVALLE:
 import { loadRevalleStamps } from '../../../server-only/revalle/proof/load-stamps'; // REVALLE:
 import { getTeamSettings } from '../../../server-only/team/get-team-settings';
@@ -43,6 +44,20 @@ import type { TSealDocumentJobDefinition } from './seal-document';
 
 export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition; io: JobRunIO }) => {
   const { documentId, sendEmail = true, isResealing = false, requestMetadata } = payload;
+
+  // REVALLE: defesa em profundidade. Os pontos de disparo já conferem, mas qualquer caminho que chegue aqui (reselagem
+  // pelo admin, varredura, um disparo novo do upstream) não sela NF aguardando a aprovação do Financeiro. O job termina
+  // sem erro (sem retry) e o documento continua PENDING; a aprovação dispara a selagem de novo.
+  const revalleEnvelope = await prisma.envelope.findFirst({
+    where: { type: EnvelopeType.DOCUMENT, secondaryId: mapDocumentIdToSecondaryId(documentId) },
+    select: { id: true },
+  });
+
+  if (revalleEnvelope && (await holdSealForFinance(revalleEnvelope.id))) {
+    io.logger.info(`Seal held for finance approval: document ${documentId} (${revalleEnvelope.id})`);
+
+    return;
+  }
 
   const { envelopeId, envelopeStatus, isRejected } = await io.runTask('seal-document', async () => {
     const envelope = await prisma.envelope.findFirstOrThrow({

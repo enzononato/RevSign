@@ -2,6 +2,7 @@ import { kyselyPrisma, sql } from '@documenso/prisma';
 import { DocumentStatus, EnvelopeType, RecipientRole, SigningStatus } from '@prisma/client';
 import { DateTime } from 'luxon';
 
+import { holdSealForFinance } from '../../../server-only/revalle/finance/seal-hold'; // REVALLE:
 import { mapSecondaryIdToDocumentId } from '../../../utils/envelope';
 import { jobs } from '../../client';
 import type { JobRunIO } from '../../client/_internal/job';
@@ -87,6 +88,13 @@ export const run = async ({ io }: { payload: TSealDocumentSweepJobDefinition; io
   await Promise.allSettled(
     unsealedEnvelopes.map(async (envelope) => {
       const documentId = mapSecondaryIdToDocumentId(envelope.secondaryId);
+
+      // REVALLE: NF assinada aguardando a aprovação do Financeiro fica retida (a aprovação dispara a selagem).
+      if (await holdSealForFinance(envelope.id)) {
+        io.logger.info(`Seal held for finance approval: document ${documentId} (${envelope.id})`);
+
+        return;
+      }
 
       io.logger.info(`Triggering seal for document ${documentId} (${envelope.id})`);
 

@@ -52,6 +52,7 @@ import {
   invoiceHeldForFinanceError,
   markInvoiceAwaitingApproval,
 } from '../revalle/finance/hold'; // REVALLE:
+import { holdSealForFinance } from '../revalle/finance/seal-hold'; // REVALLE:
 import { assertInvoiceChoiceBeforeSend } from '../revalle/invoice/choice'; // REVALLE:
 import { assertUserNotDisabledById } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
@@ -262,7 +263,9 @@ export const sendDocument = async ({ id, userId, teamId, sendEmail, requestMetad
     (recipient) => recipient.role === RecipientRole.CC || recipient.signingStatus === SigningStatus.SIGNED,
   );
 
-  if (allRecipientsHaveNoActionToTake) {
+  // REVALLE: NF aguardando a aprovação do Financeiro não pega o atalho de selagem: segue o envio normal (fica PENDING,
+  // sem convite para quem não tem o que fazer) e a aprovação dispara a selagem.
+  if (allRecipientsHaveNoActionToTake && !(await holdSealForFinance(envelope.id))) {
     await jobs.triggerJob({
       name: 'internal.seal-document',
       payload: {

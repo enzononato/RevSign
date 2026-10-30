@@ -2,8 +2,13 @@
 // Conclui NFs de verdade (portão + código por e-mail + selagem) e confere o Mailpit: assunto exato, PDF selado anexo,
 // uma vez só (reselagem pelo admin não reenvia), nada sem e-mail configurado e nada para documento comum.
 //
+// Fase 6: a NF com conta só é selada depois da aprovação do Financeiro; aqui quem aprova é o rsadmin (marcado como
+// Financeiro na preparação), logo depois da conclusão do signatário, e a NF escaneada marcada depois da conclusão só
+// avisa a contabilidade na aprovação.
+//
 // Sessões: REVSIGN_USER_* (dono do REVSIGN_API_TOKEN) e REVSIGN_ADMIN_* (importa contas, configura o e-mail da
-// contabilidade e reseala). O e-mail anterior da contabilidade é restaurado no final. Ver revalle/docs/testes.md.
+// contabilidade, reseala e aprova como Financeiro). O e-mail anterior da contabilidade é restaurado no final. Ver
+// revalle/docs/testes.md.
 
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync } from 'node:fs';
@@ -102,6 +107,19 @@ const gate = async (token) => {
   await trpc('revalle.gate.acceptTerm', { token, termVersion: '1' });
   await trpc('revalle.gate.verifyIdentity', { token, ...MARIA });
   await trpc('revalle.gate.confirmIdentity', { token, isMe: true });
+};
+
+const financeStatus = (envelopeId) =>
+  db(
+    `select coalesce("financeStatus"::text, '-') from "RevalleInvoiceClassification" where "envelopeId" = '${envelopeId}'`,
+  );
+
+// Fase 6: a NF retida (todos assinaram, aguardando o Financeiro) é aprovada pelo rsadmin, membro do Financeiro.
+const approveAsFinance = async (envelopeId) => {
+  const res = await trpcAs(adminCookie, 'mutation', 'revalle.finance.approve', { envelopeId });
+
+  assert.equal(res.status, 200, res.text);
+  assert.deepEqual(res.body.result.data.json, { approved: true });
 };
 
 const waitStatus = async (envelopeId, wanted) => {
@@ -241,6 +259,11 @@ const completeDocument = async ({ label, pdf, choice, meta, reject = false, sugg
   const completion = await completeWithCode({ token: recipient.token, documentId, email });
 
   assert.ok(completion.ok, completion.text);
+
+  if (financeStatus(created.id) === 'PENDING_APPROVAL') {
+    await approveAsFinance(created.id);
+  }
+
   assert.equal(await waitStatus(created.id, 'COMPLETED'), 'COMPLETED');
 
   return { id: created.id, title, email, item: created.envelope.envelopeItems[0] };
@@ -297,6 +320,14 @@ before(async () => {
 
   userCookie = await signIn(user.email, user.password);
   adminCookie = await signIn(admin.email, admin.password);
+
+  // O membro do Financeiro dos testes da Fase 6 é o rsadmin (fica marcado, como no finance-admin).
+  const marked = await trpcAs(adminCookie, 'mutation', 'revalle.finance.adminSetMember', {
+    userId: Number(db(`select id from "User" where email = '${admin.email}'`)),
+    member: true,
+  });
+
+  assert.equal(marked.status, 200, marked.text);
 
   const imported = await trpcAs(adminCookie, 'mutation', 'revalle.invoice.adminImportAccounts', { csv: ACCOUNTS_CSV });
 
@@ -574,6 +605,13 @@ sessionTest(
     });
 
     assert.equal(chosen.status, 200, chosen.text);
+
+    // Fase 6: marcada depois da conclusão, a NF passa pelo Financeiro; a contabilidade só recebe na aprovação.
+    assert.equal(financeStatus(doc.id), 'PENDING_APPROVAL');
+    await sleep(3000);
+    assert.equal((await accountingMails(doc)).length, 0);
+    assert.equal(sentAt(doc.id), 'f');
+    await approveAsFinance(doc.id);
 
     const messages = await waitAccountingMail(doc);
 

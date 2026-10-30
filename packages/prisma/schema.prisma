@@ -1470,6 +1470,8 @@ model RevalleInvoiceClassification {
   approvedAt             DateTime?
   /// "Deixar para o Financeiro": quando o e-mail "aguardando o Financeiro" saiu para os membros (um por retenção).
   accountRequestedAt     DateTime?
+  /// Selagem retida (todos assinaram, falta a aprovação): quando o e-mail "aguardando aprovação" saiu (um por retenção).
+  approvalRequestedAt    DateTime?
   /// Versão substituída por outra com a conta trocada pelo Financeiro: quando, quem, o motivo e a nova versão.
   supersededAt           DateTime?
   supersededById         Int?

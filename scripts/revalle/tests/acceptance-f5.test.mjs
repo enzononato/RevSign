@@ -5,7 +5,9 @@
 //   3. segundo documento: NFS-e sem conta (Fase 6: "Deixar para o Financeiro" retém o envio, então a NFS-e é uma NF
 //      de antes da Fase 6, deixada para a contabilidade, simulada no banco logo depois do envio);
 //   4. terceiro documento: contrato comum;
-//   5. dois signatários assinam cada NF (portão + código por e-mail); as NFs são concluídas;
+//   5. dois signatários assinam cada NF (portão + código por e-mail); as NFs são concluídas (Fase 6: o aceite é o da
+//      Fase 5, sem o Financeiro, então o DANFE também vira NF de antes da Fase 6, `LEGACY`, logo depois do envio; o
+//      fluxo com a aprovação do Financeiro está em finance-approve.test.mjs);
 //   6. a página "Notas fiscais" (rota `revalle.invoice.find`) lista as 2 NFs para o remetente, 0 para um terceiro
 //      usuário sem envolvimento, só a NF em que é signatário para um colega, e as 2 para o admin; filtros;
 //   7. a planilha (`/notas-fiscais/csv`) tem BOM, o cabeçalho exato, 2 linhas e as contas certas, e respeita os filtros;
@@ -437,7 +439,11 @@ before(async () => {
         `update "RevalleInvoiceClassification" set "choiceCode" = null, "choiceDefer" = true, "acceptedSuggestion" = null, "financeStatus" = 'LEGACY' where "envelopeId" = '${id}'`,
       ),
   });
-  await signAll(fx.danfe);
+  // Fase 6: sem `LEGACY`, o DANFE ficaria retido esperando o Financeiro, e a aprovação entraria no log do PDF (passo 10).
+  await signAll(fx.danfe, {
+    afterSend: (id) =>
+      db(`update "RevalleInvoiceClassification" set "financeStatus" = 'LEGACY' where "envelopeId" = '${id}'`),
+  });
 
   fx.ready = true;
 });

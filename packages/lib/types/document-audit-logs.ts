@@ -74,6 +74,7 @@ export const ZDocumentAuditLogTypeSchema = z.enum([
   'REVALLE_SIGNATURE_STAMPED', // REVALLE: desenhou ou não (carimbo sempre)
   'REVALLE_INVOICE_ACCOUNT_SET', // REVALLE: conta contábil da nota fiscal escolhida/trocada (fora do PDF selado)
   'REVALLE_FINANCE_ACCOUNT_DEFINED', // REVALLE: o Financeiro definiu a conta da NF retida (já aprovada) e enviou
+  'REVALLE_FINANCE_APPROVED', // REVALLE: o Financeiro aprovou a conta da NF (libera a selagem)
 ]);
 
 export const ZDocumentAuditLogEmailTypeSchema = z.enum([
@@ -904,6 +905,12 @@ export const ZDocumentAuditLogEventRevalleFinanceAccountDefinedSchema = z.object
   data: z.object({ code: z.string(), name: z.string().nullable() }),
 });
 
+// REVALLE: o Financeiro aprovou a conta escolhida (a NF pode ser selada). Fica também no log em PDF.
+export const ZDocumentAuditLogEventRevalleFinanceApprovedSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_FINANCE_APPROVED),
+  data: z.object({ code: z.string(), name: z.string().nullable() }),
+});
+
 export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
   z.union([
     ZDocumentAuditLogEventEnvelopeItemCreatedSchema,
@@ -957,6 +964,7 @@ export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
     ZDocumentAuditLogEventRevalleSignatureStampedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleInvoiceAccountSetSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleFinanceAccountDefinedSchema, // REVALLE:
+    ZDocumentAuditLogEventRevalleFinanceApprovedSchema, // REVALLE:
   ]),
 );
 

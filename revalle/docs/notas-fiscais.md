@@ -104,8 +104,16 @@ o mesmo PDF for enviado de novo, a sugestão vem do cache, sem nova chamada. Por
 
    Marcar coloca o documento no fluxo, sem chamar a IA, aguardando a aprovação do Financeiro; em seguida o cartão pede
    a conta (só a primeira escolha; depois, quem troca é o Financeiro). Se o documento já estava **concluído**, a
-   contabilidade recebe o e-mail assim que a conta é escolhida (uma vez só).
-6. No menu, **Notas fiscais** lista as NFs que ele enviou ou que chegaram para ele assinar.
+   contabilidade recebe o e-mail quando o Financeiro aprovar a conta (uma vez só).
+6. **Conclusão retida.** Quando todos assinam uma NF que ainda aguarda a aprovação do Financeiro, ela **não é
+   concluída**: o documento continua pendente, o PDF não é selado e os membros do Financeiro recebem um e-mail
+   "Nota fiscal aguardando aprovação do Financeiro: {título}" (um por NF). Quando alguém do Financeiro aprova a conta,
+   o documento é selado na hora e a contabilidade recebe o e-mail. Se o Financeiro aprovar antes de todos assinarem, a
+   NF é concluída normalmente quando o último assinar. A retenção vale em todos os caminhos que selam (conclusão,
+   varredura automática, remoção de destinatário pelo admin, reselagem pelo admin). NF recusada não é retida, e as NFs
+   de antes da Fase 6 (`LEGACY`) concluem como antes. A aprovação fica no log de auditoria do documento (também no PDF).
+   Pela API: `revalle.finance.approve({ envelopeId })`, só para membros do Financeiro; repetir não faz nada.
+7. No menu, **Notas fiscais** lista as NFs que ele enviou ou que chegaram para ele assinar.
 
 **NF enviada pela API ou por modelo:** o documento é criado, mas o envio é recusado (`INVOICE_ACCOUNT_REQUIRED`) até a
 conta ser escolhida na tela. O documento fica como rascunho: abra-o no site, escolha a conta e envie. Documento na versão antiga

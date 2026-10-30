@@ -6,6 +6,7 @@ import { createElement } from 'react';
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../../constants/app';
 import { formatRevalleDateTime } from '../../../revalle/date-format';
 import { getEmailContext } from '../../../server-only/email/get-email-context';
+import { FINANCE_CLEARED_STATUSES, isFinanceCleared } from '../../../server-only/revalle/invoice/accounting-email';
 import { getAccountingSettings } from '../../../server-only/revalle/invoice/settings';
 import { getFileServerSide } from '../../../universal/upload/get-file.server';
 import { unsafeBuildEnvelopeIdQuery } from '../../../utils/envelope';
@@ -43,7 +44,9 @@ export const run = async ({
   if (
     !classification ||
     classification.isInvoice !== RevalleInvoiceStatus.YES ||
-    classification.accountingEmailSentAt !== null
+    classification.accountingEmailSentAt !== null ||
+    // Fase 6: só a NF aprovada pelo Financeiro (ou anterior à Fase 6); nunca a pendente nem a substituída.
+    !isFinanceCleared(classification.financeStatus)
   ) {
     return;
   }
@@ -119,8 +122,9 @@ export const run = async ({
   ]);
 
   // Reserva a vaga: só quem muda null -> agora envia (dois jobs ao mesmo tempo ou uma reselagem não duplicam).
+  // Condicionada também à liberação do Financeiro, relida aqui (uma troca de conta no meio não manda a versão velha).
   const claimed = await prisma.revalleInvoiceClassification.updateMany({
-    where: { envelopeId, accountingEmailSentAt: null },
+    where: { envelopeId, accountingEmailSentAt: null, financeStatus: { in: [...FINANCE_CLEARED_STATUSES] } },
     data: { accountingEmailSentAt: new Date() },
   });
 

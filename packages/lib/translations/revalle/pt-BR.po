@@ -4728,3 +4728,15 @@ msgstr "Os convites saem depois que o Financeiro definir a conta."
 
 msgid "Uma nota fiscal aguarda o Financeiro definir a conta contábil"
 msgstr "Uma nota fiscal aguarda o Financeiro definir a conta contábil"
+
+msgid "Nota fiscal aguardando aprovação do Financeiro: {documentName}"
+msgstr "Nota fiscal aguardando aprovação do Financeiro: {documentName}"
+
+msgid "Uma nota fiscal aguarda a aprovação do Financeiro"
+msgstr "Uma nota fiscal aguarda a aprovação do Financeiro"
+
+msgid "Todos já assinaram. O documento só é concluído (e enviado à contabilidade) depois que alguém do Financeiro aprovar a conta."
+msgstr "Todos já assinaram. O documento só é concluído (e enviado à contabilidade) depois que alguém do Financeiro aprovar a conta."
+
+msgid "Conta contábil aprovada pelo Financeiro: {account}"
+msgstr "Conta contábil aprovada pelo Financeiro: {account}"
