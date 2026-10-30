@@ -107,6 +107,7 @@ const loadInvoiceLine = async (envelopeId: string): Promise<string | null> => {
       choiceDefer: true,
       approvedById: true,
       approvedAt: true,
+      approvedAccountName: true,
     },
   });
 
@@ -126,15 +127,19 @@ const loadInvoiceLine = async (envelopeId: string): Promise<string | null> => {
     return null;
   }
 
+  // O nome congelado na aprovação; só as linhas aprovadas antes dessa coluna usam o nome atual da lista.
   const [account, approver] = await Promise.all([
-    prisma.revalleAccountingAccount.findUnique({ where: { code: row.choiceCode }, select: { name: true } }),
-    prisma.user.findUnique({ where: { id: row.approvedById }, select: { name: true, email: true } }),
+    row.approvedAccountName === null
+      ? prisma.revalleAccountingAccount.findUnique({ where: { code: row.choiceCode }, select: { name: true } })
+      : null,
+    prisma.user.findUnique({ where: { id: row.approvedById }, select: { name: true } }),
   ]);
 
   return buildRevalleInvoiceCertificateLine({
     code: row.choiceCode,
-    name: account?.name ?? '',
-    approverName: approver?.name?.trim() || approver?.email || 'Financeiro',
+    name: row.approvedAccountName ?? account?.name ?? '',
+    // Sem nome, "Financeiro": o e-mail de quem aprovou não vai para o PDF.
+    approverName: approver?.name?.trim() || 'Financeiro',
     approvedAt: row.approvedAt,
   });
 };

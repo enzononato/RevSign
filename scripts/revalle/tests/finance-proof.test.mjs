@@ -8,7 +8,9 @@
 //     "Conta contábil vista ao assinar"; o /verificar mostra a conta e a aprovação; documento comum sem nada disso;
 //   - versão substituída (conta trocada pelo Financeiro): a prova antiga continua com a conta antiga, a v2 grava a nova,
 //     e o /verificar com o código antigo mostra "Substituído por uma nova versão em {data} (conta contábil alterada)",
-//     sem nenhum código nem o id da nova versão.
+//     sem nenhum código nem o id da nova versão;
+//   - o nome da conta aprovada fica congelado na aprovação: depois de renomear a conta (reimportar o CSV com o mesmo
+//     número) e resselar, o certificado e o /verificar continuam com o nome aprovado.
 //
 // Sessões: REVSIGN_USER_* (admin@hml.local, dono do REVSIGN_API_TOKEN, fora do Financeiro) e REVSIGN_ADMIN_* (rsadmin,
 // ADMIN, marcado como Financeiro aqui). Ver revalle/docs/testes.md.
@@ -493,5 +495,60 @@ sessionTest(
     assert.ok(!verify.text.includes(newCode), 'o código da nova versão aparece no /verificar da antiga');
     assert.ok(!verify.text.includes(v2.id), 'o id da nova versão aparece no /verificar da antiga');
     assert.ok(!verify.text.includes('3.1.01'), 'a conta da nova versão aparece no /verificar da antiga');
+  },
+);
+
+sessionTest(
+  'nome da conta congelado na aprovação: conta renomeada depois, a reselagem e o /verificar mantêm o nome aprovado',
+  async () => {
+    const RENAMED = 'Fornecedores Renomeados Depois';
+    const nf = await newInvoice('nome-congelado', { signers: 1 });
+
+    await sign(nf, 0);
+
+    const approved = await trpcAs(adminCookie, 'mutation', 'revalle.finance.approve', { envelopeId: nf.id });
+
+    assert.equal(approved.status, 200, approved.text);
+    assert.equal(await waitStatus(nf.id, 'COMPLETED'), 'COMPLETED');
+
+    const at = brasiliaColumn('approvedAt', nf.id);
+    const itemData = () => db(`select "documentDataId" from "EnvelopeItem" where id = '${nf.item}'`);
+    const sealedBefore = itemData();
+
+    try {
+      const renamed = await trpcAs(adminCookie, 'mutation', 'revalle.invoice.adminImportAccounts', {
+        csv: ACCOUNTS_CSV.replace('2.1.03;Fornecedores;', `2.1.03;${RENAMED};`),
+      });
+
+      assert.equal(renamed.status, 200, renamed.text);
+      assert.equal(db(`select name from "RevalleAccountingAccount" where code = '2.1.03'`), RENAMED);
+
+      const resealed = await trpcAs(adminCookie, 'mutation', 'admin.document.reseal', { id: nf.id });
+
+      assert.ok(resealed.ok, resealed.text);
+
+      for (let i = 0; i < 45 && itemData() === sealedBefore; i += 1) {
+        await sleep(1000);
+      }
+
+      assert.notEqual(itemData(), sealedBefore, 'a reselagem não gerou um PDF novo');
+
+      const text = await sealedText(nf);
+
+      assert.ok(
+        text.includes(DOCUMENT_LINE('2.1.03', 'Fornecedores', adminName, at)),
+        'a reselagem perdeu o nome aprovado da conta',
+      );
+      assert.ok(!text.includes(RENAMED), 'o certificado usou o nome novo da conta');
+
+      db('delete from "RateLimit"');
+
+      const verify = await html(`/verificar?codigo=${encodeURIComponent(codeOf(nf.recipients[0].id))}`);
+
+      assert.ok(verify.text.includes('Conta contábil: 2.1.03 – Fornecedores'), '/verificar sem o nome aprovado');
+      assert.ok(!verify.text.includes(RENAMED), '/verificar com o nome novo da conta');
+    } finally {
+      await trpcAs(adminCookie, 'mutation', 'revalle.invoice.adminImportAccounts', { csv: ACCOUNTS_CSV });
+    }
   },
 );

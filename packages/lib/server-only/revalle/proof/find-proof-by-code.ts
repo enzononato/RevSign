@@ -105,6 +105,7 @@ export const findRevalleProofByCode = async (code: string): Promise<RevalleProof
                   choiceDefer: true,
                   approvedById: true,
                   approvedAt: true,
+                  approvedAccountName: true,
                   supersededAt: true,
                 },
               },
@@ -183,6 +184,7 @@ type InvoiceRow = {
   choiceDefer: boolean;
   approvedById: number | null;
   approvedAt: Date | null;
+  approvedAccountName: string | null;
   supersededAt: Date | null;
 };
 
@@ -199,15 +201,20 @@ const loadInvoiceSummary = async (row: InvoiceRow | null | undefined): Promise<R
   const isApproved =
     row.approvedAt !== null && row.approvedById !== null && row.financeStatus !== RevalleFinanceStatus.PENDING_APPROVAL;
 
+  // Aprovada: o nome congelado na aprovação (a lista pode ter sido reimportada depois); senão, o nome atual.
+  const frozenName = isApproved ? row.approvedAccountName : null;
+
   const [account, approver] = await Promise.all([
-    code ? prisma.revalleAccountingAccount.findUnique({ where: { code }, select: { name: true } }) : null,
+    code && frozenName === null
+      ? prisma.revalleAccountingAccount.findUnique({ where: { code }, select: { name: true } })
+      : null,
     isApproved && row.approvedById !== null
       ? prisma.user.findUnique({ where: { id: row.approvedById }, select: { name: true } })
       : null,
   ]);
 
   return {
-    account: code ? { code, name: account?.name ?? '' } : null,
+    account: code ? { code, name: frozenName ?? account?.name ?? '' } : null,
     approval:
       isApproved && row.approvedAt
         ? { approverName: approver?.name?.trim() || null, approvedAt: row.approvedAt }

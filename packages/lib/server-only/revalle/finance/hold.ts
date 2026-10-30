@@ -112,13 +112,18 @@ export const markInvoiceAwaitingApproval = async (envelopeId: string) => {
  * certificado ter a data. Só grava junto com o envio: um envio que falha deixa a reserva solta.
  */
 export const stampReleasedApproval = async (envelopeId: string, tx: Prisma.TransactionClient) => {
+  // O nome congelado vem da reserva (troca ou definição); sem ele, o da lista agora, junto com a data.
   await tx.$executeRaw`
-    UPDATE "RevalleInvoiceClassification"
-    SET "approvedAt" = "choiceAt"
-    WHERE "envelopeId" = ${envelopeId}
-      AND "financeStatus" = 'APPROVED'
-      AND "approvedAt" IS NULL
-      AND "choiceAt" IS NOT NULL`;
+    UPDATE "RevalleInvoiceClassification" c
+    SET "approvedAt" = c."choiceAt",
+      "approvedAccountName" = COALESCE(
+        c."approvedAccountName",
+        (SELECT a.name FROM "RevalleAccountingAccount" a WHERE a.code = c."choiceCode")
+      )
+    WHERE c."envelopeId" = ${envelopeId}
+      AND c."financeStatus" = 'APPROVED'
+      AND c."approvedAt" IS NULL
+      AND c."choiceAt" IS NOT NULL`;
 };
 
 /** NFs retidas (rascunho não excluído) esperando a conta: o admin vê o número na tela Admin → Financeiro. */

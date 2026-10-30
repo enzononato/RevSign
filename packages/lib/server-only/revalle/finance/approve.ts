@@ -87,7 +87,12 @@ export const approveInvoiceAccount = async ({
         choiceCode: code,
         choiceDefer: false,
       },
-      data: { financeStatus: RevalleFinanceStatus.APPROVED, approvedById: user.id, approvedAt: new Date() },
+      data: {
+        financeStatus: RevalleFinanceStatus.APPROVED,
+        approvedById: user.id,
+        approvedAt: new Date(),
+        approvedAccountName: account?.name ?? null,
+      },
     });
 
     if (count === 0) {

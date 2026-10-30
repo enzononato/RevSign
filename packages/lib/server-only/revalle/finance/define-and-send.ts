@@ -131,6 +131,7 @@ export const defineInvoiceAccountAndSend = async ({
       financeStatus: RevalleFinanceStatus.APPROVED,
       approvedById: user.id,
       approvedAt: now,
+      approvedAccountName: account.name,
     },
   });
 
@@ -178,6 +179,7 @@ export const defineInvoiceAccountAndSend = async ({
                 financeStatus: RevalleFinanceStatus.AWAITING_ACCOUNT,
                 approvedById: null,
                 approvedAt: null,
+                approvedAccountName: null,
               }
             : {
                 choiceCode: row.choiceCode,
@@ -188,6 +190,7 @@ export const defineInvoiceAccountAndSend = async ({
                 financeStatus: RevalleFinanceStatus.APPROVED,
                 approvedById: row.approvedById,
                 approvedAt: null,
+                approvedAccountName: row.approvedAccountName,
               },
       });
 

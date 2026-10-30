@@ -1470,6 +1470,8 @@ model RevalleInvoiceClassification {
   /// Quem do Financeiro aprovou (ou definiu) a conta e quando (sem FK, como choiceById).
   approvedById           Int?
   approvedAt             DateTime?
+  /// Nome da conta aprovada, congelado na aprovação (a lista pode ser reimportada com outro nome). Nulo = usa o atual.
+  approvedAccountName    String?
   /// "Deixar para o Financeiro": quando o e-mail "aguardando o Financeiro" saiu para os membros (um por retenção).
   accountRequestedAt     DateTime?
   /// Selagem retida (todos assinaram, falta a aprovação): quando o e-mail "aguardando aprovação" saiu (um por retenção).

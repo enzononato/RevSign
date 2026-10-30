@@ -43,7 +43,7 @@ No topo de cada página do certificado:
 
 - `Horários em horário de Brasília (UTC−3)`: todas as datas do certificado estão no horário de Brasília;
 - `SHA-256 do original: <64 letras e números>`: a "impressão digital" do PDF **como foi enviado**, antes de qualquer assinatura. Se alguém tiver uma cópia do original, dá para conferir que é o mesmo arquivo.
-- Só em nota fiscal aprovada pelo Financeiro (Fase 6): `Conta contábil: <código> – <nome> · aprovada pelo Financeiro (<nome>) em <dd/MM/aaaa HH:mm> (horário de Brasília)`.
+- Só em nota fiscal aprovada pelo Financeiro (Fase 6): `Conta contábil: <código> – <nome> · aprovada pelo Financeiro (<nome>) em <dd/MM/aaaa HH:mm> (horário de Brasília)`. O nome da conta é o do momento da aprovação (se a lista de contas for reimportada com outro nome, o certificado não muda); sem o nome de quem aprovou, aparece `Financeiro`.
 
 No rodapé: o **ID do Envelope** (identificador único do documento), um **QR code** que leva à página pública do documento (ver seção 3) e, quando o documento tem prova congelada, a atribuição "IP Geolocation by DB-IP".
 

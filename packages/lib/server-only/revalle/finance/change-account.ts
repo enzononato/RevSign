@@ -329,6 +329,7 @@ const createNewVersion = async ({
     financeStatus: RevalleFinanceStatus.APPROVED,
     approvedById: user.id,
     approvedAt: now,
+    approvedAccountName: account.name,
     previousEnvelopeId: envelopeId,
     version,
   };
