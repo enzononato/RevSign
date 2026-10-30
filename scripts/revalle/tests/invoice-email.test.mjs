@@ -13,6 +13,7 @@ import { after, before, test } from 'node:test';
 import { PDFDocument, rgb, StandardFonts } from '@cantoo/pdf-lib';
 
 import {
+  brasilia,
   completeWithCode,
   createEnvelope,
   db,
@@ -25,6 +26,7 @@ import {
   trpcAs,
 } from './helpers.mjs';
 
+const FAKE_URL = (process.env.REVSIGN_FAKE_GEMINI_URL ?? 'http://localhost:8787').replace(/\/$/, '');
 const MAILPIT = 'http://localhost:8025/api/v1';
 const MARIA = { cpf: '39053344705', birthDate: '07/03/1990' };
 const user = { email: process.env.REVSIGN_USER_EMAIL, password: process.env.REVSIGN_USER_PASSWORD };
@@ -45,6 +47,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 let userCookie;
 let adminCookie;
 let previousEmail = '';
+let fakeUp = false;
 
 const settings = async (accountingEmail) => {
   const current = await trpcAs(adminCookie, 'query', 'revalle.invoice.adminGetSettings', undefined);
@@ -128,13 +131,47 @@ const danfe = async (variant) => {
   return file;
 };
 
-// Cria o documento, (opcionalmente) escolhe a conta, envia, passa pelo portão e conclui. Espera a selagem.
-const completeDocument = async ({ label, pdf, choice }) => {
+const fake = async (route, body) => {
+  const res = await fetch(`${FAKE_URL}${route}`, body ? { method: 'POST', body: JSON.stringify(body) } : {});
+
+  assert.equal(res.status, 200, `fake ${route}: ${res.status}`);
+
+  return res.json();
+};
+
+// Pede a sugestão ao servidor falso (programado com `accountCode`, ou em erro quando for null) e espera terminar.
+const settleSuggestion = async (envelopeId, accountCode) => {
+  await fake('/__program', accountCode ? { mode: 'ok', accountCode } : { mode: 'error' });
+
+  const classified = await trpcAs(userCookie, 'mutation', 'revalle.invoice.classify', { envelopeId });
+
+  assert.equal(classified.status, 200, classified.text);
+
+  for (let i = 0; i < 40; i += 1) {
+    const state = await trpcAs(userCookie, 'query', 'revalle.invoice.get', { envelopeId });
+
+    if (state.body.result.data.json.suggestionStatus !== 'PENDING') {
+      return state.body.result.data.json;
+    }
+
+    await sleep(400);
+  }
+
+  throw new Error('a sugestão não terminou');
+};
+
+// Cria o documento, escolhe a conta (se `choice`), envia, passa pelo portão e conclui (ou recusa, com `reject`).
+// `suggestion`: undefined = não pede sugestão; string = o servidor falso sugere essa conta; null = a sugestão falha.
+const completeDocument = async ({ label, pdf, choice, meta, reject = false, suggestion }) => {
   const email = `nf-email-${label}-${RUN}@revalle.com.br`;
   const title = `[TESTE NF] email ${label} ${RUN}`;
-  const created = await retryCreateOnStaleSocket(() => createEnvelope({ recipients: [{ email }], pdf, title }));
+  const created = await retryCreateOnStaleSocket(() => createEnvelope({ recipients: [{ email }], pdf, title, meta }));
 
   assert.equal(created.status, 200, created.text);
+
+  if (suggestion !== undefined) {
+    await settleSuggestion(created.id, suggestion);
+  }
 
   if (choice) {
     const res = await trpcAs(userCookie, 'mutation', 'revalle.invoice.setChoice', {
@@ -151,6 +188,19 @@ const completeDocument = async ({ label, pdf, choice }) => {
 
   await gate(recipient.token);
 
+  if (reject) {
+    const rejected = await trpc('recipient.rejectDocumentWithToken', {
+      token: recipient.token,
+      documentId,
+      reason: 'Teste',
+    });
+
+    assert.equal(rejected.status, 200, rejected.text);
+    assert.equal(await waitStatus(created.id, 'REJECTED'), 'REJECTED');
+
+    return { id: created.id, title, email, item: created.envelope.envelopeItems[0] };
+  }
+
   const signed = await trpc('envelope.field.sign', {
     token: recipient.token,
     fieldId: field.id,
@@ -166,6 +216,34 @@ const completeDocument = async ({ label, pdf, choice }) => {
 
   return { id: created.id, title, email, item: created.envelope.envelopeItems[0] };
 };
+
+// E-mails da contabilidade deste documento (o assunto leva o título único).
+const accountingMails = async (doc) => (await emailsTo(ACCOUNTING)).filter((m) => m.Subject.includes(doc.title));
+
+const waitAccountingMail = async (doc, timeoutMs = 30_000) => {
+  const deadline = Date.now() + timeoutMs;
+  let found = [];
+
+  do {
+    found = await accountingMails(doc);
+
+    if (found.length > 0) {
+      return found;
+    }
+
+    await sleep(500);
+  } while (Date.now() < deadline);
+
+  return found;
+};
+
+const bodyOf = async (message) => (await readMessage(message.ID)).Text.replace(/\s+/g, ' ');
+
+const completedAtOf = (id) =>
+  new Date(`${db(`select "completedAt" from "Envelope" where id = '${id}'`).replace(' ', 'T')}Z`);
+
+const ORIGIN_ACCEPTED = 'sugerida pela IA e aceita pelo remetente';
+const ORIGIN_CHOSEN = 'escolhida pelo remetente';
 
 const sentAt = (envelopeId) =>
   db(
@@ -199,28 +277,38 @@ before(async () => {
 
   previousEmail = current.body.result.data.json.accountingEmail ?? '';
   await settings(ACCOUNTING);
+
+  fakeUp = await fetch(`${FAKE_URL}/__health`)
+    .then((res) => res.ok)
+    .catch(() => false);
 });
 
 after(async () => {
+  if (fakeUp) {
+    await fake('/__reset', {});
+  }
+
   if (adminCookie) {
     await settings(previousEmail);
   }
 });
 
 let doneId;
+let doneSentAt;
 
 sessionTest(
-  'NF concluída com conta escolhida: um e-mail para a contabilidade, assunto exato e PDF selado',
+  'NF concluída com conta escolhida (sem sugestão): um e-mail, assunto exato, data, remetente e PDF selado',
   async () => {
     const doc = await completeDocument({
       label: 'conta',
       pdf: await danfe('conta'),
       choice: { code: '2.1.03' },
+      suggestion: fakeUp ? null : undefined,
     });
 
     doneId = doc.id;
 
-    const messages = await waitMail(ACCOUNTING);
+    const messages = await waitAccountingMail(doc);
 
     assert.equal(messages.length, 1, JSON.stringify(messages.map((m) => m.Subject)));
 
@@ -233,21 +321,16 @@ sessionTest(
 
     assert.ok(text.includes(doc.title), text);
     assert.ok(text.includes(user.email), text);
-    assert.ok(text.includes('(horário de Brasília)'), text);
-    assert.ok(text.includes('2.1.03'), text);
-
-    // A linha da origem da escolha segue o que ficou gravado.
-    const accepted = db(
-      `select "acceptedSuggestion" from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`,
+    assert.ok(text.includes(`${brasilia(completedAtOf(doc.id))} (horário de Brasília)`), text);
+    assert.ok(text.includes('2.1.03 – Fornecedores'), text);
+    // Sem sugestão: nenhuma linha de origem.
+    assert.equal(
+      db(
+        `select coalesce("acceptedSuggestion"::text, 'null') from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`,
+      ),
+      'null',
     );
-
-    if (accepted === 't') {
-      assert.ok(text.includes('sugerida pela IA e aceita pelo remetente'), text);
-    } else if (accepted === 'f') {
-      assert.ok(text.includes('escolhida pelo remetente'), text);
-    } else {
-      assert.ok(!text.includes('sugerida pela IA') && !text.includes('escolhida pelo remetente'), text);
-    }
+    assert.ok(!text.includes(ORIGIN_ACCEPTED) && !text.includes(ORIGIN_CHOSEN), text);
 
     // Mesmos arquivos dos participantes: o PDF selado de cada item.
     assert.equal(mail.Attachments.length, 1, JSON.stringify(mail.Attachments));
@@ -256,57 +339,145 @@ sessionTest(
     const pdf = await readPart(messages[0].ID, mail.Attachments[0].PartID);
 
     assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
-
-    // É o PDF selado do documento (o mesmo arquivo dos e-mails de conclusão), não o original.
-    const sealed = await downloadItem(doc.item.id, 'signed');
-
-    assert.ok(pdf.equals(sealed), 'o anexo da contabilidade difere do PDF selado');
+    assert.ok(pdf.equals(await downloadItem(doc.item.id, 'signed')), 'o anexo difere do PDF selado');
     assert.equal(sentAt(doc.id), 't');
+
+    doneSentAt = db(
+      `select "accountingEmailSentAt" from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`,
+    );
   },
 );
 
-sessionTest('reselagem pelo admin não reenvia', async () => {
-  assert.ok(doneId, 'depende do caso anterior');
+sessionTest('sugestão da IA aceita: o e-mail diz "sugerida pela IA e aceita pelo remetente"', async (t) => {
+  if (!fakeUp) {
+    t.skip('servidor falso do Gemini não está no ar');
+
+    return;
+  }
+
+  const doc = await completeDocument({
+    label: 'aceita',
+    pdf: await danfe('aceita'),
+    suggestion: '2.1.03',
+    choice: { code: '2.1.03' },
+  });
+
+  assert.equal(
+    db(`select "acceptedSuggestion" from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`),
+    't',
+  );
+
+  const [message] = await waitAccountingMail(doc);
+  const text = await bodyOf(message);
+
+  assert.ok(text.includes(ORIGIN_ACCEPTED), text);
+  assert.ok(!text.includes(ORIGIN_CHOSEN), text);
+});
+
+sessionTest('outra conta que não a sugerida: o e-mail diz "escolhida pelo remetente"', async (t) => {
+  if (!fakeUp) {
+    t.skip('servidor falso do Gemini não está no ar');
+
+    return;
+  }
+
+  const doc = await completeDocument({
+    label: 'outra',
+    pdf: await danfe('outra'),
+    suggestion: '2.1.03',
+    choice: { code: '3.1.01' },
+  });
+
+  assert.equal(
+    db(`select "acceptedSuggestion" from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`),
+    'f',
+  );
+
+  const [message] = await waitAccountingMail(doc);
+  const text = await bodyOf(message);
+
+  assert.equal(message.Subject, `Nota fiscal assinada: ${doc.title} · Conta 3.1.01 – Serviços de terceiros`);
+  assert.ok(text.includes(ORIGIN_CHOSEN), text);
+  assert.ok(!text.includes(ORIGIN_ACCEPTED), text);
+});
+
+sessionTest('reselagem pelo admin não reenvia e não mexe em accountingEmailSentAt', async () => {
+  assert.ok(doneId, 'depende do primeiro caso');
 
   const resealed = await trpcAs(adminCookie, 'mutation', 'admin.document.reseal', { id: doneId });
 
   assert.ok(resealed.ok, resealed.text);
 
-  const itemDataBefore = db(
-    `select "documentDataId" from "EnvelopeItem" where "envelopeId" = '${doneId}' order by "order" limit 1`,
-  );
+  const itemData = () =>
+    db(`select "documentDataId" from "EnvelopeItem" where "envelopeId" = '${doneId}' order by "order" limit 1`);
+  const itemDataBefore = itemData();
 
-  for (
-    let i = 0;
-    i < 60 &&
-    db(`select "documentDataId" from "EnvelopeItem" where "envelopeId" = '${doneId}' order by "order" limit 1`) ===
-      itemDataBefore;
-    i += 1
-  ) {
+  for (let i = 0; i < 60 && itemData() === itemDataBefore; i += 1) {
     await sleep(1000);
   }
 
   await sleep(4000);
-  assert.equal((await emailsTo(ACCOUNTING)).length, 1);
+  assert.equal((await emailsTo(ACCOUNTING)).filter((m) => m.Subject.includes(`email conta ${RUN}`)).length, 1);
+  assert.equal(
+    db(`select "accountingEmailSentAt" from "RevalleInvoiceClassification" where "envelopeId" = '${doneId}'`),
+    doneSentAt,
+  );
 });
 
-sessionTest('"Deixar para a contabilidade decidir": assunto com a definir pela contabilidade', async () => {
+sessionTest('"Deixar para a contabilidade decidir": assunto e corpo com a definir pela contabilidade', async () => {
   const doc = await completeDocument({ label: 'defer', pdf: await danfe('defer'), choice: { defer: true } });
-  const messages = (await waitMail(ACCOUNTING, 30_000)).filter((m) => m.Subject.includes(doc.title));
+  const messages = await waitAccountingMail(doc);
 
   assert.equal(messages.length, 1);
   assert.equal(messages[0].Subject, `Nota fiscal assinada: ${doc.title} · Conta: a definir pela contabilidade`);
+
+  const text = await bodyOf(messages[0]);
+
+  assert.ok(text.includes('Conta: a definir pela contabilidade'), text);
+  assert.ok(!text.includes('Conta contábil:'), text);
+  assert.ok(!text.includes(ORIGIN_ACCEPTED) && !text.includes(ORIGIN_CHOSEN), text);
+});
+
+sessionTest('e-mails dos participantes desligados: a contabilidade recebe mesmo assim, uma vez', async () => {
+  const doc = await completeDocument({
+    label: 'semparticipantes',
+    pdf: await danfe('semparticipantes'),
+    choice: { code: '2.1.03' },
+    meta: { emailSettings: { documentCompleted: false, ownerDocumentCompleted: false } },
+  });
+
+  // Confere que o e-mail de conclusão dos participantes de fato não saiu (nenhum e-mail com anexo ao signatário).
+  await sleep(3000);
+  assert.equal((await emailsTo(doc.email)).filter((m) => m.Attachments > 0).length, 0);
+
+  const messages = await waitAccountingMail(doc);
+
+  assert.equal(messages.length, 1, JSON.stringify(messages.map((m) => m.Subject)));
+  await sleep(4000);
+  assert.equal((await accountingMails(doc)).length, 1);
+});
+
+sessionTest('NF recusada: nenhum e-mail para a contabilidade', async () => {
+  const doc = await completeDocument({
+    label: 'recusada',
+    pdf: await danfe('recusada'),
+    choice: { defer: true },
+    reject: true,
+  });
+
+  await sleep(6000);
+  assert.equal((await accountingMails(doc)).length, 0);
+  assert.equal(sentAt(doc.id), 'f');
 });
 
 sessionTest('sem e-mail da contabilidade configurado: nenhum e-mail', async () => {
   await settings('');
 
   try {
-    const before = (await emailsTo(ACCOUNTING)).length;
     const doc = await completeDocument({ label: 'sem', pdf: await danfe('sem'), choice: { defer: true } });
 
     await sleep(5000);
-    assert.equal((await emailsTo(ACCOUNTING)).length, before);
+    assert.equal((await accountingMails(doc)).length, 0);
     assert.equal(sentAt(doc.id), 'f');
   } finally {
     await settings(ACCOUNTING);
@@ -314,11 +485,10 @@ sessionTest('sem e-mail da contabilidade configurado: nenhum e-mail', async () =
 });
 
 sessionTest('documento comum: nenhum e-mail para a contabilidade', async () => {
-  const before = (await emailsTo(ACCOUNTING)).length;
   const doc = await completeDocument({ label: 'comum', pdf: 'assets/example.pdf' });
 
   await sleep(5000);
-  assert.equal((await emailsTo(ACCOUNTING)).length, before);
+  assert.equal((await accountingMails(doc)).length, 0);
   assert.equal(
     db(`select count(*) from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}' and "isInvoice" = 'YES'`),
     '0',

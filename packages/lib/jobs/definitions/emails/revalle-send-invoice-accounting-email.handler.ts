@@ -1,6 +1,6 @@
 import { RevalleInvoiceAccountingTemplate } from '@documenso/email/templates/revalle-invoice-accounting';
 import { prisma } from '@documenso/prisma';
-import { EnvelopeType, RevalleInvoiceStatus } from '@prisma/client';
+import { DocumentStatus, EnvelopeType, RevalleInvoiceStatus } from '@prisma/client';
 import { createElement } from 'react';
 
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../../constants/app';
@@ -53,12 +53,17 @@ export const run = async ({
     include: {
       envelopeItems: { orderBy: { order: 'asc' }, include: { documentData: true } },
       documentMeta: true,
-      user: { select: { name: true, email: true, disabled: true } },
+      user: { select: { name: true, email: true } },
     },
   });
 
   if (!envelope) {
     throw new Error('Document not found');
+  }
+
+  // Só documento concluído (nada de rascunho, em andamento ou recusado).
+  if (envelope.status !== DocumentStatus.COMPLETED) {
+    return;
   }
 
   // Sem escolha (documento antigo que chegou ao fim sem conta) segue o texto de "a contabilidade decide".
@@ -70,15 +75,12 @@ export const run = async ({
         })
       : null;
 
-  const { branding, emailLanguage, senderEmail, emailsDisabled, emailTransport } = await getEmailContext({
+  // E-mail interno: não depende de o usuário estar ativo nem das preferências de e-mail do remetente/organização.
+  const { branding, emailLanguage, senderEmail, emailTransport } = await getEmailContext({
     emailType: 'INTERNAL',
     source: { type: 'team', teamId: envelope.teamId },
     meta: envelope.documentMeta,
   });
-
-  if (envelope.user.disabled || emailsDisabled) {
-    return;
-  }
 
   // Mesmos arquivos dos e-mails de conclusão: o PDF selado de cada item (o certificado já está dentro dele).
   const attachments = await Promise.all(
@@ -100,8 +102,10 @@ export const run = async ({
     senderEmail: envelope.user.email,
     completedAt: formatRevalleDateTime(envelope.completedAt ?? new Date(), { withZoneLabel: true }),
     account: account ? `${account.code} – ${account.name}` : null,
-    origin:
-      classification.acceptedSuggestion === true
+    // "Escolhida pelo remetente" só faz sentido quando há conta; "deixar para a contabilidade" não tem linha de origem.
+    origin: !account
+      ? null
+      : classification.acceptedSuggestion === true
         ? 'SUGGESTION_ACCEPTED'
         : classification.acceptedSuggestion === false
           ? 'CHOSEN'

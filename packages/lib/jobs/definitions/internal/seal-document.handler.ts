@@ -372,10 +372,22 @@ export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition
         requestMetadata,
       },
     });
+  }
 
-    // REVALLE: nota fiscal concluída: avisa a contabilidade (o job é idempotente e só envia uma vez).
-    if (await shouldEmailInvoiceAccounting(envelopeId)) {
-      await jobs.triggerJob({ name: 'send.revalle.invoice.accounting.email', payload: { envelopeId } });
+  // REVALLE: nota fiscal concluída: avisa a contabilidade. É um processo interno, independente de `sendEmail` e dos
+  // e-mails dos participantes. Não vale para documento recusado nem para reselagem de documento já concluído; o job
+  // ainda confere o status e reserva `accountingEmailSentAt`, então só envia uma vez. Uma falha aqui nunca derruba a selagem.
+  if (!isRejected && !(isResealing && isDocumentCompleted(envelopeStatus))) {
+    try {
+      if (await shouldEmailInvoiceAccounting(envelopeId)) {
+        await jobs.triggerJob({ name: 'send.revalle.invoice.accounting.email', payload: { envelopeId } });
+      }
+    } catch (error) {
+      io.logger.error({
+        msg: 'Falha ao agendar o e-mail da contabilidade',
+        envelopeId,
+        error: error instanceof Error ? error.message : 'erro desconhecido',
+      });
     }
   }
 };
