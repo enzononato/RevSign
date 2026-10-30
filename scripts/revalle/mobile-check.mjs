@@ -11,6 +11,8 @@
 // conferência vale só para o bloco/cartão: o editor do upstream não é feito para celular (a 360 px a página passa da
 // largura da tela e as abas "E-mail"/"Nenhum" do diálogo têm 32 px). Depois abre a página "Notas fiscais": botões da
 // página com 44 px e nenhuma rolagem horizontal da página inteira (a tabela rola dentro do próprio quadro).
+// Depois: NF escaneada no diálogo de envio ("Responda para enviar" e o botão de enviar bloqueado até "Sim"/"Não"),
+// NF v1 no editor antigo (o bloco da NF no topo) e "Marcar como nota fiscal" no cartão de um documento já enviado.
 // Em cada passo tira um print e confere:
 //   - sem rolagem horizontal (document.scrollingElement.scrollWidth <= 360);
 //   - todo botão visível (button / role=button) com altura >= 44 px;
@@ -22,7 +24,7 @@
 // Variáveis: REVSIGN_URL (padrão http://localhost:3000), MOBILE_CHECK_IMAGE (padrão a imagem abaixo).
 // Sai com código 1 se alguma conferência falhar. O resumo fica em <pasta>/report.json.
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -104,6 +106,61 @@ const runHost = async () => {
     senderEnv.SENDER_COOKIE = await signIn(process.env.REVSIGN_USER_EMAIL, process.env.REVSIGN_USER_PASSWORD);
     senderEnv.EDITOR_URL = `${BASE_URL}/t/${teamUrl}/documents/${nf.id}/edit`;
     console.log(`- nota fiscal ${nf.id} (rascunho) para o passo do remetente`);
+
+    // NF escaneada (só imagem: "É nota fiscal?"): "Enviar" bloqueado até a resposta.
+    const scanned = await createEnvelope({
+      title: `[TESTE NF] Celular escaneada ${new Date().toISOString()}`,
+      pdf: await writeScannedFixture(outDir),
+      recipients: [{ email: `celular-nf-esc-${Date.now()}@revalle.com.br`, name: 'Teste' }],
+    });
+
+    if (scanned.status !== 200) {
+      throw new Error(`criar nota escaneada: HTTP ${scanned.status} ${scanned.text}`);
+    }
+
+    senderEnv.SCANNED_EDITOR_URL = `${BASE_URL}/t/${teamUrl}/documents/${scanned.id}/edit`;
+
+    // NF v1 (abre no editor antigo, que também tem o bloco da NF).
+    const form = new FormData();
+
+    form.append(
+      'payload',
+      JSON.stringify({
+        title: `[TESTE NF] Celular v1 ${new Date().toISOString()}`,
+        meta: { distributionMethod: 'NONE' },
+        recipients: [{ email: `celular-nf-v1-${Date.now()}@revalle.com.br`, name: 'Teste', role: 'SIGNER' }],
+      }),
+    );
+    form.append(
+      'file',
+      new File([readFileSync(await writeInvoiceFixture(outDir))], 'nf-v1.pdf', { type: 'application/pdf' }),
+    );
+
+    const v1 = await fetch(`${BASE_URL}/api/v2-beta/document/create`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.REVSIGN_API_TOKEN}` },
+      body: form,
+    });
+    const v1Body = await v1.json();
+
+    if (v1.status !== 200) {
+      throw new Error(`criar nota v1: HTTP ${v1.status} ${JSON.stringify(v1Body)}`);
+    }
+
+    senderEnv.LEGACY_EDITOR_URL = `${BASE_URL}/t/${teamUrl}/documents/${v1Body.envelopeId}/legacy_editor`;
+
+    // Documento comum já enviado: o cartão "Conta contábil" oferece "Marcar como nota fiscal".
+    const common = await createEnvelope({
+      title: `[TESTE] Celular marcar NF ${new Date().toISOString()}`,
+      recipients: [{ email: `celular-marcar-${Date.now()}@revalle.com.br`, name: 'Teste' }],
+    });
+
+    if (common.status !== 200) {
+      throw new Error(`criar documento comum: HTTP ${common.status} ${common.text}`);
+    }
+
+    await distribute(common.id);
+    senderEnv.SENT_DOC_URL = `${BASE_URL}/t/${teamUrl}/documents/${common.id}`;
   } else {
     console.log('- sem REVSIGN_USER_EMAIL/REVSIGN_USER_PASSWORD: passo da nota fiscal pulado');
   }
@@ -149,6 +206,24 @@ const runHost = async () => {
   db(`delete from "RevalleEmailLink" where cpf = '${FERNANDO.cpf}'`);
 
   process.exit(result.status ?? 1);
+};
+
+// "NF escaneada": só uma imagem (o desenho dos testes), nenhum texto.
+const writeScannedFixture = async (dir) => {
+  const { PDFDocument } = await import('@cantoo/pdf-lib');
+  const { drawingPng } = await import('./tests/helpers.mjs');
+  const doc = await PDFDocument.create();
+  const png = await doc.embedPng(Buffer.from(drawingPng().split(',')[1], 'base64'));
+  const page = doc.addPage([595, 842]);
+
+  page.drawImage(png, { x: 40, y: 500, width: 500, height: 170 });
+  doc.setTitle(`NF digitalizada celular ${Date.now()}`);
+
+  const file = path.join(dir, 'nf-escaneada-celular.pdf');
+
+  writeFileSync(file, await doc.save());
+
+  return file;
 };
 
 // DANFE fictício (chave de acesso fictícia com DV válido), para o passo do remetente.
@@ -403,6 +478,51 @@ const runBrowser = async () => {
       await sender.goto(`${editorUrl.origin}/notas-fiscais`, { waitUntil: 'networkidle' });
       await sender.getByTestId('invoices-page').locator('tbody tr').first().waitFor();
       await check('00d-notas-fiscais', sender, '[data-testid="invoices-page"]', { pageScroll: true });
+
+      // NF escaneada: "Este documento é uma nota fiscal?" com "Responda para enviar" e o botão de enviar bloqueado até
+      // a resposta; "Não" libera.
+      await sender.goto(process.env.SCANNED_EDITOR_URL, { waitUntil: 'networkidle' });
+      await sender
+        .getByRole('button', { name: /enviar documento/i })
+        .filter({ visible: true })
+        .first()
+        .click();
+
+      const question = sender.getByTestId('invoice-question');
+      const sendButton = sender.getByRole('dialog').getByRole('button', { name: /^(enviar|gerar links)$/i });
+
+      await question.getByText('Responda para enviar').waitFor();
+
+      if (!(await sendButton.isDisabled())) {
+        throw new Error('NF escaneada sem resposta: o botão de enviar deveria estar bloqueado');
+      }
+
+      await check('00e-nf-escaneada', sender, '[data-testid="invoice-question"]');
+      // A 360 px o editor do upstream passa da largura da tela e o diálogo fica deslocado: o "Não" fica fora da tela
+      // (limite já conhecido do editor, ver o topo do arquivo). O clique vai pelo DOM; a conferência vale para o bloco.
+      await question.getByRole('button', { name: 'Não', exact: true }).evaluate((button) => button.click());
+      await question.waitFor({ state: 'detached' });
+      await sender.waitForFunction(
+        () =>
+          [...document.querySelectorAll('[role="dialog"] button[type="submit"]')].some((button) => !button.disabled),
+        undefined,
+        { timeout: 10_000 },
+      );
+
+      // Documento v1: o editor antigo mostra o bloco da NF no topo.
+      await sender.goto(process.env.LEGACY_EDITOR_URL, { waitUntil: 'networkidle' });
+      await sender.getByTestId('invoice-account-panel').waitFor();
+      await check('00f-nf-editor-antigo', sender, '[data-testid="invoice-account-panel"]');
+
+      // Documento comum já enviado: "Marcar como nota fiscal" e, em seguida, a escolha da conta no mesmo cartão.
+      await sender.goto(process.env.SENT_DOC_URL, { waitUntil: 'networkidle' });
+
+      const card = sender.getByTestId('invoice-account-card');
+
+      await card.scrollIntoViewIfNeeded();
+      await card.getByRole('button', { name: 'Marcar como nota fiscal' }).click();
+      await card.getByRole('button', { name: 'Deixar para a contabilidade decidir' }).waitFor();
+      await check('00g-nf-marcar', sender, '[data-testid="invoice-account-card"]');
     } catch (error) {
       await sender.screenshot({ path: `${out}/erro-nf.png` }).catch(() => {});
       steps.push({ step: 'nf', scrollWidth: null, problems: [{ kind: 'flow-error', detail: String(error) }] });

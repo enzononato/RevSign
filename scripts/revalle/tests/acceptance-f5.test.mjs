@@ -9,7 +9,7 @@
 //      usuário sem envolvimento, só a NF em que é signatário para um colega, e as 2 para o admin; filtros;
 //   7. a planilha (`/notas-fiscais/csv`) tem BOM, o cabeçalho exato, 2 linhas e as contas certas, e respeita os filtros;
 //   8. chegaram 2 e-mails para a contabilidade;
-//   9. a política de privacidade tem a frase da spec §9;
+//   9. a política de privacidade tem a frase da spec §9 e diz com exatidão o que acontece com o CPF;
 //  10. o PDF selado (com o certificado e o log anexados) não tem o número nem o nome da conta.
 //  11. o remetente exclui a NFS-e: some para ele e o admin continua vendo, marcada "excluído pelo remetente".
 //
@@ -27,6 +27,7 @@ import { PDFDocument, rgb, StandardFonts } from '@cantoo/pdf-lib';
 
 import {
   api,
+  assertNoPaidGeminiCalls,
   BASE_URL,
   completeWithCode,
   createEnvelope,
@@ -41,6 +42,9 @@ import {
   trpcAs,
 } from './helpers.mjs';
 
+// Para antes de criar qualquer NF se o app puder chamar o Gemini de verdade (pago). Ver helpers.mjs.
+assertNoPaidGeminiCalls();
+
 const FAKE_URL = (process.env.REVSIGN_FAKE_GEMINI_URL ?? 'http://localhost:8787').replace(/\/$/, '');
 const MAILPIT = 'http://localhost:8025/api/v1';
 const MARIA = { cpf: '39053344705', birthDate: '07/03/1990' };
@@ -54,6 +58,9 @@ const PROMPT = `Prompt do aceite da Fase 5 (${RUN}): fornecedores de mercadoria 
 const CHAVE = '29241012345678000195550010000123451123456784';
 const PRIVACY_SENTENCE =
   'As notas fiscais enviadas para assinatura são analisadas por um serviço de inteligência artificial (Google Gemini) apenas para sugerir a conta contábil.';
+// O que de fato vai ao Gemini: o texto com o CPF mascarado; a NF digitalizada vai como imagem, sem máscara possível.
+const PRIVACY_CPF_SENTENCE =
+  'No texto da nota, números de CPF são mascarados antes do envio; uma nota digitalizada (imagem) é enviada como está. Nunca enviamos a data de nascimento nem os dados da verificação de quem assina.';
 // Números e nomes que não aparecem por acaso num PDF (datas, IPs, hashes), para o passo 10 valer.
 const ACCOUNTS = [
   { code: '4.1.07', name: 'Fornecedores Aceite Cinco', kind: 'pagar' },
@@ -346,7 +353,7 @@ before(async () => {
 
   assert.equal(imported.status, 200, imported.text);
   await saveSettings({ prompt: PROMPT, accountingEmail: ACCOUNTING });
-  db(`delete from "RateLimit" where key like 'revalle.invoice%'`);
+  db(`delete from "RateLimit" where action like 'revalle.invoice%'`);
 
   fx.sender = await newAccount('remetente');
   fx.outsider = await newAccount('terceiro');
@@ -643,7 +650,7 @@ testStep('8. a contabilidade recebeu 2 e-mails (um por NF)', async () => {
   assert.equal((await emailsTo(ACCOUNTING)).length, 2);
 });
 
-testStep('9. a política de privacidade tem a frase do Gemini (spec §9)', async () => {
+testStep('9. a política de privacidade tem a frase do Gemini (spec §9) e a do CPF, exata', async () => {
   const html = await fetchIdempotent(`${BASE_URL}/privacidade`, {}, (res) => res.text());
   const text = html
     .replace(/<script[\s\S]*?<\/script>/g, ' ')
@@ -653,6 +660,9 @@ testStep('9. a política de privacidade tem a frase do Gemini (spec §9)', async
     .replace(/\s+/g, ' ');
 
   assert.ok(text.includes(PRIVACY_SENTENCE), 'frase da spec §9 ausente');
+  assert.ok(text.includes(PRIVACY_CPF_SENTENCE), 'frase do CPF (texto mascarado, imagem como está) ausente');
+  // A promessa antiga ("nunca enviamos o CPF") não vale para a NF digitalizada.
+  assert.ok(!/Nunca enviamos o CPF/i.test(text), 'a política ainda promete nunca enviar o CPF');
 });
 
 testStep('10. o PDF selado (com certificado e log) não tem o número nem o nome da conta', async () => {

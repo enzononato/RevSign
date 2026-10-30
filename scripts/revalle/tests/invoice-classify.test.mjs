@@ -15,7 +15,10 @@ import path from 'node:path';
 import { before, test } from 'node:test';
 import { PDFDocument, rgb, StandardFonts } from '@cantoo/pdf-lib';
 
-import { api, BASE_URL, createEnvelope, db, drawingPng, signIn, trpcAs } from './helpers.mjs';
+import { api, assertNoPaidGeminiCalls, BASE_URL, createEnvelope, db, drawingPng, signIn, trpcAs } from './helpers.mjs';
+
+// Para antes de criar qualquer NF se o app puder chamar o Gemini de verdade (pago). Ver helpers.mjs.
+assertNoPaidGeminiCalls();
 
 const FAKE_URL = (process.env.REVSIGN_FAKE_GEMINI_URL ?? 'http://localhost:8787').replace(/\/$/, '');
 const APP_CONTAINER = 'revsign-hml-documenso-1';
@@ -546,8 +549,24 @@ aiTest('IA devolve lixo: FAILED', async () => {
   await expectFailure('garbage', 'INVALID_RESPONSE', 'lixo');
 });
 
-aiTest('IA com erro do servidor: FAILED', async () => {
-  await expectFailure('error', 'PROVIDER_ERROR', 'erro-500');
+aiTest('IA com erro do servidor: FAILED, e o log tem só o código HTTP do provedor (sem o corpo)', async () => {
+  const { env } = await expectFailure('error', 'PROVIDER_ERROR', 'erro-500');
+  const lines = execFileSync('sh', ['-c', `docker logs ${APP_CONTAINER} 2>&1`], {
+    encoding: 'utf8',
+    maxBuffer: 256 * 1024 * 1024,
+  })
+    .split('\n')
+    .filter((line) => line.includes('revalle.invoice.suggestion') && line.includes(env.id));
+
+  assert.equal(lines.length, 1, lines.join('\n'));
+
+  const entry = JSON.parse(lines[0]);
+
+  assert.equal(entry.result, 'FAILED');
+  assert.equal(entry.reason, 'PROVIDER_ERROR');
+  // O servidor falso responde 500 duas vezes (1 nova tentativa): vale o código da última.
+  assert.equal(entry.providerStatusCode, 500);
+  assert.ok(!lines[0].includes('Erro interno (falso)'), 'o corpo da resposta do provedor foi para o log');
 });
 
 aiTest('IA lenta (25 s): FAILED antes da resposta (limite de 20 s no app)', async () => {

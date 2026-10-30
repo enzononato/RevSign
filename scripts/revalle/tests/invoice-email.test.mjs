@@ -13,18 +13,23 @@ import { after, before, test } from 'node:test';
 import { PDFDocument, rgb, StandardFonts } from '@cantoo/pdf-lib';
 
 import {
+  assertNoPaidGeminiCalls,
   brasilia,
   completeWithCode,
   createEnvelope,
   db,
   distribute,
   downloadItem,
+  drawingPng,
   fetchIdempotent,
   retryCreateOnStaleSocket,
   signIn,
   trpc,
   trpcAs,
 } from './helpers.mjs';
+
+// Para antes de criar qualquer NF se o app puder chamar o Gemini de verdade (pago). Ver helpers.mjs.
+assertNoPaidGeminiCalls();
 
 const FAKE_URL = (process.env.REVSIGN_FAKE_GEMINI_URL ?? 'http://localhost:8787').replace(/\/$/, '');
 const MAILPIT = 'http://localhost:8025/api/v1';
@@ -129,6 +134,22 @@ const danfe = async (variant) => {
   }
 
   const file = path.join(tmp, `danfe-${variant}.pdf`);
+
+  writeFileSync(file, Buffer.from(await doc.save()));
+
+  return file;
+};
+
+// "NF escaneada": só uma imagem, nenhum texto (a detecção fica UNKNOWN). `variant` muda o arquivo.
+const scannedPdf = async (variant) => {
+  const doc = await PDFDocument.create();
+  const png = await doc.embedPng(Buffer.from(drawingPng().split(',')[1], 'base64'));
+  const page = doc.addPage([595, 842]);
+
+  page.drawImage(png, { x: 40, y: 500, width: 500, height: 170 });
+  doc.setTitle(`NF digitalizada ${variant} ${RUN}`);
+
+  const file = path.join(tmp, `escaneada-${variant}.pdf`);
 
   writeFileSync(file, Buffer.from(await doc.save()));
 
@@ -505,3 +526,66 @@ sessionTest('documento comum: nenhum e-mail para a contabilidade', async () => {
     '0',
   );
 });
+
+sessionTest(
+  'NF escaneada enviada sem resposta e concluída: o dono marca como NF, escolhe a conta e sai 1 e-mail (só 1)',
+  async () => {
+    const callsBefore = fakeUp ? (await fake('/__calls')).length : 0;
+    // Sem resposta a "É nota fiscal?" (pela API, o servidor deixa enviar): segue como UNKNOWN, sem e-mail.
+    const doc = await completeDocument({ label: 'escaneada', pdf: await scannedPdf('marcar') });
+
+    assert.equal(
+      db(`select "isInvoice" from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`),
+      'UNKNOWN',
+    );
+    await sleep(4000);
+    assert.equal((await accountingMails(doc)).length, 0);
+
+    const marked = await trpcAs(userCookie, 'mutation', 'revalle.invoice.markAsInvoice', { envelopeId: doc.id });
+
+    assert.equal(marked.status, 200, marked.text);
+    assert.equal(marked.body.result.data.json.isInvoice, 'YES');
+    assert.equal(marked.body.result.data.json.choice, null);
+
+    // Marcado, mas ainda sem conta: nada sai.
+    await sleep(3000);
+    assert.equal((await accountingMails(doc)).length, 0);
+    assert.equal(sentAt(doc.id), 'f');
+
+    const chosen = await trpcAs(userCookie, 'mutation', 'revalle.invoice.setChoice', {
+      envelopeId: doc.id,
+      choice: { code: '3.1.01' },
+    });
+
+    assert.equal(chosen.status, 200, chosen.text);
+
+    const messages = await waitAccountingMail(doc);
+
+    assert.equal(messages.length, 1, JSON.stringify(messages.map((m) => m.Subject)));
+    assert.equal(messages[0].Subject, `Nota fiscal assinada: ${doc.title} · Conta 3.1.01 – Serviços de terceiros`);
+    assert.equal(attachmentCount(await readMessage(messages[0].ID)), 1);
+    assert.equal(sentAt(doc.id), 't');
+
+    // Trocar a conta depois (dono e admin) e marcar de novo não reenviam.
+    for (const [cookie, choice] of [
+      [userCookie, { code: '2.1.03' }],
+      [adminCookie, { defer: true }],
+    ]) {
+      const changed = await trpcAs(cookie, 'mutation', 'revalle.invoice.setChoice', { envelopeId: doc.id, choice });
+
+      assert.equal(changed.status, 200, changed.text);
+    }
+
+    assert.equal(
+      (await trpcAs(userCookie, 'mutation', 'revalle.invoice.markAsInvoice', { envelopeId: doc.id })).status,
+      200,
+    );
+    await sleep(5000);
+    assert.equal((await accountingMails(doc)).length, 1);
+
+    // Nenhuma chamada à IA em todo o caminho (classificação congelada depois do envio).
+    if (fakeUp) {
+      assert.equal((await fake('/__calls')).length, callsBefore);
+    }
+  },
+);

@@ -379,3 +379,45 @@ export const drawingPng = () => {
 
   return `data:image/png;base64,${png.toString('base64')}`;
 };
+
+// ---------------------------------------------------------------------------------------------------------------
+// Guarda contra chamadas pagas ao Gemini (Fase 5). As suítes de nota fiscal e o aceite da Fase 5 criam NFs, e cada NF
+// pede uma sugestão: com uma chave de verdade no app e o endereço do Google, isso custa dinheiro. Só seguem quando o
+// app aponta para o servidor falso (compose.test.yml), quando não tem chave, ou quando REVALLE_TEST_GEMINI_API_KEY
+// diz que a chamada paga é de propósito.
+// ---------------------------------------------------------------------------------------------------------------
+
+export const APP_CONTAINER = 'revsign-hml-documenso-1';
+export const FAKE_GEMINI_BASE_URL = 'http://fake-gemini:8787/v1beta';
+
+// Variável de ambiente do container do app ('' quando não existe). Nunca imprima o valor de uma chave.
+export const appContainerEnv = (name) =>
+  execFileSync('docker', ['exec', APP_CONTAINER, 'sh', '-c', `printf %s "$${name}"`], { encoding: 'utf8' });
+
+// Puro: a mensagem de parada, ou null quando pode seguir. Nunca inclui a chave.
+export const paidGeminiGuardMessage = ({ apiKey, baseUrl, optIn }) => {
+  if (optIn || !apiKey?.trim() || baseUrl?.trim() === FAKE_GEMINI_BASE_URL) {
+    return null;
+  }
+
+  return [
+    'Parado: o app tem GEMINI_API_KEY e não aponta para o servidor falso',
+    `(NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL = "${baseUrl?.trim() ?? ''}", esperado "${FAKE_GEMINI_BASE_URL}").`,
+    'Estes testes criariam notas fiscais e chamariam o Gemini de verdade (pago).',
+    'Suba a stack com compose.test.yml (servidor falso) ou sem a chave; para chamar o Gemini de propósito, defina',
+    'REVALLE_TEST_GEMINI_API_KEY. Ver revalle/docs/testes.md.',
+  ].join(' ');
+};
+
+// Chamada no topo de cada suíte que cria NFs: lança (e a suíte inteira para) antes de qualquer documento.
+export const assertNoPaidGeminiCalls = () => {
+  const message = paidGeminiGuardMessage({
+    apiKey: appContainerEnv('GEMINI_API_KEY'),
+    baseUrl: appContainerEnv('NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL'),
+    optIn: process.env.REVALLE_TEST_GEMINI_API_KEY,
+  });
+
+  if (message) {
+    throw new Error(message);
+  }
+};

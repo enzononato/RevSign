@@ -15,7 +15,20 @@ import { before, test } from 'node:test';
 import { isDeepStrictEqual } from 'node:util';
 import { PDFDocument, rgb, StandardFonts } from '@cantoo/pdf-lib';
 
-import { api, BASE_URL, createEnvelope, db, latestMail, poppler, signIn, trpcAs } from './helpers.mjs';
+import {
+  api,
+  assertNoPaidGeminiCalls,
+  BASE_URL,
+  createEnvelope,
+  db,
+  latestMail,
+  poppler,
+  signIn,
+  trpcAs,
+} from './helpers.mjs';
+
+// Para antes de criar qualquer NF se o app puder chamar o Gemini de verdade (pago). Ver helpers.mjs.
+assertNoPaidGeminiCalls();
 
 const FAKE_URL = (process.env.REVSIGN_FAKE_GEMINI_URL ?? 'http://localhost:8787').replace(/\/$/, '');
 
@@ -685,3 +698,192 @@ sessionTest('acesso: visitante recebe 401; usuário de outro time recebe 404', a
   assert.equal(res.status, 404, res.text);
   assert.equal(row(other.id, 'count(*)'), '0');
 });
+
+// NF criada como documento v1 (`internalVersion = 1`): na tela ela abre no editor antigo (`legacy_editor`), que agora
+// também tem o bloco "Nota fiscal · Conta contábil". `POST /api/v1/documents` cria esse tipo de documento, mas só com
+// o transporte S3 (com `NEXT_PUBLIC_UPLOAD_TRANSPORT=database`, o da stack local e da produção, responde 500); nesse
+// caso o documento v1 vem de `/api/v2-beta/document/create`, que cria o mesmo tipo de envelope.
+const newV1Invoice = async (variant) => {
+  const file = await danfe(variant);
+  const title = `[TESTE NF] v1 ${variant} ${RUN}`;
+  const email = recipient().email;
+  const viaV1 = await fetch(`${BASE_URL}/api/v1/documents`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.REVSIGN_API_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title,
+      meta: { distributionMethod: 'NONE' },
+      recipients: [{ name: 'Teste', email, role: 'SIGNER' }],
+    }),
+  });
+  const v1Body = await viaV1.json();
+
+  if (viaV1.status === 200) {
+    const upload = await fetch(v1Body.uploadUrl, { method: 'PUT', body: readFileSync(file) });
+
+    assert.ok(upload.ok, `upload: ${upload.status}`);
+
+    return {
+      envelopeId: db(`select id from "Envelope" where "secondaryId" = 'document_${v1Body.documentId}'`),
+      documentId: v1Body.documentId,
+    };
+  }
+
+  assert.equal(viaV1.status, 500, JSON.stringify(v1Body));
+  assert.match(v1Body.message, /S3 transport/);
+
+  const form = new FormData();
+
+  form.append(
+    'payload',
+    JSON.stringify({
+      title,
+      meta: { distributionMethod: 'NONE' },
+      recipients: [
+        {
+          email,
+          name: 'Teste',
+          role: 'SIGNER',
+          fields: [{ type: 'SIGNATURE', pageNumber: 1, pageX: 10, pageY: 80, width: 30, height: 8 }],
+        },
+      ],
+    }),
+  );
+  form.append('file', new File([readFileSync(file)], path.basename(file), { type: 'application/pdf' }));
+
+  const res = await fetch(`${BASE_URL}/api/v2-beta/document/create`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.REVSIGN_API_TOKEN}` },
+    body: form,
+  });
+  const body = await res.json();
+
+  assert.equal(res.status, 200, JSON.stringify(body));
+
+  return { envelopeId: body.envelopeId, documentId: body.id };
+};
+
+sessionTest(
+  'NF v1 (editor antigo): envio pela API v1 recusado; o editor antigo mostra o bloco; escolhe a conta e envia',
+  async () => {
+    const { envelopeId, documentId } = await newV1Invoice('v1');
+
+    assert.equal(db(`select "internalVersion" from "Envelope" where id = '${envelopeId}'`), '1');
+
+    const send = () =>
+      fetch(`${BASE_URL}/api/v1/documents/${documentId}/send`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.REVSIGN_API_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sendEmail: false }),
+      });
+
+    const refused = await send();
+    const refusedText = await refused.text();
+
+    assert.equal(refused.status, 400, refusedText);
+    assert.ok(refusedText.includes(REQUIRED_MESSAGE), refusedText);
+    assert.equal(status(envelopeId), 'DRAFT');
+    assert.equal(row(envelopeId, `"isInvoice"`), 'YES');
+
+    // A tela do documento v1 é o editor antigo, e ele tem o bloco da NF (renderizado no servidor: "Conferindo…").
+    const teamUrl = db(
+      `select t.url from "Team" t join "Envelope" e on e."teamId" = t.id where e.id = '${envelopeId}'`,
+    );
+    const page = await fetch(`${BASE_URL}/t/${teamUrl}/documents/${envelopeId}/legacy_editor`, {
+      headers: { Cookie: userCookie },
+    });
+    const html = await page.text();
+
+    assert.equal(page.status, 200, html.slice(0, 500));
+    assert.ok(html.includes('Conferindo se é nota fiscal'), 'o editor antigo não tem o bloco da nota fiscal');
+
+    const chosen = await setChoice(envelopeId, { code: '2.1.03' });
+
+    assert.equal(chosen.status, 200, chosen.text);
+
+    const sent = await send();
+
+    assert.equal(sent.status, 200, await sent.text());
+    assert.equal(status(envelopeId), 'PENDING');
+    assert.equal(row(envelopeId, `"choiceCode"`), '2.1.03');
+  },
+);
+
+sessionTest(
+  'marcar documento enviado como NF: dono sim (sem IA), outro do time 403, rascunho 400, já NF não muda',
+  async () => {
+    const callsBefore = fakeUp ? (await fake('/__calls')).length : 0;
+    const env = await newEnvelope('assets/example.pdf', 'marcar como NF');
+    const markAs = (cookie = userCookie) => invoice('mutation', 'markAsInvoice', { envelopeId: env.id }, cookie);
+
+    // Rascunho: a pergunta é respondida no diálogo de envio, não aqui.
+    assert.equal((await markAs()).status, 400);
+    assert.equal((await distribute(env.id)).status, 200);
+    assert.equal(row(env.id, `"isInvoice"`), 'NO');
+
+    // Alguém do time que não é o dono: 403, e nada muda.
+    const ownerId = db(`select "userId" from "Envelope" where id = '${env.id}'`);
+    const adminId = db(`select id from "User" where email = '${admin.email}'`);
+
+    db(`update "Envelope" set "userId" = ${adminId} where id = '${env.id}'`);
+
+    try {
+      const refused = await markAs();
+
+      assert.equal(refused.status, 403, refused.text);
+      assert.equal(row(env.id, `"isInvoice" || ';' || "detectedBy"`), 'NO;TEXT');
+    } finally {
+      db(`update "Envelope" set "userId" = ${ownerId} where id = '${env.id}'`);
+    }
+
+    // Visitante: 401.
+    assert.equal((await markAs('')).status, 401);
+
+    const marked = await markAs();
+
+    assert.equal(marked.status, 200, marked.text);
+    assert.equal(data(marked).isInvoice, 'YES');
+    assert.equal(data(marked).detectedBy, 'SENDER');
+    assert.equal(data(marked).suggestionStatus, 'SKIPPED');
+    assert.equal(data(marked).choice, null);
+    assert.equal(
+      row(
+        env.id,
+        `"isInvoice" || ';' || "detectedBy" || ';' || "flagChangedById" || ';' || ("flagChangedAt" is not null)`,
+      ),
+      `YES;SENDER;${userId};true`,
+    );
+
+    // A conta é escolhida em seguida (dono, depois do envio).
+    assert.equal((await setChoice(env.id, { defer: true })).status, 200);
+
+    // Marcar de novo: nada muda (nem a escolha).
+    assert.equal((await markAs()).status, 200);
+    assert.equal(row(env.id, `"choiceDefer"`), 't');
+
+    if (fakeUp) {
+      await sleep(1000);
+      assert.equal((await fake('/__calls')).length, callsBefore, 'marcar depois do envio chamou a IA');
+    }
+  },
+);
+
+sessionTest(
+  'marcar documento enviado sem classificação (antes desta versão): o admin marca e a linha é criada',
+  async () => {
+    const env = await newEnvelope('assets/example.pdf', 'marcar sem linha');
+
+    assert.equal((await distribute(env.id)).status, 200);
+    db(`delete from "RevalleInvoiceClassification" where "envelopeId" = '${env.id}'`);
+
+    const marked = await invoice('mutation', 'markAsInvoice', { envelopeId: env.id }, adminCookie);
+
+    assert.equal(marked.status, 200, marked.text);
+    assert.equal(data(marked).isInvoice, 'YES');
+    assert.equal(
+      row(env.id, `"isInvoice" || ';' || "detectedBy" || ';' || ("fileSha256" is not null)`),
+      'YES;SENDER;true',
+    );
+    assert.equal(row(env.id, `"flagChangedById"`), db(`select id from "User" where email = '${admin.email}'`));
+  },
+);
