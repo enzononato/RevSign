@@ -62,6 +62,22 @@ describe('buildInvoiceExportCsv', () => {
     expect(lines(csv)[1]).toContain(';não;');
   });
 
+  it('NF de antes da Fase 6 deixada para a contabilidade (Antiga): a definir pela contabilidade', () => {
+    const csv = buildInvoiceExportCsv([
+      {
+        ...baseRow,
+        choice: 'DEFER',
+        accountName: null,
+        accountKind: null,
+        acceptedSuggestion: null,
+        financeStatus: 'Antiga, sem aprovação',
+      },
+    ]);
+
+    expect(lines(csv)[1]).toContain(';a definir pela contabilidade;;;');
+    expect(lines(csv)[1]).not.toContain('Financeiro;');
+  });
+
   it('neutraliza fórmulas nos textos livres e preserva códigos e links', () => {
     const csv = buildInvoiceExportCsv([
       { ...baseRow, title: '=HYPERLINK("x")', senderName: '+55 Maria', accountName: '@conta' },

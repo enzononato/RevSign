@@ -9,7 +9,7 @@ import {
 } from '@prisma/client';
 import { DateTime } from 'luxon';
 
-import { holdSealForFinance } from '../../../server-only/revalle/finance/seal-hold'; // REVALLE:
+import { holdSealForFinance, retryFinanceApprovalRequests } from '../../../server-only/revalle/finance/seal-hold'; // REVALLE:
 import { mapSecondaryIdToDocumentId } from '../../../utils/envelope';
 import { jobs } from '../../client';
 import type { JobRunIO } from '../../client/_internal/job';
@@ -19,6 +19,18 @@ export const run = async ({ io }: { payload: TSealDocumentSweepJobDefinition; io
   const now = DateTime.now();
   const fifteenMinutesAgo = now.minus({ minutes: 15 }).toJSDate();
   const sixHoursAgo = now.minus({ hours: 6 }).toJSDate();
+
+  // REVALLE: NF retida (todos assinaram) cujo pedido de aprovação ao Financeiro não saiu: pede de novo, sem selar. Elas
+  // ficam fora da busca abaixo, então é aqui que o pedido perdido (ninguém no Financeiro, disparo que falhou) volta.
+  try {
+    const requested = await retryFinanceApprovalRequests();
+
+    if (requested > 0) {
+      io.logger.info(`Finance approval requested again for ${requested} held invoices`);
+    }
+  } catch (error) {
+    io.logger.warn({ msg: 'revalle finance: falha ao pedir de novo as aprovações', error: String(error) });
+  }
 
   // Find all PENDING envelopes that should have been sealed but weren't.
   //

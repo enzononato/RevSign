@@ -85,13 +85,17 @@ export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition
     //   - Defesa em profundidade: nenhum caminho (reselagem pelo admin, varredura, disparo novo do upstream) sela NF
     //     aguardando a aprovação do Financeiro nem versão substituída. O job termina sem erro e o documento continua
     //     PENDING; a aprovação dispara a selagem.
+    //   - Reselagem pelo admin de um documento já concluído (ex.: NF marcada depois da conclusão, ainda aguardando a
+    //     aprovação) segue: ela só refaz o PDF de um documento concluído; a aprovação continua decidindo a contabilidade.
     if (!isResealing && (envelope.status === DocumentStatus.COMPLETED || envelope.status === DocumentStatus.REJECTED)) {
       io.logger.info(`Seal skipped, already sealed: document ${documentId} (${envelope.id})`);
 
       return { skipped: true as const };
     }
 
-    if (await holdSealForFinance(envelope.id)) {
+    const isResealingCompleted = isResealing && envelope.status === DocumentStatus.COMPLETED; // REVALLE:
+
+    if (!isResealingCompleted && (await holdSealForFinance(envelope.id))) {
       io.logger.info(`Seal held for finance: document ${documentId} (${envelope.id})`);
 
       return { skipped: true as const };
@@ -370,6 +374,11 @@ export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition
     // REVALLE: substituída durante a selagem: termina como a selagem pulada (sem webhook nem e-mails).
     if (!revalleCompleted) {
       io.logger.info(`Seal aborted, superseded by finance: document ${documentId} (${envelope.id})`);
+
+      // Os PDFs selados desta tentativa não foram ligados a nada: apagados para não ficarem órfãos no banco.
+      await prisma.documentData
+        .deleteMany({ where: { id: { in: newDocumentData.map((item) => item.newDocumentDataId) } } })
+        .catch(() => undefined);
 
       return { skipped: true as const };
     }

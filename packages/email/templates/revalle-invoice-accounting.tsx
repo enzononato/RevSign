@@ -14,9 +14,16 @@ export type RevalleInvoiceAccountingTemplateProps = {
   senderEmail: string;
   /** Já formatada em horário de Brasília, com "(horário de Brasília)". */
   completedAt: string;
-  /** "2.1.03 – Fornecedores", ou null quando ficou para o Financeiro (NF de antes da Fase 6). */
+  /** "2.1.03 – Fornecedores", ou null quando ficou para a contabilidade (NF de antes da Fase 6). */
   account: string | null;
-  origin: 'SUGGESTION_ACCEPTED' | 'CHOSEN' | null;
+  /** Quem escolheu a conta: o remetente (com ou sem a IA) ou o Financeiro (definida, ou alterada numa troca). */
+  origin: 'SUGGESTION_ACCEPTED' | 'CHOSEN' | 'FINANCE_DEFINED' | 'FINANCE_CHANGED' | null;
+  /** Nome de quem do Financeiro definiu ou trocou a conta. */
+  financeName: string | null;
+  /** Motivo da troca (`FINANCE_CHANGED`). */
+  changeReason: string | null;
+  /** Título da versão anterior que já foi para a contabilidade e que este envio substitui. */
+  replacedTitle: string | null;
   assetBaseUrl: string;
 };
 
@@ -27,6 +34,9 @@ export const RevalleInvoiceAccountingTemplate = ({
   completedAt = '30/10/2026 10:00 (horário de Brasília)',
   account = '2.1.03 – Fornecedores',
   origin = 'CHOSEN',
+  financeName = null,
+  changeReason = null,
+  replacedTitle = null,
   assetBaseUrl = 'http://localhost:3002',
 }: Partial<RevalleInvoiceAccountingTemplateProps>) => {
   const { _ } = useLingui();
@@ -66,7 +76,11 @@ export const RevalleInvoiceAccountingTemplate = ({
               </Text>
 
               <Text className="my-1 text-center text-base text-foreground">
-                {account ? <Trans>Conta contábil: {account}</Trans> : <Trans>Conta: a definir pelo Financeiro</Trans>}
+                {account ? (
+                  <Trans>Conta contábil: {account}</Trans>
+                ) : (
+                  <Trans>Conta: a definir pela contabilidade</Trans>
+                )}
               </Text>
 
               {origin === 'SUGGESTION_ACCEPTED' && (
@@ -78,6 +92,26 @@ export const RevalleInvoiceAccountingTemplate = ({
               {origin === 'CHOSEN' && (
                 <Text className="my-1 text-center text-base text-muted-foreground">
                   <Trans>A conta foi escolhida pelo remetente.</Trans>
+                </Text>
+              )}
+
+              {origin === 'FINANCE_DEFINED' && (
+                <Text className="my-1 text-center text-base text-muted-foreground">
+                  <Trans>Conta definida pelo Financeiro ({financeName})</Trans>
+                </Text>
+              )}
+
+              {origin === 'FINANCE_CHANGED' && (
+                <Text className="my-1 text-center text-base text-muted-foreground">
+                  <Trans>
+                    Conta alterada pelo Financeiro ({financeName}) — motivo: {changeReason}
+                  </Trans>
+                </Text>
+              )}
+
+              {replacedTitle && (
+                <Text className="my-1 text-center font-semibold text-base text-foreground">
+                  <Trans>Substitui o envio da versão anterior: {replacedTitle}</Trans>
                 </Text>
               )}
 

@@ -106,6 +106,7 @@ export const findRevalleProofByCode = async (code: string): Promise<RevalleProof
                   approvedById: true,
                   approvedAt: true,
                   approvedAccountName: true,
+                  approvedByName: true,
                   supersededAt: true,
                 },
               },
@@ -185,6 +186,7 @@ type InvoiceRow = {
   approvedById: number | null;
   approvedAt: Date | null;
   approvedAccountName: string | null;
+  approvedByName: string | null;
   supersededAt: Date | null;
 };
 
@@ -208,7 +210,7 @@ const loadInvoiceSummary = async (row: InvoiceRow | null | undefined): Promise<R
     code && frozenName === null
       ? prisma.revalleAccountingAccount.findUnique({ where: { code }, select: { name: true } })
       : null,
-    isApproved && row.approvedById !== null
+    isApproved && row.approvedById !== null && row.approvedByName === null
       ? prisma.user.findUnique({ where: { id: row.approvedById }, select: { name: true } })
       : null,
   ]);
@@ -217,7 +219,7 @@ const loadInvoiceSummary = async (row: InvoiceRow | null | undefined): Promise<R
     account: code ? { code, name: frozenName ?? account?.name ?? '' } : null,
     approval:
       isApproved && row.approvedAt
-        ? { approverName: approver?.name?.trim() || null, approvedAt: row.approvedAt }
+        ? { approverName: row.approvedByName ?? (approver?.name?.trim() || null), approvedAt: row.approvedAt }
         : null,
     isAwaitingApproval: row.financeStatus === RevalleFinanceStatus.PENDING_APPROVAL,
     supersededAt: row.financeStatus === RevalleFinanceStatus.SUPERSEDED ? row.supersededAt : null,

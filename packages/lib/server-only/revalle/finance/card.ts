@@ -8,6 +8,7 @@ import {
 } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
+import { findVisibleSuccessor, isStaleChangeClaim } from './successor';
 
 export type FinanceCard = {
   envelopeId: string;
@@ -24,8 +25,11 @@ export type FinanceCard = {
   approvedAt: Date | null;
   version: number;
   previousEnvelopeId: string | null;
+  /** A nova versão, só quando ela existe e abre na página da NF (o link não leva a um 404). */
   supersededByEnvelopeId: string | null;
   supersedeReason: string | null;
+  /** Versão substituída cuja nova versão não existe mais (ou a troca morreu no meio): "Trocar conta" de novo. */
+  canRetakeChange: boolean;
   /** Alguém recusou: a NF não aguarda mais nada do Financeiro. */
   rejected: boolean;
 };
@@ -95,7 +99,13 @@ export const getFinanceCard = async (envelopeId: string): Promise<FinanceCard> =
       : [],
   );
 
-  const [choiceBy, approvedBy] = await Promise.all([userLabel(row.choiceById), userLabel(row.approvedById)]);
+  const isSuperseded = row.financeStatus === 'SUPERSEDED';
+  const [choiceBy, approvedBy, successor, canRetakeChange] = await Promise.all([
+    userLabel(row.choiceById),
+    row.approvedByName && row.approvedAt ? row.approvedByName : userLabel(row.approvedById),
+    isSuperseded ? findVisibleSuccessor(row.supersededByEnvelopeId) : null,
+    isStaleChangeClaim(row, new Date()),
+  ]);
 
   return {
     envelopeId: envelope.id,
@@ -110,8 +120,9 @@ export const getFinanceCard = async (envelopeId: string): Promise<FinanceCard> =
     approvedAt: row.approvedAt,
     version: row.version,
     previousEnvelopeId: row.previousEnvelopeId,
-    supersededByEnvelopeId: row.supersededByEnvelopeId,
+    supersededByEnvelopeId: successor?.id ?? null,
     supersedeReason: row.supersedeReason,
+    canRetakeChange,
     rejected: envelope.recipients.length > 0,
   };
 };

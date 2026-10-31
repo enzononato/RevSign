@@ -51,6 +51,7 @@ import {
   holdInvoiceForFinance,
   invoiceHeldForFinanceError,
   markInvoiceAwaitingApproval,
+  notifyInvoiceAccountChangeOnSend,
   stampReleasedApproval,
 } from '../revalle/finance/hold'; // REVALLE:
 import { holdSealForFinance } from '../revalle/finance/seal-hold'; // REVALLE:
@@ -402,6 +403,11 @@ export const sendDocument = async ({ id, userId, teamId, sendEmail, requestMetad
       },
     });
   });
+
+  // REVALLE: nova versão de uma troca de conta saindo agora: o aviso da troca, com o link dela.
+  if (envelope.status === DocumentStatus.DRAFT) {
+    await notifyInvoiceAccountChangeOnSend(envelope.id);
+  }
 
   const isRecipientSigningRequestEmailEnabled = extractDerivedDocumentEmailSettings(
     envelope.documentMeta,

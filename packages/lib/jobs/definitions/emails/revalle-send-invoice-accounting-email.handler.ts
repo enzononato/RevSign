@@ -1,6 +1,7 @@
 import { RevalleInvoiceAccountingTemplate } from '@documenso/email/templates/revalle-invoice-accounting';
 import { prisma } from '@documenso/prisma';
-import { DocumentStatus, EnvelopeType, RevalleInvoiceStatus } from '@prisma/client';
+import type { RevalleInvoiceClassification } from '@prisma/client';
+import { DocumentStatus, EnvelopeType, RevalleFinanceStatus, RevalleInvoiceStatus } from '@prisma/client';
 import { createElement } from 'react';
 
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../../constants/app';
@@ -14,10 +15,89 @@ import { renderEmailWithI18N } from '../../../utils/render-email-with-i18n';
 import type { JobRunIO } from '../../client/_internal/job';
 import type { TRevalleSendInvoiceAccountingEmailJobDefinition } from './revalle-send-invoice-accounting-email';
 
+// Sem conta, só a NF de antes da Fase 6 deixada para a contabilidade (`LEGACY`): a NF aprovada sempre tem conta.
 export const buildInvoiceAccountingSubject = (title: string, account: { code: string; name: string } | null) =>
   account
     ? `Nota fiscal assinada: ${title} · Conta ${account.code} – ${account.name}`
-    : `Nota fiscal assinada: ${title} · Conta: a definir pelo Financeiro`;
+    : `Nota fiscal assinada: ${title} · Conta: a definir pela contabilidade`;
+
+// Uma troca de conta encadeia versões (v1 → v2 → v3…); a corrente é curta, o limite só protege de um ciclo no banco.
+const MAX_VERSION_HOPS = 20;
+
+/**
+ * Versão anterior desta NF que já foi para a contabilidade (a mais recente), para o e-mail dizer o que ele substitui.
+ * Nula na v1 e quando nenhuma versão anterior chegou a ser enviada (a troca aconteceu antes da conclusão).
+ */
+const findReplacedSend = async (previousEnvelopeId: string | null) => {
+  let envelopeId = previousEnvelopeId;
+
+  for (let hop = 0; envelopeId && hop < MAX_VERSION_HOPS; hop += 1) {
+    const previous = await prisma.envelope.findUnique({
+      where: { id: envelopeId },
+      select: {
+        title: true,
+        revalleInvoice: { select: { accountingEmailSentAt: true, previousEnvelopeId: true } },
+      },
+    });
+
+    if (!previous?.revalleInvoice) {
+      return null;
+    }
+
+    if (previous.revalleInvoice.accountingEmailSentAt) {
+      return previous.title;
+    }
+
+    envelopeId = previous.revalleInvoice.previousEnvelopeId;
+  }
+
+  return null;
+};
+
+/**
+ * Quem escolheu a conta: o Financeiro, quando a escolha é de quem aprovou ("Definir conta e enviar", "Definir e
+ * aprovar" ou a nova versão de uma troca, que leva o motivo da troca); senão, o remetente (com a IA, se ele aceitou a
+ * sugestão). Nome congelado na aprovação; sem nome, "Financeiro" (o e-mail de quem aprovou não vai no corpo).
+ */
+const describeOrigin = async (classification: RevalleInvoiceClassification) => {
+  // Escolha e aprovação no mesmo ato (mesma pessoa, mesmo instante): quem é do Financeiro e enviou a própria NF com
+  // uma conta, aprovada depois, continua sendo "escolhida pelo remetente".
+  const isFinanceChoice =
+    classification.financeStatus === RevalleFinanceStatus.APPROVED &&
+    classification.approvedById !== null &&
+    classification.approvedById === classification.choiceById &&
+    classification.approvedAt !== null &&
+    classification.choiceAt?.getTime() === classification.approvedAt.getTime();
+
+  if (isFinanceChoice && classification.approvedById !== null) {
+    const financeName =
+      classification.approvedByName ||
+      (
+        await prisma.user.findUnique({ where: { id: classification.approvedById }, select: { name: true } })
+      )?.name?.trim() ||
+      'Financeiro';
+
+    if (!classification.previousEnvelopeId) {
+      return { origin: 'FINANCE_DEFINED' as const, financeName, changeReason: null };
+    }
+
+    const previous = await prisma.revalleInvoiceClassification.findUnique({
+      where: { envelopeId: classification.previousEnvelopeId },
+      select: { supersedeReason: true },
+    });
+
+    return { origin: 'FINANCE_CHANGED' as const, financeName, changeReason: previous?.supersedeReason ?? '' };
+  }
+
+  const origin =
+    classification.acceptedSuggestion === true
+      ? ('SUGGESTION_ACCEPTED' as const)
+      : classification.acceptedSuggestion === false
+        ? ('CHOSEN' as const)
+        : null;
+
+  return { origin, financeName: null, changeReason: null };
+};
 
 /**
  * Envia o PDF selado da nota fiscal concluída para a contabilidade, uma única vez por documento.
@@ -69,7 +149,7 @@ export const run = async ({
     return;
   }
 
-  // Sem escolha (documento antigo que chegou ao fim sem conta) segue o texto de "a definir pelo Financeiro".
+  // Sem escolha (NF de antes da Fase 6 que chegou ao fim sem conta) segue o texto de "a definir pela contabilidade".
   const account =
     !classification.choiceDefer && classification.choiceCode
       ? await prisma.revalleAccountingAccount.findUnique({
@@ -99,20 +179,22 @@ export const run = async ({
     }),
   );
 
+  // A origem só faz sentido quando há conta; "deixar para a contabilidade" (NF antiga) não tem linha de origem.
+  const { origin, financeName, changeReason } = account
+    ? await describeOrigin(classification)
+    : { origin: null, financeName: null, changeReason: null };
+
   const template = createElement(RevalleInvoiceAccountingTemplate, {
     documentName: envelope.title,
     senderName: envelope.user.name || envelope.user.email,
     senderEmail: envelope.user.email,
     completedAt: formatRevalleDateTime(envelope.completedAt ?? new Date(), { withZoneLabel: true }),
     account: account ? `${account.code} – ${account.name}` : null,
-    // "Escolhida pelo remetente" só faz sentido quando há conta; "deixar para o Financeiro" não tem linha de origem.
-    origin: !account
-      ? null
-      : classification.acceptedSuggestion === true
-        ? 'SUGGESTION_ACCEPTED'
-        : classification.acceptedSuggestion === false
-          ? 'CHOSEN'
-          : null,
+    origin,
+    financeName,
+    changeReason,
+    // Nova versão de uma troca depois que a anterior já foi para a contabilidade: este e-mail a substitui.
+    replacedTitle: await findReplacedSend(classification.previousEnvelopeId),
     assetBaseUrl: NEXT_PUBLIC_WEBAPP_URL() || 'http://localhost:3000',
   });
 

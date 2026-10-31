@@ -184,8 +184,12 @@ export const createRevalleSignatureProof = async ({
   });
   const signatureKind = classifySignature(signatureFields.map((field) => field.signature));
 
-  // Fase 6: a conta da NF faz parte do que é assinado; lida na transação que marca a assinatura (a escolhida agora).
-  const invoiceAccount = await findSigningInvoiceAccount(recipient.envelopeId, tx);
+  // Fase 6: a conta da NF faz parte do que é assinado; lida na transação que marca a assinatura (a escolhida agora) e
+  // congelada só se é a mesma que a página de assinatura mostrou a esta pessoa. Assinatura pelo embed (sem o bloco) ou
+  // conta escolhida depois que a página abriu: nula, e o certificado fica sem a linha "Conta contábil vista ao assinar".
+  const currentAccount = await findSigningInvoiceAccount(recipient.envelopeId, tx);
+  const invoiceAccount =
+    currentAccount && gate?.invoiceAccountShownCode === currentAccount.code ? currentAccount : null;
 
   // O CPF mascarado vem sempre do portão; sem a base, os demais dados do RH ficam nulos.
   const employee: ProofEmployee | null = gate?.cpf

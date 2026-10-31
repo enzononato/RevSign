@@ -11,7 +11,6 @@ import {
 } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
-import { jobs } from '../../../jobs/client';
 import { isValidChangeReason, nextVersionTitle } from '../../../revalle/finance/account-change';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { ApiRequestMetadata } from '../../../universal/extract-request-metadata';
@@ -22,14 +21,9 @@ import { duplicateEnvelope } from '../../envelope/duplicate-envelope';
 import { revalleErrorCode } from '../error-code';
 import { toInvoiceState } from '../invoice/classify';
 import { filesKey, loadEnvelopeFiles } from '../invoice/envelope-files';
+import { isStaleChangeClaim } from './successor';
 
 export type ChangeInvoiceAccountResult = { newEnvelopeId: string };
-
-/**
- * Uma troca que morreu no meio (queda do processo entre marcar a versão antiga e ligar a nova) deixa a antiga
- * `SUPERSEDED` sem sucessora. Passado esse prazo, outra troca a retoma; antes dele, 409 "em andamento".
- */
-export const FINANCE_CHANGE_LEASE_MS = 5 * 60 * 1000;
 
 // `createdAt` do envelope vem do relógio do banco; a tentativa começa no relógio do app.
 const ORPHAN_CLOCK_MARGIN_MS = 1000;
@@ -42,6 +36,7 @@ const DELETED_MESSAGE = 'Este documento foi excluído.';
 const SAME_ACCOUNT_MESSAGE = 'Escolha uma conta diferente da atual.';
 const INACTIVE_ACCOUNT_MESSAGE = 'Conta contábil inativa ou inexistente.';
 const IN_PROGRESS_MESSAGE = 'A conta desta nota fiscal está sendo trocada agora. Atualize a página em instantes.';
+const STATE_CHANGED_MESSAGE = 'A situação desta nota mudou. Atualize a página e tente de novo.';
 const OWNER_UNAVAILABLE_MESSAGE =
   'O dono do documento está desativado ou não tem mais acesso a ele: a nova versão não pode ser criada em nome dele.';
 
@@ -67,27 +62,6 @@ const CHANGEABLE: Partial<Record<DocumentStatus, RevalleFinanceStatus[]>> = {
 };
 
 /**
- * Marca `SUPERSEDED` que outra troca pode retomar: sem sucessora há mais que o prazo (troca que morreu no meio), ou com
- * uma sucessora que não existe mais (a nova versão foi apagada).
- */
-const isStaleClaim = async (row: RevalleInvoiceClassification, now: Date) => {
-  if (row.financeStatus !== RevalleFinanceStatus.SUPERSEDED || row.supersededAt === null) {
-    return false;
-  }
-
-  if (row.supersededByEnvelopeId === null) {
-    return now.getTime() - row.supersededAt.getTime() >= FINANCE_CHANGE_LEASE_MS;
-  }
-
-  const successor = await prisma.envelope.findUnique({
-    where: { id: row.supersededByEnvelopeId },
-    select: { id: true },
-  });
-
-  return successor === null;
-};
-
-/**
  * "Trocar conta" (o membro do Financeiro já foi conferido pela rota): a versão atual da NF é substituída por uma NOVA
  * VERSÃO, com a conta nova já aprovada, que todos assinam de novo.
  *
@@ -99,9 +73,10 @@ const isStaleClaim = async (row: RevalleInvoiceClassification, now: Date) => {
  *    na antiga, a antiga pendente escondida das listas (sem os e-mails de cancelamento do upstream) e o evento
  *    `REVALLE_FINANCE_ACCOUNT_CHANGED` nas duas versões.
  *    Se 2 ou 3 falham, a marca de 1 é desfeita e a cópia apagada: a antiga nunca fica substituída sem sucessora.
- * 4. Depois: o aviso por e-mail e o envio da nova em nome do dono (já aprovada: não é retida nem vai ao Financeiro). Se
- *    o envio falhar com a nova ainda em rascunho, ela fica `APPROVED` com a reserva solta (`approvedAt` nulo) e o
- *    Financeiro envia depois com `defineAccount` (que retoma uma reserva solta na hora).
+ * 4. Depois: o envio da nova em nome do dono (já aprovada: não é retida nem vai ao Financeiro); o aviso por e-mail sai
+ *    junto com esse envio, com o link de assinatura da nova versão. Se o envio falhar com a nova ainda em rascunho, ela
+ *    fica `APPROVED` com a reserva solta (`approvedAt` nulo) e o Financeiro envia depois com `defineAccount` (que
+ *    retoma uma reserva solta na hora), ou o remetente envia o rascunho; o aviso sai nesse envio.
  */
 export const changeInvoiceAccount = async ({
   envelopeId,
@@ -147,7 +122,7 @@ export const changeInvoiceAccount = async ({
   }
 
   const now = new Date();
-  const isTakeover = await isStaleClaim(row, now);
+  const isTakeover = await isStaleChangeClaim(row, now);
 
   if (row.financeStatus === RevalleFinanceStatus.SUPERSEDED && !isTakeover) {
     throw row.supersededByEnvelopeId ? invalid(ALREADY_SUPERSEDED_MESSAGE) : inProgressError();
@@ -208,9 +183,10 @@ export const changeInvoiceAccount = async ({
       select: { financeStatus: true },
     });
 
+    // Outro pedido mudou a NF entre a leitura e a marca (ex.: "Aprovar conta" ao mesmo tempo): tentar de novo funciona.
     throw latest?.financeStatus === RevalleFinanceStatus.SUPERSEDED
       ? inProgressError()
-      : invalid(NOT_CHANGEABLE_MESSAGE);
+      : invalid(STATE_CHANGED_MESSAGE);
   }
 
   const { newEnvelopeId, title: newTitle } = await createNewVersionOrUndo({
@@ -222,15 +198,7 @@ export const changeInvoiceAccount = async ({
     requestMetadata,
   });
 
-  try {
-    await jobs.triggerJob({
-      name: 'send.revalle.finance.account.changed.email',
-      payload: { oldEnvelopeId: envelopeId, newEnvelopeId },
-    });
-  } catch {
-    logger.warn({ msg: 'revalle finance: falha ao disparar o aviso da troca de conta', envelopeId, newEnvelopeId });
-  }
-
+  // O aviso da troca sai do envio da nova versão (`sendDocument`), agora ou quando o rascunho for enviado depois.
   await sendNewVersion({ envelopeId, newEnvelopeId, newTitle, envelope, now, requestMetadata });
 
   return { newEnvelopeId };
@@ -330,6 +298,7 @@ const createNewVersion = async ({
     approvedById: user.id,
     approvedAt: now,
     approvedAccountName: account.name,
+    approvedByName: user.name?.trim() || null,
     previousEnvelopeId: envelopeId,
     version,
   };

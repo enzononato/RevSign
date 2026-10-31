@@ -17,7 +17,7 @@ export const buildFinanceApprovalSubject = (title: string) =>
 /**
  * Um e-mail por retenção da selagem, para todos os membros do Financeiro (num envio só). A marca `approvalRequestedAt`
  * é reservada antes do envio (nula -> agora, só enquanto a NF continua `PENDING_APPROVAL`); se o envio falha, ela é
- * devolvida para o retry do job. Sem membros, nada é reservado: o próximo disparo da selagem pede de novo.
+ * devolvida para o retry do job. Sem membros, nada é reservado: a varredura de selagem pede de novo quando houver.
  * O status do envelope pode ainda ser DRAFT: o atalho do envio sem destinatários atuantes retém antes de gravar PENDING.
  */
 export const run = async ({

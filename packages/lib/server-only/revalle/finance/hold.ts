@@ -4,6 +4,8 @@ import { RevalleFinanceStatus, RevalleInvoiceStatus } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { jobs } from '../../../jobs/client';
+import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
+import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { logger } from '../../../utils/logger';
 import { getRecipientsWithMissingFields } from '../../../utils/recipients';
 import { assertRecipientEmailsAllowed } from '../assert-recipient-domains';
@@ -110,20 +112,83 @@ export const markInvoiceAwaitingApproval = async (envelopeId: string) => {
  * Na transação do envio: `APPROVED` com a reserva solta (o envio do Financeiro falhou) que sai agora por quem tem o
  * rascunho. A aprovação foi a escolha do Financeiro (mesmo ato, mesma hora): `approvedAt` = `choiceAt`, para o
  * certificado ter a data. Só grava junto com o envio: um envio que falha deixa a reserva solta.
+ * "Definir conta e enviar" que falhou (não é nova versão de uma troca, que já tem o evento da troca): o evento
+ * `REVALLE_FINANCE_ACCOUNT_DEFINED` em nome de quem do Financeiro definiu, como no envio feito por ele.
  */
 export const stampReleasedApproval = async (envelopeId: string, tx: Prisma.TransactionClient) => {
-  // O nome congelado vem da reserva (troca ou definição); sem ele, o da lista agora, junto com a data.
-  await tx.$executeRaw`
+  // Os nomes congelados vêm da reserva (troca ou definição); sem eles, os atuais, junto com a data.
+  const stamped = await tx.$queryRaw<
+    {
+      choiceCode: string;
+      approvedAccountName: string | null;
+      approvedById: number | null;
+      previousEnvelopeId: string | null;
+    }[]
+  >`
     UPDATE "RevalleInvoiceClassification" c
     SET "approvedAt" = c."choiceAt",
       "approvedAccountName" = COALESCE(
         c."approvedAccountName",
         (SELECT a.name FROM "RevalleAccountingAccount" a WHERE a.code = c."choiceCode")
+      ),
+      "approvedByName" = COALESCE(
+        c."approvedByName",
+        (SELECT NULLIF(btrim(u.name), '') FROM "User" u WHERE u.id = c."approvedById")
       )
     WHERE c."envelopeId" = ${envelopeId}
       AND c."financeStatus" = 'APPROVED'
       AND c."approvedAt" IS NULL
-      AND c."choiceAt" IS NOT NULL`;
+      AND c."choiceAt" IS NOT NULL
+    RETURNING c."choiceCode", c."approvedAccountName", c."approvedById", c."previousEnvelopeId"`;
+
+  const row = stamped[0];
+
+  if (!row || row.previousEnvelopeId !== null || row.approvedById === null) {
+    return;
+  }
+
+  const approver = await tx.user.findUnique({
+    where: { id: row.approvedById },
+    select: { id: true, name: true, email: true },
+  });
+
+  await tx.documentAuditLog.create({
+    data: createDocumentAuditLogData({
+      type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_FINANCE_ACCOUNT_DEFINED,
+      envelopeId,
+      data: { code: row.choiceCode, name: row.approvedAccountName },
+      user: approver ?? undefined,
+    }),
+  });
+};
+
+/**
+ * Primeiro envio da nova versão criada por uma troca de conta (pela troca, pelo "Enviar de novo" do Financeiro ou pelo
+ * remetente depois de corrigir o rascunho): o aviso da troca sai agora, com o link de assinatura da nova versão. Antes
+ * do envio não há convite nem link para dar. Falhar o aviso não desfaz o envio.
+ */
+export const notifyInvoiceAccountChangeOnSend = async (envelopeId: string) => {
+  try {
+    const row = await prisma.revalleInvoiceClassification.findUnique({
+      where: { envelopeId },
+      select: { isInvoice: true, previousEnvelopeId: true },
+    });
+
+    if (row?.isInvoice !== RevalleInvoiceStatus.YES || !row.previousEnvelopeId) {
+      return;
+    }
+
+    await jobs.triggerJob({
+      name: 'send.revalle.finance.account.changed.email',
+      payload: { oldEnvelopeId: row.previousEnvelopeId, newEnvelopeId: envelopeId },
+    });
+  } catch (error) {
+    logger.warn({
+      msg: 'revalle finance: falha ao disparar o aviso da troca de conta',
+      envelopeId,
+      error: String(error),
+    });
+  }
 };
 
 /** NFs retidas (rascunho não excluído) esperando a conta: o admin vê o número na tela Admin → Financeiro. */

@@ -22,6 +22,7 @@ export const ZGetFinanceCardResponseSchema = z.object({
   previousEnvelopeId: z.string().nullable(),
   supersededByEnvelopeId: z.string().nullable(),
   supersedeReason: z.string().nullable(),
+  canRetakeChange: z.boolean(),
   rejected: z.boolean(),
 });
 

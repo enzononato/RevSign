@@ -12,6 +12,7 @@ import {
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
+import { findVisibleSuccessor } from '../finance/successor';
 import { filesKey, loadEnvelopeFiles, readFilesContent } from './envelope-files';
 import { getRevalleInvoiceAiConfig } from './settings';
 import type { InvoiceFailureReason, InvoiceRequester } from './suggest';
@@ -37,7 +38,10 @@ export type InvoiceState = {
    * enviar") falhou. A conta continua travada, mas o rascunho pode ser enviado por quem tem acesso a ele.
    */
   isFinanceSendReleased: boolean;
-  /** Versão substituída: a nova versão (com a conta trocada pelo Financeiro), para o cartão do remetente apontar. */
+  /**
+   * Versão substituída: a nova versão (com a conta trocada pelo Financeiro), para o cartão do remetente apontar. Nula
+   * quando a nova versão não existe mais ou foi excluída.
+   */
   supersededByEnvelopeId: string | null;
   aiAvailable: boolean;
 };
@@ -112,7 +116,9 @@ export const toInvoiceState = async (row: RevalleInvoiceClassification): Promise
     financeStatus: row.financeStatus,
     isFinanceSendReleased: row.financeStatus === RevalleFinanceStatus.APPROVED && row.approvedAt === null,
     supersededByEnvelopeId:
-      row.financeStatus === RevalleFinanceStatus.SUPERSEDED ? (row.supersededByEnvelopeId ?? null) : null,
+      row.financeStatus === RevalleFinanceStatus.SUPERSEDED
+        ? ((await findVisibleSuccessor(row.supersededByEnvelopeId))?.id ?? null)
+        : null,
     aiAvailable: getRevalleInvoiceAiConfig().status === 'CONFIGURED',
   };
 };

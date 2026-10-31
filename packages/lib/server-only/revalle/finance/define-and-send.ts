@@ -16,13 +16,15 @@ const NOT_AWAITING_MESSAGE = 'Esta nota fiscal não está aguardando o Financeir
 const IN_PROGRESS_MESSAGE = 'O envio desta nota já está em andamento. Aguarde um instante.';
 const VERSION_ACCOUNT_MESSAGE =
   'Esta versão já tem a conta definida pela troca. Envie-a e, se precisar, use Trocar conta.';
+const FILE_CHANGED_MESSAGE = 'O remetente trocou o arquivo; a nota voltou para ele.';
 
 /**
  * `APPROVED` com o documento ainda em rascunho = o envio do Financeiro está em andamento (a "reserva" é `approvedAt`).
  * Passado esse prazo, o envio morreu no meio (queda do processo entre a gravação e o envio) e a reserva pode ser
- * retomada; antes dele, outro pedido recebe 409.
+ * retomada; antes dele, outro pedido recebe 409. O mesmo prazo da troca de conta: o envio (injeção dos campos num PDF
+ * grande) pode passar de alguns minutos, e retomar antes disso enviaria duas vezes ao mesmo tempo.
  */
-export const FINANCE_SEND_LEASE_MS = 2 * 60 * 1000;
+export const FINANCE_SEND_LEASE_MS = 5 * 60 * 1000;
 
 const inProgressError = () =>
   new AppError('FINANCE_SEND_IN_PROGRESS', {
@@ -34,6 +36,15 @@ const inProgressError = () =>
 const notAwaitingError = () =>
   new AppError(AppErrorCode.INVALID_REQUEST, { message: NOT_AWAITING_MESSAGE, userMessage: NOT_AWAITING_MESSAGE });
 
+// O dono trocou o arquivo do rascunho retido: a classificação foi zerada e a NF voltou a ser um rascunho dele.
+const fileChangedError = () =>
+  new AppError(AppErrorCode.INVALID_REQUEST, { message: FILE_CHANGED_MESSAGE, userMessage: FILE_CHANGED_MESSAGE });
+
+const hasFileChanged = (
+  read: Pick<RevalleInvoiceClassification, 'fileSha256'>,
+  latest: Pick<RevalleInvoiceClassification, 'fileSha256' | 'financeStatus'> | null,
+) => !latest || latest.financeStatus === null || latest.fileSha256 !== read.fileSha256;
+
 const isStaleLease = (row: RevalleInvoiceClassification, now: Date) =>
   row.approvedAt === null || now.getTime() - row.approvedAt.getTime() >= FINANCE_SEND_LEASE_MS;
 
@@ -44,12 +55,14 @@ const isStaleLease = (row: RevalleInvoiceClassification, now: Date) =>
  *
  * Seguro contra queda e contra clique duplo:
  * - a gravação (conta, `APPROVED`, `approvedBy/At`) é condicionada ao estado lido, então só um pedido vence;
- * - `APPROVED` com o documento em rascunho é a reserva do envio: com menos de 2 minutos, 409 "em andamento"; mais
+ * - `APPROVED` com o documento em rascunho é a reserva do envio: com menos de 5 minutos, 409 "em andamento"; mais
  *   velha, qualquer conta ativa a retoma (nova `approvedAt`, condicionada à antiga) e envia;
  * - documento já enviado com a mesma conta: `{ sent: false }`, sem reenviar; outra conta é troca (outra rota);
  * - se o envio falhar com o documento ainda em rascunho, a NF volta ao estado lido (sem convite, sem evento): a retida
  *   volta a aguardar a conta; a reserva retomada volta `APPROVED` com a conta dela e a reserva solta;
- * - nova versão de uma troca de conta (`previousEnvelopeId`) só é reenviada com a mesma conta.
+ * - nova versão de uma troca de conta (`previousEnvelopeId`) só é reenviada com a mesma conta;
+ * - o dono trocou o arquivo no meio (antes da gravação ou durante o envio): a NF voltou a ser rascunho dele, e quem é
+ *   do Financeiro recebe "O remetente trocou o arquivo".
  */
 export const defineInvoiceAccountAndSend = async ({
   envelopeId,
@@ -132,18 +145,18 @@ export const defineInvoiceAccountAndSend = async ({
       approvedById: user.id,
       approvedAt: now,
       approvedAccountName: account.name,
+      approvedByName: user.name?.trim() || null,
     },
   });
 
   if (count === 0) {
-    // Outro pedido venceu: já enviou (mesma conta = nada a fazer) ou ainda está enviando.
+    // Outro pedido venceu (já enviou: mesma conta = nada a fazer; ou ainda está enviando), ou o arquivo mudou.
     const current = await prisma.envelope.findUnique({ where: { id: envelopeId }, select: { status: true } });
+    const latest = await prisma.revalleInvoiceClassification.findUnique({ where: { envelopeId } });
 
     if (current?.status === DocumentStatus.DRAFT) {
-      throw inProgressError();
+      throw hasFileChanged(row, latest) ? fileChangedError() : inProgressError();
     }
-
-    const latest = await prisma.revalleInvoiceClassification.findUnique({ where: { envelopeId } });
 
     if (latest?.financeStatus === RevalleFinanceStatus.APPROVED && latest.choiceCode === code) {
       return { sent: false };
@@ -180,6 +193,7 @@ export const defineInvoiceAccountAndSend = async ({
                 approvedById: null,
                 approvedAt: null,
                 approvedAccountName: null,
+                approvedByName: null,
               }
             : {
                 choiceCode: row.choiceCode,
@@ -191,8 +205,14 @@ export const defineInvoiceAccountAndSend = async ({
                 approvedById: row.approvedById,
                 approvedAt: null,
                 approvedAccountName: row.approvedAccountName,
+                approvedByName: row.approvedByName,
               },
       });
+
+      // O dono trocou o arquivo durante o envio: a classificação foi zerada e o envio recusou a NF sem conta.
+      if (hasFileChanged(row, await prisma.revalleInvoiceClassification.findUnique({ where: { envelopeId } }))) {
+        throw fileChangedError();
+      }
 
       throw error;
     }

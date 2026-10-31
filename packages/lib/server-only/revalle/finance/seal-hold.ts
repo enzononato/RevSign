@@ -30,32 +30,66 @@ export const shouldHoldSeal = async (envelopeId: string): Promise<boolean> => {
   return row !== null;
 };
 
+/** NF retida: pendente, todos os que agem já assinaram, ninguém recusou e a aprovação do Financeiro ainda falta. */
+const signedAwaitingApprovalWhere = {
+  isInvoice: RevalleInvoiceStatus.YES,
+  financeStatus: RevalleFinanceStatus.PENDING_APPROVAL,
+  envelope: {
+    status: DocumentStatus.PENDING,
+    deletedAt: null,
+    recipients: {
+      none: {
+        OR: [
+          { signingStatus: SigningStatus.REJECTED },
+          { role: { not: RecipientRole.CC }, signingStatus: { not: SigningStatus.SIGNED } },
+        ],
+      },
+    },
+  },
+} satisfies Prisma.RevalleInvoiceClassificationWhereInput;
+
 /**
  * Para quem assina: todos os que agem já concluíram e a NF está retida esperando a aprovação do Financeiro (a página de
  * conclusão diz isso em vez de "Processando documento", que pode durar dias).
  */
 export const isWaitingForFinanceApproval = async (envelopeId: string): Promise<boolean> => {
   const row = await prisma.revalleInvoiceClassification.findFirst({
-    where: {
-      envelopeId,
-      isInvoice: RevalleInvoiceStatus.YES,
-      financeStatus: RevalleFinanceStatus.PENDING_APPROVAL,
-      envelope: {
-        status: DocumentStatus.PENDING,
-        recipients: {
-          none: {
-            OR: [
-              { signingStatus: SigningStatus.REJECTED },
-              { role: { not: RecipientRole.CC }, signingStatus: { not: SigningStatus.SIGNED } },
-            ],
-          },
-        },
-      },
-    },
+    where: { envelopeId, ...signedAwaitingApprovalWhere },
     select: { envelopeId: true },
   });
 
   return row !== null;
+};
+
+/** NFs assinadas por todos esperando a aprovação: o admin vê o número na tela Admin → Financeiro. */
+export const countInvoicesAwaitingApproval = async () =>
+  await prisma.revalleInvoiceClassification.count({ where: signedAwaitingApprovalWhere });
+
+/** Quantas NFs retidas a varredura de selagem confere por vez (a varredura roda a cada 15 minutos). */
+export const FINANCE_APPROVAL_RETRY_BATCH = 20;
+
+/**
+ * Varredura de selagem: NF retida cujo pedido de aprovação nunca saiu (a última assinatura chegou sem ninguém no
+ * Financeiro, ou o disparo falhou) recebe o pedido agora, sem selar. Sem membros, nem consulta. As que falharam voltam
+ * para o fim da fila (o job devolve a marca e muda `updatedAt`). Devolve quantos pedidos foram disparados.
+ */
+export const retryFinanceApprovalRequests = async (): Promise<number> => {
+  if ((await listFinanceMemberEmails()).length === 0) {
+    return 0;
+  }
+
+  const rows = await prisma.revalleInvoiceClassification.findMany({
+    where: { ...signedAwaitingApprovalWhere, approvalRequestedAt: null },
+    select: { envelopeId: true },
+    orderBy: { updatedAt: 'asc' },
+    take: FINANCE_APPROVAL_RETRY_BATCH,
+  });
+
+  for (const { envelopeId } of rows) {
+    await jobs.triggerJob({ name: 'send.revalle.finance.approval.email', payload: { envelopeId } });
+  }
+
+  return rows.length;
 };
 
 /**
@@ -98,8 +132,8 @@ export const lockSupersededInvoiceForSealing = async (tx: Prisma.TransactionClie
 /**
  * O guard de cada ponto que dispara `internal.seal-document` (e do próprio job): `true` = não selar agora. Versão
  * substituída: bloqueada, sem aviso. Retenção: pede o e-mail "aguardando aprovação" aos membros do Financeiro (um por
- * retenção; a marca é reservada no job). Falhar o aviso nunca vira selagem: a NF continua retida e o próximo disparo
- * (ex.: a varredura) tenta de novo.
+ * retenção; a marca é reservada no job). Falhar o aviso (ou não ter ninguém no Financeiro) nunca vira selagem: a NF
+ * continua retida e a varredura de selagem pede de novo (`retryFinanceApprovalRequests`).
  */
 export const holdSealForFinance = async (envelopeId: string): Promise<boolean> => {
   if (await isSupersededUnsealed(envelopeId)) {

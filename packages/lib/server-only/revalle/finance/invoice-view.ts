@@ -12,6 +12,7 @@ import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { normalizeEmail } from '../../../revalle/email-domain';
 import { isAdmin as isAdminUser } from '../../../utils/is-admin';
 import { isFinanceMember } from './members';
+import { findVisibleSuccessor } from './successor';
 
 /**
  * Página da NF só de leitura (Fase 6): `/notas-fiscais/:envelopeId`, para quem é do Financeiro e para quem está na NF.
@@ -22,6 +23,7 @@ import { isFinanceMember } from './members';
  * - quem é destinatário (pelo e-mail): a NF já enviada; o rascunho de uma nova versão também (o aviso da troca leva a
  *   ele e o envio pode ter falhado).
  * NF excluída pelo remetente: só o admin (a versão substituída escondida pelo Financeiro não conta como excluída).
+ * Destinatário que escondeu o documento da própria lista: 404, como na lista.
  * Qualquer outro caso, ou um documento que não é NF: 404, sem revelar que existe.
  */
 export type InvoiceViewer = { isAdmin: boolean; isFinance: boolean; isOwner: boolean };
@@ -43,7 +45,15 @@ const loadEnvelope = async (envelopeId: string) =>
       user: { select: { name: true, email: true } },
       recipients: {
         orderBy: [{ signingOrder: 'asc' }, { id: 'asc' }],
-        select: { id: true, name: true, email: true, role: true, signingStatus: true, signedAt: true },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          signingStatus: true,
+          signedAt: true,
+          documentDeletedAt: true,
+        },
       },
       envelopeItems: { orderBy: { order: 'asc' }, select: { id: true, title: true, documentDataId: true } },
       revalleInvoice: {
@@ -99,7 +109,12 @@ const resolveViewer = async (envelope: LoadedEnvelope, userId: number): Promise<
   }
 
   const email = normalizeEmail(user.email);
-  const isRecipient = envelope.recipients.some((recipient) => normalizeEmail(recipient.email) === email);
+  // Quem escondeu o documento da própria lista também não o abre aqui (a versão substituída foi escondida pela troca,
+  // não pela pessoa).
+  const isRecipient = envelope.recipients.some(
+    (recipient) =>
+      normalizeEmail(recipient.email) === email && (recipient.documentDeletedAt === null || hiddenSuperseded),
+  );
   const isNewVersionDraft = envelope.status === DocumentStatus.DRAFT && invoice.previousEnvelopeId !== null;
 
   return isRecipient && (envelope.status !== DocumentStatus.DRAFT || isNewVersionDraft) ? viewer : null;
@@ -174,7 +189,9 @@ export const getInvoiceView = async ({
 
   const [previous, next] = await Promise.all([
     linkedVersion(invoice.previousEnvelopeId),
-    linkedVersion(invoice.supersededByEnvelopeId),
+    invoice.financeStatus === RevalleFinanceStatus.SUPERSEDED
+      ? findVisibleSuccessor(invoice.supersededByEnvelopeId)
+      : null,
   ]);
 
   const documentPath =
@@ -191,7 +208,7 @@ export const getInvoiceView = async ({
     createdAt: envelope.createdAt,
     completedAt: envelope.completedAt,
     sender: { name: envelope.user.name?.trim() || envelope.user.email, email: envelope.user.email },
-    recipients: envelope.recipients,
+    recipients: envelope.recipients.map(({ documentDeletedAt: _hidden, ...recipient }) => recipient),
     items: envelope.envelopeItems,
     finance: {
       status: invoice.financeStatus,
