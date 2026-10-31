@@ -19,4 +19,5 @@ export const ZRevalleGateStateSchema = z.discriminatedUnion('status', [
   }),
   z.object({ status: z.literal('LOCKED') }),
   z.object({ status: z.literal('UNAVAILABLE') }),
+  z.object({ status: z.literal('SUPERSEDED') }),
 ]);

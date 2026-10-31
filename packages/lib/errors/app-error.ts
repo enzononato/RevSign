@@ -146,6 +146,10 @@ export const genericErrorCodeToTrpcErrorCodeMap: Record<string, { code: string; 
   // HTTP status rides along in AppError.statusCode for the few callers that
   // need to discriminate (e.g. 401 → re-auth, 429 → backoff).
   [AppErrorCode.CSC_REQUEST_FAILED]: { code: 'INTERNAL_SERVER_ERROR', status: 500 },
+  // REVALLE: NF com "Deixar para o Financeiro": envio retido, nada distribuído (API v2 responde 409).
+  INVOICE_HELD_FOR_FINANCE: { code: 'CONFLICT', status: 409 },
+  // REVALLE: versão de NF substituída pelo Financeiro: nenhuma ação de quem assina vale mais nela (409).
+  REVALLE_DOCUMENT_SUPERSEDED: { code: 'CONFLICT', status: 409 },
 };
 
 export const ZAppErrorJsonSchema = z.object({
@@ -322,7 +326,7 @@ export class AppError extends Error {
   }
 
   static toRestAPIError(err: unknown): {
-    status: 400 | 401 | 403 | 404 | 500 | 501;
+    status: 400 | 401 | 403 | 404 | 409 | 500 | 501; // REVALLE: 409
     body: { message: string };
   } {
     const error = AppError.parseError(err);
@@ -352,6 +356,7 @@ export class AppError extends Error {
       .with(AppErrorCode.UNAUTHORIZED, () => 401 as const)
       .with(AppErrorCode.FORBIDDEN, AppErrorCode.SENDER_DISABLED, AppErrorCode.CSC_UNLICENSED, () => 403 as const)
       .with(AppErrorCode.NOT_FOUND, () => 404 as const)
+      .with('INVOICE_HELD_FOR_FINANCE', () => 409 as const) // REVALLE: envio retido para o Financeiro
       .with(AppErrorCode.NOT_IMPLEMENTED, () => 501 as const)
       .otherwise(() => 500 as const);
 

@@ -8,6 +8,7 @@ import { isRecipientAuthorized } from '@documenso/lib/server-only/document/is-re
 import { getFieldsForToken } from '@documenso/lib/server-only/field/get-fields-for-token';
 import { getRecipientByToken } from '@documenso/lib/server-only/recipient/get-recipient-by-token';
 import { getRecipientSignatures } from '@documenso/lib/server-only/recipient/get-recipient-signatures';
+import { isWaitingForFinanceApproval } from '@documenso/lib/server-only/revalle/finance/seal-hold'; // REVALLE:
 import {
   getRevalleGateLoaderPayload, // REVALLE:
   isRevalleGatePendingForToken, // REVALLE:
@@ -113,6 +114,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     recipient,
     returnToHomePath,
     branding,
+    revalleAwaitingFinance: await isWaitingForFinanceApproval(document.envelopeId), // REVALLE:
   };
 }
 
@@ -133,6 +135,7 @@ export default function CompletedSigningPage({ loaderData }: Route.ComponentProp
     recipientEmail,
     returnToHomePath,
     branding,
+    revalleAwaitingFinance, // REVALLE:
   } = loaderData;
 
   // Poll signing status every few seconds
@@ -142,11 +145,14 @@ export default function CompletedSigningPage({ loaderData }: Route.ComponentProp
     },
     {
       refetchInterval: 3000,
-      initialData: match(document?.status)
-        .with(DocumentStatus.COMPLETED, () => ({ status: 'COMPLETED' }) as const)
-        .with(DocumentStatus.REJECTED, () => ({ status: 'REJECTED' }) as const)
-        .with(DocumentStatus.PENDING, () => ({ status: 'PENDING' }) as const)
-        .otherwise(() => ({ status: 'PENDING' }) as const),
+      // REVALLE: NF retida já sai do servidor com a espera pelo Financeiro (não "aguardando os outros")
+      initialData: revalleAwaitingFinance
+        ? ({ status: 'AWAITING_FINANCE' } as const)
+        : match(document?.status)
+            .with(DocumentStatus.COMPLETED, () => ({ status: 'COMPLETED' }) as const)
+            .with(DocumentStatus.REJECTED, () => ({ status: 'REJECTED' }) as const)
+            .with(DocumentStatus.PENDING, () => ({ status: 'PENDING' }) as const)
+            .otherwise(() => ({ status: 'PENDING' }) as const),
     },
   );
 
@@ -210,6 +216,15 @@ export default function CompletedSigningPage({ loaderData }: Route.ComponentProp
                   </span>
                 </div>
               ))
+              .with({ status: 'AWAITING_FINANCE' }, () => (
+                // REVALLE: NF retida até o Financeiro aprovar a conta
+                <div className="mt-4 flex items-center text-center text-blue-600">
+                  <Clock8 className="mr-2 h-5 w-5" />
+                  <span className="text-sm">
+                    <Trans>Aguardando aprovação do Financeiro</Trans>
+                  </span>
+                </div>
+              ))
               .with({ status: 'PROCESSING' }, () => (
                 <div className="mt-4 flex items-center text-center text-orange-600">
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -239,6 +254,12 @@ export default function CompletedSigningPage({ loaderData }: Route.ComponentProp
               .with({ status: 'COMPLETED' }, () => (
                 <p className="mt-2.5 max-w-[60ch] text-center font-medium text-muted-foreground/60 text-sm md:text-base">
                   <Trans>Everyone has signed! You will receive an email copy of the signed document.</Trans>
+                </p>
+              ))
+              .with({ status: 'AWAITING_FINANCE' }, () => (
+                // REVALLE:
+                <p className="mt-2.5 max-w-[60ch] text-center font-medium text-muted-foreground/60 text-sm md:text-base">
+                  <Trans>Você receberá o documento assinado por e-mail quando for aprovado.</Trans>
                 </p>
               ))
               .with({ status: 'PROCESSING' }, () => (

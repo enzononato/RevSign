@@ -36,6 +36,7 @@ import { getRecipientsInActiveSigningStep, isRecipientTurnBySigningOrder } from 
 import { assertRecipientNotExpired, isRecipientBefore } from '../../utils/recipients';
 import { getIsRecipientsTurnToSign } from '../recipient/get-is-recipient-turn';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
+import { holdSealForFinance } from '../revalle/finance/seal-hold'; // REVALLE:
 import { assertRevalleAccessCode } from '../revalle/gate/access-code'; // REVALLE:
 import { createRevalleSignatureProof, loadProofExternals } from '../revalle/proof/create-signature-proof'; // REVALLE:
 import { insertRevalleStampOnlySignatures } from '../revalle/proof/insert-stamp-only-signatures'; // REVALLE:
@@ -634,7 +635,8 @@ export const completeDocumentWithToken = async ({
     },
   });
 
-  if (haveAllRecipientsSigned) {
+  // REVALLE: NF aguardando a aprovação do Financeiro não é selada agora; a aprovação dispara a selagem.
+  if (haveAllRecipientsSigned && !(await holdSealForFinance(envelope.id))) {
     await jobs.triggerJob({
       name: 'internal.seal-document',
       payload: {

@@ -1,4 +1,7 @@
 import { JobClient } from './client/client';
+import { REVALLE_SEND_FINANCE_ACCOUNT_CHANGED_EMAIL_JOB_DEFINITION } from './definitions/emails/revalle-send-finance-account-changed-email'; // REVALLE: conta trocada pelo Financeiro
+import { REVALLE_SEND_FINANCE_APPROVAL_EMAIL_JOB_DEFINITION } from './definitions/emails/revalle-send-finance-approval-email'; // REVALLE: NF aguardando aprovação
+import { REVALLE_SEND_FINANCE_AWAITING_EMAIL_JOB_DEFINITION } from './definitions/emails/revalle-send-finance-awaiting-email'; // REVALLE: NF aguardando o Financeiro
 import { REVALLE_SEND_INVOICE_ACCOUNTING_EMAIL_JOB_DEFINITION } from './definitions/emails/revalle-send-invoice-accounting-email'; // REVALLE: e-mail da contabilidade
 import { SEND_ACCOUNT_DISABLED_EMAIL_JOB_DEFINITION } from './definitions/emails/send-account-disabled-email';
 import { SEND_ADMIN_RECIPIENT_REMOVED_EMAILS_JOB_DEFINITION } from './definitions/emails/send-admin-recipient-removed-emails';
@@ -83,6 +86,12 @@ export const jobsClient = new JobClient([
   REVALLE_INVOICE_SUGGEST_JOB_DEFINITION,
   // REVALLE: e-mail para a contabilidade na conclusão da nota fiscal (Fase 5).
   REVALLE_SEND_INVOICE_ACCOUNTING_EMAIL_JOB_DEFINITION,
+  // REVALLE: aviso aos membros do Financeiro de que uma NF retida espera a conta (Fase 6).
+  REVALLE_SEND_FINANCE_AWAITING_EMAIL_JOB_DEFINITION,
+  // REVALLE: aviso aos membros do Financeiro de que uma NF assinada espera a aprovação para ser selada (Fase 6).
+  REVALLE_SEND_FINANCE_APPROVAL_EMAIL_JOB_DEFINITION,
+  // REVALLE: aviso da troca de conta pelo Financeiro (nova versão) ao remetente e aos destinatários (Fase 6).
+  REVALLE_SEND_FINANCE_ACCOUNT_CHANGED_EMAIL_JOB_DEFINITION,
 ] as const);
 
 export const jobs = jobsClient;

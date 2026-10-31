@@ -47,6 +47,8 @@ export type RevalleCertificateProof = {
   deviceLocation: unknown;
   signatureKind: string;
   verificationCode: string;
+  /** Fase 6: { code, name } da conta da NF vista ao assinar; nula em documento comum e nas provas anteriores. */
+  invoiceAccount?: unknown;
 };
 
 const EMPTY = '—';
@@ -68,6 +70,8 @@ const ZIpLocation = z.object({
   country: z.string().nullish(),
   countryIso: z.string().nullish(),
 });
+
+const ZInvoiceAccount = z.object({ code: z.string().min(1), name: z.string() });
 
 const ZDeviceLocation = z.object({
   status: z.string(),
@@ -205,7 +209,33 @@ export const buildRevalleCertificateRows = (
     rows.push({ label: 'Assinatura visual', value: SIGNATURE_KIND_LABELS[proof.signatureKind] ?? EMPTY });
   }
 
+  const invoiceAccount = ZInvoiceAccount.safeParse(proof.invoiceAccount);
+
+  if (invoiceAccount.success) {
+    rows.push({ label: 'Conta contábil vista ao assinar', value: invoiceAccount.data.code });
+  }
+
   rows.push({ label: 'Código de verificação', value: proof.verificationCode });
 
   return rows;
+};
+
+/**
+ * Linha do certificado no nível do documento, só para NF aprovada pelo Financeiro (Fase 6): a conta, quem aprovou e
+ * quando, em horário de Brasília.
+ */
+export const buildRevalleInvoiceCertificateLine = ({
+  code,
+  name,
+  approverName,
+  approvedAt,
+}: {
+  code: string;
+  name: string;
+  approverName: string;
+  approvedAt: Date | string;
+}) => {
+  const account = name.trim() ? `${code} – ${name.trim()}` : code;
+
+  return `Conta contábil: ${account} · aprovada pelo Financeiro (${approverName}) em ${formatRevalleDateTime(approvedAt, { withZoneLabel: true })}`;
 };

@@ -1,4 +1,5 @@
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
+import { isWaitingForFinanceApproval } from '@documenso/lib/server-only/revalle/finance/seal-hold'; // REVALLE:
 import { prisma } from '@documenso/prisma';
 import { DocumentStatus, EnvelopeType, RecipientRole, SigningStatus } from '@prisma/client';
 
@@ -67,6 +68,13 @@ export const signingStatusEnvelopeRoute = maybeAuthenticatedProcedure
       envelope.recipients.every(
         (recipient) => recipient.role === RecipientRole.CC || recipient.signingStatus === SigningStatus.SIGNED,
       );
+
+    // REVALLE: NF retida esperando o Financeiro aprovar a conta (não está "processando")
+    if (isComplete && (await isWaitingForFinanceApproval(envelope.id))) {
+      return {
+        status: 'AWAITING_FINANCE',
+      };
+    }
 
     if (isComplete) {
       return {

@@ -42,6 +42,13 @@ type LoaderData =
       /** `versions`: todas as selagens do arquivo, da mais antiga para a atual (a última é `finalSha256`). */
       items: { title: string; finalSha256: string | null; versions: RevalleSealedVersion[] }[];
       signers: { nome: string; cpfMasked: string | null; showCpf: boolean; signedAtLabel: string; verb: string }[];
+      /** Fase 6, NF que passou pelo Financeiro: conta, aprovação e substituição (nada da nova versão). */
+      invoice: {
+        accountLabel: string | null;
+        approvalLabel: string | null;
+        isAwaitingApproval: boolean;
+        supersededLabel: string | null;
+      } | null;
     };
 
 export const loader = async ({ request }: Route.LoaderArgs) => {
@@ -107,6 +114,18 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
       signedAtLabel: formatRevalleDateTime(s.signedAt),
       verb: revalleRoleVerb(s.role),
     })),
+    invoice: result.invoice && {
+      accountLabel: result.invoice.account
+        ? `Conta contábil: ${result.invoice.account.code}${result.invoice.account.name ? ` – ${result.invoice.account.name}` : ''}`
+        : null,
+      approvalLabel: result.invoice.approval
+        ? `Aprovada pelo Financeiro${result.invoice.approval.approverName ? ` (${result.invoice.approval.approverName})` : ''} em ${formatRevalleDateTime(result.invoice.approval.approvedAt, { withZoneLabel: true })}`
+        : null,
+      isAwaitingApproval: result.invoice.isAwaitingApproval,
+      supersededLabel: result.invoice.supersededAt
+        ? `Substituído por uma nova versão em ${formatRevalleDateTime(result.invoice.supersededAt)} (conta contábil alterada)`
+        : null,
+    },
   });
 };
 
@@ -234,8 +253,23 @@ export default function VerificarPage() {
             <p className="font-medium">
               {result.status === 'COMPLETED' && `Concluído em ${result.completedAtLabel ?? ''} (horário de Brasília)`}
               {result.status === 'REJECTED' && `Recusado em ${result.completedAtLabel ?? ''} (horário de Brasília)`}
-              {result.status === 'PENDING' && 'Em andamento'}
+              {result.status === 'PENDING' && !result.invoice?.supersededLabel && 'Em andamento'}
             </p>
+
+            {result.invoice?.supersededLabel && (
+              <p className="font-medium text-amber-700 dark:text-amber-400">{result.invoice.supersededLabel}</p>
+            )}
+
+            {result.invoice && (result.invoice.accountLabel || result.invoice.isAwaitingApproval) && (
+              <div className="space-y-1 text-sm" data-testid="verify-invoice">
+                <h3 className="font-medium text-base">Nota fiscal</h3>
+                {result.invoice.accountLabel && <p className="break-words">{result.invoice.accountLabel}</p>}
+                {result.invoice.approvalLabel && <p>{result.invoice.approvalLabel}</p>}
+                {result.invoice.isAwaitingApproval && (
+                  <p className="text-muted-foreground">Aguardando aprovação do Financeiro</p>
+                )}
+              </div>
+            )}
 
             <div>
               <h3 className="mb-2 font-medium">Participantes</h3>

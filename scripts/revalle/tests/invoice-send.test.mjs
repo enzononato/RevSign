@@ -1,6 +1,7 @@
-// Fase 5, Task 4: nota fiscal só é enviada com a conta contábil escolhida (ou "Deixar para a contabilidade decidir").
-// O servidor confere no envio (sendDocument: tela, API v1 e v2), a escolha vai para o log de auditoria e pode ser
-// trocada depois do envio pelo dono e pelo admin. Documento comum (assets/example.pdf) não muda em nada.
+// Fase 5, Task 4: nota fiscal só é enviada com a conta contábil escolhida (ou "Deixar para o Financeiro").
+// O servidor confere no envio (sendDocument: tela, API v1 e v2) e a escolha vai para o log de auditoria. Fase 6: depois
+// do envio quem troca a conta é o Financeiro (403 para o dono e o admin nesta rota), e "Deixar para o Financeiro"
+// retém o envio (o caso completo está em finance-send.test.mjs). Documento comum (assets/example.pdf) não muda em nada.
 //
 // Sessões: REVSIGN_USER_* (dono do REVSIGN_API_TOKEN) e REVSIGN_ADMIN_* (importa a lista de contas e troca a conta
 // como admin). Com o servidor falso do Gemini (compose.test.yml), também confere `acceptedSuggestion` contra a
@@ -12,7 +13,6 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { before, test } from 'node:test';
-import { isDeepStrictEqual } from 'node:util';
 import { PDFDocument, rgb, StandardFonts } from '@cantoo/pdf-lib';
 
 import {
@@ -37,7 +37,8 @@ const admin = { email: process.env.REVSIGN_ADMIN_EMAIL, password: process.env.RE
 
 const CHAVE = '29241012345678000195550010000123451123456784';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-const REQUIRED_MESSAGE = 'Escolha a conta contábil ou deixe para a contabilidade decidir.';
+const REQUIRED_MESSAGE = 'Escolha a conta contábil ou deixe para o Financeiro.';
+const AFTER_SEND_MESSAGE = 'Depois do envio, quem troca a conta é o Financeiro.';
 
 const ACCOUNTS_CSV = [
   'numero;nome;descricao;tipo',
@@ -63,9 +64,6 @@ const distribute = (envelopeId) => api('POST', '/envelope/distribute', { envelop
 const status = (envelopeId) => db(`select status from "Envelope" where id = '${envelopeId}'`);
 const row = (envelopeId, columns) =>
   db(`select ${columns} from "RevalleInvoiceClassification" where "envelopeId" = '${envelopeId}'`);
-// O relógio da VM do Docker pode voltar alguns ms/s: a ordem por `createdAt` não é confiável. Os testes procuram o
-// evento pelo conteúdo (`findEvent`), não pela posição.
-const findEvent = (events, data) => events.find((event) => isDeepStrictEqual(event.data, data));
 const accountEvents = (envelopeId) =>
   db(
     `select coalesce(json_agg(json_build_object('data', data, 'userId', "userId", 'email', email) order by "createdAt"), '[]') from "DocumentAuditLog" where "envelopeId" = '${envelopeId}' and type = 'REVALLE_INVOICE_ACCOUNT_SET'`,
@@ -231,7 +229,7 @@ before(async () => {
       .catch(() => false));
 });
 
-let deferredId;
+let sentId;
 
 sessionTest('NF enviada pela API v2 sem passar pela tela: recusada (detecção na hora, sem esperar a IA)', async () => {
   const callsBefore = fakeUp ? (await fake('/__calls')).length : 0;
@@ -275,10 +273,8 @@ sessionTest('NF enviada pela API v2 sem passar pela tela: recusada (detecção n
   assert.equal(status(env.id), 'DRAFT');
 });
 
-sessionTest('"Deixar para a contabilidade decidir": envia, e o log de auditoria registra a escolha', async () => {
-  const env = await newEnvelope(await danfe('deixar'), 'deixar para a contabilidade');
-
-  deferredId = env.id;
+sessionTest('"Deixar para o Financeiro": o log de auditoria registra a escolha; o envio fica retido', async () => {
+  const env = await newEnvelope(await danfe('deixar'), 'deixar para o Financeiro');
 
   const res = await setChoice(env.id, { defer: true });
 
@@ -289,18 +285,11 @@ sessionTest('"Deixar para a contabilidade decidir": envia, e o log de auditoria 
     `true;-;${userId}`,
   );
 
-  const sent = await distribute(env.id);
+  const held = await distribute(env.id);
 
-  assert.equal(sent.status, 200, sent.text);
-  assert.equal(status(env.id), 'PENDING');
-
-  // Depois do envio a classificação fica congelada: "Sugerir de novo" é recusado e não conta tentativa.
-  const attemptsBefore = row(env.id, `"suggestionAttempts"`);
-  const resuggest = await invoice('mutation', 'resuggest', { envelopeId: env.id });
-
-  assert.equal(resuggest.status, 400, resuggest.text);
-  assert.ok(resuggest.text.includes('Depois do envio, a sugestão automática não roda.'), resuggest.text);
-  assert.equal(row(env.id, `"suggestionAttempts"`), attemptsBefore);
+  assert.equal(held.status, 409, held.text);
+  assert.ok(held.text.includes('INVOICE_HELD_FOR_FINANCE'), held.text);
+  assert.equal(status(env.id), 'DRAFT');
 
   const events = JSON.parse(accountEvents(env.id));
 
@@ -331,7 +320,7 @@ sessionTest('conta ativa: envia, e "aceitou a sugestão" confere com a sugestão
     assert.equal(other.status, 200, other.text);
     assert.equal(row(env.id, `"acceptedSuggestion"`), 'f');
 
-    // "Deixar para a contabilidade decidir" com sugestão na tela: não aceitou a sugestão.
+    // "Deixar para o Financeiro" com sugestão na tela: não aceitou a sugestão.
     assert.equal((await setChoice(env.id, { defer: true })).status, 200);
     assert.equal(row(env.id, `"acceptedSuggestion" || ';' || "choiceDefer"`), 'false;true');
   }
@@ -346,12 +335,21 @@ sessionTest('conta ativa: envia, e "aceitou a sugestão" confere com a sugestão
   const sent = await distribute(env.id);
 
   assert.equal(sent.status, 200, sent.text);
+  sentId = env.id;
   // Eventos seguidos podem ter o mesmo `createdAt` (ordem empatada): confere a presença, não a posição.
   assert.ok(
     JSON.parse(accountEvents(env.id)).some((event) => event.data.toCode === '2.1.03'),
     accountEvents(env.id),
   );
   assert.equal(row(env.id, `"choiceCode"`), '2.1.03');
+
+  // Depois do envio a classificação fica congelada: "Sugerir de novo" é recusado e não conta tentativa.
+  const attemptsBefore = row(env.id, `"suggestionAttempts"`);
+  const resuggest = await invoice('mutation', 'resuggest', { envelopeId: env.id });
+
+  assert.equal(resuggest.status, 400, resuggest.text);
+  assert.ok(resuggest.text.includes('Depois do envio, a sugestão automática não roda.'), resuggest.text);
+  assert.equal(row(env.id, `"suggestionAttempts"`), attemptsBefore);
 });
 
 sessionTest('conta inativa ou inexistente: 400, e nada muda', async () => {
@@ -385,45 +383,33 @@ sessionTest('assets/example.pdf: envia sem nada (documento comum não muda)', as
   assert.equal(res.status, 400, res.text);
 });
 
-sessionTest('trocar a conta depois do envio: dono e admin; cada troca gera um evento', async () => {
-  assert.ok(deferredId, 'depende do caso "Deixar para a contabilidade decidir"');
+sessionTest('depois do envio, nem o dono nem o admin trocam a conta (quem troca é o Financeiro)', async () => {
+  assert.ok(sentId, 'depende do caso "conta ativa"');
 
-  const byOwner = await setChoice(deferredId, { code: '2.1.03' });
+  const eventsBefore = JSON.parse(accountEvents(sentId)).length;
 
-  assert.equal(byOwner.status, 200, byOwner.text);
+  for (const [cookie, choice] of [
+    [userCookie, { code: '3.1.01' }],
+    [userCookie, { code: '2.1.03' }],
+    [adminCookie, { code: '3.1.01' }],
+    [adminCookie, { defer: true }],
+  ]) {
+    const res = await setChoice(sentId, choice, cookie);
 
-  // Mesma escolha de novo: nada a registrar.
-  assert.equal((await setChoice(deferredId, { code: '2.1.03' })).status, 200);
+    assert.equal(res.status, 403, res.text);
+    assert.ok(res.text.includes(AFTER_SEND_MESSAGE), res.text);
+  }
 
-  const byAdmin = await setChoice(deferredId, { code: '3.1.01' }, adminCookie);
-
-  assert.equal(byAdmin.status, 200, byAdmin.text);
-  assert.deepEqual(data(byAdmin).choice, { code: '3.1.01', name: 'Serviços de terceiros' });
-
-  const events = JSON.parse(accountEvents(deferredId));
-
-  assert.equal(events.length, 3, JSON.stringify(events));
-  assert.ok(
-    findEvent(events, { fromCode: null, fromDefer: true, toCode: '2.1.03', toDefer: false }),
-    JSON.stringify(events),
-  );
-
-  const byAdminEvent = findEvent(events, { fromCode: '2.1.03', fromDefer: false, toCode: '3.1.01', toDefer: false });
-
-  assert.ok(byAdminEvent, JSON.stringify(events));
-  assert.equal(byAdminEvent.email, admin.email);
-  assert.equal(row(deferredId, `"choiceById"`), db(`select id from "User" where email = '${admin.email}'`));
-
-  // Conta inativa também é recusada depois do envio.
-  assert.equal((await setChoice(deferredId, { code: OLD_ACCOUNT })).status, 400);
+  assert.equal(row(sentId, `"choiceCode" || ';' || "choiceDefer"`), '2.1.03;false');
+  assert.equal(JSON.parse(accountEvents(sentId)).length, eventsBefore);
 
   // A conta fica fora do log em PDF (o mesmo gerador anexa o log ao PDF selado); o histórico da tela mostra.
-  const teamId = db(`select "teamId" from "Envelope" where id = '${deferredId}'`);
+  const teamId = db(`select "teamId" from "Envelope" where id = '${sentId}'`);
   const pdf = await trpcAs(
     userCookie,
     'mutation',
     'document.auditLog.download',
-    { envelopeId: deferredId },
+    { envelopeId: sentId },
     { 'x-team-id': teamId },
   );
 
@@ -434,31 +420,31 @@ sessionTest('trocar a conta depois do envio: dono e admin; cada troca gera um ev
 
   // O poppler leva segundos: o app fecha a conexão ociosa. Um GET (repetido em socket velho, ver helpers.mjs)
   // descarta a conexão morta antes do próximo POST.
-  await api('GET', `/envelope/${deferredId}`);
+  await api('GET', `/envelope/${sentId}`);
 
   assert.match(text, /enviou|sent/i);
-  assert.ok(!/Conta contábil|3\.1\.01|2\.1\.03|contabilidade decidir/.test(text), text);
+  assert.ok(!/Conta contábil|3\.1\.01|2\.1\.03|deixar para o Financeiro/.test(text), text);
 });
 
 sessionTest('reenvio de um documento já enviado não é bloqueado', async () => {
-  assert.ok(deferredId, 'depende do caso "Deixar para a contabilidade decidir"');
+  assert.ok(sentId, 'depende do caso "conta ativa"');
 
   // Simula uma NF enviada sem escolha (ex.: antes desta versão): o reenvio aos destinatários continua livre.
   db(
-    `update "RevalleInvoiceClassification" set "choiceCode" = null, "choiceDefer" = false where "envelopeId" = '${deferredId}'`,
+    `update "RevalleInvoiceClassification" set "choiceCode" = null, "choiceDefer" = false where "envelopeId" = '${sentId}'`,
   );
 
-  const recipientIds = db(`select id from "Recipient" where "envelopeId" = '${deferredId}'`).split('\n').map(Number);
-  const res = await api('POST', '/envelope/redistribute', { envelopeId: deferredId, recipients: recipientIds });
+  const recipientIds = db(`select id from "Recipient" where "envelopeId" = '${sentId}'`).split('\n').map(Number);
+  const res = await api('POST', '/envelope/redistribute', { envelopeId: sentId, recipients: recipientIds });
 
   assert.equal(res.status, 200, res.text);
 
   // `distribute` de novo num documento já enviado também não passa pela conferência (só o rascunho passa).
-  const again = await distribute(deferredId);
+  const again = await distribute(sentId);
 
   assert.ok(!again.text.includes('INVOICE_ACCOUNT_REQUIRED'), again.text);
   assert.equal(again.status, 200, again.text);
-  assert.equal(status(deferredId), 'PENDING');
+  assert.equal(status(sentId), 'PENDING');
 });
 
 sessionTest(
@@ -466,7 +452,7 @@ sessionTest(
   async () => {
     const env = await newEnvelope(await danfe('sem-linha'), 'enviado sem linha');
 
-    assert.equal((await setChoice(env.id, { defer: true })).status, 200);
+    assert.equal((await setChoice(env.id, { code: '2.1.03' })).status, 200);
     assert.equal((await distribute(env.id)).status, 200);
     db(`delete from "RevalleInvoiceClassification" where "envelopeId" = '${env.id}'`);
 
@@ -483,7 +469,7 @@ sessionTest(
 sessionTest('depois do envio, alguém do time que não é o dono recebe 403', async () => {
   const env = await newEnvelope(await danfe('nao-dono'), 'não dono');
 
-  assert.equal((await setChoice(env.id, { defer: true })).status, 200);
+  assert.equal((await setChoice(env.id, { code: '2.1.03' })).status, 200);
   assert.equal((await distribute(env.id)).status, 200);
 
   // O documento passa a ser de outra conta, no mesmo time: o usuário do teste continua vendo (é do time), mas não é
@@ -496,10 +482,10 @@ sessionTest('depois do envio, alguém do time que não é o dono recebe 403', as
   try {
     assert.equal((await invoice('query', 'get', { envelopeId: env.id })).status, 200);
 
-    const res = await setChoice(env.id, { code: '2.1.03' });
+    const res = await setChoice(env.id, { code: '3.1.01' });
 
     assert.equal(res.status, 403, res.text);
-    assert.equal(row(env.id, `"choiceDefer"`), 't');
+    assert.equal(row(env.id, `"choiceCode"`), '2.1.03');
     assert.equal(JSON.parse(accountEvents(env.id)).length, 1);
   } finally {
     db(`update "Envelope" set "userId" = ${ownerId} where id = '${env.id}'`);
@@ -862,12 +848,13 @@ sessionTest(
       `YES;SENDER;${userId};true`,
     );
 
-    // A conta é escolhida em seguida (dono, depois do envio).
-    assert.equal((await setChoice(env.id, { defer: true })).status, 200);
+    // A primeira conta é escolhida em seguida (dono, depois do envio; "deixar para o Financeiro" não cabe mais).
+    assert.equal((await setChoice(env.id, { defer: true })).status, 400);
+    assert.equal((await setChoice(env.id, { code: '2.1.03' })).status, 200);
 
     // Marcar de novo: nada muda (nem a escolha).
     assert.equal((await markAs()).status, 200);
-    assert.equal(row(env.id, `"choiceDefer"`), 't');
+    assert.equal(row(env.id, `"choiceCode"`), '2.1.03');
 
     if (fakeUp) {
       await sleep(1000);

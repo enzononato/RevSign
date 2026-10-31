@@ -26,6 +26,16 @@ describe('filtros da página de notas fiscais', () => {
     expect(invoiceFiltersToParams(parsed.success ? parsed.data : {}).toString()).toBe(params.toString());
   });
 
+  it('Fase 6: lê e escreve o filtro do Financeiro (`financeiro`); valor desconhecido é recusado ou ignorado', () => {
+    const params = new URLSearchParams('financeiro=pendentes');
+    const parsed = parseInvoiceFilterParams(params);
+
+    expect(parsed.success && parsed.data).toEqual({ finance: 'pendentes' });
+    expect(invoiceFiltersToParams({ finance: 'substituidas' }).toString()).toBe('financeiro=substituidas');
+    expect(parseInvoiceFilterParams(new URLSearchParams('financeiro=qualquer')).success).toBe(false);
+    expect(readInvoiceFilterParams(new URLSearchParams('financeiro=qualquer&deixadas=1'))).toEqual({ deferred: true });
+  });
+
   it('recusa data, status ou conta inválidos para a planilha e os ignora na tela', () => {
     for (const query of ['de=ontem', 'ate=2026-02-30', 'status=DRAFT', `conta=${'9'.repeat(65)}`]) {
       const params = new URLSearchParams(`${query}&deixadas=1`);

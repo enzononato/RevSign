@@ -20,7 +20,7 @@ import { formatRevalleDateTime, REVALLE_TIME_ZONE_NOTE } from '../../revalle/dat
 import { REVALLE_STAMP_ONLY_LABEL } from '../../revalle/stamp'; // REVALLE:
 import type { TDocumentAuditLogBaseSchema } from '../../types/document-audit-logs';
 import { svgToPng } from '../../utils/images/svg-to-png';
-import type { RevalleCertificateRecipient } from '../revalle/certificate-data'; // REVALLE:
+import type { RevalleCertificateHeaderLine, RevalleCertificateRecipient } from '../revalle/certificate-data'; // REVALLE:
 import { ensureFontLibrary } from './helpers';
 
 type ColumnWidths = [number, number, number];
@@ -60,7 +60,7 @@ type GenerateCertificateOptions = {
   };
   pageWidth: number;
   pageHeight: number;
-  revalleHeaderLines?: string[]; // REVALLE: "SHA-256 do original: <hex>"
+  revalleHeaderLines?: RevalleCertificateHeaderLine[]; // REVALLE: "SHA-256 do original: <hex>" e a conta da NF aprovada
 };
 
 // Helper function to get device info from user agent
@@ -758,10 +758,10 @@ const renderTables = (options: RenderTablesOptions) => {
   return tables;
 };
 
-// REVALLE: SHA-256 do original sob a nota de fuso, quebrando na largura da tabela.
+// REVALLE: SHA-256 do original (e a conta da NF aprovada) sob a nota de fuso, quebrando na largura da tabela.
 const revalleHeaderTop = pageTopMargin - 8;
 
-const renderRevalleHeaderLines = (lines: string[], x: number, width: number) => {
+const renderRevalleHeaderLines = (lines: RevalleCertificateHeaderLine[], x: number, width: number) => {
   const group = new Konva.Group({ x, y: revalleHeaderTop });
   let y = 0;
 
@@ -769,8 +769,8 @@ const renderRevalleHeaderLines = (lines: string[], x: number, width: number) => 
     const text = new Konva.Text({
       y,
       width,
-      text: line,
-      wrap: 'char',
+      text: line.text,
+      wrap: line.wrap,
       fontFamily: 'Inter',
       fontSize: textXs,
       lineHeight: 1.2,

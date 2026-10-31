@@ -23,6 +23,7 @@ import { insertFieldInPDFV1 } from '../../../server-only/pdf/insert-field-in-pdf
 import { insertFieldInPDFV2 } from '../../../server-only/pdf/insert-field-in-pdf-v2';
 import { legacy_insertFieldInPDF } from '../../../server-only/pdf/legacy-insert-field-in-pdf';
 import { recordFinalHash } from '../../../server-only/revalle/document-hashes'; // REVALLE:
+import { holdSealForFinance, lockSupersededInvoiceForSealing } from '../../../server-only/revalle/finance/seal-hold'; // REVALLE:
 import { shouldEmailInvoiceAccounting } from '../../../server-only/revalle/invoice/accounting-email'; // REVALLE:
 import { loadRevalleStamps } from '../../../server-only/revalle/proof/load-stamps'; // REVALLE:
 import { getTeamSettings } from '../../../server-only/team/get-team-settings';
@@ -44,7 +45,7 @@ import type { TSealDocumentJobDefinition } from './seal-document';
 export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition; io: JobRunIO }) => {
   const { documentId, sendEmail = true, isResealing = false, requestMetadata } = payload;
 
-  const { envelopeId, envelopeStatus, isRejected } = await io.runTask('seal-document', async () => {
+  const revalleSealResult = await io.runTask('seal-document', async () => {
     const envelope = await prisma.envelope.findFirstOrThrow({
       where: {
         type: EnvelopeType.DOCUMENT,
@@ -76,6 +77,29 @@ export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition
         },
       },
     });
+
+    // REVALLE: dentro da tarefa (o resultado fica guardado por job): o retry do MESMO job depois de uma falha nos
+    // passos seguintes (webhook, e-mails) recebe o resultado guardado e termina esses passos; só um job novo é pulado.
+    //   - Disparo duplicado (aprovação e última assinatura ao mesmo tempo, varredura): documento já selado só é selado
+    //     de novo pela reselagem (`isResealing`, que parte do PDF original); sem isso os campos seriam carimbados de novo.
+    //   - Defesa em profundidade: nenhum caminho (reselagem pelo admin, varredura, disparo novo do upstream) sela NF
+    //     aguardando a aprovação do Financeiro nem versão substituída. O job termina sem erro e o documento continua
+    //     PENDING; a aprovação dispara a selagem.
+    //   - Reselagem pelo admin de um documento já concluído (ex.: NF marcada depois da conclusão, ainda aguardando a
+    //     aprovação) segue: ela só refaz o PDF de um documento concluído; a aprovação continua decidindo a contabilidade.
+    if (!isResealing && (envelope.status === DocumentStatus.COMPLETED || envelope.status === DocumentStatus.REJECTED)) {
+      io.logger.info(`Seal skipped, already sealed: document ${documentId} (${envelope.id})`);
+
+      return { skipped: true as const };
+    }
+
+    const isResealingCompleted = isResealing && envelope.status === DocumentStatus.COMPLETED; // REVALLE:
+
+    if (!isResealingCompleted && (await holdSealForFinance(envelope.id))) {
+      io.logger.info(`Seal held for finance: document ${documentId} (${envelope.id})`);
+
+      return { skipped: true as const };
+    }
 
     if (envelope.envelopeItems.length === 0) {
       throw new Error('At least one envelope item required');
@@ -303,7 +327,18 @@ export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition
       newDocumentData.push(result);
     }
 
-    await prisma.$transaction(async (tx) => {
+    // REVALLE: `revalleCompleted` = false quando a NF foi substituída pelo Financeiro durante a selagem (nada gravado).
+    const revalleCompleted = await prisma.$transaction(async (tx) => {
+      // REVALLE: a troca de conta que chegou durante a selagem vence (linha da NF travada); recusa e reselagem de
+      // versão já concluída seguem.
+      if (
+        !isRejected &&
+        envelope.status !== DocumentStatus.COMPLETED &&
+        (await lockSupersededInvoiceForSealing(tx, envelope.id))
+      ) {
+        return false;
+      }
+
       for (const { oldDocumentDataId, newDocumentDataId, envelopeItemId, finalSha256 } of newDocumentData) {
         // REVALLE: SHA-256 dos bytes exatos assinados.
         await recordFinalHash(envelopeItemId, finalSha256, tx);
@@ -332,7 +367,21 @@ export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition
       await tx.documentAuditLog.create({
         data: envelopeCompletedAuditLog,
       });
+
+      return true; // REVALLE:
     });
+
+    // REVALLE: substituída durante a selagem: termina como a selagem pulada (sem webhook nem e-mails).
+    if (!revalleCompleted) {
+      io.logger.info(`Seal aborted, superseded by finance: document ${documentId} (${envelope.id})`);
+
+      // Os PDFs selados desta tentativa não foram ligados a nada: apagados para não ficarem órfãos no banco.
+      await prisma.documentData
+        .deleteMany({ where: { id: { in: newDocumentData.map((item) => item.newDocumentDataId) } } })
+        .catch(() => undefined);
+
+      return { skipped: true as const };
+    }
 
     return {
       envelopeId: envelope.id,
@@ -340,6 +389,13 @@ export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition
       isRejected,
     };
   });
+
+  // REVALLE: selagem pulada (já selado, retida ou substituída): nada de webhook nem e-mails.
+  if ('skipped' in revalleSealResult) {
+    return;
+  }
+
+  const { envelopeId, envelopeStatus, isRejected } = revalleSealResult; // REVALLE:
 
   const updatedEnvelope = await prisma.envelope.findFirstOrThrow({
     where: {

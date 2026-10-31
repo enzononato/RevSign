@@ -20,6 +20,7 @@ export const ZAdminUnsealedDocumentSchema = z.object({
   ownerName: z.string().nullable(),
   ownerEmail: z.string(),
   lastSignedAt: z.date().nullable(),
+  revalleFinanceStatus: z.string().nullable(), // REVALLE: NF retida pelo Financeiro ou versão substituída
 });
 
 export const ZFindUnsealedDocumentsResponseSchema = ZFindResultResponse.extend({

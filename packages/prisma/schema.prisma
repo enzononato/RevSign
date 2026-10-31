@@ -74,6 +74,8 @@ model User {
   passkeys           Passkey[]
   avatarImage        AvatarImage?           @relation(fields: [avatarImageId], references: [id], onDelete: SetNull)
 
+  revalleFinanceMember RevalleFinanceMember? // REVALLE: back-relation (perfil Financeiro)
+
   @@index([email])
 }
 
@@ -1326,25 +1328,27 @@ model RevalleEmailLink {
 }
 
 model RevalleRecipientGate {
-  id                  String    @id @default(cuid())
-  recipientId         Int       @unique
-  recipient           Recipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
-  email               String?
-  termVersion         String?
-  termAcceptedAt      DateTime?
-  termIpAddress       String?
-  termUserAgent       String?
-  identityStatus      String    @default("PENDING") // PENDING | VERIFIED | CONFIRMED | LINKED | SKIPPED
-  pendingCpf          String?
-  cpf                 String?
-  identityConfirmedAt DateTime?
-  failedAttempts      Int       @default(0)
-  codeFailedAttempts  Int       @default(0)
-  lockedAt            DateTime?
-  lockReason          String? // ATTEMPTS | CPF_CONFLICT | CODE_ATTEMPTS
-  conflictCpf         String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                      String    @id @default(cuid())
+  recipientId             Int       @unique
+  recipient               Recipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  email                   String?
+  termVersion             String?
+  termAcceptedAt          DateTime?
+  termIpAddress           String?
+  termUserAgent           String?
+  identityStatus          String    @default("PENDING") // PENDING | VERIFIED | CONFIRMED | LINKED | SKIPPED
+  pendingCpf              String?
+  cpf                     String?
+  identityConfirmedAt     DateTime?
+  failedAttempts          Int       @default(0)
+  codeFailedAttempts      Int       @default(0)
+  lockedAt                DateTime?
+  lockReason              String? // ATTEMPTS | CPF_CONFLICT | CODE_ATTEMPTS
+  conflictCpf             String?
+  /// Fase 6: número da conta contábil da NF que a página de assinatura mostrou (a prova só congela a conta mostrada).
+  invoiceAccountShownCode String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 }
 
 /// REVALLE: SHA-256 do PDF original (no envio) e do PDF selado, por item do envelope.
@@ -1390,6 +1394,8 @@ model RevalleSignatureProof {
   deviceLocation   Json
   drewSignature    Boolean
   signatureKind    String // IMAGE | TYPED | NONE
+  /// Fase 6: { code, name } da conta contábil da NF vista ao assinar (congelada). Nula em documento comum.
+  invoiceAccount   Json?
   createdAt        DateTime  @default(now())
 }
 
@@ -1440,29 +1446,51 @@ enum RevalleSuggestionStatus {
   SKIPPED
 }
 
-/// REVALLE: se o documento é nota fiscal, a sugestão da IA e a conta escolhida (`choiceCode` ou `choiceDefer`).
-/// Fora da prova: não entra no certificado, no carimbo nem no PDF selado.
+/// REVALLE: se o documento é nota fiscal, a sugestão da IA, a conta escolhida (`choiceCode` ou `choiceDefer`) e, desde a
+/// Fase 6, a aprovação do Financeiro e as versões. A conta aprovada entra no certificado e no /verificar, e a conta vista
+/// por quem assina fica na prova de cada assinatura (`RevalleSignatureProof.invoiceAccount`).
 model RevalleInvoiceClassification {
-  envelopeId            String                   @id
-  envelope              Envelope                 @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
-  isInvoice             RevalleInvoiceStatus
-  detectedBy            RevalleInvoiceDetectedBy
+  envelopeId             String                   @id
+  envelope               Envelope                 @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
+  isInvoice              RevalleInvoiceStatus
+  detectedBy             RevalleInvoiceDetectedBy
   /// Quem trocou a marcação "é nota fiscal" pela última vez e quando (sem FK, como choiceById).
-  flagChangedById       Int?
-  flagChangedAt         DateTime?
-  signals               String[]
-  fileSha256            String?
-  suggestionStatus      RevalleSuggestionStatus  @default(SKIPPED)
-  suggestion            Json?
-  suggestionAttempts    Int                      @default(0)
-  choiceCode            String?
-  choiceDefer           Boolean                  @default(false)
-  choiceById            Int?
-  choiceAt              DateTime?
-  acceptedSuggestion    Boolean?
-  accountingEmailSentAt DateTime?
-  createdAt             DateTime                 @default(now())
-  updatedAt             DateTime                 @updatedAt
+  flagChangedById        Int?
+  flagChangedAt          DateTime?
+  signals                String[]
+  fileSha256             String?
+  suggestionStatus       RevalleSuggestionStatus  @default(SKIPPED)
+  suggestion             Json?
+  suggestionAttempts     Int                      @default(0)
+  choiceCode             String?
+  choiceDefer            Boolean                  @default(false)
+  choiceById             Int?
+  choiceAt               DateTime?
+  acceptedSuggestion     Boolean?
+  accountingEmailSentAt  DateTime?
+  /// Fase 6: aprovação do Financeiro. Nulo = não é NF (ou NF ainda em rascunho); `LEGACY` = NF de antes da Fase 6.
+  financeStatus          RevalleFinanceStatus?
+  /// Quem do Financeiro aprovou (ou definiu) a conta e quando (sem FK, como choiceById).
+  approvedById           Int?
+  approvedAt             DateTime?
+  /// Nome da conta aprovada, congelado na aprovação (a lista pode ser reimportada com outro nome). Nulo = usa o atual.
+  approvedAccountName    String?
+  /// Nome de quem aprovou (ou definiu), congelado no mesmo momento. Nulo = usa o nome atual.
+  approvedByName         String?
+  /// "Deixar para o Financeiro": quando o e-mail "aguardando o Financeiro" saiu para os membros (um por retenção).
+  accountRequestedAt     DateTime?
+  /// Selagem retida (todos assinaram, falta a aprovação): quando o e-mail "aguardando aprovação" saiu (um por retenção).
+  approvalRequestedAt    DateTime?
+  /// Versão substituída por outra com a conta trocada pelo Financeiro: quando, quem, o motivo e a nova versão.
+  supersededAt           DateTime?
+  supersededById         Int?
+  supersedeReason        String?
+  supersededByEnvelopeId String?
+  /// Versão anterior (esta é a v2, v3…). Sem FK: a ligação fica também no log de auditoria das duas versões.
+  previousEnvelopeId     String?
+  version                Int                      @default(1)
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
 }
 
 /// REVALLE: sugestão da IA por SHA-256 do arquivo (o mesmo arquivo nunca é enviado ao Gemini duas vezes).
@@ -1471,4 +1499,22 @@ model RevalleInvoiceSuggestionCache {
   suggestion Json
   model      String
   createdAt  DateTime @default(now())
+}
+
+/// REVALLE: estado da NF no Financeiro (Fase 6). Os `DocumentStatus` do upstream não mudam.
+enum RevalleFinanceStatus {
+  AWAITING_ACCOUNT
+  PENDING_APPROVAL
+  APPROVED
+  SUPERSEDED
+  LEGACY
+}
+
+/// REVALLE: quem é do perfil Financeiro (marcado pelo admin em Admin → Financeiro), sem mudar o enum `Role` do upstream.
+model RevalleFinanceMember {
+  userId    Int      @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Admin que marcou (sem FK, como choiceById).
+  addedById Int?
+  createdAt DateTime @default(now())
 }

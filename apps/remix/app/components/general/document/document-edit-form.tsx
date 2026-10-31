@@ -27,6 +27,10 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { z } from 'zod';
 import PDFViewerLazy from '~/components/general/pdf-viewer/pdf-viewer-lazy';
+import {
+  INVOICE_HELD_FOR_FINANCE_TOAST,
+  isInvoiceHeldForFinance,
+} from '~/components/revalle/invoice/invoice-held-toast'; // REVALLE:
 import { useCurrentTeam } from '~/providers/team';
 import { useCspNonce } from '~/utils/nonce';
 import { getDistributeErrorMessage } from '~/utils/toast-error-messages';
@@ -388,9 +392,23 @@ export const DocumentEditForm = ({ className, initialDocument, documentRootPath 
         await navigate(`${documentRootPath}/${document.envelopeId}`);
       }
     } catch (err) {
+      const error = AppError.parseError(err);
+
+      // REVALLE: NF "Deixar para o Financeiro": envio retido (o rascunho fica; os convites saem depois).
+      if (isInvoiceHeldForFinance(error.code)) {
+        toast({
+          title: _(INVOICE_HELD_FOR_FINANCE_TOAST.title),
+          description: _(INVOICE_HELD_FOR_FINANCE_TOAST.description),
+          duration: 7500,
+        });
+
+        await navigate(documentRootPath);
+
+        return;
+      }
+
       console.error(err);
 
-      const error = AppError.parseError(err);
       const errorMessage = getDistributeErrorMessage(error.code);
 
       toast({

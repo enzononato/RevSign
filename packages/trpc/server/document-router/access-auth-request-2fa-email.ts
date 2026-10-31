@@ -2,6 +2,10 @@ import { TWO_FACTOR_EMAIL_EXPIRATION_MINUTES } from '@documenso/lib/server-only/
 import { send2FATokenEmail } from '@documenso/lib/server-only/2fa/email/send-2fa-token-email';
 import { assertRateLimit } from '@documenso/lib/server-only/rate-limit/rate-limit-middleware';
 import { request2FAEmailRateLimit } from '@documenso/lib/server-only/rate-limit/rate-limits';
+import {
+  isSupersededPendingVersion,
+  SUPERSEDED_VERSION_MESSAGE,
+} from '@documenso/lib/server-only/revalle/gate/superseded-version'; // REVALLE:
 import { prisma } from '@documenso/prisma';
 import { DocumentStatus, EnvelopeType, RecipientRole, SigningStatus } from '@prisma/client'; // REVALLE: DocumentStatus, RecipientRole, SigningStatus
 import { TRPCError } from '@trpc/server';
@@ -61,6 +65,11 @@ export const accessAuthRequest2FAEmailRoute = procedure
       }
 
       const [recipient] = envelope.recipients;
+
+      // REVALLE: versão de NF substituída pelo Financeiro: sem código novo, a mensagem do portão.
+      if (await isSupersededPendingVersion({ envelopeId: envelope.id })) {
+        throw new TRPCError({ code: 'CONFLICT', message: SUPERSEDED_VERSION_MESSAGE });
+      }
 
       // REVALLE: o código por e-mail vale para qualquer documento (a conclusão o exige sempre), então não há recusa aqui.
 

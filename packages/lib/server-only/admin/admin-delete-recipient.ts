@@ -17,6 +17,7 @@ import { createDocumentAuditLogData } from '../../utils/document-audit-logs';
 import { mapSecondaryIdToDocumentId } from '../../utils/envelope';
 import { getRecipientsInActiveSigningStep, isRecipientTurnBySigningOrder } from '../../utils/recipient-groups';
 import { assertEnvelopeMutable } from '../envelope/assert-envelope-mutable';
+import { holdSealForFinance } from '../revalle/finance/seal-hold'; // REVALLE:
 
 export type AdminDeleteRecipientOptions = {
   recipientId: number;
@@ -151,6 +152,11 @@ export const adminDeleteRecipient = async ({ recipientId, reason, requestMetadat
     signableRecipients.every((recipient) => recipient.signingStatus === SigningStatus.SIGNED);
 
   if (haveAllRecipientsSigned) {
+    // REVALLE: NF aguardando a aprovação do Financeiro não é selada agora; a aprovação dispara a selagem.
+    if (await holdSealForFinance(envelope.id)) {
+      return deletedRecipient;
+    }
+
     await jobs.triggerJob({
       name: 'internal.seal-document',
       payload: {

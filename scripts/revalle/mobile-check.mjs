@@ -7,13 +7,20 @@
 // 1º toque num campo abre o campo), pede o código por e-mail (lido no Mailpit) e conclui.
 // Antes, se houver sessão do remetente (REVSIGN_USER_EMAIL/REVSIGN_USER_PASSWORD, dono do token), confere o envio de
 // uma nota fiscal fictícia no celular: o diálogo de envio com o bloco "Nota fiscal · Conta contábil", a escolha
-// "Deixar para a contabilidade decidir", o envio e o cartão "Conta contábil" da página do documento. Nesses passos a
+// "Deixar para o Financeiro", o envio retido (aviso "Enviado para o Financeiro…" e o bloco só de leitura ao reabrir) e
+// o cartão "Conta contábil" (só leitura, "Aguardando aprovação do Financeiro") de uma NF enviada com conta. Nesses passos a
 // conferência vale só para o bloco/cartão: o editor do upstream não é feito para celular (a 360 px a página passa da
 // largura da tela e as abas "E-mail"/"Nenhum" do diálogo têm 32 px). Depois abre a página "Notas fiscais": botões da
 // página com 44 px e nenhuma rolagem horizontal da página inteira (a tabela rola dentro do próprio quadro).
 // Depois: NF escaneada no diálogo de envio ("Responda para enviar" e o botão de enviar bloqueado até "Sim"/"Não"),
 // NF v1 no editor antigo (o bloco da NF no topo), o link discreto "Marcar como nota fiscal" num documento comum já
 // enviado (o cartão só aparece depois de marcar) e o cartão com a pergunta numa NF escaneada enviada sem resposta.
+// Fase 6: quem assina essa NF enviada (portão com a Maria fictícia) vê, no celular, o bloco "Nota fiscal · Conta
+// contábil: {código} – {nome}" acima do documento. Com a sessão de um membro do Financeiro (REVSIGN_ADMIN_EMAIL/
+// REVSIGN_ADMIN_PASSWORD, o rsadmin, marcado como Financeiro aqui), a página da NF só de leitura com o cartão
+// "Financeiro" (prévia do PDF, "Aprovar conta" e o diálogo de confirmação, "Trocar conta" com a lista e o motivo), o
+// cartão "Definir conta e enviar" de uma NF retida (com a confirmação) e a página "Notas fiscais" no filtro
+// "Aguardando o Financeiro". Nada é aprovado, trocado nem enviado: os diálogos são abertos e cancelados.
 // Em cada passo tira um print e confere:
 //   - sem rolagem horizontal (document.scrollingElement.scrollWidth <= 360);
 //   - todo botão visível (button / role=button) com altura >= 44 px;
@@ -36,6 +43,8 @@ const WIDTH = 360;
 const HEIGHT = 740;
 const MIN_TARGET = 44;
 const FERNANDO = { cpf: '93457210888', birthDate: '31/12/1999' };
+// Quem assina a NF do passo da conta (Fase 6): outra pessoa fictícia, para não mexer no vínculo do Fernando.
+const MARIA = { cpf: '39053344705', birthDate: '07/03/1990' };
 // Campos do documento de teste (em % da página 1) e o centro de cada um, para o toque no canvas.
 const FIELD_BOXES = {
   signature: { type: 'SIGNATURE', page: 1, positionX: 10, positionY: 70, width: 35, height: 8 },
@@ -112,6 +121,41 @@ const runHost = async () => {
     senderEnv.EDITOR_URL = `${BASE_URL}/t/${teamUrl}/documents/${nf.id}/edit`;
     console.log(`- nota fiscal ${nf.id} (rascunho) para o passo do remetente`);
 
+    // NF enviada com conta (escolhida pelo remetente): o cartão da página do documento, só leitura.
+    const { trpcAs } = await import('./tests/helpers.mjs');
+    const accountCode = db(`select code from "RevalleAccountingAccount" where active order by code limit 1`);
+
+    if (!accountCode) {
+      throw new Error('nenhuma conta contábil ativa: importe a lista (Admin → Contas contábeis) ou rode a suíte antes');
+    }
+
+    const sentNf = await createEnvelope({
+      title: `[TESTE NF] Celular enviada ${new Date().toISOString()}`,
+      pdf: await writeInvoiceFixture(outDir),
+      recipients: [{ email: `celular-nf-env-${Date.now()}@revalle.com.br`, name: 'Teste' }],
+    });
+
+    if (sentNf.status !== 200) {
+      throw new Error(`criar nota enviada: HTTP ${sentNf.status} ${sentNf.text}`);
+    }
+
+    const chosen = await trpcAs(senderEnv.SENDER_COOKIE, 'mutation', 'revalle.invoice.setChoice', {
+      envelopeId: sentNf.id,
+      choice: { code: accountCode },
+    });
+
+    if (chosen.status !== 200) {
+      throw new Error(`escolher a conta da nota enviada: HTTP ${chosen.status} ${chosen.text}`);
+    }
+
+    const [nfSigner] = await distribute(sentNf.id);
+
+    senderEnv.SENT_INVOICE_URL = `${BASE_URL}/t/${teamUrl}/documents/${sentNf.id}`;
+    // Fase 6: a mesma NF aberta por quem assina mostra a conta escolhida.
+    senderEnv.NF_SIGN_URL = `${BASE_URL}/sign/${nfSigner.token}`;
+    senderEnv.NF_ACCOUNT_CODE = accountCode;
+    db(`delete from "RevalleEmailLink" where cpf = '${MARIA.cpf}'`);
+
     // NF escaneada (só imagem: "É nota fiscal?"): "Enviar" bloqueado até a resposta.
     const scanned = await createEnvelope({
       title: `[TESTE NF] Celular escaneada ${new Date().toISOString()}`,
@@ -180,6 +224,53 @@ const runHost = async () => {
 
     await distribute(sentScanned.id);
     senderEnv.SENT_SCANNED_URL = `${BASE_URL}/t/${teamUrl}/documents/${sentScanned.id}`;
+
+    // Fase 6: o Financeiro (rsadmin, marcado aqui) na página da NF enviada (aguardando aprovação) e numa NF retida.
+    if (process.env.REVSIGN_ADMIN_EMAIL && process.env.REVSIGN_ADMIN_PASSWORD) {
+      const financeCookie = await signIn(process.env.REVSIGN_ADMIN_EMAIL, process.env.REVSIGN_ADMIN_PASSWORD);
+      const financeId = Number(db(`select id from "User" where email = '${process.env.REVSIGN_ADMIN_EMAIL}'`));
+      const marked = await trpcAs(financeCookie, 'mutation', 'revalle.finance.adminSetMember', {
+        userId: financeId,
+        member: true,
+      });
+
+      if (marked.status !== 200) {
+        throw new Error(`marcar o Financeiro: HTTP ${marked.status} ${marked.text}`);
+      }
+
+      const held = await createEnvelope({
+        title: `[TESTE NF] Celular retida ${new Date().toISOString()}`,
+        pdf: await writeInvoiceFixture(outDir),
+        recipients: [{ email: `celular-nf-retida-${Date.now()}@revalle.com.br`, name: 'Teste' }],
+      });
+
+      if (held.status !== 200) {
+        throw new Error(`criar nota retida: HTTP ${held.status} ${held.text}`);
+      }
+
+      const deferred = await trpcAs(senderEnv.SENDER_COOKIE, 'mutation', 'revalle.invoice.setChoice', {
+        envelopeId: held.id,
+        choice: { defer: true },
+      });
+
+      if (deferred.status !== 200) {
+        throw new Error(`deixar a nota para o Financeiro: HTTP ${deferred.status} ${deferred.text}`);
+      }
+
+      const { api } = await import('./tests/helpers.mjs');
+      const holdSend = await api('POST', '/envelope/distribute', { envelopeId: held.id });
+
+      if (holdSend.status !== 409) {
+        throw new Error(`a nota deixada para o Financeiro não ficou retida: HTTP ${holdSend.status}`);
+      }
+
+      senderEnv.FINANCE_COOKIE = financeCookie;
+      senderEnv.FINANCE_NF_URL = `${BASE_URL}/notas-fiscais/${sentNf.id}`;
+      senderEnv.FINANCE_HELD_URL = `${BASE_URL}/notas-fiscais/${held.id}`;
+      console.log(`- Financeiro: página da NF ${sentNf.id} e da NF retida ${held.id}`);
+    } else {
+      console.log('- sem REVSIGN_ADMIN_EMAIL/REVSIGN_ADMIN_PASSWORD: passos do Financeiro pulados');
+    }
   } else {
     console.log('- sem REVSIGN_USER_EMAIL/REVSIGN_USER_PASSWORD: passo da nota fiscal pulado');
   }
@@ -208,6 +299,10 @@ const runHost = async () => {
       `SIGNER_CPF=${FERNANDO.cpf}`,
       '-e',
       `SIGNER_BIRTH_DATE=${FERNANDO.birthDate}`,
+      '-e',
+      `NF_SIGNER_CPF=${MARIA.cpf}`,
+      '-e',
+      `NF_SIGNER_BIRTH_DATE=${MARIA.birthDate}`,
       ...Object.keys(senderEnv).flatMap((name) => ['-e', name]),
       '-v',
       `${ROOT}:/repo:ro`,
@@ -223,6 +318,7 @@ const runHost = async () => {
   );
 
   db(`delete from "RevalleEmailLink" where cpf = '${FERNANDO.cpf}'`);
+  db(`delete from "RevalleEmailLink" where cpf = '${MARIA.cpf}'`);
 
   process.exit(result.status ?? 1);
 };
@@ -472,24 +568,57 @@ const runBrowser = async () => {
       await panel.getByText('Buscando sugestão…').waitFor({ state: 'detached', timeout: 40_000 });
       await check('00a-nf-envio', sender, '[data-testid="invoice-account-panel"]');
 
-      await panel.getByRole('button', { name: 'Deixar para a contabilidade decidir' }).click();
-      await panel.getByText('Escolha: deixar para a contabilidade decidir').waitFor();
+      await panel.getByRole('button', { name: 'Deixar para o Financeiro' }).click();
+      await panel.getByText('Escolha: deixar para o Financeiro').waitFor();
       await check('00b-nf-escolhida', sender, '[data-testid="invoice-account-panel"]');
 
+      // Envio retido: o aviso de sucesso e a volta para a lista; o documento continua rascunho.
       await sender
         .getByRole('dialog')
         .getByRole('button', { name: /^(enviar|gerar links)$/i })
         .click();
-      await sender.waitForURL(/\/documents\/[^/?]+(\?.*)?$/, { timeout: 60_000 });
-      await sender.waitForLoadState('networkidle');
+      // O toast também é lido num aviso para leitor de tela (aria-live): o texto exato pega só o toast visível.
+      await sender
+        .getByText('Enviado para o Financeiro definir a conta. Os convites saem depois disso.', { exact: true })
+        .waitFor();
+      await sender.waitForURL(/\/documents\/?(\?.*)?$/, { timeout: 60_000 });
 
-      // Enviado sem e-mail ("Gerar links"): a página abre o diálogo dos links por cima; fecha para ver o cartão.
-      if (await sender.getByRole('dialog').isVisible()) {
-        await sender.keyboard.press('Escape');
-        await sender.getByRole('dialog').waitFor({ state: 'detached' });
+      // Reaberto: o bloco só mostra o estado, sem escolha, e o botão de enviar fica bloqueado.
+      await sender.goto(editorUrl.href, { waitUntil: 'networkidle' });
+      await sender
+        .getByRole('button', { name: /enviar documento/i })
+        .filter({ visible: true })
+        .first()
+        .click();
+      await panel.getByText('Aguardando o Financeiro definir a conta').waitFor();
+
+      if ((await panel.getByRole('button').count()) > 0) {
+        throw new Error('NF retida: o bloco não deveria ter botões');
       }
 
-      await sender.getByTestId('invoice-account-card').scrollIntoViewIfNeeded();
+      if (
+        !(await sender
+          .getByRole('dialog')
+          .getByRole('button', { name: /^(enviar|gerar links)$/i })
+          .isDisabled())
+      ) {
+        throw new Error('NF retida: o botão de enviar deveria estar bloqueado');
+      }
+
+      await check('00b2-nf-retida', sender, '[data-testid="invoice-account-panel"]');
+
+      // NF enviada com conta: o cartão só mostra a conta e o estado no Financeiro.
+      await sender.goto(process.env.SENT_INVOICE_URL, { waitUntil: 'networkidle' });
+
+      const sentCard = sender.getByTestId('invoice-account-card');
+
+      await sentCard.getByText('Aguardando aprovação do Financeiro').waitFor();
+
+      if ((await sentCard.getByRole('button').count()) > 0) {
+        throw new Error('NF enviada: o cartão do remetente não deveria ter botões');
+      }
+
+      await sentCard.scrollIntoViewIfNeeded();
       await check('00c-nf-cartao', sender, '[data-testid="invoice-account-card"]');
 
       // Página "Notas fiscais": a tabela rola dentro do quadro, nunca a página. Os toques valem dentro da página (os
@@ -551,7 +680,7 @@ const runBrowser = async () => {
 
       const card = sender.getByTestId('invoice-account-card');
 
-      await card.getByRole('button', { name: 'Deixar para a contabilidade decidir' }).waitFor();
+      await card.getByText('Nenhuma conta escolhida.').waitFor();
       await card.scrollIntoViewIfNeeded();
       await check('00h-nf-marcada', sender, '[data-testid="invoice-account-card"]');
 
@@ -569,6 +698,180 @@ const runBrowser = async () => {
       console.log(`FALHA no passo da nota fiscal: ${error}`);
     } finally {
       await senderContext.close();
+    }
+  }
+
+  // 0b. Fase 6: quem assina a NF vê a conta contábil acima do documento, também no celular.
+  if (process.env.NF_SIGN_URL) {
+    const nfContext = await browser.newContext({
+      viewport: { width: WIDTH, height: HEIGHT },
+      deviceScaleFactor: 2,
+      isMobile: true,
+      hasTouch: true,
+      locale: 'pt-BR',
+    });
+    const nfPage = await nfContext.newPage();
+
+    nfPage.setDefaultTimeout(30_000);
+
+    try {
+      await nfPage.goto(process.env.NF_SIGN_URL, { waitUntil: 'networkidle' });
+      await nfPage.getByText('Antes de assinar').waitFor();
+      await nfPage.locator('label[for="revalle-term-accept"]').click();
+      await nfPage.getByRole('button', { name: 'Continuar' }).click();
+      await nfPage.getByText('Confirme que é você').waitFor();
+      await nfPage.getByLabel('CPF').fill(process.env.NF_SIGNER_CPF);
+      await nfPage.getByLabel('Data de nascimento').fill(process.env.NF_SIGNER_BIRTH_DATE);
+      await nfPage.getByRole('button', { name: 'Confirmar', exact: true }).click();
+      await nfPage.getByRole('button', { name: 'Sim, sou eu' }).click();
+      await nfPage.locator('.konva-container canvas').first().waitFor({ timeout: 60_000 });
+      await nfPage.waitForLoadState('networkidle');
+
+      const block = nfPage.getByTestId('invoice-signing-account');
+
+      await block.waitFor();
+
+      const text = (await block.innerText()).replace(/\s+/g, ' ');
+
+      if (!text.startsWith(`Nota fiscal · Conta contábil: ${process.env.NF_ACCOUNT_CODE} – `)) {
+        throw new Error(`bloco da conta com texto inesperado: "${text}"`);
+      }
+
+      const box = await block.boundingBox();
+
+      if (!box || box.y + box.height > HEIGHT) {
+        throw new Error('o bloco da conta não aparece na primeira tela do celular');
+      }
+
+      await check('00j-nf-conta-ao-assinar', nfPage);
+    } catch (error) {
+      await nfPage.screenshot({ path: `${out}/erro-nf-assinatura.png` }).catch(() => {});
+      steps.push({
+        step: 'nf-assinatura',
+        scrollWidth: null,
+        problems: [{ kind: 'flow-error', detail: String(error) }],
+      });
+      console.log(`FALHA no passo da conta ao assinar: ${error}`);
+    } finally {
+      await nfContext.close();
+    }
+  }
+
+  // 0c. Fase 6: o Financeiro no celular (página da NF só de leitura, cartão, diálogos, NF retida, lista).
+  if (process.env.FINANCE_COOKIE && process.env.FINANCE_NF_URL) {
+    const financeContext = await browser.newContext({
+      viewport: { width: WIDTH, height: HEIGHT },
+      deviceScaleFactor: 2,
+      isMobile: true,
+      hasTouch: true,
+      locale: 'pt-BR',
+    });
+    const fin = await financeContext.newPage();
+    const financeUrl = new URL(process.env.FINANCE_NF_URL);
+
+    fin.setDefaultTimeout(30_000);
+    await financeContext.addCookies(
+      process.env.FINANCE_COOKIE.split('; ').map((pair) => {
+        const index = pair.indexOf('=');
+
+        return { name: pair.slice(0, index), value: pair.slice(index + 1), url: financeUrl.origin };
+      }),
+    );
+
+    try {
+      await fin.goto(financeUrl.href, { waitUntil: 'networkidle' });
+
+      const card = fin.getByTestId('finance-card');
+
+      await card.getByRole('button', { name: 'Aprovar conta' }).waitFor();
+      await card.getByText('Aguardando aprovação', { exact: true }).waitFor();
+      // A prévia do PDF (visualizador do upstream) carrega dentro da largura da tela.
+      await fin
+        .locator('[data-testid="invoice-view-page"] img, [data-testid="invoice-view-page"] canvas')
+        .first()
+        .waitFor({
+          timeout: 60_000,
+        });
+      await check('00k-nf-financeiro', fin, '[data-testid="invoice-view-page"]', { pageScroll: true });
+
+      await card.scrollIntoViewIfNeeded();
+      await check('00k2-nf-cartao-financeiro', fin, '[data-testid="finance-card"]');
+
+      await card.getByRole('button', { name: 'Aprovar conta' }).click();
+
+      const approveDialog = fin.getByTestId('finance-approve-dialog');
+
+      await approveDialog.getByText('Aprovar a conta?').waitFor();
+      await check('00l-nf-aprovar-confirmar', fin, '[data-testid="finance-approve-dialog"]');
+      await approveDialog.getByRole('button', { name: 'Cancelar' }).click();
+      await approveDialog.waitFor({ state: 'detached' });
+
+      await card.getByRole('button', { name: 'Trocar conta' }).click();
+
+      const changeDialog = fin.getByTestId('finance-change-dialog');
+
+      await changeDialog.getByLabel('Motivo da troca').fill('Conta errada: era serviço, não mercadoria.');
+      await changeDialog
+        .getByTestId('finance-change-counter')
+        .getByText(/^42 de 500 caracteres/)
+        .waitFor();
+      await check('00m-nf-trocar-conta', fin, '[data-testid="finance-change-dialog"]');
+
+      // Escolhida a conta, "Continuar" leva à confirmação ("Todos vão assinar de novo uma nova versão.").
+      const option = changeDialog.locator('ul button').first();
+
+      if ((await option.count()) > 0) {
+        await option.click();
+        await changeDialog.getByRole('button', { name: 'Continuar' }).click();
+        await changeDialog.getByText('Todos vão assinar de novo uma nova versão.', { exact: false }).waitFor();
+        await check('00m2-nf-trocar-confirmar', fin, '[data-testid="finance-change-dialog"]');
+        await changeDialog.getByRole('button', { name: 'Voltar' }).click();
+      }
+
+      await changeDialog.getByRole('button', { name: 'Cancelar' }).click();
+      await changeDialog.waitFor({ state: 'detached' });
+
+      // NF retida ("Deixar para o Financeiro"): o cartão com a lista e "Definir conta e enviar".
+      await fin.goto(process.env.FINANCE_HELD_URL, { waitUntil: 'networkidle' });
+
+      const heldCard = fin.getByTestId('finance-card');
+
+      await heldCard.getByRole('button', { name: 'Definir conta e enviar' }).waitFor();
+      await heldCard.scrollIntoViewIfNeeded();
+      await check('00n-nf-definir-conta', fin, '[data-testid="finance-card"]');
+
+      // Escolhida a conta, "Definir conta e enviar" pede confirmação antes de enviar (cancelar não envia nada).
+      const heldOption = heldCard.locator('ul button').first();
+
+      if ((await heldOption.count()) > 0) {
+        await heldOption.click();
+        await heldCard.getByRole('button', { name: 'Definir conta e enviar' }).click();
+
+        const defineDialog = fin.getByTestId('finance-define-dialog');
+
+        await defineDialog.getByText('Definir a conta e enviar?').waitFor();
+        await check('00n2-nf-definir-confirmar', fin, '[data-testid="finance-define-dialog"]');
+        await defineDialog.getByRole('button', { name: 'Cancelar' }).click();
+        await defineDialog.waitFor({ state: 'detached' });
+      }
+
+      // Lista: o Financeiro começa em "Aguardando o Financeiro"; a tabela rola dentro do quadro, nunca a página.
+      await fin.goto(`${financeUrl.origin}/notas-fiscais`, { waitUntil: 'networkidle' });
+
+      const select = fin.locator('#invoices-finance');
+
+      if ((await select.inputValue()) !== 'pendentes') {
+        throw new Error('a lista do Financeiro não começou em "Aguardando o Financeiro"');
+      }
+
+      await fin.getByTestId('invoices-page').locator('tbody tr').first().waitFor();
+      await check('00o-notas-fiscais-financeiro', fin, '[data-testid="invoices-page"]', { pageScroll: true });
+    } catch (error) {
+      await fin.screenshot({ path: `${out}/erro-financeiro.png` }).catch(() => {});
+      steps.push({ step: 'financeiro', scrollWidth: null, problems: [{ kind: 'flow-error', detail: String(error) }] });
+      console.log(`FALHA no passo do Financeiro: ${error}`);
+    } finally {
+      await financeContext.close();
     }
   }
 

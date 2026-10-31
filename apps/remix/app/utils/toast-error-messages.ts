@@ -25,7 +25,7 @@ export const getDistributeErrorMessage = (code: string): ToastMessageDescriptor 
     .with('INVOICE_ACCOUNT_REQUIRED', () => ({
       // REVALLE: nota fiscal sem conta contábil (o servidor recusa o envio).
       title: msg`Nota fiscal sem conta contábil`,
-      description: msg`Escolha a conta contábil ou deixe para a contabilidade decidir.`,
+      description: msg`Escolha a conta contábil ou deixe para o Financeiro.`,
     }))
     .otherwise(() => ({
       title: msg`Something went wrong`,

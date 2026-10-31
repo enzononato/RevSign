@@ -109,8 +109,15 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
   // antes da classificação nova (os arquivos podem ter mudado). Sem estado (erro na consulta), o envio segue: o
   // servidor confere de qualquer forma. Escaneado (UNKNOWN) só libera com "Sim" (e a conta) ou "Não": uma NF tirada
   // no celular não pode sair do fluxo da contabilidade com um toque em "Enviar". O servidor não exige a resposta (API).
+  // Retida para o Financeiro ("Deixar para o Financeiro" já enviado; ou com a conta definida e o envio do Financeiro
+  // em andamento): quem envia agora é o Financeiro. Conta aprovada cujo envio pelo Financeiro falhou (reserva solta):
+  // a conta fica travada, mas o rascunho pode sair por aqui.
+  const isReleased = isInvoice && state?.financeStatus === 'APPROVED' && state.isFinanceSendReleased;
+  const isHeld =
+    isInvoice && !isReleased && (state?.financeStatus === 'AWAITING_ACCOUNT' || state?.financeStatus === 'APPROVED');
   const isReady =
     isClassified &&
+    !isHeld &&
     (isError || (state !== undefined && state.isInvoice !== 'UNKNOWN' && (!isInvoice || state.choice !== null)));
 
   useEffect(() => {
@@ -222,6 +229,38 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
     );
   }
 
+  if (isReleased) {
+    return (
+      <section className="mb-4 flex flex-col gap-1 rounded-lg border p-3" data-testid="invoice-account-panel">
+        <h3 className="font-medium text-sm">
+          <Trans>Nota fiscal · Conta contábil</Trans>
+        </h3>
+        <p className="text-sm">
+          {state.choice?.name ? `${state.choice.code} – ${state.choice.name}` : state.choice?.code}
+        </p>
+        <p className="text-muted-foreground text-sm">
+          <Trans>Conta aprovada pelo Financeiro. O envio anterior falhou: corrija o rascunho e envie.</Trans>
+        </p>
+      </section>
+    );
+  }
+
+  if (isHeld) {
+    return (
+      <section className="mb-4 flex flex-col gap-1 rounded-lg border p-3" data-testid="invoice-account-panel">
+        <h3 className="font-medium text-sm">
+          <Trans>Nota fiscal · Conta contábil</Trans>
+        </h3>
+        <p className="text-sm">
+          <Trans>Aguardando o Financeiro definir a conta</Trans>
+        </p>
+        <p className="text-muted-foreground text-sm">
+          <Trans>Os convites saem depois que o Financeiro definir a conta.</Trans>
+        </p>
+      </section>
+    );
+  }
+
   const { suggestion, choice } = state;
   const suggestionCode = suggestion?.accountCode;
   const suggestionName = suggestion?.accountName;
@@ -293,7 +332,7 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
         <div className="flex flex-wrap items-center justify-between gap-x-2 text-sm">
           <p className="min-w-0 break-words">
             {choiceCode === 'DEFER' ? (
-              <Trans>Escolha: deixar para a contabilidade decidir</Trans>
+              <Trans>Escolha: deixar para o Financeiro</Trans>
             ) : (
               <Trans>
                 Conta escolhida: {choiceCode} · {choiceName}
@@ -326,14 +365,14 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
             disabled={isBusy}
             onClick={() => void onChoose({ defer: true })}
           >
-            <Trans>Deixar para a contabilidade decidir</Trans>
+            <Trans>Deixar para o Financeiro</Trans>
           </Button>
         </>
       )}
 
       {!choice && (
         <p className="text-amber-700 text-sm dark:text-amber-400">
-          <Trans>Escolha a conta contábil ou deixe para a contabilidade decidir.</Trans>
+          <Trans>Escolha a conta contábil ou deixe para o Financeiro.</Trans>
         </p>
       )}
     </section>

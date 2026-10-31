@@ -16,6 +16,8 @@ const baseRow: InvoiceExportRow = {
   confidence: 'alta',
   acceptedSuggestion: true,
   link: 'https://assinaturas.example/documents/42',
+  financeStatus: 'Aguardando aprovação',
+  approvedBy: null,
 };
 
 const lines = (csv: string) => csv.split('\r\n');
@@ -26,7 +28,7 @@ describe('buildInvoiceExportCsv', () => {
 
     expect(csv.startsWith('﻿')).toBe(true);
     expect(lines(csv)[0]).toBe(
-      '﻿id;titulo;remetente;enviado_em;concluido_em;status;conta;nome_conta;tipo;sugestao_ia;confianca;aceitou_sugestao;link',
+      '﻿id;titulo;remetente;enviado_em;concluido_em;status;conta;nome_conta;tipo;sugestao_ia;confianca;aceitou_sugestao;link;financeiro;aprovado_por',
     );
   });
 
@@ -34,8 +36,14 @@ describe('buildInvoiceExportCsv', () => {
     const csv = buildInvoiceExportCsv([baseRow]);
 
     expect(lines(csv)[1]).toBe(
-      '42;NF 123;Maria;29/10/2026 14:30;;Pendente;2.1.03;Fornecedores;pagar;2.1.03;alta;sim;https://assinaturas.example/documents/42',
+      '42;NF 123;Maria;29/10/2026 14:30;;Pendente;2.1.03;Fornecedores;pagar;2.1.03;alta;sim;https://assinaturas.example/documents/42;Aguardando aprovação;',
     );
+  });
+
+  it('Fase 6: a situação no Financeiro e quem aprovou ficam no fim (nome neutralizado como texto livre)', () => {
+    const csv = buildInvoiceExportCsv([{ ...baseRow, financeStatus: 'Aprovada', approvedBy: '=Ana' }]);
+
+    expect(lines(csv)[1]?.endsWith(";https://assinaturas.example/documents/42;Aprovada;'=Ana")).toBe(true);
   });
 
   it('coloca entre aspas o título com ponto e vírgula, aspas e quebra de linha', () => {
@@ -44,14 +52,30 @@ describe('buildInvoiceExportCsv', () => {
     expect(csv).toContain('42;"NF; ""teste""\nfim";Maria');
   });
 
-  it('mostra DEFER como a definir pela contabilidade', () => {
+  it('mostra DEFER como a definir pelo Financeiro', () => {
     const csv = buildInvoiceExportCsv([
       { ...baseRow, choice: 'DEFER', accountName: null, accountKind: null, acceptedSuggestion: false },
     ]);
 
-    expect(lines(csv)[1]).toContain(';a definir pela contabilidade;;;');
+    expect(lines(csv)[1]).toContain(';a definir pelo Financeiro;;;');
     expect(lines(csv)[1]).not.toContain('DEFER');
     expect(lines(csv)[1]).toContain(';não;');
+  });
+
+  it('NF de antes da Fase 6 deixada para a contabilidade (Antiga): a definir pela contabilidade', () => {
+    const csv = buildInvoiceExportCsv([
+      {
+        ...baseRow,
+        choice: 'DEFER',
+        accountName: null,
+        accountKind: null,
+        acceptedSuggestion: null,
+        financeStatus: 'Antiga, sem aprovação',
+      },
+    ]);
+
+    expect(lines(csv)[1]).toContain(';a definir pela contabilidade;;;');
+    expect(lines(csv)[1]).not.toContain('Financeiro;');
   });
 
   it('neutraliza fórmulas nos textos livres e preserva códigos e links', () => {
@@ -67,7 +91,7 @@ describe('buildInvoiceExportCsv', () => {
     expect(csv).toContain(';"\'\rCR";');
     expect(first?.startsWith('42;')).toBe(true);
     expect(first).toContain(';2.1.03;');
-    expect(first?.endsWith(';https://assinaturas.example/documents/42')).toBe(true);
+    expect(first?.endsWith(';https://assinaturas.example/documents/42;Aguardando aprovação;')).toBe(true);
   });
 
   it('deixa vazio o que não existe', () => {
@@ -84,7 +108,7 @@ describe('buildInvoiceExportCsv', () => {
     ]);
 
     expect(lines(csv)[1]).toBe(
-      '42;NF 123;Maria;29/10/2026 14:30;;Pendente;;;;;;;https://assinaturas.example/documents/42',
+      '42;NF 123;Maria;29/10/2026 14:30;;Pendente;;;;;;;https://assinaturas.example/documents/42;Aguardando aprovação;',
     );
   });
 });

@@ -5,6 +5,7 @@ import { RecipientRole } from '@prisma/client';
 import { isDeepEqual } from 'remeda';
 import { match } from 'ts-pattern';
 
+import { formatInvoiceAccount } from '../revalle/finance/account-change'; // REVALLE:
 import type {
   TDocumentAuditLog,
   TDocumentAuditLogDocumentMetaDiffSchema,
@@ -715,7 +716,7 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
     // REVALLE:
     .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_ACCOUNT_SET }, ({ data }) => {
       const label = (code: string | null, defer: boolean) =>
-        defer ? i18n._(msg`deixar para a contabilidade decidir`) : (code ?? '');
+        defer ? i18n._(msg`deixar para o Financeiro`) : (code ?? '');
       const from = label(data.fromCode, data.fromDefer);
       const to = label(data.toCode, data.toDefer);
       const text =
@@ -724,6 +725,33 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
           : from
             ? msg`Conta contábil trocada: ${from} → ${to}`
             : msg`Conta contábil escolhida: ${to}`;
+
+      return { anonymous: text, you: text, user: text };
+    })
+    // REVALLE:
+    .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_FINANCE_ACCOUNT_DEFINED }, ({ data }) => {
+      const account = data.name ? `${data.code} – ${data.name}` : data.code;
+      const text = msg`Conta contábil definida pelo Financeiro: ${account} (já aprovada)`;
+
+      return { anonymous: text, you: text, user: text };
+    })
+    // REVALLE:
+    .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_FINANCE_APPROVED }, ({ data }) => {
+      const account = data.name ? `${data.code} – ${data.name}` : data.code;
+      const text = msg`Conta contábil aprovada pelo Financeiro: ${account}`;
+
+      return { anonymous: text, you: text, user: text };
+    })
+    // REVALLE:
+    .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_FINANCE_ACCOUNT_CHANGED }, ({ data }) => {
+      const from = data.fromCode
+        ? formatInvoiceAccount(data.fromCode, data.fromName)
+        : i18n._(msg`a definir pelo Financeiro`);
+      const to = formatInvoiceAccount(data.toCode, data.toName);
+      const reason = data.reason;
+      const text = data.isNewVersion
+        ? msg`Nova versão criada pelo Financeiro com a conta contábil ${to} (antes ${from}). Motivo: ${reason}`
+        : msg`Conta contábil trocada pelo Financeiro de ${from} para ${to}: substituído por uma nova versão. Motivo: ${reason}`;
 
       return { anonymous: text, you: text, user: text };
     })

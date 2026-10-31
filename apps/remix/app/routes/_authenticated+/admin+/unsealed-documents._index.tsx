@@ -14,6 +14,11 @@ import { DateTime } from 'luxon';
 import { useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router';
 
+import {
+  isRevalleFinanceExpected,
+  RevalleUnsealedFinanceBadge,
+} from '~/components/revalle/finance/unsealed-finance-badge'; // REVALLE:
+
 const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
 
 export default function AdminUnsealedDocumentsPage() {
@@ -64,12 +69,16 @@ export default function AdminUnsealedDocumentsPage() {
         accessorKey: 'title',
         cell: ({ row }) => {
           return (
-            <Link
-              to={`/admin/documents/${row.original.id}`}
-              className="block max-w-[10rem] truncate font-medium hover:underline md:max-w-[15rem]"
-            >
-              {row.original.title}
-            </Link>
+            <>
+              <Link
+                to={`/admin/documents/${row.original.id}`}
+                className="block max-w-[10rem] truncate font-medium hover:underline md:max-w-[15rem]"
+              >
+                {row.original.title}
+              </Link>
+              {/* REVALLE: NF retida pelo Financeiro ou versão substituída: esperado, não travado. */}
+              <RevalleUnsealedFinanceBadge status={row.original.revalleFinanceStatus} />
+            </>
           );
         },
       },
@@ -102,6 +111,11 @@ export default function AdminUnsealedDocumentsPage() {
         accessorKey: 'stuckDuration',
         cell: ({ row }) => {
           if (!row.original.lastSignedAt) {
+            return <span className="text-muted-foreground">-</span>;
+          }
+
+          // REVALLE: retida pelo Financeiro ou substituída: o tempo não indica problema.
+          if (isRevalleFinanceExpected(row.original.revalleFinanceStatus)) {
             return <span className="text-muted-foreground">-</span>;
           }
 

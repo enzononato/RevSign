@@ -1,8 +1,10 @@
 import { prisma } from '@documenso/prisma';
 import type { RecipientRole } from '@prisma/client';
+import { RevalleFinanceStatus, RevalleInvoiceStatus } from '@prisma/client';
 
 import {
   buildRevalleCertificateRows,
+  buildRevalleInvoiceCertificateLine,
   getRevalleSigningPositions,
   type RevalleCertificateRow,
 } from '../../revalle/certificate-rows';
@@ -17,9 +19,12 @@ export type RevalleCertificateRecipient = {
   isStampOnly: boolean;
 };
 
+/** Linha do cabeçalho de cada página da tabela: o hash quebra em qualquer caractere, o texto da conta por palavra. */
+export type RevalleCertificateHeaderLine = { text: string; wrap: 'char' | 'word' };
+
 export type RevalleCertificateData = {
   recipients: Map<number, RevalleCertificateRecipient>;
-  headerLines: string[];
+  headerLines: RevalleCertificateHeaderLine[];
 };
 
 type LoadRevalleCertificateDataOptions = {
@@ -34,7 +39,7 @@ export const loadRevalleCertificateData = async ({
   recipients,
   envelopeItemId,
 }: LoadRevalleCertificateDataOptions): Promise<RevalleCertificateData> => {
-  const [proofs, hashes, meta] = await Promise.all([
+  const [proofs, hashes, meta, invoiceLine] = await Promise.all([
     prisma.revalleSignatureProof.findMany({
       where: { recipientId: { in: recipients.map((recipient) => recipient.id) } },
     }),
@@ -46,6 +51,7 @@ export const loadRevalleCertificateData = async ({
       where: { id: envelopeId },
       select: { documentMeta: { select: { signingOrder: true } } },
     }),
+    loadInvoiceLine(envelopeId),
   ]);
 
   // Ordem de assinatura só existe (e só aparece) em documento sequencial.
@@ -71,11 +77,73 @@ export const loadRevalleCertificateData = async ({
   }
 
   const sortedHashes = [...hashes].sort((a, b) => a.envelopeItem.order - b.envelopeItem.order);
-  const headerLines = sortedHashes.map((hash) =>
-    sortedHashes.length > 1
-      ? `SHA-256 do original (${hash.envelopeItem.title}): ${hash.originalSha256}`
-      : `SHA-256 do original: ${hash.originalSha256}`,
-  );
+  const headerLines: RevalleCertificateHeaderLine[] = sortedHashes.map((hash) => ({
+    text:
+      sortedHashes.length > 1
+        ? `SHA-256 do original (${hash.envelopeItem.title}): ${hash.originalSha256}`
+        : `SHA-256 do original: ${hash.originalSha256}`,
+    wrap: 'char',
+  }));
+
+  if (invoiceLine) {
+    headerLines.push({ text: invoiceLine, wrap: 'word' });
+  }
 
   return { recipients: byRecipient, headerLines };
+};
+
+/**
+ * Fase 6: NF aprovada pelo Financeiro ganha a linha da conta e da aprovação. Uma versão já concluída que depois foi
+ * substituída continua aprovada (a reselagem dela mantém a linha); pendente de aprovação, `LEGACY` (de antes da Fase 6)
+ * e documento comum, nada.
+ */
+const loadInvoiceLine = async (envelopeId: string): Promise<string | null> => {
+  const row = await prisma.revalleInvoiceClassification.findUnique({
+    where: { envelopeId },
+    select: {
+      isInvoice: true,
+      financeStatus: true,
+      choiceCode: true,
+      choiceDefer: true,
+      approvedById: true,
+      approvedAt: true,
+      approvedAccountName: true,
+      approvedByName: true,
+    },
+  });
+
+  const isApproved =
+    row?.financeStatus === RevalleFinanceStatus.APPROVED ||
+    (row?.financeStatus === RevalleFinanceStatus.SUPERSEDED && row.approvedAt !== null);
+
+  if (
+    !row ||
+    row.isInvoice !== RevalleInvoiceStatus.YES ||
+    !isApproved ||
+    row.choiceDefer ||
+    !row.choiceCode ||
+    !row.approvedAt ||
+    row.approvedById === null
+  ) {
+    return null;
+  }
+
+  // O nome congelado na aprovação; só as linhas aprovadas antes dessa coluna usam o nome atual da lista.
+  const [account, approver] = await Promise.all([
+    row.approvedAccountName === null
+      ? prisma.revalleAccountingAccount.findUnique({ where: { code: row.choiceCode }, select: { name: true } })
+      : null,
+    row.approvedByName === null
+      ? prisma.user.findUnique({ where: { id: row.approvedById }, select: { name: true } })
+      : null,
+  ]);
+
+  return buildRevalleInvoiceCertificateLine({
+    code: row.choiceCode,
+    name: row.approvedAccountName ?? account?.name ?? '',
+    // O nome congelado na aprovação (só as linhas de antes dessa coluna usam o atual). Sem nome, "Financeiro": o e-mail
+    // de quem aprovou não vai para o PDF.
+    approverName: row.approvedByName ?? (approver?.name?.trim() || 'Financeiro'),
+    approvedAt: row.approvedAt,
+  });
 };
