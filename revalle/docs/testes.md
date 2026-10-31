@@ -146,8 +146,8 @@ node --test --test-concurrency=1 scripts/revalle/tests/acceptance-f4.test.mjs
 3. uma NFS-e sem conta (o servidor falso responde erro: fica sem sugestão). Desde a Fase 6 "Deixar para o Financeiro" retém o envio, então ela é enviada com uma conta e convertida no banco, logo depois do envio, numa NF de antes da Fase 6 deixada para a contabilidade (`LEGACY`, "a definir pelo Financeiro");
 4. um contrato comum (`assets/example.pdf`), enviado e deixado pendente;
 5. dois signatários assinam cada NF (portão com a Maria fictícia + código por e-mail) e as NFs são concluídas. Desde a Fase 6 o DANFE fica retido depois das duas assinaturas e o admin (`REVSIGN_ADMIN_*`, marcado como Financeiro na preparação) aprova pela rota `revalle.finance.approve`; a NFS-e é de antes da Fase 6 e conclui sem aprovação;
-6. `revalle.invoice.find`: 2 NFs para o remetente, 0 para um terceiro sem envolvimento, só a NF em que é signatário para um colega (destinatário pelo e-mail), as 2 para o admin (contrato fora); filtros de período, status, conta e "deixadas"; `/notas-fiscais` abre com sessão e manda para o login sem;
-7. `/notas-fiscais/csv`: `text/csv; charset=utf-8`, `notas-fiscais-AAAA-MM-DD.csv` (data de Brasília), BOM, cabeçalho exato, 2 linhas com as contas certas (`aceitou_sugestao` e `sugestao_ia` vazios sem sugestão); os mesmos filtros da tela; terceiro = só o cabeçalho; sem sessão = login; filtro inválido = 400;
+6. `revalle.invoice.find`: 2 NFs para o remetente, 0 para um terceiro sem envolvimento, só a NF em que é signatário para um colega (destinatário pelo e-mail; desde a Fase 6 com o link da página da NF), as 2 para o admin (contrato fora; como o admin dos testes é do Financeiro, o link é a página da NF); filtros de período, status, conta e "deixadas"; `/notas-fiscais` abre com sessão e manda para o login sem;
+7. `/notas-fiscais/csv`: `text/csv; charset=utf-8`, `notas-fiscais-AAAA-MM-DD.csv` (data de Brasília), BOM, cabeçalho exato (desde a Fase 6 com `financeiro;aprovado_por` no fim), 2 linhas com as contas certas (`aceitou_sugestao` e `sugestao_ia` vazios sem sugestão); os mesmos filtros da tela; terceiro = só o cabeçalho; sem sessão = login; filtro inválido = 400;
 8. 2 e-mails para a contabilidade, com os assuntos exatos (nenhum para o contrato);
 9. `/privacidade` tem a frase exata da spec §9;
 10. Fase 6 (a conta faz parte do que é assinado): o certificado do DANFE traz "Conta contábil: 4.1.07 – … · aprovada pelo Financeiro ({nome}) em {data} (horário de Brasília)" e "Conta contábil vista ao assinar: 4.1.07" nos 2 signatários, e nenhuma das outras contas; o PDF da NFS-e (sem conta) não tem conta nem "conta contábil" (`pdftotext` pelo `helpers.poppler`).
@@ -163,6 +163,27 @@ node --test --test-concurrency=1 scripts/revalle/tests/acceptance-f5.test.mjs
 - Rode com a stack subida com o `compose.test.yml` (caminho da IA) e também sem ele; os dois caminhos devem passar.
 - O limite de 10.000 linhas da planilha não é exercitado aqui (exigiria criar 10.001 notas); a decisão (`isOverInvoiceExportLimit`) tem teste Vitest e o código conta antes de montar a planilha.
 - `invoice-send`, `invoice-email` e este aceite só seguem o caminho da IA com o app configurado (`aiStatus = CONFIGURED`) E o servidor falso no ar; com o app sem chave, os casos de IA são pulados mesmo com o container `fake-gemini` de pé.
+
+## Aceite da Fase 6
+
+`scripts/revalle/tests/acceptance-f6.test.mjs` é o aceite do Financeiro (spec §8, itens 1 a 7), de ponta a ponta, com e-mails reais no Mailpit:
+
+1. o admin (`REVSIGN_ADMIN_*`) marca como Financeiro uma **conta nova** (cadastro + confirmação pelo Mailpit, como no `finance-admin`); `revalle.finance.me` diz que ela é do Financeiro e que um terceiro (outra conta nova) não é;
+2. uma NF com 2 signatários (conta `7.6.01`, convites por e-mail) é assinada pelos dois e fica **retida** (PENDING, `PENDING_APPROVAL`); o membro recebe "Nota fiscal aguardando aprovação do Financeiro: {título}" com a conta e o link `/notas-fiscais/{id}`; na lista ela está em "Aguardando o Financeiro" (`financeiro: 'pendentes'`) com a situação, a versão e o link da página da NF; a **página da NF** (HTML do servidor) abre para o membro (título, remetente, signatários) e para o dono, dá **404** para o terceiro e manda para o login sem sessão; o PDF da prévia (`/notas-fiscais/{id}/pdf/{item}`) é `application/pdf` para o membro e 404 para o terceiro; `revalle.finance.get` traz o estado, a conta e quem escolheu;
+3. o membro aprova: a NF é selada, o certificado (`pdftotext`) traz "Conta contábil: 7.6.01 – … · aprovada pelo Financeiro ({nome do membro}) em {data} (horário de Brasília)" e as 2 linhas "vista ao assinar", e a contabilidade recebe o e-mail; um documento comum concluído e **marcado como NF depois** aparece em "Aguardando o Financeiro" e, aprovado, vai à contabilidade;
+4. outra NF: o membro **troca a conta** (`7.6.02`, com motivo) depois da 1ª assinatura: o link antigo mostra a mensagem do portão; o remetente e os 2 signatários recebem o aviso com o texto exato e o link da página da v2; os convites da v2 chegam; a versão antiga continua na lista do dono como `SUPERSEDED` v1 (não "excluída") e a v2 como `APPROVED` v2; a página de cada versão aponta para a outra (a antiga mostra o motivo); a v2 é assinada e selada com a conta nova (a antiga não aparece como conta vista nem aprovada);
+5. "Deixar para o Financeiro": o envio responde 409, o documento fica rascunho (`AWAITING_ACCOUNT`), o membro recebe "Nota fiscal aguardando o Financeiro: {título}" com o link da página da NF e o signatário não recebe nada; o rascunho aparece para o membro ("Aguardando o Financeiro", sem data de envio) e para o dono, não para o terceiro; "Definir conta e enviar" (`defineAccount`) envia e o convite sai;
+6. o terceiro e o remetente (fora do Financeiro) recebem **403** em `approve`, `changeAccount`, `defineAccount` e `get`, e nada muda;
+7. uma NF de antes da Fase 6 (`LEGACY`, posta no banco logo depois do envio) conclui sem aprovação, vai à contabilidade e não pede aprovação;
+e a planilha do membro (`?de=hoje`): colunas `financeiro` (Aprovada, Substituída, "Antiga, sem aprovação") e `aprovado_por` no fim, link da página da NF, filtro `financeiro=substituidas`; a do terceiro não tem nenhuma dessas NFs.
+
+```sh
+REVSIGN_API_TOKEN=api_... REVSIGN_USER_EMAIL=... REVSIGN_USER_PASSWORD=... REVSIGN_ADMIN_EMAIL=... REVSIGN_ADMIN_PASSWORD=... \
+node --test --test-concurrency=1 scripts/revalle/tests/acceptance-f6.test.mjs
+```
+
+- Importa 2 contas próprias (`7.6.01`, `7.6.02`) e troca o e-mail da contabilidade por um novo a cada execução (o anterior volta no fim). O membro novo é desmarcado no fim.
+- Rode com e sem o `compose.test.yml`: o aceite não depende da sugestão da IA.
 
 ## Teste de fumaça (smoke)
 
@@ -214,6 +235,7 @@ REVSIGN_API_TOKEN=api_... node scripts/revalle/mobile-check.mjs /tmp/prints-celu
 
 - O navegador roda na imagem Docker `mcr.microsoft.com/playwright:v1.56.1-noble` (o WSL não abre o Chromium), com `--network host` e o repositório montado só para leitura; o script usa o pacote `playwright` do `node_modules` do repo (mesma versão da imagem). Na primeira vez o `docker pull` baixa ~2 GB. Outra imagem: `MOBILE_CHECK_IMAGE`.
 - Com a sessão do remetente (`REVSIGN_USER_*`), a NF enviada com conta também é aberta por quem assina (portão com a Maria fictícia) e o bloco "Nota fiscal · Conta contábil" tem de aparecer na primeira tela (`00j-nf-conta-ao-assinar.png`, Fase 6).
+- Fase 6, com `REVSIGN_ADMIN_EMAIL`/`REVSIGN_ADMIN_PASSWORD` também (o rsadmin, marcado como Financeiro pelo script): a **página da NF** dessa NF enviada, inteira e com a prévia do PDF (`00k-nf-financeiro.png`), o cartão "Financeiro" (`00k2-nf-cartao-financeiro.png`), a confirmação de "Aprovar conta" (`00l-nf-aprovar-confirmar.png`), "Trocar conta" com a lista, o motivo e o contador (`00m-nf-trocar-conta.png`) e a confirmação "Todos vão assinar de novo uma nova versão." (`00m2-nf-trocar-confirmar.png`), o cartão de uma NF retida com "Definir conta e enviar" (`00n-nf-definir-conta.png`) e a página **Notas fiscais** do Financeiro, que tem de abrir em "Aguardando o Financeiro" (`00o-notas-fiscais-financeiro.png`). Os diálogos são abertos e cancelados: nada é aprovado nem trocado.
 - Os prints (`01-termo.png` … `15-concluido.png`) e o `report.json` ficam na pasta indicada (padrão `/tmp/revsign-mobile-check/`). Se o fluxo quebrar no meio, sai `erro.png`.
 - "Tudo verde" é a última linha `mobile-check: tudo verde` e código de saída 0.
 - O vínculo do CPF do Fernando fictício é solto antes e depois (como no `branding.test.mjs`); o e-mail do signatário é novo a cada execução.

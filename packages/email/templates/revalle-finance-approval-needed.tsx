@@ -13,7 +13,8 @@ export type RevalleFinanceApprovalNeededTemplateProps = {
   senderName: string;
   senderEmail: string;
   account: string;
-  invoicesUrl: string;
+  /** Página da NF (só leitura) com o cartão do Financeiro. */
+  invoiceUrl: string;
   assetBaseUrl: string;
 };
 
@@ -22,7 +23,7 @@ export const RevalleFinanceApprovalNeededTemplate = ({
   senderName = 'Fulano',
   senderEmail = 'fulano@revalle.com.br',
   account = '2.1.03 – Fornecedores',
-  invoicesUrl = 'http://localhost:3000/notas-fiscais?financeiro=pendentes',
+  invoiceUrl = 'http://localhost:3000/notas-fiscais/envelope_exemplo',
   assetBaseUrl = 'http://localhost:3002',
 }: Partial<RevalleFinanceApprovalNeededTemplateProps>) => {
   const { _ } = useLingui();
@@ -71,9 +72,9 @@ export const RevalleFinanceApprovalNeededTemplate = ({
               <Section className="mt-6 mb-4 text-center">
                 <Button
                   className="inline-flex items-center justify-center rounded-lg bg-primary px-6 py-3 text-center font-medium text-base text-primary-foreground no-underline"
-                  href={invoicesUrl}
+                  href={invoiceUrl}
                 >
-                  <Trans>Abrir Notas fiscais</Trans>
+                  <Trans>Abrir a nota fiscal</Trans>
                 </Button>
               </Section>
             </Section>

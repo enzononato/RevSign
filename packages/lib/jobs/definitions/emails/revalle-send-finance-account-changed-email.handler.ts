@@ -6,6 +6,7 @@ import { createElement } from 'react';
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../../constants/app';
 import { normalizeEmail } from '../../../revalle/email-domain';
 import { buildAccountChangeNotice, formatInvoiceAccount } from '../../../revalle/finance/account-change';
+import { invoiceViewPath } from '../../../revalle/finance/finance-status';
 import { getEmailContext } from '../../../server-only/email/get-email-context';
 import { renderEmailWithI18N } from '../../../utils/render-email-with-i18n';
 import type { JobRunIO } from '../../client/_internal/job';
@@ -115,6 +116,8 @@ export const run = async ({
     documentName: previous.title,
     newDocumentName: next.title,
     notice,
+    // A página da nova versão (só leitura): remetente e destinatários das duas versões abrem.
+    invoiceUrl: `${assetBaseUrl}${invoiceViewPath(newEnvelopeId)}`,
     assetBaseUrl,
   });
 

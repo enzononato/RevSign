@@ -4,6 +4,7 @@ import { DocumentStatus, RevalleFinanceStatus } from '@prisma/client';
 import { createElement } from 'react';
 
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../../constants/app';
+import { invoiceViewPath } from '../../../revalle/finance/finance-status';
 import { getEmailContext } from '../../../server-only/email/get-email-context';
 import { listFinanceMemberEmails } from '../../../server-only/revalle/finance/members';
 import { renderEmailWithI18N } from '../../../utils/render-email-with-i18n';
@@ -70,7 +71,8 @@ export const run = async ({
     documentName: envelope.title,
     senderName: envelope.user.name || envelope.user.email,
     senderEmail: envelope.user.email,
-    invoicesUrl: `${assetBaseUrl}/notas-fiscais`,
+    // A página da NF (só leitura), onde fica o cartão do Financeiro com "Definir conta e enviar".
+    invoiceUrl: `${assetBaseUrl}${invoiceViewPath(envelopeId)}`,
     assetBaseUrl,
   });
 

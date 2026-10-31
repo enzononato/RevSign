@@ -4,6 +4,7 @@ import { DocumentStatus, RevalleFinanceStatus } from '@prisma/client';
 import { createElement } from 'react';
 
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../../constants/app';
+import { invoiceViewPath } from '../../../revalle/finance/finance-status';
 import { getEmailContext } from '../../../server-only/email/get-email-context';
 import { listFinanceMemberEmails } from '../../../server-only/revalle/finance/members';
 import { renderEmailWithI18N } from '../../../utils/render-email-with-i18n';
@@ -12,9 +13,6 @@ import type { TRevalleSendFinanceApprovalEmailJobDefinition } from './revalle-se
 
 export const buildFinanceApprovalSubject = (title: string) =>
   `Nota fiscal aguardando aprovação do Financeiro: ${title}`;
-
-// A página da NF só de leitura para o Financeiro vem na Task 6; até lá, a lista filtrada.
-export const FINANCE_PENDING_INVOICES_PATH = '/notas-fiscais?financeiro=pendentes';
 
 /**
  * Um e-mail por retenção da selagem, para todos os membros do Financeiro (num envio só). A marca `approvalRequestedAt`
@@ -81,7 +79,8 @@ export const run = async ({
     senderName: envelope.user.name || envelope.user.email,
     senderEmail: envelope.user.email,
     account: account ? `${choiceCode} – ${account.name}` : (choiceCode ?? '-'),
-    invoicesUrl: `${assetBaseUrl}${FINANCE_PENDING_INVOICES_PATH}`,
+    // A página da NF (só leitura), onde fica o cartão do Financeiro com "Aprovar conta".
+    invoiceUrl: `${assetBaseUrl}${invoiceViewPath(envelopeId)}`,
     assetBaseUrl,
   });
 

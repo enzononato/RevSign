@@ -1,5 +1,11 @@
 import { kyselyPrisma, sql } from '@documenso/prisma';
-import { DocumentStatus, EnvelopeType, RecipientRole, SigningStatus } from '@prisma/client';
+import {
+  DocumentStatus,
+  EnvelopeType,
+  RecipientRole,
+  RevalleInvoiceStatus, // REVALLE:
+  SigningStatus,
+} from '@prisma/client';
 
 import type { FindResultResponse } from '../../types/search-params';
 
@@ -15,6 +21,8 @@ export type AdminUnsealedDocument = {
   ownerName: string | null;
   ownerEmail: string;
   lastSignedAt: Date | null;
+  // REVALLE: situação no Financeiro (NF retida esperando aprovação, versão substituída): não é documento travado.
+  revalleFinanceStatus: string | null;
 };
 
 export type AdminFindUnsealedDocumentsOptions = {
@@ -79,6 +87,25 @@ export const adminFindUnsealedDocuments = async ({
           .whereRef('Recipient.envelopeId', '=', 'Envelope.id')
           .select(sql<Date>`max("Recipient"."signedAt")`.as('lastSignedAt'))
           .as('lastSignedAt'),
+      )
+      // REVALLE: estado da NF no Financeiro (só NFs; com alguém recusado, nulo: a recusa sela como no upstream).
+      .select((eb) =>
+        eb
+          .selectFrom('RevalleInvoiceClassification')
+          .whereRef('RevalleInvoiceClassification.envelopeId', '=', 'Envelope.id')
+          .where('RevalleInvoiceClassification.isInvoice', '=', sql.lit(RevalleInvoiceStatus.YES))
+          .where((inner) =>
+            inner.not(
+              inner.exists(
+                inner
+                  .selectFrom('Recipient')
+                  .whereRef('Recipient.envelopeId', '=', 'Envelope.id')
+                  .where('Recipient.signingStatus', '=', sql.lit(SigningStatus.REJECTED)),
+              ),
+            ),
+          )
+          .select(sql<string | null>`"RevalleInvoiceClassification"."financeStatus"::text`.as('revalleFinanceStatus'))
+          .as('revalleFinanceStatus'),
       )
       .orderBy('Envelope.createdAt', 'desc')
       .limit(perPage)

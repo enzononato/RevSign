@@ -1,4 +1,5 @@
-import { INVOICE_LIST_STATUSES, ZInvoiceFiltersSchema } from '@documenso/lib/revalle/invoice/invoice-filters';
+import { FINANCE_STATUSES } from '@documenso/lib/revalle/finance/finance-status';
+import { INVOICE_ROW_STATUSES, ZInvoiceFiltersSchema } from '@documenso/lib/revalle/invoice/invoice-filters';
 import { z } from 'zod';
 
 export const ZFindInvoicesRequestSchema = ZInvoiceFiltersSchema.extend({
@@ -11,15 +12,19 @@ export const ZInvoiceListRowSchema = z.object({
   title: z.string(),
   senderName: z.string(),
   senderEmail: z.string(),
-  sentAt: z.date(),
+  /** Nula para o rascunho que está com o Financeiro (ainda não enviado). */
+  sentAt: z.date().nullable(),
   completedAt: z.date().nullable(),
-  status: z.enum(INVOICE_LIST_STATUSES),
+  status: z.enum(INVOICE_ROW_STATUSES),
   deleted: z.boolean(),
   account: z.object({ code: z.string(), name: z.string().nullable() }).nullable(),
   accountKind: z.enum(['PAYABLE', 'RECEIVABLE']).nullable(),
   deferred: z.boolean(),
   suggestion: z.object({ code: z.string(), confidence: z.string() }).nullable(),
   acceptedSuggestion: z.boolean().nullable(),
+  financeStatus: z.enum(FINANCE_STATUSES).nullable(),
+  version: z.number(),
+  approvedBy: z.string().nullable(),
   link: z.string().nullable(),
 });
 

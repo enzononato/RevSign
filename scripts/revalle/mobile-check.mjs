@@ -16,7 +16,11 @@
 // NF v1 no editor antigo (o bloco da NF no topo), o link discreto "Marcar como nota fiscal" num documento comum já
 // enviado (o cartão só aparece depois de marcar) e o cartão com a pergunta numa NF escaneada enviada sem resposta.
 // Fase 6: quem assina essa NF enviada (portão com a Maria fictícia) vê, no celular, o bloco "Nota fiscal · Conta
-// contábil: {código} – {nome}" acima do documento.
+// contábil: {código} – {nome}" acima do documento. Com a sessão de um membro do Financeiro (REVSIGN_ADMIN_EMAIL/
+// REVSIGN_ADMIN_PASSWORD, o rsadmin, marcado como Financeiro aqui), a página da NF só de leitura com o cartão
+// "Financeiro" (prévia do PDF, "Aprovar conta" e o diálogo de confirmação, "Trocar conta" com a lista e o motivo), o
+// cartão "Definir conta e enviar" de uma NF retida e a página "Notas fiscais" no filtro "Aguardando o Financeiro".
+// Nada é aprovado nem trocado: os diálogos são abertos e cancelados.
 // Em cada passo tira um print e confere:
 //   - sem rolagem horizontal (document.scrollingElement.scrollWidth <= 360);
 //   - todo botão visível (button / role=button) com altura >= 44 px;
@@ -220,6 +224,53 @@ const runHost = async () => {
 
     await distribute(sentScanned.id);
     senderEnv.SENT_SCANNED_URL = `${BASE_URL}/t/${teamUrl}/documents/${sentScanned.id}`;
+
+    // Fase 6: o Financeiro (rsadmin, marcado aqui) na página da NF enviada (aguardando aprovação) e numa NF retida.
+    if (process.env.REVSIGN_ADMIN_EMAIL && process.env.REVSIGN_ADMIN_PASSWORD) {
+      const financeCookie = await signIn(process.env.REVSIGN_ADMIN_EMAIL, process.env.REVSIGN_ADMIN_PASSWORD);
+      const financeId = Number(db(`select id from "User" where email = '${process.env.REVSIGN_ADMIN_EMAIL}'`));
+      const marked = await trpcAs(financeCookie, 'mutation', 'revalle.finance.adminSetMember', {
+        userId: financeId,
+        member: true,
+      });
+
+      if (marked.status !== 200) {
+        throw new Error(`marcar o Financeiro: HTTP ${marked.status} ${marked.text}`);
+      }
+
+      const held = await createEnvelope({
+        title: `[TESTE NF] Celular retida ${new Date().toISOString()}`,
+        pdf: await writeInvoiceFixture(outDir),
+        recipients: [{ email: `celular-nf-retida-${Date.now()}@revalle.com.br`, name: 'Teste' }],
+      });
+
+      if (held.status !== 200) {
+        throw new Error(`criar nota retida: HTTP ${held.status} ${held.text}`);
+      }
+
+      const deferred = await trpcAs(senderEnv.SENDER_COOKIE, 'mutation', 'revalle.invoice.setChoice', {
+        envelopeId: held.id,
+        choice: { defer: true },
+      });
+
+      if (deferred.status !== 200) {
+        throw new Error(`deixar a nota para o Financeiro: HTTP ${deferred.status} ${deferred.text}`);
+      }
+
+      const { api } = await import('./tests/helpers.mjs');
+      const holdSend = await api('POST', '/envelope/distribute', { envelopeId: held.id });
+
+      if (holdSend.status !== 409) {
+        throw new Error(`a nota deixada para o Financeiro não ficou retida: HTTP ${holdSend.status}`);
+      }
+
+      senderEnv.FINANCE_COOKIE = financeCookie;
+      senderEnv.FINANCE_NF_URL = `${BASE_URL}/notas-fiscais/${sentNf.id}`;
+      senderEnv.FINANCE_HELD_URL = `${BASE_URL}/notas-fiscais/${held.id}`;
+      console.log(`- Financeiro: página da NF ${sentNf.id} e da NF retida ${held.id}`);
+    } else {
+      console.log('- sem REVSIGN_ADMIN_EMAIL/REVSIGN_ADMIN_PASSWORD: passos do Financeiro pulados');
+    }
   } else {
     console.log('- sem REVSIGN_USER_EMAIL/REVSIGN_USER_PASSWORD: passo da nota fiscal pulado');
   }
@@ -703,6 +754,109 @@ const runBrowser = async () => {
       console.log(`FALHA no passo da conta ao assinar: ${error}`);
     } finally {
       await nfContext.close();
+    }
+  }
+
+  // 0c. Fase 6: o Financeiro no celular (página da NF só de leitura, cartão, diálogos, NF retida, lista).
+  if (process.env.FINANCE_COOKIE && process.env.FINANCE_NF_URL) {
+    const financeContext = await browser.newContext({
+      viewport: { width: WIDTH, height: HEIGHT },
+      deviceScaleFactor: 2,
+      isMobile: true,
+      hasTouch: true,
+      locale: 'pt-BR',
+    });
+    const fin = await financeContext.newPage();
+    const financeUrl = new URL(process.env.FINANCE_NF_URL);
+
+    fin.setDefaultTimeout(30_000);
+    await financeContext.addCookies(
+      process.env.FINANCE_COOKIE.split('; ').map((pair) => {
+        const index = pair.indexOf('=');
+
+        return { name: pair.slice(0, index), value: pair.slice(index + 1), url: financeUrl.origin };
+      }),
+    );
+
+    try {
+      await fin.goto(financeUrl.href, { waitUntil: 'networkidle' });
+
+      const card = fin.getByTestId('finance-card');
+
+      await card.getByRole('button', { name: 'Aprovar conta' }).waitFor();
+      await card.getByText('Aguardando aprovação', { exact: true }).waitFor();
+      // A prévia do PDF (visualizador do upstream) carrega dentro da largura da tela.
+      await fin
+        .locator('[data-testid="invoice-view-page"] img, [data-testid="invoice-view-page"] canvas')
+        .first()
+        .waitFor({
+          timeout: 60_000,
+        });
+      await check('00k-nf-financeiro', fin, '[data-testid="invoice-view-page"]', { pageScroll: true });
+
+      await card.scrollIntoViewIfNeeded();
+      await check('00k2-nf-cartao-financeiro', fin, '[data-testid="finance-card"]');
+
+      await card.getByRole('button', { name: 'Aprovar conta' }).click();
+
+      const approveDialog = fin.getByTestId('finance-approve-dialog');
+
+      await approveDialog.getByText('Aprovar a conta?').waitFor();
+      await check('00l-nf-aprovar-confirmar', fin, '[data-testid="finance-approve-dialog"]');
+      await approveDialog.getByRole('button', { name: 'Cancelar' }).click();
+      await approveDialog.waitFor({ state: 'detached' });
+
+      await card.getByRole('button', { name: 'Trocar conta' }).click();
+
+      const changeDialog = fin.getByTestId('finance-change-dialog');
+
+      await changeDialog.getByLabel('Motivo da troca').fill('Conta errada: era serviço, não mercadoria.');
+      await changeDialog
+        .getByTestId('finance-change-counter')
+        .getByText(/^42 de 500 caracteres/)
+        .waitFor();
+      await check('00m-nf-trocar-conta', fin, '[data-testid="finance-change-dialog"]');
+
+      // Escolhida a conta, "Continuar" leva à confirmação ("Todos vão assinar de novo uma nova versão.").
+      const option = changeDialog.locator('ul button').first();
+
+      if ((await option.count()) > 0) {
+        await option.click();
+        await changeDialog.getByRole('button', { name: 'Continuar' }).click();
+        await changeDialog.getByText('Todos vão assinar de novo uma nova versão.', { exact: false }).waitFor();
+        await check('00m2-nf-trocar-confirmar', fin, '[data-testid="finance-change-dialog"]');
+        await changeDialog.getByRole('button', { name: 'Voltar' }).click();
+      }
+
+      await changeDialog.getByRole('button', { name: 'Cancelar' }).click();
+      await changeDialog.waitFor({ state: 'detached' });
+
+      // NF retida ("Deixar para o Financeiro"): o cartão com a lista e "Definir conta e enviar".
+      await fin.goto(process.env.FINANCE_HELD_URL, { waitUntil: 'networkidle' });
+
+      const heldCard = fin.getByTestId('finance-card');
+
+      await heldCard.getByRole('button', { name: 'Definir conta e enviar' }).waitFor();
+      await heldCard.scrollIntoViewIfNeeded();
+      await check('00n-nf-definir-conta', fin, '[data-testid="finance-card"]');
+
+      // Lista: o Financeiro começa em "Aguardando o Financeiro"; a tabela rola dentro do quadro, nunca a página.
+      await fin.goto(`${financeUrl.origin}/notas-fiscais`, { waitUntil: 'networkidle' });
+
+      const select = fin.locator('#invoices-finance');
+
+      if ((await select.inputValue()) !== 'pendentes') {
+        throw new Error('a lista do Financeiro não começou em "Aguardando o Financeiro"');
+      }
+
+      await fin.getByTestId('invoices-page').locator('tbody tr').first().waitFor();
+      await check('00o-notas-fiscais-financeiro', fin, '[data-testid="invoices-page"]', { pageScroll: true });
+    } catch (error) {
+      await fin.screenshot({ path: `${out}/erro-financeiro.png` }).catch(() => {});
+      steps.push({ step: 'financeiro', scrollWidth: null, problems: [{ kind: 'flow-error', detail: String(error) }] });
+      console.log(`FALHA no passo do Financeiro: ${error}`);
+    } finally {
+      await financeContext.close();
     }
   }
 

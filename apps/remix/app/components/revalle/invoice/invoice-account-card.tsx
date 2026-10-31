@@ -1,11 +1,13 @@
 import { useSession } from '@documenso/lib/client-only/providers/session';
 import { DO_NOT_INVALIDATE_QUERY_ON_MUTATION } from '@documenso/lib/constants/trpc';
+import { invoiceViewPath } from '@documenso/lib/revalle/finance/finance-status';
 import { isAdmin } from '@documenso/lib/utils/is-admin';
 import { trpc } from '@documenso/trpc/react';
 import { Button } from '@documenso/ui/primitives/button';
 import { useToast } from '@documenso/ui/primitives/use-toast';
 import { Trans, useLingui } from '@lingui/react/macro';
 import { DocumentStatus } from '@prisma/client';
+import { Link } from 'react-router';
 
 import { AccountCombobox } from './account-combobox';
 
@@ -15,7 +17,8 @@ export type InvoiceAccountCardProps = {
 
 /**
  * "Conta contábil" na página do documento já enviado (inclusive concluído), só para o dono e o admin.
- * - NF com conta: só leitura (Fase 6: depois do envio, quem troca a conta é o Financeiro), com o estado no Financeiro.
+ * - NF com conta: só leitura (Fase 6: depois do envio, quem troca a conta é o Financeiro), com o estado no Financeiro;
+ *   substituída (o Financeiro trocou a conta), com o link para a nova versão.
  * - NF sem conta (marcada depois do envio): a lista já vem aberta, até a primeira escolha.
  * - Enviado (pendente ou concluído) sem resposta a "É nota fiscal?" (UNKNOWN, ex.: NF escaneada enviada pela API): o
  *   cartão com a pergunta e "Marcar como nota fiscal".
@@ -164,6 +167,21 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
         <p className="text-muted-foreground text-sm">
           <Trans>Aprovada pelo Financeiro</Trans>
         </p>
+      )}
+
+      {state.financeStatus === 'SUPERSEDED' && (
+        <>
+          <p className="text-muted-foreground text-sm" data-testid="invoice-account-superseded">
+            <Trans>Substituída: o Financeiro trocou a conta e criou uma nova versão, que todos assinam de novo.</Trans>
+          </p>
+          {state.supersededByEnvelopeId && (
+            <Button asChild variant="outline" className="h-11 w-full whitespace-normal sm:w-auto sm:self-start">
+              <Link to={invoiceViewPath(state.supersededByEnvelopeId)}>
+                <Trans>Abrir a nova versão</Trans>
+              </Link>
+            </Button>
+          )}
+        </>
       )}
 
       {!state.choice && (

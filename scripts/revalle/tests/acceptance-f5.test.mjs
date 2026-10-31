@@ -77,8 +77,9 @@ const ACCOUNTS_CSV = [
   'numero;nome;descricao;tipo',
   ...ACCOUNTS.map((a) => `${a.code};${a.name};Conta do aceite da Fase 5;${a.kind}`),
 ].join('\n');
+// Fase 6: `financeiro;aprovado_por` no fim do cabeçalho.
 const HEADER =
-  'id;titulo;remetente;enviado_em;concluido_em;status;conta;nome_conta;tipo;sugestao_ia;confianca;aceitou_sugestao;link';
+  'id;titulo;remetente;enviado_em;concluido_em;status;conta;nome_conta;tipo;sugestao_ia;confianca;aceitou_sugestao;link;financeiro;aprovado_por';
 
 const tmp = mkdtempSync(path.join(tmpdir(), 'revsign-aceite-f5-'));
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -520,14 +521,14 @@ testStep(
     assert.equal(outsider.count, 0);
     assert.deepEqual(outsider.data, []);
 
-    // Signatário de uma NF (pelo e-mail): vê só essa, sem link de editor.
+    // Signatário de uma NF (pelo e-mail): vê só essa, sem link de editor (Fase 6: o link é a página da NF, só leitura).
     const colleague = await find(fx.colleague.cookie);
 
     assert.deepEqual(
       colleague.data.map((row) => row.id),
       [fx.danfe.id],
     );
-    assert.equal(colleague.data[0].link, null);
+    assert.equal(colleague.data[0].link, `/notas-fiscais/${fx.danfe.id}`);
 
     const all = await find(adminCookie);
     const adminIds = all.data.map((row) => row.id);
@@ -535,7 +536,8 @@ testStep(
     assert.ok(all.count >= 2);
     assert.ok(adminIds.includes(fx.danfe.id) && adminIds.includes(fx.nfse.id), 'o admin não vê as NFs do remetente');
     assert.ok(!adminIds.includes(fx.contract.id), 'contrato comum não é nota fiscal');
-    assert.equal(all.data.find((row) => row.id === fx.danfe.id).link, `/admin/documents/${fx.danfe.id}`);
+    // Fase 6: o admin dos testes é do Financeiro, e o Financeiro abre a página da NF (que leva ao painel do admin).
+    assert.equal(all.data.find((row) => row.id === fx.danfe.id).link, `/notas-fiscais/${fx.danfe.id}`);
 
     // Filtros.
     const ids = async (input) => (await find(fx.sender.cookie, input)).data.map((row) => row.id);
@@ -776,12 +778,12 @@ testStep(
     );
     assert.ok(!(await csv(fx.sender.cookie)).text.includes(fx.nfse.id));
 
-    // Admin: continua vendo, com a marca e o link do painel.
+    // Admin: continua vendo, com a marca (e o link da página da NF, por ser do Financeiro nos testes).
     const row = (await find(adminCookie, { deferred: true })).data.find((r) => r.id === fx.nfse.id);
 
     assert.ok(row, 'o admin não vê a NF excluída');
     assert.equal(row.deleted, true);
-    assert.equal(row.link, `/admin/documents/${fx.nfse.id}`);
+    assert.equal(row.link, `/notas-fiscais/${fx.nfse.id}`);
     assert.equal(
       (await find(adminCookie, { deferred: true })).data.find((r) => r.id === fx.danfe.id),
       undefined,

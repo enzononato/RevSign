@@ -2,7 +2,7 @@ import { msg } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
 
-import { Body, Container, Head, Hr, Html, Preview, Section, Text } from '../components';
+import { Body, Button, Container, Head, Hr, Html, Preview, Section, Text } from '../components';
 import { TemplateBrandingLogo } from '../template-components/template-branding-logo';
 import { TemplateDocumentImage } from '../template-components/template-document-image';
 import { TemplateFooter } from '../template-components/template-footer';
@@ -13,6 +13,8 @@ export type RevalleFinanceAccountChangedTemplateProps = {
   newDocumentName: string;
   /** Texto exato do aviso (`buildAccountChangeNotice`), com as contas e o motivo. */
   notice: string;
+  /** Página da nova versão (só leitura). */
+  invoiceUrl: string;
   assetBaseUrl: string;
 };
 
@@ -20,6 +22,7 @@ export const RevalleFinanceAccountChangedTemplate = ({
   documentName = 'Nota fiscal.pdf',
   newDocumentName = 'Nota fiscal.pdf (v2)',
   notice = 'A conta contábil da nota fiscal Nota fiscal.pdf foi alterada pelo Financeiro de 2.1.03 – Fornecedores para 3.1.01 – Serviços de terceiros. Motivo: Conta de serviço, não de material.',
+  invoiceUrl = 'http://localhost:3000/notas-fiscais/envelope_exemplo',
   assetBaseUrl = 'http://localhost:3002',
 }: Partial<RevalleFinanceAccountChangedTemplateProps>) => {
   const { _ } = useLingui();
@@ -52,6 +55,15 @@ export const RevalleFinanceAccountChangedTemplate = ({
                   assinada de novo por todos; o convite chega em outro e-mail.
                 </Trans>
               </Text>
+
+              <Section className="mt-6 mb-4 text-center">
+                <Button
+                  className="inline-flex items-center justify-center rounded-lg bg-primary px-6 py-3 text-center font-medium text-base text-primary-foreground no-underline"
+                  href={invoiceUrl}
+                >
+                  <Trans>Abrir a nova versão</Trans>
+                </Button>
+              </Section>
             </Section>
           </Container>
 

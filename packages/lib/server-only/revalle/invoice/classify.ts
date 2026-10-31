@@ -37,6 +37,8 @@ export type InvoiceState = {
    * enviar") falhou. A conta continua travada, mas o rascunho pode ser enviado por quem tem acesso a ele.
    */
   isFinanceSendReleased: boolean;
+  /** Versão substituída: a nova versão (com a conta trocada pelo Financeiro), para o cartão do remetente apontar. */
+  supersededByEnvelopeId: string | null;
   aiAvailable: boolean;
 };
 
@@ -109,6 +111,8 @@ export const toInvoiceState = async (row: RevalleInvoiceClassification): Promise
     choice,
     financeStatus: row.financeStatus,
     isFinanceSendReleased: row.financeStatus === RevalleFinanceStatus.APPROVED && row.approvedAt === null,
+    supersededByEnvelopeId:
+      row.financeStatus === RevalleFinanceStatus.SUPERSEDED ? (row.supersededByEnvelopeId ?? null) : null,
     aiAvailable: getRevalleInvoiceAiConfig().status === 'CONFIGURED',
   };
 };
@@ -155,6 +159,7 @@ const unclassifiedState = (): InvoiceState => ({
   choice: null,
   financeStatus: null,
   isFinanceSendReleased: false,
+  supersededByEnvelopeId: null,
   aiAvailable: getRevalleInvoiceAiConfig().status === 'CONFIGURED',
 });
 

@@ -282,11 +282,27 @@ Vale para quem atualiza uma instalação que já está em uso. A Fase 5 traz a n
    - `NEXT_PRIVATE_REVALLE_GEMINI_MODEL`: só para trocar o modelo (padrão `gemini-3.6-flash`);
    - `NEXT_PRIVATE_REVALLE_INVOICE_AI=disabled`: só para desligar a sugestão sem apagar a chave.
    **Nunca** defina `NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL` (é só dos testes).
-3. **Logo depois de atualizar, importe a lista de contas.** Enquanto a lista estiver vazia, o remetente de uma nota fiscal só consegue "Deixar para a contabilidade decidir". No site, com a conta de administrador: **Admin → Contas contábeis** → envie o CSV (`notas-fiscais.md`, seção 1) → **Aplicar**.
+3. **Logo depois de atualizar, importe a lista de contas.** Enquanto a lista estiver vazia, o remetente de uma nota fiscal só consegue "Deixar para a contabilidade decidir" (desde a Fase 6, "Deixar para o Financeiro"). No site, com a conta de administrador: **Admin → Contas contábeis** → envie o CSV (`notas-fiscais.md`, seção 1) → **Aplicar**.
 4. **Prompt e e-mail da contabilidade.** Na mesma tela, escreva o prompt (as regras da empresa para escolher a conta) e o **E-mail da contabilidade**, e clique em **Salvar**. Sem e-mail, ninguém recebe o PDF das notas concluídas.
 5. **Conferência.** Na tela de admin, a linha de estado deve dizer "Gemini configurado (modelo …)". Envie uma nota fiscal de teste: o diálogo de envio mostra o bloco "Nota fiscal · Conta contábil" com a sugestão; depois de assinada, ela aparece no menu **Notas fiscais** e a contabilidade recebe o e-mail.
 6. **Avise os remetentes** de que notas fiscais enviadas pela API ou por modelo precisam ser terminadas na tela (seção abaixo).
 7. **NFs enviadas antes desta atualização não têm classificação.** Elas não aparecem no menu **Notas fiscais** nem na planilha, e a contabilidade não recebe e-mail delas. Se precisar de uma delas no fluxo, o dono (ou o admin) abre a página do documento e clica em "É uma nota fiscal? **Marcar como nota fiscal**" e escolhe a conta; se ela já estiver concluída, a contabilidade recebe o e-mail quando a conta for escolhida.
+
+## Antes de atualizar (Fase 6)
+
+Vale para quem atualiza uma instalação que já está em uso. A Fase 6 faz toda nota fiscal passar pelo **Financeiro**: alguém do Financeiro aprova a conta (só então a NF é concluída e vai para a contabilidade) ou troca a conta com o motivo, o que cria uma nova versão que todos assinam de novo. O guia completo está em `notas-fiscais.md`, seção 9.
+
+1. **Backup antes** (seção "Backup antes de atualizar"). As migrações abaixo rodam sozinhas na subida e só ACRESCENTAM tabelas, colunas e um tipo; nenhuma apaga dados:
+   - `20261101100000_revalle_finance` (quem é do Financeiro, a situação de cada NF no Financeiro e as versões). Ela marca como **antiga** (`LEGACY`) toda NF que já existe;
+   - `20261101103000_revalle_finance_account_request` (quando saiu o aviso "aguardando o Financeiro");
+   - `20261101110000_revalle_finance_approval_request` (quando saiu o pedido de aprovação);
+   - `20261101120000_revalle_proof_invoice_account` (a conta vista por quem assinou, na prova de cada assinatura);
+   - `20261101130000_revalle_finance_approved_name` (o nome da conta no momento da aprovação, para o certificado).
+2. **Marque quem é do Financeiro ANTES de atualizar, ou logo depois.** Com a versão nova no ar, toda NF enviada espera a aprovação e os avisos vão para os membros do Financeiro: sem ninguém marcado, ninguém é avisado (as NFs ficam esperando; a tela **Admin → Financeiro** mostra um alerta). Como a tela só existe na versão nova, o caminho é: atualizar, entrar com a conta de administrador, abrir **Admin → Financeiro**, buscar cada pessoa e marcar **Financeiro**. Faça isso logo depois da subida, antes de os remetentes voltarem a enviar notas.
+3. **NFs já enviadas continuam como antes.** Toda NF que existia na atualização fica como **antiga** (`LEGACY`): as pendentes concluem sem aprovação (e vão para a contabilidade como antes), e as concluídas não mudam. Só as NFs **enviadas depois** da atualização passam pelo Financeiro. Um **rascunho** de NF que já existia passa pelo Financeiro quando for enviado.
+4. **Avise os remetentes**: a opção "Deixar para a contabilidade decidir" virou **Deixar para o Financeiro**, e ela **retém o envio** (nada sai até o Financeiro definir a conta). Depois do envio, quem troca a conta é o Financeiro.
+5. **Pela API**: enviar uma NF deixada para o Financeiro responde **409** `INVOICE_HELD_FOR_FINANCE` (seção abaixo). As ações do Financeiro (`revalle.finance.approve`, `changeAccount`, `defineAccount`) são só da sessão de quem é do Financeiro; quem não é recebe **403**.
+6. **Conferência.** Envie uma NF de teste com uma conta e assine: ela fica pendente e os membros recebem "Nota fiscal aguardando aprovação do Financeiro: {título}". O botão do e-mail abre a página da NF; clique em **Aprovar conta**: o documento é concluído e a contabilidade recebe o e-mail. O certificado traz "Conta contábil: … · aprovada pelo Financeiro (…) em …".
 
 ## Notas fiscais enviadas pela API ou por modelo (Fase 5)
 

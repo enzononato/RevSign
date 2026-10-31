@@ -4600,9 +4600,6 @@ msgstr "Remetente"
 msgid "sem sugestão"
 msgstr "sem sugestão"
 
-msgid "Só as deixadas para a contabilidade"
-msgstr "Só as deixadas para a contabilidade"
-
 msgid "Sugestão aceita?"
 msgstr "Sugestão aceita?"
 
@@ -4674,9 +4671,6 @@ msgstr "A definir pelo Financeiro"
 
 msgid "A definir pelo Financeiro."
 msgstr "A definir pelo Financeiro."
-
-msgid "Abrir Notas fiscais"
-msgstr "Abrir Notas fiscais"
 
 msgid "Aguardando aprovação do Financeiro"
 msgstr "Aguardando aprovação do Financeiro"
@@ -4773,3 +4767,201 @@ msgstr "Nota fiscal · Conta contábil: {label}"
 
 msgid "Você receberá o documento assinado por e-mail quando for aprovado."
 msgstr "Você receberá o documento assinado por e-mail quando for aprovado."
+
+msgid "(confiança {0})"
+msgstr "(confiança {0})"
+
+msgid "A conta já está aprovada, mas o documento ainda não foi enviado. Se o envio falhou, corrija o problema e envie de novo (mesma conta)."
+msgstr "A conta já está aprovada, mas o documento ainda não foi enviado. Se o envio falhou, corrija o problema e envie de novo (mesma conta)."
+
+msgid "Abrir a nova versão"
+msgstr "Abrir a nova versão"
+
+msgid "Aprovada por"
+msgstr "Aprovada por"
+
+msgid "Aprovar a conta?"
+msgstr "Aprovar a conta?"
+
+msgid "Aprovar conta"
+msgstr "Aprovar conta"
+
+msgid "Conta aprovada."
+msgstr "Conta aprovada."
+
+msgid "Conta atual: {0}. Escolha a nova conta e escreva o motivo."
+msgstr "Conta atual: {0}. Escolha a nova conta e escreva o motivo."
+
+msgid "Conta definida. O documento foi enviado para assinatura."
+msgstr "Conta definida. O documento foi enviado para assinatura."
+
+msgid "Conta escolhida: {0} – {1}"
+msgstr "Conta escolhida: {0} – {1}"
+
+msgid "Conta trocada, mas a nova versão não foi enviada"
+msgstr "Conta trocada, mas a nova versão não foi enviada"
+
+msgid "Conta trocada. A nova versão foi enviada para todos assinarem de novo."
+msgstr "Conta trocada. A nova versão foi enviada para todos assinarem de novo."
+
+msgid "Conta: {account}. Depois de aprovada, a nota fiscal é concluída quando todos tiverem assinado (se todos já assinaram, na hora)."
+msgstr "Conta: {account}. Depois de aprovada, a nota fiscal é concluída quando todos tiverem assinado (se todos já assinaram, na hora)."
+
+msgid "De {0} para {1} – {2}."
+msgstr "De {0} para {1} – {2}."
+
+msgid "Definir conta e enviar"
+msgstr "Definir conta e enviar"
+
+msgid "Enviado de novo para assinatura."
+msgstr "Enviado de novo para assinatura."
+
+msgid "Enviar de novo"
+msgstr "Enviar de novo"
+
+msgid "Envio em andamento. Aguarde um instante."
+msgstr "Envio em andamento. Aguarde um instante."
+
+msgid "Este documento já tinha sido enviado."
+msgstr "Este documento já tinha sido enviado."
+
+msgid "Motivo da troca"
+msgstr "Motivo da troca"
+
+msgid "Nova conta: {0} – {1}"
+msgstr "Nova conta: {0} – {1}"
+
+msgid "Não foi possível carregar o Financeiro. Tente de novo."
+msgstr "Não foi possível carregar o Financeiro. Tente de novo."
+
+msgid "Não foi possível concluir."
+msgstr "Não foi possível concluir."
+
+msgid "O remetente deixou a conta para o Financeiro. Escolha a conta: o documento é enviado na hora, com a conta já aprovada."
+msgstr "O remetente deixou a conta para o Financeiro. Escolha a conta: o documento é enviado na hora, com a conta já aprovada."
+
+msgid "Quem escolheu"
+msgstr "Quem escolheu"
+
+msgid "Sem sugestão"
+msgstr "Sem sugestão"
+
+msgid "Sugestão da IA"
+msgstr "Sugestão da IA"
+
+msgid "Todos vão assinar de novo uma nova versão. A versão atual deixa de valer, e o remetente e quem assina recebem um aviso com o motivo."
+msgstr "Todos vão assinar de novo uma nova versão. A versão atual deixa de valer, e o remetente e quem assina recebem um aviso com o motivo."
+
+msgid "Trocar a conta?"
+msgstr "Trocar a conta?"
+
+msgid "Trocar conta"
+msgstr "Trocar conta"
+
+msgid "Voltar"
+msgstr "Voltar"
+
+msgid "{reasonLength} de {CHANGE_REASON_MAX} caracteres (mínimo {CHANGE_REASON_MIN})"
+msgstr "{reasonLength} de {CHANGE_REASON_MAX} caracteres (mínimo {CHANGE_REASON_MIN})"
+
+msgid "Aguardando o Financeiro"
+msgstr "Aguardando o Financeiro"
+
+msgid "Versão substituída"
+msgstr "Versão substituída"
+
+msgid "Substituída: o Financeiro trocou a conta e criou uma nova versão, que todos assinam de novo."
+msgstr "Substituída: o Financeiro trocou a conta e criou uma nova versão, que todos assinam de novo."
+
+msgid "Abrir a página do documento"
+msgstr "Abrir a página do documento"
+
+msgid "Abrir no painel do admin"
+msgstr "Abrir no painel do admin"
+
+msgid "Ainda não assinou"
+msgstr "Ainda não assinou"
+
+msgid "Aprovou em {at}"
+msgstr "Aprovou em {at}"
+
+msgid "Assinou em {at}"
+msgstr "Assinou em {at}"
+
+msgid "Concluído em {0}"
+msgstr "Concluído em {0}"
+
+msgid "Criado em {0}"
+msgstr "Criado em {0}"
+
+msgid "Destinatários"
+msgstr "Destinatários"
+
+msgid "Erro 404"
+msgstr "Erro 404"
+
+msgid "Esta nota fiscal não existe ou você não tem acesso a ela."
+msgstr "Esta nota fiscal não existe ou você não tem acesso a ela."
+
+msgid "Esta versão foi substituída (conta contábil alterada pelo Financeiro)."
+msgstr "Esta versão foi substituída (conta contábil alterada pelo Financeiro)."
+
+msgid "Informações"
+msgstr "Informações"
+
+msgid "Motivo: {0}"
+msgstr "Motivo: {0}"
+
+msgid "Nenhum destinatário."
+msgstr "Nenhum destinatário."
+
+msgid "Nota fiscal"
+msgstr "Nota fiscal"
+
+msgid "Nota fiscal não encontrada"
+msgstr "Nota fiscal não encontrada"
+
+msgid "Nova versão: {0}"
+msgstr "Nova versão: {0}"
+
+msgid "Recebe uma cópia"
+msgstr "Recebe uma cópia"
+
+msgid "Recusou"
+msgstr "Recusou"
+
+msgid "Remetente: {0} ({1})"
+msgstr "Remetente: {0} ({1})"
+
+msgid "Versão anterior: {0}"
+msgstr "Versão anterior: {0}"
+
+msgid "Versão {0}"
+msgstr "Versão {0}"
+
+msgid "Versões"
+msgstr "Versões"
+
+msgid "Visualizou em {at}"
+msgstr "Visualizou em {at}"
+
+msgid "Voltar para Notas fiscais"
+msgstr "Voltar para Notas fiscais"
+
+msgid "Nenhuma nota fiscal aguardando o Financeiro."
+msgstr "Nenhuma nota fiscal aguardando o Financeiro."
+
+msgid "Situação no Financeiro"
+msgstr "Situação no Financeiro"
+
+msgid "Só as deixadas para o Financeiro"
+msgstr "Só as deixadas para o Financeiro"
+
+msgid "Versão"
+msgstr "Versão"
+
+msgid "não enviada"
+msgstr "não enviada"
+
+msgid "Abrir a nota fiscal"
+msgstr "Abrir a nota fiscal"
