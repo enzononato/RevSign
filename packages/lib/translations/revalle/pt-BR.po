@@ -4684,8 +4684,8 @@ msgstr "Aprovada pelo Financeiro"
 msgid "Conta contábil definida pelo Financeiro: {account} (já aprovada)"
 msgstr "Conta contábil definida pelo Financeiro: {account} (já aprovada)"
 
-msgid "Conta: a definir pelo Financeiro"
-msgstr "Conta: a definir pelo Financeiro"
+msgid "Conta: a definir pela contabilidade"
+msgstr "Conta: a definir pela contabilidade"
 
 msgid "deixar para o Financeiro"
 msgstr "deixar para o Financeiro"
@@ -4747,8 +4747,8 @@ msgstr "Conta contábil da nota fiscal alterada pelo Financeiro: {documentName}"
 msgid "A conta contábil de uma nota fiscal foi alterada"
 msgstr "A conta contábil de uma nota fiscal foi alterada"
 
-msgid "A versão anterior não vale mais para assinatura. A nova versão, {newDocumentName}, precisa ser assinada de novo por todos; o convite chega em outro e-mail."
-msgstr "A versão anterior não vale mais para assinatura. A nova versão, {newDocumentName}, precisa ser assinada de novo por todos; o convite chega em outro e-mail."
+msgid "A versão anterior não vale mais para assinatura. A nova versão, {newDocumentName}, precisa ser assinada de novo por todos."
+msgstr "A versão anterior não vale mais para assinatura. A nova versão, {newDocumentName}, precisa ser assinada de novo por todos."
 
 msgid "Nova versão criada pelo Financeiro com a conta contábil {to} (antes {from}). Motivo: {reason}"
 msgstr "Nova versão criada pelo Financeiro com a conta contábil {to} (antes {from}). Motivo: {reason}"
@@ -4965,3 +4965,57 @@ msgstr "não enviada"
 
 msgid "Abrir a nota fiscal"
 msgstr "Abrir a nota fiscal"
+
+msgid "A definir pela contabilidade"
+msgstr "A definir pela contabilidade"
+
+msgid "A definir pela contabilidade."
+msgstr "A definir pela contabilidade."
+
+msgid "A nova versão não existe mais: troque a conta de novo."
+msgstr "A nova versão não existe mais: troque a conta de novo."
+
+msgid "Assinar a nova versão"
+msgstr "Assinar a nova versão"
+
+msgid "Conta alterada pelo Financeiro ({financeName}) — motivo: {changeReason}"
+msgstr "Conta alterada pelo Financeiro ({financeName}) — motivo: {changeReason}"
+
+msgid "Conta definida e aprovada."
+msgstr "Conta definida e aprovada."
+
+msgid "Conta definida pelo Financeiro ({financeName})"
+msgstr "Conta definida pelo Financeiro ({financeName})"
+
+msgid "Conta: {accountLabel}. O documento é enviado agora, em nome do remetente, para todos os destinatários assinarem."
+msgstr "Conta: {accountLabel}. O documento é enviado agora, em nome do remetente, para todos os destinatários assinarem."
+
+msgid "Conta: {definedLabel}. Ela fica aprovada na hora; a nota fiscal é concluída quando todos tiverem assinado (se todos já assinaram, na hora)."
+msgstr "Conta: {definedLabel}. Ela fica aprovada na hora; a nota fiscal é concluída quando todos tiverem assinado (se todos já assinaram, na hora)."
+
+msgid "Conta: {definedLabel}. O documento é enviado agora, em nome do remetente, para todos os destinatários assinarem."
+msgstr "Conta: {definedLabel}. O documento é enviado agora, em nome do remetente, para todos os destinatários assinarem."
+
+msgid "Definir a conta e enviar?"
+msgstr "Definir a conta e enviar?"
+
+msgid "Definir e aprovar"
+msgstr "Definir e aprovar"
+
+msgid "Definir e aprovar a conta?"
+msgstr "Definir e aprovar a conta?"
+
+msgid "Enviar de novo?"
+msgstr "Enviar de novo?"
+
+msgid "Esta nota fiscal foi marcada depois do envio e ainda não tem conta. Escolha a conta: ela fica aprovada na hora, sem nova versão (ninguém viu conta ao assinar)."
+msgstr "Esta nota fiscal foi marcada depois do envio e ainda não tem conta. Escolha a conta: ela fica aprovada na hora, sem nova versão (ninguém viu conta ao assinar)."
+
+msgid "Notas fiscais assinadas aguardando a aprovação do Financeiro: {approvalCount}. Ninguém está marcado como Financeiro: marque alguém abaixo; o pedido de aprovação sai em até 15 minutos."
+msgstr "Notas fiscais assinadas aguardando a aprovação do Financeiro: {approvalCount}. Ninguém está marcado como Financeiro: marque alguém abaixo; o pedido de aprovação sai em até 15 minutos."
+
+msgid "Substitui o envio da versão anterior: {replacedTitle}"
+msgstr "Substitui o envio da versão anterior: {replacedTitle}"
+
+msgid "Verificar um documento"
+msgstr "Verificar um documento"

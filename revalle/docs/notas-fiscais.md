@@ -153,7 +153,8 @@ coluna `status` diz `excluído pelo remetente`.
 
 A lista vem da mais recente para a mais antiga pela **data de envio**.
 
-Colunas: título, remetente, data de envio, status, conta (número · nome, ou "A definir pelo Financeiro"), "Sugestão
+Colunas: título, remetente, data de envio, status, conta (número · nome, "A definir pelo Financeiro" no rascunho que
+espera o Financeiro, ou "A definir pela contabilidade" na NF de antes da Fase 6 deixada para a contabilidade), "Sugestão
 aceita?" (Sim, Não ou "sem sugestão", quando não havia sugestão na hora da escolha), **Situação no Financeiro**
 (Aguardando a conta, Aguardando aprovação, Aprovada, Substituída ou "Antiga, sem aprovação", para NF de antes da Fase
 6) e **Versão** (v1, v2…).
@@ -178,7 +179,7 @@ O arquivo abre direto no Excel (separador `;`, UTF-8 com BOM). Colunas:
 | `enviado_em` | Data e hora do envio (Brasília, `dd/mm/aaaa hh:mm`) |
 | `concluido_em` | Data e hora em que todos assinaram (vazio se ainda não concluiu) |
 | `status` | Pendente, Concluído, Recusado, Cancelado, ou `excluído pelo remetente` (só na planilha do admin) |
-| `conta` | Número da conta, ou `a definir pelo Financeiro` (NF de antes da Fase 6 deixada para a contabilidade) |
+| `conta` | Número da conta; `a definir pela contabilidade` (NF de antes da Fase 6 deixada para a contabilidade) ou `a definir pelo Financeiro` (rascunho esperando o Financeiro) |
 | `nome_conta` | Nome da conta (vazio quando ficou para a contabilidade) |
 | `tipo` | `pagar`, `receber` ou vazio |
 | `sugestao_ia` | Número da conta que a IA sugeriu (vazio se não houve sugestão) |
@@ -190,6 +191,11 @@ O arquivo abre direto no Excel (separador `;`, UTF-8 com BOM). Colunas:
 
 As colunas `financeiro` e `aprovado_por` (Fase 6) ficam **no fim**: as planilhas que já leem as colunas anteriores
 continuam funcionando.
+
+**Para a contabilidade: não lance as linhas com `financeiro` = `Substituída`.** Elas são versões que o Financeiro
+substituiu ao trocar a conta (a mesma nota aparece de novo na linha da nova versão, com a conta certa). Uma versão
+substituída pode aparecer como `Concluído` quando a troca foi feita depois da conclusão; mesmo assim, vale a linha da
+nova versão.
 
 Limite: **10.000 linhas** por planilha. Acima disso, a tela avisa "Filtre por período para exportar menos de 10.000
 notas." e a planilha não é gerada. Textos que começam com `=`, `+`, `-` ou `@` ganham um `'` na frente, para o Excel não
@@ -263,6 +269,13 @@ Botão **Aprovar conta** (pede confirmação). A NF fica aprovada e:
 - se ainda falta alguém, ele é concluído normalmente quando o último assinar;
 - se a NF foi marcada como nota fiscal depois de concluída, a contabilidade recebe o e-mail na aprovação.
 
+Quem é do Financeiro pode aprovar uma NF que ele mesmo enviou ou assina; o log de auditoria e o certificado registram
+quem aprovou.
+
+**NF marcada depois do envio, ainda sem conta.** O cartão mostra a lista de contas e o botão **Definir e aprovar**
+(pede confirmação): a conta escolhida fica aprovada na hora, sem nova versão e sem ninguém assinar de novo (ninguém viu
+conta ao assinar). Depois segue como na aprovação acima.
+
 ### Trocar a conta
 
 Botão **Trocar conta** (com a NF aguardando aprovação, aprovada ou já concluída): escolha a nova conta na lista e
@@ -273,20 +286,30 @@ escreva o **motivo** (de 10 a 500 caracteres; o contador mostra quantos já fora
   substituído por uma nova versão (conta contábil alterada).". Se ela já estava concluída, continua concluída.
 - O RevSign cria uma **nova versão** (mesmo PDF, mesmas pessoas e campos, título com " (v2)", " (v3)"…), já com a
   conta nova aprovada, e envia na hora. A tela abre a página da nova versão.
-- O remetente e todos que assinam (das duas versões) recebem o aviso "Conta contábil da nota fiscal alterada pelo
-  Financeiro: {título}", com o texto "A conta contábil da nota fiscal {título} foi alterada pelo Financeiro de {antiga}
-  para {nova}. Motivo: {motivo}." e o botão **Abrir a nova versão**. Quem assina recebe também o convite da nova
-  versão.
+- Quando a nova versão é enviada, o remetente e todos que assinam (das duas versões) recebem o aviso "Conta contábil da
+  nota fiscal alterada pelo Financeiro: {título}", com o texto "A conta contábil da nota fiscal {título} foi alterada
+  pelo Financeiro de {antiga} para {nova}. Motivo: {motivo}.". O botão leva cada um aonde ele entra: quem assina a nova
+  versão, ao próprio link de assinatura (**Assinar a nova versão**); o remetente, à página da NF (**Abrir a nova
+  versão**); quem não está na nova versão (ou só recebe cópia), ao **/verificar**.
 - Se a nova versão foi criada mas o envio dela falhou (ex.: e-mail de um destinatário fora da empresa), a tela avisa
   "Conta trocada, mas a nova versão não foi enviada" com o motivo. O remetente pode corrigir o rascunho e enviar, ou o
-  Financeiro, depois da correção, usa **Enviar de novo** no cartão da nova versão (mesma conta).
+  Financeiro, depois da correção, usa **Enviar de novo** no cartão da nova versão (mesma conta, pede confirmação). O
+  aviso da troca só sai quando a nova versão é enviada.
+- Se a nova versão foi apagada pelo remetente (ou a troca parou no meio e passaram 5 minutos), o cartão da versão
+  substituída diz "A nova versão não existe mais: troque a conta de novo." e volta a mostrar **Trocar conta**; o link
+  **Abrir a nova versão** só aparece enquanto a nova versão existe.
+- Se outra pessoa do Financeiro aprovou ou trocou a conta no mesmo instante, a tela avisa "A situação desta nota mudou.
+  Atualize a página e tente de novo."; a conta e o motivo digitados continuam no diálogo.
 
 ### "Deixar para o Financeiro"
 
 Quando o remetente escolhe **Deixar para o Financeiro**, nada é enviado: o documento fica como rascunho e o Financeiro
-recebe o e-mail. Na página da NF, o cartão mostra a lista de contas e o botão **Definir conta e enviar**: a conta já
-conta como aprovada e o RevSign envia o documento em nome do dono. Se aparecer "Envio em andamento. Aguarde um
-instante.", outra pessoa do Financeiro acabou de enviar: espere e atualize.
+recebe o e-mail. Na página da NF, o cartão mostra a lista de contas e o botão **Definir conta e enviar** (pede
+confirmação): a conta já conta como aprovada e o RevSign envia o documento em nome do dono. Se aparecer "Envio em
+andamento. Aguarde um instante.", outra pessoa do Financeiro acabou de enviar: espere e atualize (um envio que parou no
+meio pode ser retomado depois de 5 minutos). Se aparecer "O remetente trocou o arquivo; a nota voltou para ele.", o
+remetente substituiu o PDF do rascunho enquanto isso: a NF voltou a ser um rascunho dele, que escolhe a conta (ou deixa
+para o Financeiro) de novo.
 
 ### E-mails do Financeiro
 
@@ -294,13 +317,31 @@ instante.", outra pessoa do Financeiro acabou de enviar: espere e atualize.
 |---|---|---|---|
 | "Nota fiscal aguardando o Financeiro: {título}" | O remetente deixou a conta para o Financeiro | Todos os membros | **Abrir a nota fiscal** (página da NF) |
 | "Nota fiscal aguardando aprovação do Financeiro: {título}" | Todos assinaram e falta a aprovação | Todos os membros | **Abrir a nota fiscal** (página da NF) |
-| "Conta contábil da nota fiscal alterada pelo Financeiro: {título}" | O Financeiro trocou a conta | O remetente e quem assina, das duas versões | **Abrir a nova versão** |
+| "Conta contábil da nota fiscal alterada pelo Financeiro: {título}" | A nova versão de uma troca de conta foi enviada | O remetente e quem assina, das duas versões | **Assinar a nova versão** (quem assina), **Abrir a nova versão** (remetente) ou **Verificar um documento** (os demais) |
 
-Cada um sai uma vez por NF (o aviso da troca, uma vez por pessoa).
+Cada um sai uma vez por NF (o aviso da troca, uma vez por pessoa). Se a última assinatura chegou quando ninguém estava
+marcado como Financeiro (ou o pedido falhou), a varredura de selagem, que roda a cada 15 minutos, manda o pedido de
+aprovação assim que houver alguém no Financeiro.
+
+### E-mail da contabilidade depois do Financeiro
+
+O e-mail "Nota fiscal assinada: …" (seção 3) diz quem escolheu a conta:
+
+- o remetente escolheu: "A conta foi escolhida pelo remetente." (ou "…sugerida pela IA e aceita pelo remetente.");
+- o Financeiro definiu ("Definir conta e enviar" ou "Definir e aprovar"): "Conta definida pelo Financeiro ({nome})";
+- nova versão de uma troca: "Conta alterada pelo Financeiro ({nome}) — motivo: {motivo}".
+
+Quando a versão anterior **já tinha ido para a contabilidade** (a troca foi feita depois da conclusão), o e-mail da nova
+versão traz também "Substitui o envio da versão anterior: {título da versão anterior}": lance a nova e desconsidere a
+anterior. NF de antes da Fase 6 sem conta chega com "Conta: a definir pela contabilidade".
 
 ### Documentos não selados (admin)
 
 Em **Admin → Documentos não selados**, uma NF com todos assinados que espera a aprovação aparece com a marca
 **Aguardando o Financeiro**, e uma versão substituída com **Versão substituída**. Não estão travadas: não precisa
 resselar. A coluna **Parado há** fica vazia para elas.
+
+Resselar (no painel do admin) uma NF **já concluída** que ainda espera a aprovação (marcada como NF depois da conclusão)
+refaz o PDF selado normalmente; a aprovação continua pendente e a contabilidade só recebe o e-mail quando o Financeiro
+aprovar. Uma NF ainda pendente que espera a aprovação não é selada pela reselagem: quem a libera é a aprovação.
 
