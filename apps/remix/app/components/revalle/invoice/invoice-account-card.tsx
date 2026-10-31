@@ -145,7 +145,11 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
         {!state.choice ? (
           <Trans>Nenhuma conta escolhida.</Trans>
         ) : choiceCode === 'DEFER' ? (
-          <Trans>A definir pelo Financeiro.</Trans>
+          state.financeStatus === 'LEGACY' ? (
+            <Trans>A definir pela contabilidade.</Trans>
+          ) : (
+            <Trans>A definir pelo Financeiro.</Trans>
+          )
         ) : (
           `${choiceCode} · ${choiceName}`
         )}

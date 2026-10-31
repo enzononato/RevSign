@@ -22,7 +22,7 @@ import { Label } from '@documenso/ui/primitives/label';
 import { Textarea } from '@documenso/ui/primitives/textarea';
 import { useToast } from '@documenso/ui/primitives/use-toast';
 import { Trans, useLingui } from '@lingui/react/macro';
-import { useId, useState } from 'react';
+import { type ReactNode, useId, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 
 import { AccountCombobox } from '../invoice/account-combobox';
@@ -40,13 +40,19 @@ const formatAccount = (account: { code: string; name: string | null } | null) =>
 const actionsFor = (card: Card) => {
   const sent = card.envelopeStatus === 'PENDING' || card.envelopeStatus === 'COMPLETED';
   const live = !card.rejected && card.envelopeStatus !== 'REJECTED' && card.envelopeStatus !== 'CANCELLED';
+  const isPendingApproval = live && sent && card.financeStatus === 'PENDING_APPROVAL';
 
   return {
-    approve: live && sent && card.financeStatus === 'PENDING_APPROVAL' && card.account !== null,
+    approve: isPendingApproval && card.account !== null,
+    // NF marcada depois do envio, ainda sem conta: ninguém viu conta ao assinar, então define e aprova de uma vez.
+    defineApprove: isPendingApproval && card.account === null && !card.deferred,
     change:
       live &&
-      ((sent && (card.financeStatus === 'PENDING_APPROVAL' || card.financeStatus === 'APPROVED')) ||
-        (card.envelopeStatus === 'COMPLETED' && card.financeStatus === 'LEGACY')),
+      ((sent && card.financeStatus === 'PENDING_APPROVAL' && card.account !== null) ||
+        (sent && card.financeStatus === 'APPROVED') ||
+        (card.envelopeStatus === 'COMPLETED' && card.financeStatus === 'LEGACY') ||
+        // Versão substituída cuja nova versão foi apagada (ou a troca morreu no meio): troca de novo.
+        (sent && card.canRetakeChange)),
     define: card.envelopeStatus === 'DRAFT' && card.financeStatus === 'AWAITING_ACCOUNT',
     // Conta já aprovada (troca de conta ou "Definir conta e enviar") e o envio não saiu: manda de novo, mesma conta.
     resend: card.envelopeStatus === 'DRAFT' && card.financeStatus === 'APPROVED' && card.account !== null,
@@ -61,8 +67,9 @@ export type FinanceCardProps = {
 
 /**
  * Cartão "Financeiro" na página da NF, só para quem é do Financeiro: a conta atual, quem escolheu, a sugestão da IA e o
- * estado, com as ações "Aprovar conta", "Trocar conta" (lista + motivo; todos assinam de novo uma nova versão),
- * "Definir conta e enviar" (NF retida) e "Enviar de novo" (conta aprovada cujo envio falhou).
+ * estado, com as ações "Aprovar conta", "Definir e aprovar" (NF enviada sem conta), "Trocar conta" (lista + motivo; todos
+ * assinam de novo uma nova versão), "Definir conta e enviar" (NF retida) e "Enviar de novo" (conta aprovada cujo envio
+ * falhou). Toda ação que grava ou envia pede confirmação.
  */
 export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
   const { t } = useLingui();
@@ -83,7 +90,7 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
 
   const { data: accountsData } = trpc.revalle.invoice.findAccounts.useQuery(undefined, {
     ...DO_NOT_INVALIDATE_QUERY_ON_MUTATION,
-    enabled: Boolean(actions?.change || actions?.define),
+    enabled: Boolean(actions?.change || actions?.define || actions?.defineApprove),
   });
 
   const approve = trpc.revalle.finance.approve.useMutation();
@@ -91,7 +98,9 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
   const define = trpc.revalle.finance.defineAccount.useMutation();
   const isBusy = approve.isPending || change.isPending || define.isPending;
 
-  const [dialog, setDialog] = useState<'approve' | 'change' | 'change-confirm' | null>(null);
+  const [dialog, setDialog] = useState<
+    'approve' | 'define-approve' | 'change' | 'change-confirm' | 'define' | 'resend' | null
+  >(null);
   const [newCode, setNewCode] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const [definedCode, setDefinedCode] = useState<string | null>(null);
@@ -139,10 +148,10 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
     toast({ title: t`Não foi possível concluir.`, description: message, variant: 'destructive', duration: 10000 });
   };
 
-  const onApprove = async () => {
+  const onApprove = async (code?: string) => {
     try {
-      await approve.mutateAsync({ envelopeId });
-      toast({ title: t`Conta aprovada.`, duration: 5000 });
+      await approve.mutateAsync({ envelopeId, code });
+      toast({ title: code ? t`Conta definida e aprovada.` : t`Conta aprovada.`, duration: 5000 });
       setDialog(null);
       await refresh();
     } catch (err) {
@@ -166,7 +175,11 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
       setDialog(null);
       void navigate(invoiceViewPath(newEnvelopeId));
     } catch (err) {
-      setDialog(null);
+      // Falha de verdade: o diálogo continua aberto com a conta e o motivo digitado, para tentar de novo ou cancelar.
+      if (AppError.parseError(err).code !== PARTIAL_SUCCESS) {
+        setDialog('change');
+      }
+
       await showError(err);
     }
   };
@@ -183,8 +196,10 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
           : t`Este documento já tinha sido enviado.`,
         duration: 7500,
       });
+      setDialog(null);
       await refresh();
     } catch (err) {
+      setDialog(null);
       await showError(err);
     }
   };
@@ -202,6 +217,8 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
   const accounts = (accountsData?.accounts ?? []).filter((option) => option.code !== card.account?.code);
   const chosen = accountsData?.accounts.find((option) => option.code === newCode);
   const definedAccount = accountsData?.accounts.find((option) => option.code === definedCode);
+  const definedLabel = formatAccount(definedAccount ?? null) ?? '-';
+  const accountLabel = account ?? '-';
 
   return (
     <section
@@ -227,7 +244,15 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
             <Trans>Conta contábil</Trans>
           </dt>
           <dd className="break-words" data-testid="finance-card-account">
-            {card.deferred ? <Trans>A definir pelo Financeiro</Trans> : (account ?? '-')}
+            {card.deferred ? (
+              card.financeStatus === 'LEGACY' ? (
+                <Trans>A definir pela contabilidade</Trans>
+              ) : (
+                <Trans>A definir pelo Financeiro</Trans>
+              )
+            ) : (
+              (account ?? '-')
+            )}
           </dd>
         </div>
 
@@ -284,6 +309,12 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
         )}
       </dl>
 
+      {card.financeStatus === 'SUPERSEDED' && card.canRetakeChange && (
+        <p className="text-amber-700 dark:text-amber-400" data-testid="finance-card-retake">
+          <Trans>A nova versão não existe mais: troque a conta de novo.</Trans>
+        </p>
+      )}
+
       {card.financeStatus === 'SUPERSEDED' && card.supersededByEnvelopeId && (
         <Button asChild variant="outline" className="h-11 w-full whitespace-normal sm:w-auto sm:self-start">
           <Link to={invoiceViewPath(card.supersededByEnvelopeId)}>
@@ -318,7 +349,7 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
             className="h-11 w-full whitespace-normal sm:w-auto sm:self-start"
             disabled={!definedCode || isBusy}
             loading={define.isPending}
-            onClick={() => definedCode && void onDefine(definedCode, false)}
+            onClick={() => setDialog('define')}
           >
             <Trans>Definir conta e enviar</Trans>
           </Button>
@@ -339,9 +370,42 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
             className="h-11 w-full whitespace-normal sm:w-auto sm:self-start"
             disabled={isBusy}
             loading={define.isPending}
-            onClick={() => card.account && void onDefine(card.account.code, true)}
+            onClick={() => setDialog('resend')}
           >
             <Trans>Enviar de novo</Trans>
+          </Button>
+        </div>
+      )}
+
+      {actions.defineApprove && (
+        <div className="flex flex-col gap-2" data-testid="finance-card-define-approve">
+          <p className="text-muted-foreground">
+            <Trans>
+              Esta nota fiscal foi marcada depois do envio e ainda não tem conta. Escolha a conta: ela fica aprovada na
+              hora, sem nova versão (ninguém viu conta ao assinar).
+            </Trans>
+          </p>
+          <AccountCombobox
+            accounts={accountsData?.accounts ?? []}
+            value={definedCode}
+            disabled={isBusy}
+            onSelect={setDefinedCode}
+          />
+          {definedAccount && (
+            <p className="break-words">
+              <Trans>
+                Conta escolhida: {definedAccount.code} – {definedAccount.name}
+              </Trans>
+            </p>
+          )}
+          <Button
+            type="button"
+            className="h-11 w-full whitespace-normal sm:w-auto sm:self-start"
+            disabled={!definedCode || isBusy}
+            loading={approve.isPending}
+            onClick={() => setDialog('define-approve')}
+          >
+            <Trans>Definir e aprovar</Trans>
           </Button>
         </div>
       )}
@@ -401,6 +465,57 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={dialog === 'define-approve'}
+        isBusy={isBusy}
+        isLoading={approve.isPending}
+        testId="finance-define-approve-dialog"
+        title={<Trans>Definir e aprovar a conta?</Trans>}
+        description={
+          <Trans>
+            Conta: {definedLabel}. Ela fica aprovada na hora; a nota fiscal é concluída quando todos tiverem assinado
+            (se todos já assinaram, na hora).
+          </Trans>
+        }
+        confirmLabel={<Trans>Definir e aprovar</Trans>}
+        onCancel={() => setDialog(null)}
+        onConfirm={() => definedCode && void onApprove(definedCode)}
+      />
+
+      <ConfirmDialog
+        open={dialog === 'define'}
+        isBusy={isBusy}
+        isLoading={define.isPending}
+        testId="finance-define-dialog"
+        title={<Trans>Definir a conta e enviar?</Trans>}
+        description={
+          <Trans>
+            Conta: {definedLabel}. O documento é enviado agora, em nome do remetente, para todos os destinatários
+            assinarem.
+          </Trans>
+        }
+        confirmLabel={<Trans>Definir conta e enviar</Trans>}
+        onCancel={() => setDialog(null)}
+        onConfirm={() => definedCode && void onDefine(definedCode, false)}
+      />
+
+      <ConfirmDialog
+        open={dialog === 'resend'}
+        isBusy={isBusy}
+        isLoading={define.isPending}
+        testId="finance-resend-dialog"
+        title={<Trans>Enviar de novo?</Trans>}
+        description={
+          <Trans>
+            Conta: {accountLabel}. O documento é enviado agora, em nome do remetente, para todos os destinatários
+            assinarem.
+          </Trans>
+        }
+        confirmLabel={<Trans>Enviar de novo</Trans>}
+        onCancel={() => setDialog(null)}
+        onConfirm={() => card.account && void onDefine(card.account.code, true)}
+      />
 
       <Dialog
         open={dialog === 'change' || dialog === 'change-confirm'}
@@ -508,3 +623,44 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
     </section>
   );
 };
+
+type ConfirmDialogProps = {
+  open: boolean;
+  isBusy: boolean;
+  isLoading: boolean;
+  testId: string;
+  title: ReactNode;
+  description: ReactNode;
+  confirmLabel: ReactNode;
+  onCancel: () => void;
+  onConfirm: () => void;
+};
+
+const ConfirmDialog = ({
+  open,
+  isBusy,
+  isLoading,
+  testId,
+  title,
+  description,
+  confirmLabel,
+  onCancel,
+  onConfirm,
+}: ConfirmDialogProps) => (
+  <Dialog open={open} onOpenChange={(isOpen) => !isOpen && !isBusy && onCancel()}>
+    <DialogContent position="center" data-testid={testId}>
+      <DialogHeader>
+        <DialogTitle>{title}</DialogTitle>
+        <DialogDescription className="break-words">{description}</DialogDescription>
+      </DialogHeader>
+      <DialogFooter className="gap-2">
+        <Button type="button" variant="secondary" className="h-11" disabled={isBusy} onClick={onCancel}>
+          <Trans>Cancelar</Trans>
+        </Button>
+        <Button type="button" className="h-11" loading={isLoading} onClick={onConfirm}>
+          {confirmLabel}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+);

@@ -150,7 +150,11 @@ export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
               </h2>
               <p className="break-words">
                 {finance.deferred ? (
-                  <Trans>A definir pelo Financeiro.</Trans>
+                  finance.status === 'LEGACY' ? (
+                    <Trans>A definir pela contabilidade.</Trans>
+                  ) : (
+                    <Trans>A definir pelo Financeiro.</Trans>
+                  )
                 ) : finance.account ? (
                   `${finance.account.code} – ${finance.account.name ?? ''}`
                 ) : (

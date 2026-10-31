@@ -49,6 +49,7 @@ export default function AdminRevalleFinanceiroPage() {
 
   const users = data?.users ?? [];
   const awaitingCount = data?.awaitingAccountCount ?? 0;
+  const approvalCount = data?.awaitingApprovalCount ?? 0;
   const hasNoMembers = data?.memberCount === 0;
 
   return (
@@ -67,16 +68,29 @@ export default function AdminRevalleFinanceiroPage() {
         </Trans>
       </p>
 
-      {hasNoMembers && awaitingCount > 0 && (
-        <p
+      {hasNoMembers && (awaitingCount > 0 || approvalCount > 0) && (
+        <div
           role="alert"
-          className="mt-4 max-w-2xl rounded-md border border-amber-500/50 bg-amber-50 p-3 text-amber-800 text-sm dark:bg-amber-950/30 dark:text-amber-300"
+          className="mt-4 flex max-w-2xl flex-col gap-1 rounded-md border border-amber-500/50 bg-amber-50 p-3 text-amber-800 text-sm dark:bg-amber-950/30 dark:text-amber-300"
+          data-testid="finance-admin-alert"
         >
-          <Trans>
-            Notas fiscais aguardando o Financeiro definir a conta: {awaitingCount}. Ninguém está marcado como
-            Financeiro: marque alguém abaixo para que essas notas possam ser enviadas.
-          </Trans>
-        </p>
+          {awaitingCount > 0 && (
+            <p>
+              <Trans>
+                Notas fiscais aguardando o Financeiro definir a conta: {awaitingCount}. Ninguém está marcado como
+                Financeiro: marque alguém abaixo para que essas notas possam ser enviadas.
+              </Trans>
+            </p>
+          )}
+          {approvalCount > 0 && (
+            <p>
+              <Trans>
+                Notas fiscais assinadas aguardando a aprovação do Financeiro: {approvalCount}. Ninguém está marcado como
+                Financeiro: marque alguém abaixo; o pedido de aprovação sai em até 15 minutos.
+              </Trans>
+            </p>
+          )}
+        </div>
       )}
 
       <Input

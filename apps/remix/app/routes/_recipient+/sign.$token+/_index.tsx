@@ -23,7 +23,7 @@ import { getRecipientByToken } from '@documenso/lib/server-only/recipient/get-re
 import { getRecipientSignatures } from '@documenso/lib/server-only/recipient/get-recipient-signatures';
 import { getRecipientsForAssistant } from '@documenso/lib/server-only/recipient/get-recipients-for-assistant';
 import { getRevalleGateLoaderPayload } from '@documenso/lib/server-only/revalle/gate/get-gate-state-for-loader'; // REVALLE:
-import { findSigningInvoiceAccountForToken } from '@documenso/lib/server-only/revalle/invoice/signing-account'; // REVALLE:
+import { showSigningInvoiceAccountForToken } from '@documenso/lib/server-only/revalle/invoice/signing-account'; // REVALLE:
 import { getTeamSettings } from '@documenso/lib/server-only/team/get-team-settings';
 import { assertSenderNotDisabled } from '@documenso/lib/server-only/user/assert-user-not-disabled';
 import { getUserByEmail } from '@documenso/lib/server-only/user/get-user-by-email';
@@ -425,11 +425,12 @@ export async function loader(loaderArgs: Route.LoaderArgs) {
   } as const);
 }
 
-// REVALLE: conta da NF só com o documento aberto para quem assina (portão passado e acesso válido), nunca antes.
+// REVALLE: conta da NF só com o documento aberto para quem assina (portão passado e acesso válido), nunca antes; o
+// número mostrado fica registrado para a prova.
 const loadRevalleInvoiceAccount = async (token: string, payload: object) =>
   'revalleGate' in payload || !('isDocumentAccessValid' in payload) || payload.isDocumentAccessValid !== true
     ? null
-    : await findSigningInvoiceAccountForToken(token);
+    : await showSigningInvoiceAccountForToken(token);
 
 export default function SigningPage() {
   const data = useSuperLoaderData<typeof loader>();
