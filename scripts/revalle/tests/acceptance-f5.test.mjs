@@ -293,6 +293,9 @@ const signAll = async (doc, { afterSend, approve = false } = {}) => {
     await trpc('revalle.gate.verifyIdentity', { token: recipient.token, ...MARIA });
     await trpc('revalle.gate.confirmIdentity', { token: recipient.token, isMe: true });
 
+    // A página de assinatura, como a tela: a prova só congela a conta que ela mostrou (Fase 6).
+    assert.equal(await fetchIdempotent(`${BASE_URL}/sign/${recipient.token}`, {}, (res) => res.status), 200);
+
     const signed = await trpc('envelope.field.sign', {
       token: recipient.token,
       fieldId: field.id,
