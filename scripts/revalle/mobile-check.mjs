@@ -19,8 +19,8 @@
 // contábil: {código} – {nome}" acima do documento. Com a sessão de um membro do Financeiro (REVSIGN_ADMIN_EMAIL/
 // REVSIGN_ADMIN_PASSWORD, o rsadmin, marcado como Financeiro aqui), a página da NF só de leitura com o cartão
 // "Financeiro" (prévia do PDF, "Aprovar conta" e o diálogo de confirmação, "Trocar conta" com a lista e o motivo), o
-// cartão "Definir conta e enviar" de uma NF retida e a página "Notas fiscais" no filtro "Aguardando o Financeiro".
-// Nada é aprovado nem trocado: os diálogos são abertos e cancelados.
+// cartão "Definir conta e enviar" de uma NF retida (com a confirmação) e a página "Notas fiscais" no filtro
+// "Aguardando o Financeiro". Nada é aprovado, trocado nem enviado: os diálogos são abertos e cancelados.
 // Em cada passo tira um print e confere:
 //   - sem rolagem horizontal (document.scrollingElement.scrollWidth <= 360);
 //   - todo botão visível (button / role=button) com altura >= 44 px;
@@ -839,6 +839,21 @@ const runBrowser = async () => {
       await heldCard.getByRole('button', { name: 'Definir conta e enviar' }).waitFor();
       await heldCard.scrollIntoViewIfNeeded();
       await check('00n-nf-definir-conta', fin, '[data-testid="finance-card"]');
+
+      // Escolhida a conta, "Definir conta e enviar" pede confirmação antes de enviar (cancelar não envia nada).
+      const heldOption = heldCard.locator('ul button').first();
+
+      if ((await heldOption.count()) > 0) {
+        await heldOption.click();
+        await heldCard.getByRole('button', { name: 'Definir conta e enviar' }).click();
+
+        const defineDialog = fin.getByTestId('finance-define-dialog');
+
+        await defineDialog.getByText('Definir a conta e enviar?').waitFor();
+        await check('00n2-nf-definir-confirmar', fin, '[data-testid="finance-define-dialog"]');
+        await defineDialog.getByRole('button', { name: 'Cancelar' }).click();
+        await defineDialog.waitFor({ state: 'detached' });
+      }
 
       // Lista: o Financeiro começa em "Aguardando o Financeiro"; a tabela rola dentro do quadro, nunca a página.
       await fin.goto(`${financeUrl.origin}/notas-fiscais`, { waitUntil: 'networkidle' });

@@ -832,3 +832,159 @@ sessionTest('versão substituída com recusa: é selada como recusada (a recusa 
   assert.equal(await waitStatus(doc.id, 'REJECTED'), 'REJECTED');
   assert.equal((await approvalMails(doc)).length, 0);
 });
+
+const sweep = () =>
+  runJobLikeTheApp({
+    jobId: 'internal.seal-document-sweep',
+    name: 'Seal Document Sweep',
+    version: '1.0.0',
+    payload: {},
+  });
+const approvalRequested = (envelopeId) =>
+  db(
+    `select "approvalRequestedAt" is not null from "RevalleInvoiceClassification" where "envelopeId" = '${envelopeId}'`,
+  );
+
+sessionTest(
+  'última assinatura sem ninguém no Financeiro: o admin vê o alerta; marcado um membro, a varredura pede a aprovação 1 vez',
+  async () => {
+    const members = db(`select "userId" || ',' || coalesce("addedById"::text, 'null') from "RevalleFinanceMember"`)
+      .split('\n')
+      .filter(Boolean);
+    const doc = await newInvoice('sem-membros', { signers: 1 });
+
+    db('delete from "RevalleFinanceMember"');
+
+    try {
+      await sign(doc, 0);
+      await sleep(3000);
+      assert.equal(status(doc.id), 'PENDING');
+      assert.equal(financeStatus(doc.id), 'PENDING_APPROVAL');
+      assert.equal(approvalRequested(doc.id), 'f');
+
+      const listed = await trpcAs(adminCookie, 'query', 'revalle.finance.adminListUsers', { query: admin.email });
+
+      assert.equal(listed.status, 200, listed.text);
+      assert.equal(data(listed).memberCount, 0);
+      assert.ok(data(listed).awaitingApprovalCount >= 1, `sem a NF assinada no alerta: ${listed.text}`);
+
+      // Sem membros, a varredura nem pede (não há a quem).
+      assert.equal(await sweep(), 'COMPLETED');
+      await sleep(2000);
+      assert.equal(approvalRequested(doc.id), 'f');
+    } finally {
+      for (const member of members) {
+        const [userId, addedById] = member.split(',');
+
+        db(
+          `insert into "RevalleFinanceMember" ("userId", "addedById") values (${userId}, ${addedById}) on conflict do nothing`,
+        );
+      }
+    }
+
+    assert.equal((await approvalMails(doc)).length, 0);
+
+    // Com o membro de volta, a varredura de verdade pede a aprovação (em lotes: repete se outras NFs vêm antes).
+    for (let i = 0; i < 5 && approvalRequested(doc.id) !== 't'; i += 1) {
+      assert.equal(await sweep(), 'COMPLETED');
+
+      for (let j = 0; j < 10 && approvalRequested(doc.id) !== 't'; j += 1) {
+        await sleep(1000);
+      }
+    }
+
+    assert.equal(
+      (await waitMails(admin.email, (m) => m.Subject === APPROVAL_SUBJECT(doc.title))).length,
+      1,
+      'o pedido de aprovação não saiu depois de marcar o membro',
+    );
+
+    // Outra varredura não repete o pedido, e a NF continua retida (a varredura não sela).
+    assert.equal(await sweep(), 'COMPLETED');
+    await sleep(3000);
+    assert.equal((await approvalMails(doc)).length, 1, 'o pedido de aprovação saiu de novo');
+    assert.equal(status(doc.id), 'PENDING');
+    assert.deepEqual(sealJobs(doc), [], 'a varredura disparou a selagem da NF retida');
+  },
+);
+
+sessionTest(
+  'NF marcada depois do envio, sem conta: "Definir e aprovar" grava a conta aprovada, sem nova versão; conclui direto',
+  async () => {
+    const doc = await sendDocument('definir-aprovar', { signers: 1, choice: null });
+    const marked = await trpcAs(userCookie, 'mutation', 'revalle.invoice.markAsInvoice', { envelopeId: doc.id });
+
+    assert.equal(marked.status, 200, marked.text);
+    assert.equal(financeStatus(doc.id), 'PENDING_APPROVAL');
+
+    const withoutCode = await approve(doc.id);
+
+    assert.equal(withoutCode.status, 400, withoutCode.text);
+    assert.ok(withoutCode.text.includes('Definir e aprovar'), withoutCode.text);
+
+    assert.equal(
+      (await trpcAs(userCookie, 'mutation', 'revalle.finance.approve', { envelopeId: doc.id, code: '3.1.01' })).status,
+      403,
+    );
+
+    const defined = await trpcAs(adminCookie, 'mutation', 'revalle.finance.approve', {
+      envelopeId: doc.id,
+      code: '3.1.01',
+    });
+
+    assert.equal(defined.status, 200, defined.text);
+    assert.deepEqual(data(defined), { approved: true });
+    assert.equal(
+      db(
+        `select "financeStatus" || '|' || "choiceCode" || '|' || "choiceById" || '|' || "approvedById" || '|' || "approvedAccountName" || '|' || coalesce("previousEnvelopeId", '-') from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`,
+      ),
+      `APPROVED|3.1.01|${adminId}|${adminId}|Serviços de terceiros|-`,
+    );
+    assert.equal(auditCount(doc.id, 'REVALLE_FINANCE_ACCOUNT_DEFINED'), 1);
+    assert.equal(
+      db(`select count(*) from "RevalleInvoiceClassification" where "previousEnvelopeId" = '${doc.id}'`),
+      '0',
+      'criou uma nova versão',
+    );
+
+    // Repetição: nada a mais; outra conta numa NF que já tem conta = 400.
+    assert.deepEqual(
+      data(await trpcAs(adminCookie, 'mutation', 'revalle.finance.approve', { envelopeId: doc.id, code: '3.1.01' })),
+      { approved: false },
+    );
+    assert.equal(auditCount(doc.id, 'REVALLE_FINANCE_ACCOUNT_DEFINED'), 1);
+
+    await sign(doc, 0);
+    assert.equal(await waitStatus(doc.id, 'COMPLETED'), 'COMPLETED', 'a NF aprovada não concluiu');
+  },
+);
+
+sessionTest(
+  'reselagem pelo admin de uma NF concluída que ainda espera a aprovação: refaz o PDF; a aprovação continua pendente',
+  async () => {
+    const doc = await sendDocument('reselagem-concluida', { signers: 1, choice: null });
+
+    await sign(doc, 0);
+    assert.equal(await waitStatus(doc.id, 'COMPLETED'), 'COMPLETED');
+
+    const marked = await trpcAs(userCookie, 'mutation', 'revalle.invoice.markAsInvoice', { envelopeId: doc.id });
+
+    assert.equal(marked.status, 200, marked.text);
+    assert.equal(financeStatus(doc.id), 'PENDING_APPROVAL');
+
+    const before = itemData(doc.id);
+    const resealed = await trpcAs(adminCookie, 'mutation', 'admin.document.reseal', { id: doc.id });
+
+    assert.ok(resealed.ok, resealed.text);
+
+    for (let i = 0; i < 45 && itemData(doc.id) === before; i += 1) {
+      await sleep(1000);
+    }
+
+    assert.notEqual(itemData(doc.id), before, 'a reselagem da NF concluída foi pulada sem aviso');
+    assert.equal(status(doc.id), 'COMPLETED');
+    assert.equal(financeStatus(doc.id), 'PENDING_APPROVAL');
+    await sleep(2000);
+    assert.equal((await accountingMails(doc)).length, 0, 'a reselagem mandou a NF não aprovada para a contabilidade');
+  },
+);

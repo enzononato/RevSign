@@ -6,12 +6,15 @@
 //   3. o membro aprova: a NF é selada, o certificado traz a conta e a aprovação, a contabilidade recebe o e-mail; uma NF
 //      marcada depois da conclusão aparece em "Aguardando o Financeiro" e também é aprovada;
 //   4. outra NF: o membro troca a conta com motivo no meio das assinaturas; o link antigo é bloqueado, todos recebem o
-//      aviso com o motivo (e o link da nova versão), a v2 é enviada, assinada e selada com a conta nova; a página de
-//      cada versão aponta para a outra;
+//      aviso com o motivo (o remetente com o link da página da nova versão, quem assina com o próprio link de
+//      assinatura dela), a v2 é enviada, assinada e selada com a conta nova; a página de cada versão aponta para a
+//      outra; a contabilidade recebe a v2 com "Conta alterada pelo Financeiro ({membro}) — motivo: {motivo}";
 //   5. "Deixar para o Financeiro": nada sai até o membro definir a conta (e-mail com o link da página da NF); depois, o
-//      convite sai;
+//      convite sai; assinada, a contabilidade recebe "Conta definida pelo Financeiro ({membro})";
 //   6. quem não é do Financeiro recebe 403 nas rotas (e nada muda);
 //   7. NF de antes da Fase 6 (`LEGACY`) conclui sem aprovação;
+//   8. troca de conta numa NF já concluída e já enviada à contabilidade: o e-mail da v2 diz "Substitui o envio da versão
+//      anterior: {título}";
 //   e a lista "Notas fiscais" (colunas novas, filtro do Financeiro, rascunhos retidos, versões substituídas) e a
 //   planilha com `financeiro;aprovado_por` no fim do cabeçalho.
 //
@@ -84,6 +87,9 @@ const GATE_MESSAGE = 'Este documento foi substituído por uma nova versão (cont
 const DOCUMENT_LINE = (account, approver, at) =>
   `Conta contábil: ${account.code} – ${account.name} · aprovada pelo Financeiro (${approver}) em ${at} (horário de Brasília)`;
 const SIGNER_ROW = (code) => `Conta contábil vista ao assinar: ${code}`;
+const DEFINED_LINE = (name) => `Conta definida pelo Financeiro (${name})`;
+const CHANGED_LINE = (name) => `Conta alterada pelo Financeiro (${name}) — motivo: ${REASON}`;
+const REPLACES_LINE = (title) => `Substitui o envio da versão anterior: ${title}`;
 
 const tmp = mkdtempSync(path.join(tmpdir(), 'revsign-aceite-f6-'));
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -143,7 +149,8 @@ const waitInvite = async (email, token, timeoutMs = 40_000) => {
 
   do {
     for (const mail of await mailsTo(email)) {
-      if ((await mailBody(mail.ID)).Text?.includes(`/sign/${token}`)) {
+      // O aviso da troca também leva o link de assinatura, mas não é o convite.
+      if (!mail.Subject.startsWith(NOTICE_SUBJECT('')) && (await mailBody(mail.ID)).Text?.includes(`/sign/${token}`)) {
         return true;
       }
     }
@@ -308,11 +315,15 @@ const gate = async (token) => {
   await trpc('revalle.gate.confirmIdentity', { token, isMe: true });
 };
 
-// Portão, assinatura e conclusão com o código, como a tela faz.
+// Portão, a página de assinatura (que mostra a conta), assinatura e conclusão com o código, como a tela faz.
 const sign = async (doc, index) => {
   const recipient = doc.recipients[index];
 
   await gate(recipient.token);
+
+  const page = await fetchIdempotent(`${BASE_URL}/sign/${recipient.token}`, {}, (r) => r.status);
+
+  assert.equal(page, 200);
 
   const signed = await trpc('envelope.field.sign', {
     token: recipient.token,
@@ -650,8 +661,14 @@ testStep(
 
     assert.ok(oldPage.includes(GATE_MESSAGE), 'o link antigo não foi bloqueado');
 
-    // Aviso exato com o motivo para o remetente e os 2 signatários, com o link da página da nova versão.
-    for (const to of [user.email, ...fx.b.recipients.map((r) => r.email)]) {
+    // Aviso exato com o motivo para o remetente (link da página da nova versão: ele tem conta) e os 2 signatários (o
+    // próprio link de assinatura da nova versão: eles não têm conta no RevSign).
+    const targets = [
+      [user.email, `/notas-fiscais/${fx.b2.id}`],
+      ...fx.b2.recipients.map((recipient) => [recipient.email, `/sign/${recipient.token}`]),
+    ];
+
+    for (const [to, link] of targets) {
       const notices = await waitMails(to, (m) => m.Subject === NOTICE_SUBJECT(fx.b.title));
 
       assert.equal(notices.length, 1, `aviso para ${to}`);
@@ -659,7 +676,7 @@ testStep(
       const body = await mailBody(notices[0].ID);
 
       assert.ok(flat(body.Text).includes(NOTICE(fx.b.title)), flat(body.Text));
-      assert.ok(body.Text.includes(`/notas-fiscais/${fx.b2.id}`), `aviso sem o link da nova versão (${to})`);
+      assert.ok(body.Text.includes(link), `aviso sem o link ${link} (${to})`);
     }
 
     for (const recipient of fx.b2.recipients) {
@@ -706,6 +723,19 @@ testStep(
     assert.equal(text.split(SIGNER_ROW(OLD.code)).length - 1, 0, 'a conta antiga aparece como vista ao assinar na v2');
     assert.ok(!text.includes(`Conta contábil: ${OLD.code} – ${OLD.name} · aprovada`), 'a v2 aprova a conta antiga');
     assert.equal(status(fx.b.id), 'PENDING', 'a versão antiga foi concluída');
+
+    // A contabilidade recebe a v2 dizendo que o Financeiro alterou a conta (e o motivo). A v1 nunca foi para a
+    // contabilidade (estava pendente): nada a substituir.
+    const [accounting] = await waitMails(ACCOUNTING, (m) => m.Subject === ACCOUNTING_SUBJECT(fx.b2.title, NEW));
+
+    assert.ok(accounting, 'a contabilidade não recebeu o e-mail da v2');
+
+    const accountingText = flat((await mailBody(accounting.ID)).Text);
+
+    assert.ok(accountingText.includes(CHANGED_LINE(fx.fin.name)), accountingText);
+    assert.ok(!accountingText.includes('escolhida pelo remetente'), accountingText);
+    assert.ok(!accountingText.includes('aceita pelo remetente'), accountingText);
+    assert.ok(!accountingText.includes('Substitui o envio'), accountingText);
   },
 );
 
@@ -746,6 +776,19 @@ testStep('5. "Deixar para o Financeiro": nada sai até a conta ser definida', as
   const signer = loadVersion(fx.c.id).recipients[0];
 
   assert.ok(await waitInvite(signer.email, signer.token), 'o convite não saiu depois da conta definida');
+
+  // Assinada, a contabilidade recebe a NF dizendo que a conta foi definida pelo Financeiro (não pelo remetente).
+  await sign(loadVersion(fx.c.id), 0);
+  assert.equal(await waitStatus(fx.c.id, 'COMPLETED'), 'COMPLETED');
+
+  const [accounting] = await waitMails(ACCOUNTING, (m) => m.Subject === ACCOUNTING_SUBJECT(fx.c.title, OLD));
+
+  assert.ok(accounting, 'a contabilidade não recebeu a NF definida pelo Financeiro');
+
+  const accountingText = flat((await mailBody(accounting.ID)).Text);
+
+  assert.ok(accountingText.includes(DEFINED_LINE(fx.fin.name)), accountingText);
+  assert.ok(!accountingText.includes('pelo remetente'), accountingText);
 });
 
 testStep('6. quem não é do Financeiro recebe 403 nas rotas, e nada muda', async () => {
@@ -791,6 +834,40 @@ testStep('7. NF anterior à Fase 6 (LEGACY) conclui sem aprovação', async () =
     [],
     'NF LEGACY pediu aprovação',
   );
+});
+
+testStep('8. troca de conta numa NF já enviada à contabilidade: o e-mail da v2 diz o que ele substitui', async () => {
+  assert.ok(fx.e, 'depende do passo 3');
+  assert.equal(
+    db(
+      `select "accountingEmailSentAt" is not null from "RevalleInvoiceClassification" where "envelopeId" = '${fx.e.id}'`,
+    ),
+    't',
+    'a versão anterior não tinha ido para a contabilidade (o caso não provaria nada)',
+  );
+
+  const changed = await finance(fx.fin.cookie, 'mutation', 'changeAccount', {
+    envelopeId: fx.e.id,
+    code: NEW.code,
+    reason: REASON,
+  });
+
+  assert.equal(changed.status, 200, changed.text);
+
+  const v2 = loadVersion(data(changed).newEnvelopeId);
+
+  assert.equal(await waitStatus(v2.id, 'PENDING', 10), 'PENDING');
+  await sign(v2, 0);
+  assert.equal(await waitStatus(v2.id, 'COMPLETED'), 'COMPLETED');
+
+  const [accounting] = await waitMails(ACCOUNTING, (m) => m.Subject === ACCOUNTING_SUBJECT(v2.title, NEW));
+
+  assert.ok(accounting, 'a contabilidade não recebeu a v2');
+
+  const accountingText = flat((await mailBody(accounting.ID)).Text);
+
+  assert.ok(accountingText.includes(REPLACES_LINE(fx.e.title)), accountingText);
+  assert.ok(accountingText.includes(CHANGED_LINE(fx.fin.name)), accountingText);
 });
 
 testStep('lista e planilha: colunas do Financeiro no fim, situações e quem aprovou', async () => {

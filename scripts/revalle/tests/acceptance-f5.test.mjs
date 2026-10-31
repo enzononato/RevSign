@@ -615,7 +615,7 @@ testStep('7. planilha: BOM, cabeçalho exato, 2 linhas com as contas certas, fil
 
   const nfse = cells(fx.nfse.id);
 
-  assert.equal(nfse.conta, 'a definir pelo Financeiro');
+  assert.equal(nfse.conta, 'a definir pela contabilidade');
   assert.equal(nfse.nome_conta, '');
   assert.equal(nfse.tipo, '');
   assert.equal(nfse.sugestao_ia, '');
@@ -680,7 +680,7 @@ testStep('8. a contabilidade recebeu 2 e-mails (um por NF)', async () => {
     subjects,
     [
       `Nota fiscal assinada: ${fx.danfe.title} · Conta 4.1.07 – Fornecedores Aceite Cinco`,
-      `Nota fiscal assinada: ${fx.nfse.title} · Conta: a definir pelo Financeiro`,
+      `Nota fiscal assinada: ${fx.nfse.title} · Conta: a definir pela contabilidade`,
     ].sort(),
   );
 
@@ -758,7 +758,7 @@ testStep(
       assert.ok(!nfse.includes(account.name), `NFS-e: o PDF tem o nome ${account.name}`);
     }
 
-    assert.ok(!nfse.includes('a definir pelo Financeiro'), 'NFS-e: o PDF fala da conta a definir');
+    assert.ok(!/a definir pel[oa]/.test(nfse), 'NFS-e: o PDF fala da conta a definir');
     assert.ok(!/conta cont[aá]bil/i.test(nfse), 'NFS-e: o PDF fala de conta contábil');
   },
 );

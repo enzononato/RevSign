@@ -4,7 +4,8 @@
 //     mesmo com a página aberta (portão já passado), recebe a mensagem do portão na próxima ação (assinar campo, pedir o
 //     código, concluir, recusar, abrir a página). A v2 tem o título "(v2)", os mesmos destinatários e campos, o mesmo
 //     dono, a conta nova `APPROVED` (quem trocou), `version` 2 e a ligação; foi enviada. O Mailpit tem o aviso exato
-//     (com o motivo) para o remetente e os 2 signatários, e os convites da v2. Evento nas duas versões;
+//     (com o motivo) para o remetente (botão: a página da NF) e os 2 signatários (botão: o link de assinatura de cada
+//     um na v2), e os convites da v2. Evento nas duas versões;
 //   - os dois assinam a v2 → concluída (já aprovada, sela direto);
 //   - motivo curto/longo, mesma conta, conta inativa, estados que não cabem = 400; fora do Financeiro 403; sem sessão
 //     401; documento comum 404;
@@ -16,8 +17,11 @@
 //   - falha ao criar a v2 (cota de documentos da organização zerada no banco): a troca é desfeita, nada fica
 //     `SUPERSEDED` sem sucessora;
 //   - falha ao enviar a v2 (destinatário fora dos domínios, no banco): erro claro, a v2 fica rascunho `APPROVED` com a
-//     reserva solta, e `defineAccount` na v2 envia depois de corrigido.
-//   - troca que morreu no meio (queda entre marcar a antiga e ligar a nova): 409 dentro do prazo, retomada depois.
+//     reserva solta, nenhum aviso sai (não há link para dar), e `defineAccount` na v2 envia depois de corrigido, e só
+//     então sai o aviso, com o link de assinatura da v2;
+//   - troca que morreu no meio (queda entre marcar a antiga e ligar a nova): 409 dentro do prazo, retomada depois;
+//   - nova versão apagada pelo dono: o cartão do Financeiro na antiga oferece "Trocar conta" de novo (sem o link para a
+//     v2 apagada), e a troca acontece.
 //
 // Sessões: REVSIGN_USER_* (admin@hml.local, dono do REVSIGN_API_TOKEN, fora do Financeiro) e REVSIGN_ADMIN_* (rsadmin,
 // ADMIN, marcado como Financeiro). Ver revalle/docs/testes.md.
@@ -125,13 +129,14 @@ const waitMails = async (to, filter, timeoutMs = 30_000) => {
   return [];
 };
 
-// Convite de uma versão: o e-mail ao destinatário com o link do token dela.
+// Convite de uma versão: o e-mail ao destinatário com o link do token dela (o aviso da troca também leva o link, mas
+// não é o convite).
 const waitInvite = async (email, token, timeoutMs = 30_000) => {
   const deadline = Date.now() + timeoutMs;
 
   do {
     for (const mail of await mailsTo(email)) {
-      if ((await mailBody(mail.ID)).Text?.includes(`/sign/${token}`)) {
+      if (!mail.Subject.startsWith(NOTICE_SUBJECT('')) && (await mailBody(mail.ID)).Text?.includes(`/sign/${token}`)) {
         return true;
       }
     }
@@ -246,7 +251,17 @@ const newInvoice = async (label, { signers = 2, meta, sequential = false } = {})
   assert.equal((await distribute(created.id)).length, signers);
   assert.equal(financeStatus(created.id), 'PENDING_APPROVAL');
 
-  return loadVersion(created.id);
+  const doc = loadVersion(created.id);
+
+  // Com convite por e-mail, esperar por ele antes de assinar: ele não pode chegar depois do código por e-mail (o código
+  // é lido do e-mail mais recente).
+  if (meta?.distributionMethod === 'EMAIL') {
+    for (const recipient of doc.recipients) {
+      assert.ok(await waitInvite(recipient.email, recipient.token), `convite não chegou para ${recipient.email}`);
+    }
+  }
+
+  return doc;
 };
 
 const gate = async (token) => {
@@ -488,8 +503,14 @@ sessionTest(
       );
     }
 
-    // Aviso (texto exato, com o motivo) para o remetente e os 2 signatários; convites da v2 para os 2.
-    for (const to of [user.email, ...main.recipients.map((r) => r.email)]) {
+    // Aviso (texto exato, com o motivo) para o remetente e os 2 signatários; convites da v2 para os 2. O botão leva
+    // cada um aonde ele entra: quem assina, ao próprio link da v2; o remetente, à página da NF (ele tem conta).
+    const targets = [
+      [user.email, `/notas-fiscais/${mainV2}`],
+      ...v2.recipients.map((recipient) => [recipient.email, `/sign/${recipient.token}`]),
+    ];
+
+    for (const [to, link] of targets) {
       const notices = await waitMails(to, (m) => m.Subject === NOTICE_SUBJECT(main.title));
 
       assert.equal(notices.length, 1, `aviso para ${to}`);
@@ -497,6 +518,18 @@ sessionTest(
       const body = await mailBody(notices[0].ID);
 
       assert.ok(flat(body.Text).includes(NOTICE(main.title)), flat(body.Text));
+      assert.ok(body.Text.includes(link), `aviso para ${to} sem o link ${link}: ${flat(body.Text)}`);
+      assert.ok(!flat(body.Text).includes('o convite chega em outro e-mail'), 'o aviso promete um convite');
+    }
+
+    for (const recipient of v2.recipients) {
+      const [notice] = await waitMails(recipient.email, (m) => m.Subject === NOTICE_SUBJECT(main.title));
+      const body = await mailBody(notice.ID);
+
+      assert.ok(
+        !body.Text.includes('/notas-fiscais/'),
+        `o aviso de quem assina leva à página da NF: ${recipient.email}`,
+      );
     }
 
     for (const recipient of v2.recipients) {
@@ -803,7 +836,15 @@ const released = (envelopeId) =>
 sessionTest(
   'falha ao enviar a v2: 409 claro; defineAccount só reenvia a mesma conta e uma 2ª falha não apaga a conta; corrigida, envia',
   async () => {
-    const { v2 } = await changeWithFailedSend('envio-falha');
+    const { doc, v2 } = await changeWithFailedSend('envio-falha');
+
+    // Sem a v2 enviada não há link nem convite: o aviso da troca ainda não sai.
+    await sleep(3000);
+    assert.deepEqual(
+      (await mailsTo(user.email)).filter((m) => m.Subject === NOTICE_SUBJECT(doc.title)),
+      [],
+      'o aviso saiu antes da nova versão ser enviada',
+    );
 
     const other = await defineAccount(v2, '2.1.03');
 
@@ -828,6 +869,20 @@ sessionTest(
     assert.deepEqual(data(retried), { sent: true });
     assert.equal(await waitStatus(v2, 'PENDING', 10), 'PENDING');
     assert.equal(released(v2), 'APPROVED|3.1.01|false');
+
+    // Enviada a v2, o aviso sai (uma vez): o remetente com a página da NF, quem assina com o link da v2.
+    const signer = loadVersion(v2).recipients[0];
+    const [ownerNotice] = await waitMails(user.email, (m) => m.Subject === NOTICE_SUBJECT(doc.title));
+
+    assert.ok(ownerNotice, 'o aviso não saiu depois do envio da nova versão');
+    assert.ok((await mailBody(ownerNotice.ID)).Text.includes(`/notas-fiscais/${v2}`));
+
+    const [signerNotice] = await waitMails(signer.email, (m) => m.Subject === NOTICE_SUBJECT(doc.title));
+
+    assert.ok(signerNotice, 'o aviso não chegou para quem assina a nova versão');
+    assert.ok((await mailBody(signerNotice.ID)).Text.includes(`/sign/${signer.token}`));
+    await sleep(2000);
+    assert.equal((await mailsTo(user.email)).filter((m) => m.Subject === NOTICE_SUBJECT(doc.title)).length, 1);
   },
 );
 
@@ -886,22 +941,58 @@ sessionTest(
   },
 );
 
-sessionTest('nova versão apagada: outra troca retoma a antiga na hora', async () => {
-  const doc = await newInvoice('sucessora-apagada', { signers: 1 });
-  const first = changed(await change(doc.id));
+const financeCard = async (envelopeId) => {
+  const res = await trpcAs(adminCookie, 'query', 'revalle.finance.get', { envelopeId });
 
-  db(`delete from "Envelope" where id = '${first}'`);
+  assert.equal(res.status, 200, res.text);
 
-  const second = changed(await change(doc.id));
+  return data(res);
+};
 
-  assert.notEqual(second, first);
-  assert.deepEqual(successors(doc.id), [second]);
-  assert.equal(
-    one(`select "supersededByEnvelopeId" from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`),
-    second,
-  );
-  assert.equal(await waitStatus(second, 'PENDING', 10), 'PENDING');
-});
+sessionTest(
+  'nova versão apagada pelo dono: o cartão oferece "Trocar conta" de novo e a troca retoma a antiga',
+  async () => {
+    const doc = await newInvoice('sucessora-apagada', { signers: 1 });
+    const first = changed(await change(doc.id));
+
+    assert.equal(await waitStatus(first, 'PENDING', 10), 'PENDING');
+
+    const linked = await financeCard(doc.id);
+
+    assert.equal(linked.supersededByEnvelopeId, first);
+    assert.equal(linked.canRetakeChange, false);
+
+    // O dono apaga a v2 pendente (exclusão do upstream: some do banco).
+    const deleted = await api('POST', '/envelope/delete', { envelopeId: first });
+
+    assert.equal(deleted.status, 200, deleted.text);
+    assert.equal(one(`select count(*) from "Envelope" where id = '${first}'`), '0');
+
+    const orphan = await financeCard(doc.id);
+
+    assert.equal(orphan.financeStatus, 'SUPERSEDED');
+    assert.equal(orphan.canRetakeChange, true, 'o cartão não oferece trocar de novo');
+    assert.equal(orphan.supersededByEnvelopeId, null, 'o cartão ainda aponta para a versão apagada');
+
+    const page = await fetchIdempotent(
+      `${BASE_URL}/notas-fiscais/${doc.id}`,
+      { headers: { Cookie: adminCookie } },
+      async (r) => r.text(),
+    );
+
+    assert.ok(!page.includes(`/notas-fiscais/${first}`), 'a página da NF ainda leva à versão apagada');
+
+    const second = changed(await change(doc.id));
+
+    assert.notEqual(second, first);
+    assert.deepEqual(successors(doc.id), [second]);
+    assert.equal(
+      one(`select "supersededByEnvelopeId" from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`),
+      second,
+    );
+    assert.equal(await waitStatus(second, 'PENDING', 10), 'PENDING');
+  },
+);
 
 sessionTest('recusada, excluída ou com o dono desativado: 400, nada muda', async () => {
   const rejected = await newInvoice('recusada', { signers: 1 });

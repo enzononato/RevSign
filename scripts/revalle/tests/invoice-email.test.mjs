@@ -498,7 +498,7 @@ const legacyDeferred = (envelopeId) =>
     `update "RevalleInvoiceClassification" set "choiceCode" = null, "choiceDefer" = true, "acceptedSuggestion" = null, "financeStatus" = 'LEGACY' where "envelopeId" = '${envelopeId}'`,
   );
 
-sessionTest('NF sem conta de antes da Fase 6: assunto e corpo com a definir pelo Financeiro', async () => {
+sessionTest('NF sem conta de antes da Fase 6: assunto e corpo com a definir pela contabilidade', async () => {
   const doc = await completeDocument({
     label: 'defer',
     pdf: await danfe('defer'),
@@ -508,11 +508,11 @@ sessionTest('NF sem conta de antes da Fase 6: assunto e corpo com a definir pelo
   const messages = await waitAccountingMail(doc);
 
   assert.equal(messages.length, 1);
-  assert.equal(messages[0].Subject, `Nota fiscal assinada: ${doc.title} · Conta: a definir pelo Financeiro`);
+  assert.equal(messages[0].Subject, `Nota fiscal assinada: ${doc.title} · Conta: a definir pela contabilidade`);
 
   const text = await bodyOf(messages[0]);
 
-  assert.ok(text.includes('Conta: a definir pelo Financeiro'), text);
+  assert.ok(text.includes('Conta: a definir pela contabilidade'), text);
   assert.ok(!text.includes('Conta contábil:'), text);
   assert.ok(!text.includes(ORIGIN_ACCEPTED) && !text.includes(ORIGIN_CHOSEN), text);
 });

@@ -418,7 +418,8 @@ sessionTest(
         `update "RevalleInvoiceClassification" set "financeStatus" = 'APPROVED', "choiceCode" = '2.1.03', "choiceDefer" = false, "approvedById" = ${adminId}, "approvedAt" = now() - interval '${age}' where "envelopeId" = '${doc.id}'`,
       );
 
-    stuck('10 seconds');
+    // A reserva vale 5 minutos (o envio de um PDF grande pode demorar): com 4, ainda está em andamento.
+    stuck('4 minutes');
 
     const busy = await defineAccount(doc.id, '3.1.01');
 
@@ -431,7 +432,7 @@ sessionTest(
     assert.equal(changed.status, 403, changed.text);
     assert.ok(changed.text.includes(AFTER_SEND_MESSAGE), changed.text);
 
-    stuck('3 minutes');
+    stuck('6 minutes');
 
     const recovered = await defineAccount(doc.id, '3.1.01');
 
@@ -488,6 +489,76 @@ sessionTest(
     assert.equal(status(doc.id), 'PENDING');
     assert.equal(financeStatus(doc.id), 'APPROVED');
     assert.equal((await waitMails(doc.recipient)).length, 1, 'o convite não chegou');
+  },
+);
+
+sessionTest(
+  'o dono troca o arquivo durante o "Definir conta e enviar": o Financeiro recebe "O remetente trocou o arquivo"',
+  async () => {
+    const doc = await newDocument(await danfe('arquivo-trocado'), 'arquivo-trocado');
+
+    assert.equal((await setChoice(doc.id, { defer: true })).status, 200);
+    assertHeld(await distribute(doc.id));
+
+    // A classificação ainda não viu o arquivo novo (a troca chegou entre a leitura do Financeiro e o envio): o envio
+    // reclassifica, a conta é zerada e a NF volta a ser um rascunho do dono.
+    db(`update "RevalleInvoiceClassification" set "fileSha256" = 'arquivo-anterior' where "envelopeId" = '${doc.id}'`);
+
+    const refused = await defineAccount(doc.id, '2.1.03');
+
+    assert.equal(refused.status, 400, refused.text);
+    assert.ok(refused.text.includes('O remetente trocou o arquivo; a nota voltou para ele.'), refused.text);
+    assert.equal(status(doc.id), 'DRAFT');
+    assert.equal(financeStatus(doc.id), '-');
+    assert.equal(auditCount(doc.id, 'REVALLE_FINANCE_ACCOUNT_DEFINED'), 0);
+    await sleep(2000);
+    assert.equal(await invites(doc), 0);
+  },
+);
+
+sessionTest(
+  'envio do Financeiro retomado que falha, enviado depois pelo dono: a definição fica no log (quem do Financeiro definiu)',
+  async () => {
+    const doc = await newDocument(await danfe('retomada-dono'), 'retomada-dono');
+
+    assert.equal((await setChoice(doc.id, { defer: true })).status, 200);
+    assertHeld(await distribute(doc.id));
+
+    // Reserva vencida (o envio anterior caiu) e um destinatário que o envio recusa: a retomada falha e solta a reserva.
+    db(
+      `update "RevalleInvoiceClassification" set "financeStatus" = 'APPROVED', "choiceCode" = '2.1.03', "choiceDefer" = false, "choiceById" = ${adminId}, "choiceAt" = now() - interval '6 minutes', "approvedById" = ${adminId}, "approvedAt" = now() - interval '6 minutes' where "envelopeId" = '${doc.id}'`,
+    );
+    db(`update "Recipient" set email = 'f6-envio-fora-retomada-${RUN}@example.com' where "envelopeId" = '${doc.id}'`);
+
+    const failed = await defineAccount(doc.id, '2.1.03');
+
+    assert.ok(failed.status >= 400 && failed.status < 500, failed.text);
+    assert.equal(
+      db(
+        `select "financeStatus" || ';' || ("approvedAt" is null) from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`,
+      ),
+      'APPROVED;true',
+    );
+
+    db(`update "Recipient" set email = '${doc.recipient}' where "envelopeId" = '${doc.id}'`);
+
+    const sent = await distribute(doc.id);
+
+    assert.equal(sent.status, 200, sent.text);
+    assert.equal(status(doc.id), 'PENDING');
+    assert.equal(auditCount(doc.id, 'REVALLE_FINANCE_ACCOUNT_DEFINED'), 1, 'sem o evento da definição do Financeiro');
+    assert.equal(
+      db(
+        `select "userId" || ';' || (data->>'code') from "DocumentAuditLog" where "envelopeId" = '${doc.id}' and type = 'REVALLE_FINANCE_ACCOUNT_DEFINED'`,
+      ),
+      `${adminId};2.1.03`,
+    );
+    assert.equal(
+      db(
+        `select ("approvedAt" = "choiceAt") || ';' || ("approvedByName" is not distinct from (select nullif(trim(name), '') from "User" where id = ${adminId})) from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`,
+      ),
+      'true;true',
+    );
   },
 );
 

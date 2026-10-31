@@ -10,7 +10,11 @@
 //     e o /verificar com o código antigo mostra "Substituído por uma nova versão em {data} (conta contábil alterada)",
 //     sem nenhum código nem o id da nova versão;
 //   - o nome da conta aprovada fica congelado na aprovação: depois de renomear a conta (reimportar o CSV com o mesmo
-//     número) e resselar, o certificado e o /verificar continuam com o nome aprovado.
+//     número) e resselar, o certificado e o /verificar continuam com o nome aprovado; o nome de quem aprovou também
+//     (renomeado depois, a reselagem e o /verificar mantêm o nome da aprovação);
+//   - a prova só congela a conta que a página de assinatura mostrou: quem assina sem abrir a página (como pelo embed,
+//     que não mostra o bloco) ou com a página aberta antes de a conta existir (NF marcada depois do envio) fica sem a
+//     conta, e o certificado sem a linha "Conta contábil vista ao assinar" dele.
 //
 // Sessões: REVSIGN_USER_* (admin@hml.local, dono do REVSIGN_API_TOKEN, fora do Financeiro) e REVSIGN_ADMIN_* (rsadmin,
 // ADMIN, marcado como Financeiro aqui). Ver revalle/docs/testes.md.
@@ -256,11 +260,16 @@ const gate = async (token) => {
   await trpc('revalle.gate.confirmIdentity', { token, isMe: true });
 };
 
-// Portão, assinatura e conclusão com o código, como a tela faz.
-const sign = async (doc, index) => {
+// Portão, a página de assinatura (que mostra a conta), assinatura e conclusão com o código, como a tela faz.
+// `openPage: false` = assinatura sem a página do RevSign (o embed não mostra o bloco da conta).
+const sign = async (doc, index, { openPage = true } = {}) => {
   const recipient = doc.recipients[index];
 
   await gate(recipient.token);
+
+  if (openPage) {
+    assert.equal((await html(`/sign/${recipient.token}`)).status, 200);
+  }
 
   const signed = await trpc('envelope.field.sign', {
     token: recipient.token,
@@ -499,9 +508,11 @@ sessionTest(
 );
 
 sessionTest(
-  'nome da conta congelado na aprovação: conta renomeada depois, a reselagem e o /verificar mantêm o nome aprovado',
+  'nome da conta e de quem aprovou congelados na aprovação: renomeados depois, a reselagem e o /verificar mantêm os nomes',
   async () => {
     const RENAMED = 'Fornecedores Renomeados Depois';
+    const RENAMED_APPROVER = 'Aprovador Renomeado Depois';
+    const approverName = db(`select coalesce(name, '') from "User" where email = '${admin.email}'`);
     const nf = await newInvoice('nome-congelado', { signers: 1 });
 
     await sign(nf, 0);
@@ -522,6 +533,7 @@ sessionTest(
 
       assert.equal(renamed.status, 200, renamed.text);
       assert.equal(db(`select name from "RevalleAccountingAccount" where code = '2.1.03'`), RENAMED);
+      db(`update "User" set name = '${RENAMED_APPROVER}' where email = '${admin.email}'`);
 
       const resealed = await trpcAs(adminCookie, 'mutation', 'admin.document.reseal', { id: nf.id });
 
@@ -540,6 +552,7 @@ sessionTest(
         'a reselagem perdeu o nome aprovado da conta',
       );
       assert.ok(!text.includes(RENAMED), 'o certificado usou o nome novo da conta');
+      assert.ok(!text.includes(RENAMED_APPROVER), 'o certificado usou o nome novo de quem aprovou');
 
       db('delete from "RateLimit"');
 
@@ -547,8 +560,59 @@ sessionTest(
 
       assert.ok(verify.text.includes('Conta contábil: 2.1.03 – Fornecedores'), '/verificar sem o nome aprovado');
       assert.ok(!verify.text.includes(RENAMED), '/verificar com o nome novo da conta');
+      assert.ok(
+        verify.text.includes(`Aprovada pelo Financeiro (${adminName}) em ${at}`),
+        '/verificar sem o nome de quem aprovou na aprovação',
+      );
+      assert.ok(!verify.text.includes(RENAMED_APPROVER), '/verificar com o nome novo de quem aprovou');
     } finally {
+      db(`update "User" set name = '${approverName.replace(/'/g, "''")}' where email = '${admin.email}'`);
       await trpcAs(adminCookie, 'mutation', 'revalle.invoice.adminImportAccounts', { csv: ACCOUNTS_CSV });
     }
+  },
+);
+
+sessionTest(
+  'a prova só congela a conta mostrada: sem a página (embed) ou com a página aberta antes da conta, sem a linha da conta',
+  async () => {
+    const nf = await newInvoice('sem-pagina');
+
+    // O 1º assina sem a página do RevSign (como pelo embed); o 2º, pela página, que mostra a conta.
+    await sign(nf, 0, { openPage: false });
+    await sign(nf, 1);
+    assert.equal(invoiceAccountOf(nf.recipients[0].id), null, 'a prova afirma uma conta que a pessoa não viu');
+    assert.deepEqual(invoiceAccountOf(nf.recipients[1].id), { code: '2.1.03', name: 'Fornecedores' });
+
+    const approved = await trpcAs(adminCookie, 'mutation', 'revalle.finance.approve', { envelopeId: nf.id });
+
+    assert.equal(approved.status, 200, approved.text);
+    assert.equal(await waitStatus(nf.id, 'COMPLETED'), 'COMPLETED');
+    assert.equal(count(await sealedText(nf), SIGNER_ROW('2.1.03')), 1, 'só quem viu a conta tem a linha');
+
+    // NF marcada depois do envio: a página abriu sem conta, o dono escolheu a conta e a pessoa assinou sem recarregar.
+    const late = await newCommon('conta-depois');
+    const token = late.recipients[0].token;
+
+    await gate(token);
+
+    const before = await html(`/sign/${token}`);
+
+    assert.ok(!before.text.includes('Nota fiscal · Conta contábil'), 'a página mostrou uma conta que não existia');
+    assert.equal(
+      (await trpcAs(userCookie, 'mutation', 'revalle.invoice.markAsInvoice', { envelopeId: late.id })).status,
+      200,
+    );
+    assert.equal(
+      (
+        await trpcAs(userCookie, 'mutation', 'revalle.invoice.setChoice', {
+          envelopeId: late.id,
+          choice: { code: '2.1.03' },
+        })
+      ).status,
+      200,
+    );
+
+    await sign(late, 0, { openPage: false });
+    assert.equal(invoiceAccountOf(late.recipients[0].id), null, 'a prova afirma a conta escolhida depois');
   },
 );
