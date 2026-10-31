@@ -6,8 +6,8 @@ Endereço de homologação: `assinatura-hml.revalle.com.br`. A produção (`assi
 
 Versões da imagem usadas neste guia:
 
-- App: `ghcr.io/enzononato/revsign:v2.21.1-revalle.8`
-- Backup: `ghcr.io/enzononato/revsign-backup:v2.21.1-revalle.8`
+- App: `ghcr.io/enzononato/revsign:v2.21.1-revalle.9`
+- Backup: `ghcr.io/enzononato/revsign-backup:v2.21.1-revalle.9`
 
 ## O que você precisa ter antes
 
@@ -101,7 +101,7 @@ Por quê: o navegador precisa achar o endereço `assinatura-hml.revalle.com.br`.
 2. Em **Service Name**, escreva `revsign`.
 3. Clique em **Create**.
 4. Na aba **Source**, escolha **Docker Image**.
-5. No campo **Image**, escreva `ghcr.io/enzononato/revsign:v2.21.1-revalle.8`.
+5. No campo **Image**, escreva `ghcr.io/enzononato/revsign:v2.21.1-revalle.9`.
 6. Clique em **Save**.
 7. Abra a aba **Environment** (veja o passo 5 antes de salvar).
 
@@ -148,7 +148,7 @@ Por quê: é o e-mail que envia os convites de assinatura.
 Por quê: copia o banco todo dia, cifrado, para fora da VPS. Detalhes em `backup.md`; crie antes a conta FTP lá descrita (ou deixe `BACKUP_REMOTE_TYPE=none` por enquanto e volte depois). Com `none`, cada backup mostra no log `AVISO: cópia remota desativada` e grava `"remote":"disabled"` e `"warning"` no `last-run.json`, porque os backups ficam só na VPS e não protegem contra a perda do servidor.
 
 1. No projeto, clique em **+ Service** e depois **App**. Nome: `revsign-backup`.
-2. Aba **Source** → **Docker Image** → `ghcr.io/enzononato/revsign-backup:v2.21.1-revalle.8` → **Save**.
+2. Aba **Source** → **Docker Image** → `ghcr.io/enzononato/revsign-backup:v2.21.1-revalle.9` → **Save**.
 3. Abra `backup.env` (do passo 0) no bloco de notas e:
    - Troque `BACKUP_DATABASE_URL=<preencher>` pela mesma Internal Connection URL do passo 2.
    - Para a cópia fora da VPS (recomendada), tire o `#` do começo das linhas `BACKUP_REMOTE_*` do exemplo FTPS e preencha host, usuário e senha da conta FTP (veja `backup.md`). Atenção à pasta: se a conta FTP está presa na pasta `revsign-backups`, use `BACKUP_REMOTE_PATH=/`; se vê a pasta pessoal inteira, mantenha `revsign-backups` (senão cria `revsign-backups/revsign-backups`). Deixe `BACKUP_REMOTE_KNOWN_HOSTS_FILE` comentada (só se usa em SFTP).

@@ -17,7 +17,7 @@ set -eu
 
 SRC="${1:?uso: $0 <arquivo.dump.age|latest> <age-identity-file>}"
 IDENTITY="${2:?uso: $0 <arquivo.dump.age|latest> <age-identity-file>}"
-IMG="${REVSIGN_BACKUP_IMAGE:-ghcr.io/enzononato/revsign-backup:v2.21.1-revalle.8}"
+IMG="${REVSIGN_BACKUP_IMAGE:-ghcr.io/enzononato/revsign-backup:v2.21.1-revalle.9}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 VERIFY="$HERE/../../scripts/revalle/verify-signed-pdf.sh"
 
