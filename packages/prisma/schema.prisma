@@ -1328,25 +1328,27 @@ model RevalleEmailLink {
 }
 
 model RevalleRecipientGate {
-  id                  String    @id @default(cuid())
-  recipientId         Int       @unique
-  recipient           Recipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
-  email               String?
-  termVersion         String?
-  termAcceptedAt      DateTime?
-  termIpAddress       String?
-  termUserAgent       String?
-  identityStatus      String    @default("PENDING") // PENDING | VERIFIED | CONFIRMED | LINKED | SKIPPED
-  pendingCpf          String?
-  cpf                 String?
-  identityConfirmedAt DateTime?
-  failedAttempts      Int       @default(0)
-  codeFailedAttempts  Int       @default(0)
-  lockedAt            DateTime?
-  lockReason          String? // ATTEMPTS | CPF_CONFLICT | CODE_ATTEMPTS
-  conflictCpf         String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                      String    @id @default(cuid())
+  recipientId             Int       @unique
+  recipient               Recipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  email                   String?
+  termVersion             String?
+  termAcceptedAt          DateTime?
+  termIpAddress           String?
+  termUserAgent           String?
+  identityStatus          String    @default("PENDING") // PENDING | VERIFIED | CONFIRMED | LINKED | SKIPPED
+  pendingCpf              String?
+  cpf                     String?
+  identityConfirmedAt     DateTime?
+  failedAttempts          Int       @default(0)
+  codeFailedAttempts      Int       @default(0)
+  lockedAt                DateTime?
+  lockReason              String? // ATTEMPTS | CPF_CONFLICT | CODE_ATTEMPTS
+  conflictCpf             String?
+  /// Fase 6: número da conta contábil da NF que a página de assinatura mostrou (a prova só congela a conta mostrada).
+  invoiceAccountShownCode String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 }
 
 /// REVALLE: SHA-256 do PDF original (no envio) e do PDF selado, por item do envelope.
@@ -1444,8 +1446,9 @@ enum RevalleSuggestionStatus {
   SKIPPED
 }
 
-/// REVALLE: se o documento é nota fiscal, a sugestão da IA e a conta escolhida (`choiceCode` ou `choiceDefer`).
-/// Fora da prova: não entra no certificado, no carimbo nem no PDF selado.
+/// REVALLE: se o documento é nota fiscal, a sugestão da IA, a conta escolhida (`choiceCode` ou `choiceDefer`) e, desde a
+/// Fase 6, a aprovação do Financeiro e as versões. A conta aprovada entra no certificado e no /verificar, e a conta vista
+/// por quem assina fica na prova de cada assinatura (`RevalleSignatureProof.invoiceAccount`).
 model RevalleInvoiceClassification {
   envelopeId             String                   @id
   envelope               Envelope                 @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
@@ -1472,6 +1475,8 @@ model RevalleInvoiceClassification {
   approvedAt             DateTime?
   /// Nome da conta aprovada, congelado na aprovação (a lista pode ser reimportada com outro nome). Nulo = usa o atual.
   approvedAccountName    String?
+  /// Nome de quem aprovou (ou definiu), congelado no mesmo momento. Nulo = usa o nome atual.
+  approvedByName         String?
   /// "Deixar para o Financeiro": quando o e-mail "aguardando o Financeiro" saiu para os membros (um por retenção).
   accountRequestedAt     DateTime?
   /// Selagem retida (todos assinaram, falta a aprovação): quando o e-mail "aguardando aprovação" saiu (um por retenção).
