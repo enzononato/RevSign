@@ -60,6 +60,12 @@ Na mesma tela, campo **Prompt**. É a instrução para a IA, em português, com 
 O RevSign acrescenta sozinho, depois do seu texto, a lista de contas ativas (número, nome, tipo e descrição) e o
 formato da resposta. Você não precisa colar a lista no prompt.
 
+A IA só pode responder um código da lista: o RevSign manda os códigos das contas ativas como opções fechadas, e ela não
+consegue inventar conta. Isso não garante a conta certa, por isso a sugestão continua sendo só uma sugestão. Se os
+códigos somarem mais de 30 mil caracteres, essa trava sai sozinha, porque o Gemini recusa listas muito grandes; a
+sugestão continua funcionando, e o RevSign descarta a resposta se a conta não existir. A lista real, de 138 contas,
+soma menos de mil.
+
 **Cache por arquivo.** Cada arquivo (pelo seu SHA-256, uma "impressão digital" do PDF) vai ao Gemini **uma vez só**. Se
 o mesmo PDF for enviado de novo, a sugestão vem do cache, sem nova chamada. Por isso:
 

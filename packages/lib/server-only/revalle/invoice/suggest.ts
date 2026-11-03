@@ -451,6 +451,7 @@ export const runInvoiceSuggestion = async ({
     try {
       const result = await requestGeminiSuggestion({
         prompt: buildInvoicePrompt({ userPrompt: settings.prompt, accounts }),
+        accountCodes: accounts.map((account) => account.code),
         text: texts.length > 0 ? texts : undefined,
         pdf: pdfs.length > 0 ? pdfs : undefined,
         signal,

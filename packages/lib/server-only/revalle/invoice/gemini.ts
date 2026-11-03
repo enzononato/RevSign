@@ -3,7 +3,7 @@ import type { FilePart, TextPart } from 'ai';
 import { generateObject, NoObjectGeneratedError } from 'ai';
 
 import { maskCpf } from '../../../revalle/invoice/mask-cpf';
-import { ZInvoiceSuggestionSchema } from '../../../revalle/invoice/suggestion';
+import { invoiceResponseSchema } from '../../../revalle/invoice/suggestion';
 import { env } from '../../../utils/env';
 import { getRevalleInvoiceAiConfig } from './settings';
 
@@ -30,6 +30,8 @@ export type GeminiSuggestionResult = {
  */
 export const requestGeminiSuggestion = async (input: {
   prompt: string;
+  /** Códigos das contas da lista enviada no prompt: o modelo só pode responder um deles. */
+  accountCodes: string[];
   /** Texto de um ou mais arquivos (uma parte da mensagem por arquivo; CPF mascarado e corte por arquivo). */
   text?: string | string[];
   pdf?: Uint8Array | Uint8Array[];
@@ -56,7 +58,7 @@ export const requestGeminiSuggestion = async (input: {
   try {
     const result = await generateObject({
       model: google(model),
-      schema: ZInvoiceSuggestionSchema,
+      schema: invoiceResponseSchema(input.accountCodes),
       instructions: input.prompt,
       messages: [{ role: 'user', content }],
       abortSignal: input.signal,

@@ -360,6 +360,11 @@ aiTest('DANFE fictício: YES, uma chamada com texto, sugestão DONE com a conta 
   assert.equal(call.hasText, true);
   assert.equal(call.responseMimeType, 'application/json');
   assert.equal(call.hasResponseSchema, true);
+  assert.deepEqual(
+    [...call.accountCodeEnum].sort(),
+    [...call.system.matchAll(/^- (\S+) — /gm)].map((match) => match[1]).sort(),
+    'a trava deve ter os mesmos códigos da lista enviada no prompt',
+  );
 
   if (expectedModel.startsWith('gemini-3')) {
     assert.deepEqual(call.thinkingConfig, { thinkingLevel: 'minimal' });
