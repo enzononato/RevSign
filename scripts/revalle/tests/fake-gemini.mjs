@@ -11,7 +11,7 @@
 //        modos: ok | unknown-account | garbage | slow (25 s) | error (HTTP 500) | proxy (repassa ao Gemini de verdade
 //        com `apiKey`; perna opcional dos testes, chave só na memória, nunca devolvida nem registrada)
 //   GET  /__calls                                    chamadas recebidas (modelo, se veio PDF ou texto, tamanhos,
-//                                                    thinkingConfig, as partes da mensagem)
+//                                                    thinkingConfig, códigos da trava, as partes da mensagem)
 //   POST /__reset                                    apaga as chamadas e volta ao modo ok
 //
 // Uso: node scripts/revalle/tests/fake-gemini.mjs   (porta: FAKE_GEMINI_PORT, padrão 8787)
@@ -112,6 +112,7 @@ const handleGenerate = async (req, res, model) => {
     parts,
     responseMimeType: body.generationConfig?.responseMimeType ?? null,
     hasResponseSchema: Boolean(body.generationConfig?.responseSchema),
+    accountCodeEnum: body.generationConfig?.responseSchema?.properties?.accountCode?.enum ?? null,
     thinkingConfig: body.generationConfig?.thinkingConfig ?? null,
   };
 
