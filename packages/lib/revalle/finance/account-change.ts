@@ -98,6 +98,8 @@ const inheritedFinanceStatus = (row: Pick<VersionRow, 'financeStatus' | 'approve
  * | Quem mudou                      | Conta   | Situação no Financeiro           | Centro  | Validação               |
  * | Financeiro trocou a conta       | a nova  | aprovada por quem trocou         | o mesmo | a mesma da anterior     |
  * | Contabilidade corrigiu o centro | a mesma | a mesma da anterior (nomes iguais) | o novo | validado por quem corrigiu |
+ *
+ * Exceção da spec: a NF `LEGACY` corrigida sai aguardando o Financeiro (`inheritedFinanceStatus`).
  */
 export const nextClassification = (
   row: VersionRow,

@@ -4,12 +4,15 @@ import { useLingui } from '@lingui/react/macro';
 import { ReceiptTextIcon } from 'lucide-react';
 import { createContext, type ReactNode, useContext } from 'react';
 
-export type SigningInvoiceAccount = { code: string; name: string; costCenter: { code: string; name: string } | null };
+export type SigningInvoiceAccount = {
+  account: { code: string; name: string } | null;
+  costCenter: { code: string; name: string } | null;
+};
 
 const SigningInvoiceAccountContext = createContext<SigningInvoiceAccount | null>(null);
 
 /**
- * A conta da NF chega pelo loader da página de assinatura (só depois do portão) e desce por contexto até as telas V1 e
+ * A conta e o centro da NF chegam pelo loader da página de assinatura (só depois do portão) e descem por contexto até as telas V1 e
  * V2, que só ganham uma linha cada. Fora da página de assinatura (embed, modelo direto) não há provedor: nada aparece.
  */
 export const SigningInvoiceAccountProvider = ({
@@ -22,18 +25,28 @@ export const SigningInvoiceAccountProvider = ({
 
 /**
  * Fase 6: quem assina vê a conta contábil da NF, que faz parte do que é assinado e fica na prova. Fase 7: o centro de
- * custo vai na mesma frase; NF sem centro (marcada depois do envio ou de antes da Fase 7) mostra a frase de antes.
+ * custo vai na mesma frase, e vale em separado: NF sem centro mostra só a conta, e NF sem conta (marcada depois do envio)
+ * mostra só o centro.
  */
 export const SigningInvoiceAccountBlock = ({ className }: { className?: string }) => {
-  const account = useContext(SigningInvoiceAccountContext);
+  const invoice = useContext(SigningInvoiceAccountContext);
   const { t } = useLingui();
 
-  if (!account) {
+  if (!invoice) {
     return null;
   }
 
-  const label = account.name ? `${account.code} – ${account.name}` : account.code;
-  const centerLabel = account.costCenter ? costCenterLabel(account.costCenter.code) : null;
+  const { account, costCenter } = invoice;
+  const label = account?.name ? `${account.code} – ${account.name}` : (account?.code ?? null);
+  const centerLabel = costCenter ? costCenterLabel(costCenter.code) : null;
+
+  const sentence = () => {
+    if (label && centerLabel) {
+      return t`Nota fiscal · Conta contábil: ${label} · Centro de custo: ${centerLabel}`;
+    }
+
+    return label ? t`Nota fiscal · Conta contábil: ${label}` : t`Nota fiscal · Centro de custo: ${centerLabel}`;
+  };
 
   return (
     <div
@@ -45,11 +58,7 @@ export const SigningInvoiceAccountBlock = ({ className }: { className?: string }
     >
       <ReceiptTextIcon aria-hidden className="mt-0.5 h-4 w-4 flex-shrink-0" />
       {/* Um só nó de texto: a frase sai inteira no HTML do servidor. */}
-      <span className="min-w-0 break-words">
-        {centerLabel
-          ? t`Nota fiscal · Conta contábil: ${label} · Centro de custo: ${centerLabel}`
-          : t`Nota fiscal · Conta contábil: ${label}`}
-      </span>
+      <span className="min-w-0 break-words">{sentence()}</span>
     </div>
   );
 };

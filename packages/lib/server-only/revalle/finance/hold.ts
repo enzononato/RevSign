@@ -8,14 +8,18 @@ import { logger } from '../../../utils/logger';
 /**
  * Primeiro envio de uma NF com conta: aguardando a aprovação do Financeiro. Vale também sobre `LEGACY` (rascunho de
  * antes da Fase 6 nunca pula o Financeiro). `APPROVED` fica: é uma nova versão já aprovada, pela troca de conta ou com a
- * aprovação copiada pela correção do centro.
+ * aprovação copiada pela correção do centro. `SUPERSEDED` fica: esta marca roda antes da transação do envio, e um envio
+ * atrasado (leu o rascunho, outro envio saiu e a versão foi substituída) não pode trazer a versão de volta.
  */
 export const markInvoiceAwaitingApproval = async (envelopeId: string) => {
   await prisma.revalleInvoiceClassification.updateMany({
     where: {
       envelopeId,
       isInvoice: RevalleInvoiceStatus.YES,
-      OR: [{ financeStatus: null }, { financeStatus: { not: RevalleFinanceStatus.APPROVED } }],
+      OR: [
+        { financeStatus: null },
+        { financeStatus: { notIn: [RevalleFinanceStatus.APPROVED, RevalleFinanceStatus.SUPERSEDED] } },
+      ],
     },
     data: { financeStatus: RevalleFinanceStatus.PENDING_APPROVAL },
   });

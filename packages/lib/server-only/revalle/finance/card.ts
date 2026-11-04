@@ -9,6 +9,7 @@ import {
 } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
+import { isNewVersionDraftRow } from '../../../revalle/finance/finance-status';
 import { costCenterLabel } from '../../../revalle/invoice/cost-centers';
 import { findVisibleSuccessor, isStaleChangeClaim } from './successor';
 
@@ -62,8 +63,8 @@ const readSuggestion = (status: RevalleSuggestionStatus, stored: unknown) => {
 
 /**
  * Cartão "Financeiro" da página da NF (só para membros; a rota confere). Mostra o que o Financeiro precisa para decidir:
- * a conta atual, quem escolheu, a sugestão da IA e o estado. NF excluída pelo remetente não aparece (404), salvo a
- * versão substituída escondida pela troca.
+ * a conta atual, quem escolheu, a sugestão da IA e o estado. Mesmo acesso da página: NF excluída pelo remetente e rascunho
+ * comum de outra pessoa dão 404; a versão substituída escondida pela troca e o rascunho de uma nova versão, não.
  */
 export const getFinanceCard = async (envelopeId: string): Promise<FinanceCard> => {
   const envelope = await prisma.envelope.findUnique({
@@ -86,6 +87,10 @@ export const getFinanceCard = async (envelopeId: string): Promise<FinanceCard> =
   const hiddenSuperseded = row.financeStatus === 'SUPERSEDED' && envelope.status !== DocumentStatus.COMPLETED;
 
   if (envelope.deletedAt && !hiddenSuperseded) {
+    throw new AppError(AppErrorCode.NOT_FOUND, { message: 'Nota fiscal não encontrada.' });
+  }
+
+  if (envelope.status === DocumentStatus.DRAFT && !isNewVersionDraftRow(row)) {
     throw new AppError(AppErrorCode.NOT_FOUND, { message: 'Nota fiscal não encontrada.' });
   }
 

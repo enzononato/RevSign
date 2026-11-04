@@ -5061,3 +5061,6 @@ msgstr "Todos vão precisar assinar de novo."
 
 msgid "De {center} para {chosen}."
 msgstr "De {center} para {chosen}."
+
+msgid "Nota fiscal · Centro de custo: {centerLabel}"
+msgstr "Nota fiscal · Centro de custo: {centerLabel}"

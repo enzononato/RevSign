@@ -99,7 +99,15 @@ const resolveViewer = async (envelope: LoadedEnvelope, userId: number): Promise<
   const isAdmin = isAdminUser(user);
   const [isFinance, isAccounting] = await Promise.all([isFinanceMember(userId), isAccountingMember(userId)]);
   const isOwner = envelope.userId === userId;
-  const viewer = { isAdmin, isFinance, isAccounting, isOwner };
+  // O rascunho comum é trabalho do dono: o perfil não vale nele. Quem o abre por ser admin ou dono vê a leitura, sem os
+  // cartões, cujas rotas dão 404 nele.
+  const isOpenToProfiles = envelope.status !== DocumentStatus.DRAFT || isNewVersionDraftRow(invoice);
+  const viewer = {
+    isAdmin,
+    isFinance: isFinance && isOpenToProfiles,
+    isAccounting: isAccounting && isOpenToProfiles,
+    isOwner,
+  };
 
   if (isAdmin) {
     return viewer;
@@ -112,12 +120,8 @@ const resolveViewer = async (envelope: LoadedEnvelope, userId: number): Promise<
     return null;
   }
 
-  // A Contabilidade lê o mesmo que o Financeiro. O rascunho de outra pessoa não: só o de uma nova versão, como na lista.
-  // Outro rascunho é trabalho do dono.
-  const readsAll =
-    (isFinance || isAccounting) && (envelope.status !== DocumentStatus.DRAFT || isNewVersionDraftRow(invoice));
-
-  if (readsAll || isOwner) {
+  // A Contabilidade lê o mesmo que o Financeiro.
+  if (viewer.isFinance || viewer.isAccounting || isOwner) {
     return viewer;
   }
 

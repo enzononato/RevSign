@@ -18,8 +18,9 @@ para a contabilidade nem para o Financeiro: tudo o que precisa de ação fica na
   o centro. Depois do envio, o centro já escolhido não muda pela página do documento: a correção é da Contabilidade, e
   gera uma nova versão que todos assinam de novo (seção 9, "Contabilidade").
 - O centro de custo também **faz parte do que é assinado**: quem assina vê "Nota fiscal · Conta contábil: {código} – {nome}
-  · Centro de custo: 101 – Puxada" (numa NF sem centro, a frase de antes), a prova de cada signatário guarda o centro
-  que a pessoa viu, e o certificado ganha a linha "Centro de custo visto ao assinar" em cada signatário e a linha
+  · Centro de custo: 101 – Puxada" (numa NF sem centro, a frase de antes; numa NF sem conta, marcada depois do envio,
+  "Nota fiscal · Centro de custo: 101 – Puxada"), a prova de cada signatário guarda o centro que a pessoa viu, com ou sem
+  conta, e o certificado ganha a linha "Centro de custo visto ao assinar" em cada signatário e a linha
   "Centro de custo: 101 – Puxada" no topo. O certificado e o `/verificar` só informam o centro: não dizem que a
   Contabilidade validou. Ver `prova.md`.
 - Sem a chave do Gemini, tudo funciona do mesmo jeito, só que sem sugestão: o remetente escolhe na lista.
@@ -313,7 +314,7 @@ hora. Se ninguém estiver na Contabilidade, a tela do admin mostra um aviso.
   - sai uma **nova versão** (" (v2)", " (v3)"…), com a mesma conta, a mesma situação no Financeiro (se já estava aprovada,
     continua aprovada, com os mesmos nomes, e conclui sem nova aprovação; se aguardava, continua aguardando), o centro
     novo e já validada por quem corrigiu;
-  - uma NF `LEGACY` concluída que é corrigida passa a aguardar o Financeiro na nova versão, como qualquer envio;
+  - a exceção é a NF `LEGACY` concluída: corrigida, ela passa a aguardar o Financeiro na nova versão, como qualquer envio;
   - o remetente e quem assina recebem o aviso "Centro de custo da nota fiscal corrigido pela Contabilidade: {título}",
     com a frase "O centro de custo foi corrigido de 101 – Puxada para 201 – Armazém. Motivo: {motivo}.";
   - uma NF sem centro não tem o que corrigir: a tela oferece **Definir centro de custo**.
@@ -330,7 +331,7 @@ hora. Se ninguém estiver na Contabilidade, a tela do admin mostra um aviso.
 | Quem mudou | Conta | Situação no Financeiro | Centro | Validação |
 |---|---|---|---|---|
 | Financeiro trocou a conta | a nova | aprovada por quem trocou | o mesmo | a mesma da anterior |
-| Contabilidade corrigiu o centro | a mesma | a mesma da anterior, com os nomes | o novo | validado por quem corrigiu |
+| Contabilidade corrigiu o centro | a mesma | a mesma da anterior, com os nomes (NF `LEGACY`: aguardando aprovação) | o novo | validado por quem corrigiu |
 
 Financeiro e Contabilidade agindo ao mesmo tempo: um vence, nunca há duas novas versões, e o outro recebe "A situação
 desta nota mudou. Atualize a página e tente de novo." (ou "Esta versão da nota fiscal já foi substituída", se a nova versão

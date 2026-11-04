@@ -13,12 +13,15 @@
 //     nada fica `SUPERSEDED` sem sucessora; corrida com `finance.approve`: o perdedor recebe "A situação desta nota mudou";
 //   - troca de conta: a v2 mantém o centro e a validação da v1;
 //   - `defineCostCenter`: primeiro centro, gravado e validado no mesmo ato, sem nova versão; com centro, 400; a correção
-//     de uma NF sem conta sai assim mesmo;
+//     de uma NF sem conta sai assim mesmo; nos dois casos, sem conta, quem assina vê o centro, a prova o guarda e o
+//     certificado traz a linha do signatário; a conta definida com a página já aberta não entra na prova;
+//   - NF `LEGACY`: pendente = 400; concluída e corrigida, a nova versão sai aguardando o Financeiro;
+//   - envio atrasado (leu o rascunho antes da correção da nova versão) não ressuscita a versão substituída;
 //   - falha no envio: `FINANCE_NEW_VERSION_NOT_SENT`, rascunho, `resendVersion` (Financeiro ou Contabilidade) envia sem
 //     mexer na aprovação copiada, também em `PENDING_APPROVAL`, e um clique duplo envia uma vez só;
 //   - falha ao criar a v2 desfaz a marca; marca que morreu no meio é retomada depois do prazo, nos dois tipos;
-//   - rascunho de nova versão: Financeiro e Contabilidade abrem e listam (`APPROVED` ou `PENDING_APPROVAL`), o rascunho
-//     comum fica escondido, e o dono não troca conta nem centro do rascunho;
+//   - rascunho de nova versão: Financeiro e Contabilidade abrem, listam e veem o cartão (`APPROVED` ou
+//     `PENDING_APPROVAL`), o rascunho comum fica escondido, e o dono não troca conta nem centro do rascunho;
 //   - o arquivo trocado no rascunho da v2 perde a isenção: o envio volta a exigir a conta e o centro, e a validação cai;
 //   - `setCostCenter` e `setChoice` recusam a versão substituída.
 //
@@ -42,7 +45,9 @@ import {
   createEnvelope,
   db,
   distribute,
+  downloadItem,
   fetchIdempotent,
+  poppler,
   retryCreateOnStaleSocket,
   signIn,
   trpc,
@@ -98,6 +103,7 @@ const define = (envelopeId, code = '201', cookie) => accounting('defineCostCente
 const card = (envelopeId, cookie) => accounting('get', { envelopeId }, cookie, 'query');
 const changeAccount = (envelopeId, { code = '3.1.01', reason = 'Conta de serviço, não de material.' } = {}) =>
   trpcAs(adminCookie, 'mutation', 'revalle.finance.changeAccount', { envelopeId, code, reason });
+const financeCard = (envelopeId, cookie) => trpcAs(cookie, 'query', 'revalle.finance.get', { envelopeId });
 const approve = (envelopeId) => trpcAs(adminCookie, 'mutation', 'revalle.finance.approve', { envelopeId });
 const resend = (envelopeId, cookie = accountant.cookie) =>
   trpcAs(cookie, 'mutation', 'revalle.finance.resendVersion', { envelopeId });
@@ -353,12 +359,15 @@ const signField = (doc, recipient) => {
 
 // Portão, página aberta (a prova só congela o que a página mostrou), assinatura e conclusão. O código é calculado no
 // container do app: aqui chegam vários e-mails ao mesmo tempo (convite e aviso), e ler "o último" no Mailpit daria erro.
-const sign = async (doc, index) => {
+const sign = async (doc, index, { afterPageOpens } = {}) => {
   const recipient = doc.recipients[index];
 
   await gate(recipient.token);
 
   const page = await signingPage(recipient.token);
+
+  await afterPageOpens?.();
+
   const signed = await signField(doc, recipient);
 
   assert.equal(signed.status, 200, signed.text);
@@ -377,6 +386,22 @@ const sign = async (doc, index) => {
   db(`delete from "RevalleEmailLink" where cpf = '${MARIA.cpf}'`);
 
   return page;
+};
+
+// O que a prova de quem assinou congelou: `conta|centro`, com "-" para o que ela não guardou.
+const proofOf = (recipientId) =>
+  db(
+    `select coalesce("invoiceAccount"->>'code', '-') || '|' || coalesce("invoiceCostCenter"->>'code', '-') from "RevalleSignatureProof" where "recipientId" = ${recipientId}`,
+  );
+
+// Texto do PDF selado (documento, certificado e log), com os espaços normalizados.
+const sealedText = async (envelopeId) => {
+  const dir = mkdtempSync(path.join(tmp, 'selado-'));
+  const itemId = db(`select id from "EnvelopeItem" where "envelopeId" = '${envelopeId}' order by "order" limit 1`);
+
+  writeFileSync(path.join(dir, 'signed.pdf'), await downloadItem(itemId, 'signed'));
+
+  return poppler(dir, 'pdftotext /pdf/signed.pdf -').replace(/\s+/g, ' ');
 };
 
 const signAll = async (doc) => {
@@ -963,8 +988,99 @@ sessionTest(
     assert.equal(lateChoice.status, 403, lateChoice.text);
     assert.ok(errorOf(lateChoice).message?.includes(SUPERSEDED_MESSAGE), lateChoice.text);
     assert.equal(invoiceRow(common.id, `coalesce("choiceCode", '-')`), '-');
+
+    // Todos assinam de novo por causa do centro: quem assina precisa vê-lo, mesmo sem conta, e a prova guarda o que a
+    // página mostrou. A conta definida com a página já aberta não entra na prova: ela não foi vista.
+    const v2 = loadVersion(v2Id);
+    const page = await sign(v2, 0, {
+      afterPageOpens: async () => {
+        const definedAccount = await trpcAs(adminCookie, 'mutation', 'revalle.finance.approve', {
+          envelopeId: v2Id,
+          code: '2.1.03',
+        });
+
+        assert.equal(definedAccount.status, 200, definedAccount.text);
+      },
+    });
+
+    assert.ok(page.includes('Nota fiscal · Centro de custo: 201 – Armazém'), 'a página não mostra o centro corrigido');
+    assert.ok(!page.includes('Nota fiscal · Conta contábil'), 'a página mostrou uma conta que não existia');
+    assert.equal(proofOf(v2.recipients[0].id), '-|201');
+    assert.equal(await waitStatus(v2Id, 'COMPLETED'), 'COMPLETED');
+
+    const sealed = await sealedText(v2Id);
+
+    assert.ok(sealed.includes('Centro de custo visto ao assinar: 201'), 'o certificado não traz a linha do signatário');
+    assert.ok(sealed.includes('Centro de custo: 201 – Armazém'), 'o certificado não traz a linha do documento');
+    assert.ok(!sealed.includes('Conta contábil vista ao assinar'), 'o certificado afirma uma conta que não foi vista');
   },
 );
+
+sessionTest(
+  'primeiro centro definido numa NF marcada depois do envio: quem assina depois o vê, e a prova o guarda',
+  async () => {
+    const common = await retryCreateOnStaleSocket(() =>
+      createEnvelope({
+        recipients: [{ email: `f7-ct-primeiro-centro-${RUN}@revalle.com.br` }],
+        title: `[TESTE] contabilidade primeiro centro ${RUN}`,
+      }),
+    );
+
+    assert.equal(common.status, 200, common.text);
+    assert.equal((await distribute(common.id)).length, 1);
+    assert.equal(
+      (await trpcAs(userCookie, 'mutation', 'revalle.invoice.markAsInvoice', { envelopeId: common.id })).status,
+      200,
+    );
+    assert.equal((await define(common.id, '301')).status, 200);
+
+    const doc = loadVersion(common.id);
+    const page = await sign(doc, 0);
+
+    assert.ok(page.includes('Nota fiscal · Centro de custo: 301 – Administrativo'), 'a página não mostra o centro');
+    assert.equal(proofOf(doc.recipients[0].id), '-|301');
+  },
+);
+
+sessionTest('NF LEGACY: pendente = 400; concluída e corrigida, a nova versão sai aguardando o Financeiro', async () => {
+  const doc = await newInvoice('legacy');
+
+  db(`update "RevalleInvoiceClassification" set "financeStatus" = 'LEGACY' where "envelopeId" = '${doc.id}'`);
+  assert.equal((await correct(doc.id)).status, 400);
+  assert.deepEqual(successors(doc.id), []);
+
+  // LEGACY conclui sem o Financeiro.
+  await signAll(doc);
+  assert.equal(await waitStatus(doc.id, 'COMPLETED'), 'COMPLETED');
+
+  const v2Id = changed(await correct(doc.id));
+
+  assert.equal(status(doc.id), 'COMPLETED');
+  assert.equal(invoiceRow(doc.id, `"financeStatus" || '|' || "supersedeKind"`), 'SUPERSEDED|COST_CENTER');
+  assert.equal(await waitStatus(v2Id, 'PENDING', 15), 'PENDING');
+  assert.equal(invoiceRow(v2Id, `"financeStatus" || '|' || ("approvedAt" is null)`), 'PENDING_APPROVAL|true');
+
+  // A nova versão não pula o Financeiro: assinada por todos, a selagem espera a aprovação.
+  await signAll(loadVersion(v2Id));
+  await sleep(2000);
+  assert.equal(status(v2Id), 'PENDING');
+  assert.equal((await approve(v2Id)).status, 200);
+  assert.equal(await waitStatus(v2Id, 'COMPLETED'), 'COMPLETED');
+});
+
+// Sem depender de tempo: o banco já tem o que um envio atrasado encontraria na marca "aguardando aprovação". Ele leu o
+// rascunho, outro envio saiu, e a Contabilidade corrigiu essa versão antes de ele chegar à marca.
+sessionTest('envio atrasado não ressuscita a versão substituída', async () => {
+  const doc = await newInvoice('envio-atrasado');
+  const v2Id = await correctWithFailedSend(doc, 'envio-atrasado');
+
+  fixRecipient(v2Id, 'envio-atrasado');
+  db(`update "RevalleInvoiceClassification" set "financeStatus" = 'SUPERSEDED' where "envelopeId" = '${v2Id}'`);
+
+  await api('POST', '/envelope/distribute', { envelopeId: v2Id });
+
+  assert.equal(financeStatus(v2Id), 'SUPERSEDED', 'o envio tirou a marca de versão substituída');
+});
 
 sessionTest(
   'falha no envio em PENDING_APPROVAL: rascunho travado; a Contabilidade reenvia; a situação fica; o aviso sai no envio',
@@ -1109,6 +1225,9 @@ sessionTest(
         );
       }
 
+      const financeView = await financeCard(envelopeId, financeOnly.cookie);
+
+      assert.equal(financeView.status, 200, financeView.text);
       assert.equal((await invoicePage(outsider.cookie, envelopeId)).status, 404);
     }
 
@@ -1127,9 +1246,19 @@ sessionTest(
     for (const forced of ['null', `'PENDING_APPROVAL'`, `'APPROVED'`]) {
       db(`update "RevalleInvoiceClassification" set "financeStatus" = ${forced} where "envelopeId" = '${plain.id}'`);
 
-      assert.equal((await invoicePage(accountant.cookie, plain.id)).status, 404, `página com ${forced}`);
-      assert.ok(!(await findRows(accountant.cookie)).some((row) => row.id === plain.id), `lista com ${forced}`);
-      assert.equal((await card(plain.id)).status, 404, `cartão com ${forced}`);
+      for (const cookie of [accountant.cookie, financeOnly.cookie]) {
+        assert.equal((await invoicePage(cookie, plain.id)).status, 404, `página com ${forced}`);
+        assert.ok(!(await findRows(cookie)).some((row) => row.id === plain.id), `lista com ${forced}`);
+      }
+
+      assert.equal((await card(plain.id)).status, 404, `cartão da Contabilidade com ${forced}`);
+      assert.equal((await financeCard(plain.id, financeOnly.cookie)).status, 404, `cartão do Financeiro com ${forced}`);
+
+      // O admin, também do Financeiro, abre o rascunho comum na leitura, sem o cartão, cuja rota daria 404.
+      const adminPage = await invoicePage(adminCookie, plain.id);
+
+      assert.equal(adminPage.status, 200);
+      assert.ok(adminPage.text.includes('invoice-view-cost-center'), `leitura para o admin com ${forced}`);
     }
   },
 );
