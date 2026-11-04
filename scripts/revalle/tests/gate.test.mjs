@@ -474,16 +474,13 @@ test('audit: eventos REVALLE_* têm IP e nenhum dado traz CPF completo nem data 
   await call('confirmIdentity', { token: r.token, isMe: true });
 
   const rows = db(
-    `select type || '|' || coalesce("ipAddress", '') || '|' || data::text from "DocumentAuditLog" where "envelopeId" = '${r.envelopeId}' and type like 'REVALLE_%' order by "createdAt"`,
+    `select type || '|' || coalesce("ipAddress", '') || '|' || data::text from "DocumentAuditLog" where "envelopeId" = '${r.envelopeId}' and type like 'REVALLE_%' order by xmin::text::bigint`,
   ).split('\n');
-  // A data do evento segue o relógio da máquina, que pode voltar entre um evento e outro: compara sem depender da ordem.
+  // A ordem vem do xmin (a transação que gravou a linha), que só cresce: `createdAt` segue o relógio da máquina, que
+  // pode voltar entre um evento e outro.
   const types = rows.map((row) => row.split('|')[0]);
 
-  assert.deepEqual([...types].sort(), [
-    'REVALLE_IDENTITY_CONFIRMED',
-    'REVALLE_IDENTITY_FAILED',
-    'REVALLE_TERM_ACCEPTED',
-  ]);
+  assert.deepEqual(types, ['REVALLE_TERM_ACCEPTED', 'REVALLE_IDENTITY_FAILED', 'REVALLE_IDENTITY_CONFIRMED']);
 
   for (const row of rows) {
     assert.ok(row.split('|')[1], `sem IP: ${row}`);

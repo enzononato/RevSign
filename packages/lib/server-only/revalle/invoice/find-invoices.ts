@@ -88,25 +88,55 @@ const supersededHiddenVersion = {
   status: { not: DocumentStatus.COMPLETED },
 } satisfies Prisma.EnvelopeWhereInput;
 
-/** "Aguardando o Financeiro": a conta ainda não foi aprovada. A fila do Financeiro e o contador do menu leem este filtro. */
-export const financePendingWhere = {
+/**
+ * Rascunho de uma nova versão cujo envio falhou (`isNewVersionDraftRow`): ninguém assinou nem recebeu o convite, o link
+ * antigo já está bloqueado e a NF só sai dali quando o Financeiro ou a Contabilidade usa "Enviar de novo". Sem este ramo,
+ * ela ficaria fora das filas e dos contadores, e a nota pararia em silêncio (não há e-mail de fluxo).
+ */
+const newVersionDraftWhere = {
+  status: DocumentStatus.DRAFT,
+  revalleInvoice: {
+    previousEnvelopeId: { not: null },
+    financeStatus: { in: [...NEW_VERSION_DRAFT_STATUSES] },
+  },
+} satisfies Prisma.EnvelopeWhereInput;
+
+/** NF enviada (ou concluída) cuja conta ainda não foi aprovada. Não inclui a excluída pelo remetente. */
+const awaitingApprovalWhere = {
   revalleInvoice: { financeStatus: RevalleFinanceStatus.PENDING_APPROVAL },
   status: { in: APPROVABLE_STATUSES },
+  deletedAt: null,
+} satisfies Prisma.EnvelopeWhereInput;
+
+/**
+ * "Aguardando o Financeiro": a conta ainda não foi aprovada, ou a nova versão ficou em rascunho e espera o "Enviar de
+ * novo". A fila do Financeiro e o contador do menu leem este filtro. A NF excluída pelo remetente não espera ninguém
+ * (`approve` responde 404 nela), nem para o admin que também é do Financeiro.
+ */
+export const financePendingWhere = {
+  deletedAt: null,
+  OR: [awaitingApprovalWhere, newVersionDraftWhere],
 } satisfies Prisma.EnvelopeWhereInput;
 
 /**
  * "Aguardando a Contabilidade": NF ainda válida (não substituída), enviada ou concluída, sem recusa, não excluída e sem a
- * validação do centro. NF sem centro de custo também espera (a Contabilidade define o primeiro centro). A fila da
+ * validação do centro, ou a nova versão que ficou em rascunho (a Contabilidade também a envia de novo, mesmo já validada
+ * pela correção). NF sem centro de custo também espera (a Contabilidade define o primeiro centro). A fila da
  * Contabilidade, o contador do menu e o aviso do admin leem este filtro.
  */
 export const accountingPendingWhere = {
-  revalleInvoice: {
-    costCenterValidatedAt: null,
-    OR: [{ financeStatus: null }, { financeStatus: { not: RevalleFinanceStatus.SUPERSEDED } }],
-  },
-  status: { in: APPROVABLE_STATUSES },
   deletedAt: null,
-  recipients: { none: { signingStatus: SigningStatus.REJECTED } },
+  OR: [
+    {
+      revalleInvoice: {
+        costCenterValidatedAt: null,
+        OR: [{ financeStatus: null }, { financeStatus: { not: RevalleFinanceStatus.SUPERSEDED } }],
+      },
+      status: { in: APPROVABLE_STATUSES },
+      recipients: { none: { signingStatus: SigningStatus.REJECTED } },
+    },
+    newVersionDraftWhere,
+  ],
 } satisfies Prisma.EnvelopeWhereInput;
 
 const accountingFilterWhere = (filter: AccountingFilter | undefined): Prisma.EnvelopeWhereInput | null => {
@@ -125,8 +155,9 @@ const financeFilterWhere = (filter: FinanceFilter | undefined): Prisma.EnvelopeW
 
   switch (filter) {
     case 'pendentes':
-    case 'aguardando-aprovacao':
       return financePendingWhere;
+    case 'aguardando-aprovacao':
+      return awaitingApprovalWhere;
     case 'aprovadas':
       return stateIs(RevalleFinanceStatus.APPROVED);
     case 'substituidas':
@@ -184,16 +215,7 @@ const buildInvoiceWhere = async ({
     filters.status
       ? { status: filters.status }
       : {
-          OR: [
-            { status: { in: [...INVOICE_LIST_STATUSES] } },
-            {
-              status: DocumentStatus.DRAFT,
-              revalleInvoice: {
-                previousEnvelopeId: { not: null },
-                financeStatus: { in: [...NEW_VERSION_DRAFT_STATUSES] },
-              },
-            },
-          ],
+          OR: [{ status: { in: [...INVOICE_LIST_STATUSES] } }, newVersionDraftWhere],
         },
   );
 

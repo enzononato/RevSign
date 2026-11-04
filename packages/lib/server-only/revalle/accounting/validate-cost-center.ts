@@ -25,8 +25,12 @@ const STATE_CHANGED_MESSAGE = 'A situação desta nota mudou. Atualize a página
 
 const invalid = (message: string) => new AppError(AppErrorCode.INVALID_REQUEST, { message, userMessage: message });
 
-/** A NF em que a Contabilidade pode agir sem nova versão: enviada ou concluída, não substituída, ninguém recusou. */
-const loadActionableInvoice = async (envelopeId: string) => {
+/**
+ * A NF em que o centro de custo ainda pode ser marcado, validado ou definido sem nova versão: enviada ou concluída, não
+ * substituída, não excluída e sem recusa. A Contabilidade (validar, definir) e o dono ou o admin (a primeira escolha do
+ * centro, `setInvoiceCostCenter`) passam pela mesma guarda.
+ */
+export const loadActionableInvoice = async (envelopeId: string) => {
   const envelope = await prisma.envelope.findUnique({
     where: { id: envelopeId },
     select: {

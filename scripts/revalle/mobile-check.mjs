@@ -294,7 +294,7 @@ const runHost = async () => {
 
       senderEnv.FINANCE_COOKIE = financeCookie;
       senderEnv.FINANCE_NF_URL = `${BASE_URL}/notas-fiscais/${sentNf.id}`;
-      senderEnv.FINANCE_HELD_URL = `${BASE_URL}/notas-fiscais/${stuckVersion}`;
+      senderEnv.FINANCE_STUCK_VERSION_URL = `${BASE_URL}/notas-fiscais/${stuckVersion}`;
       console.log(`- Financeiro: página da NF ${sentNf.id} e da nova versão parada ${stuckVersion}`);
     } else {
       console.log('- sem REVSIGN_ADMIN_EMAIL/REVSIGN_ADMIN_PASSWORD: passos do Financeiro pulados');
@@ -831,7 +831,7 @@ const runBrowser = async () => {
       await changeDialog.waitFor({ state: 'detached' });
 
       // Nova versão parada em rascunho: o cartão só oferece "Enviar de novo" (mesma conta), com a confirmação.
-      await fin.goto(process.env.FINANCE_HELD_URL, { waitUntil: 'networkidle' });
+      await fin.goto(process.env.FINANCE_STUCK_VERSION_URL, { waitUntil: 'networkidle' });
 
       const heldCard = fin.getByTestId('finance-card');
 

@@ -184,7 +184,7 @@ export const findRevalleProofByCode = async (code: string): Promise<RevalleProof
     finalSha256: items.length === 1 ? items[0].finalSha256 : null,
     items,
     signers,
-    invoice: await loadInvoiceSummary(invoiceRow),
+    invoice: await loadInvoiceSummary(invoiceRow, { rejected }),
     costCenter: toCostCenter(invoiceRow),
   };
 };
@@ -212,7 +212,10 @@ type InvoiceRow = {
   costCenterCode: string | null;
 };
 
-const loadInvoiceSummary = async (row: InvoiceRow | null | undefined): Promise<RevalleProofLookup['invoice']> => {
+const loadInvoiceSummary = async (
+  row: InvoiceRow | null | undefined,
+  { rejected }: { rejected: boolean },
+): Promise<RevalleProofLookup['invoice']> => {
   if (!row || row.isInvoice !== RevalleInvoiceStatus.YES || !row.financeStatus) {
     return null;
   }
@@ -243,7 +246,8 @@ const loadInvoiceSummary = async (row: InvoiceRow | null | undefined): Promise<R
       isApproved && row.approvedAt
         ? { approverName: row.approvedByName ?? (approver?.name?.trim() || null), approvedAt: row.approvedAt }
         : null,
-    isAwaitingApproval: row.financeStatus === RevalleFinanceStatus.PENDING_APPROVAL,
+    // NF recusada não aguarda mais ninguém: a página pública diria "Aguardando aprovação" de uma nota que acabou.
+    isAwaitingApproval: row.financeStatus === RevalleFinanceStatus.PENDING_APPROVAL && !rejected,
     supersededAt: row.financeStatus === RevalleFinanceStatus.SUPERSEDED ? row.supersededAt : null,
     supersedeKind: row.financeStatus === RevalleFinanceStatus.SUPERSEDED ? row.supersedeKind : null,
   };

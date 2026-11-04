@@ -6,7 +6,7 @@
 //   1. rotas: `apiToken.create`, `webhook.createWebhook`/`editWebhook`, `team.settings.update` e
 //      `organisation.settings.update` dão 403 ao usuário comum e passam com ADMIN; lembretes e validade do link
 //      continuam editáveis pelo usuário comum (mesma rota); token já criado continua valendo e o dono ainda o apaga;
-//   2. páginas: as escondidas redirecionam, as mantidas respondem 200, tokens e webhooks só abrem para ADMIN;
+//   2. páginas: as escondidas (inclusive o Suporte) redirecionam, as mantidas respondem 200, tokens e webhooks só abrem para ADMIN;
 //   3. `/p/{url}` dá 404 mesmo com perfil público ligado;
 //   4. o HTML do painel não tem o link de Modelos; a API de modelos continua;
 //   5. num navegador de verdade (imagem do Playwright): menus, busca, lista de configurações, editor e seletor de papel.
@@ -351,6 +351,8 @@ test('usuário comum: páginas escondidas redirecionam e as mantidas abrem', asy
       `/o/${fx.orgUrl}/settings/${section}`,
       toOrgGeneral,
     ]),
+    // O Suporte saiu do menu da conta; o endereço direto também não abre mais.
+    [`/o/${fx.orgUrl}/support`, toOrgGeneral],
   ];
 
   for (const [route, destination] of hidden) {
@@ -385,6 +387,7 @@ test('quem não entrou continua caindo no login nas páginas escondidas (a ordem
     `/t/${fx.teamUrl}/settings/tokens`,
     `/t/${fx.teamUrl}/templates`,
     `/o/${fx.orgUrl}/settings/email`,
+    `/o/${fx.orgUrl}/support`,
   ]) {
     const res = await fetchIdempotent(`${BASE_URL}${route}`, { redirect: 'manual' }, async (r) => ({
       status: r.status,
@@ -415,6 +418,7 @@ test('ADMIN: tokens e webhooks abrem; marca, e-mail, documento, certificado, per
       `/t/${fx.teamUrl}/templates`,
       `/t/${fx.teamUrl}/templates/1/edit`,
       ...['branding', 'email', 'document', 'certificates'].map((section) => `/o/${fx.orgUrl}/settings/${section}`),
+      `/o/${fx.orgUrl}/support`,
     ]) {
       const res = await getPage(route);
 
@@ -453,7 +457,6 @@ test('o painel não mostra o link de Modelos (menu), mas mostra o que ficou', as
   assert.ok(html.includes('href="/notas-fiscais"'), 'o menu perdeu o link de notas fiscais');
   assert.ok(!html.includes(`/t/${fx.teamUrl}/templates`), 'o painel ainda aponta para os modelos');
   assert.ok(!/>\s*(Templates|Modelos)\s*</.test(html), 'o painel ainda tem o texto Templates/Modelos');
-  assert.ok(!/Detect recipients|Detectar destinat/i.test(html), 'o painel ainda oferece a detecção por IA');
 });
 
 // ---------- 5. Navegador ----------

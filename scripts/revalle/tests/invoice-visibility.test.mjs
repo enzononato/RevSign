@@ -300,6 +300,14 @@ const changeAccount = (envelopeId) =>
     code: '3.1.01',
     reason: 'Conta de serviço, não de material.',
   });
+const changeCostCenter = (envelopeId, cookie = accountant.cookie) =>
+  trpcAs(cookie, 'mutation', 'revalle.accounting.changeCostCenter', {
+    envelopeId,
+    code: '201',
+    reason: 'Centro errado: era o Armazém.',
+  });
+const resendVersion = (envelopeId, cookie) =>
+  trpcAs(cookie, 'mutation', 'revalle.finance.resendVersion', { envelopeId });
 
 // O texto sai do corpo em bytes: `res.text()` descarta o BOM, e a planilha precisa dele (o Excel abre em UTF-8).
 const csv = async (cookie, query = '') =>
@@ -513,6 +521,123 @@ sessionTest(
   },
 );
 
+// A nova versão cujo envio falhou (destinatário de fora dos domínios, posto no banco) fica em rascunho, com o link antigo
+// já bloqueado: sem e-mail de fluxo, só as filas e os contadores a mostram a quem pode usar "Enviar de novo".
+const stuckVersion = async (doc, label, change) => {
+  db(`update "Recipient" set email = 'f7-vis-fora-${label}-${RUN}@example.com' where "envelopeId" = '${doc.id}'`);
+
+  const failed = await change(doc.id);
+
+  assert.equal(failed.status, 409, failed.text);
+  assert.equal(failed.body?.error?.json?.data?.code, 'FINANCE_NEW_VERSION_NOT_SENT', failed.text);
+
+  const v2 = invoiceRow(doc.id, '"supersededByEnvelopeId"');
+
+  assert.ok(v2, 'a v2 não ficou criada');
+  assert.equal(status(v2), 'DRAFT');
+
+  return v2;
+};
+
+const fixRecipient = (envelopeId, label) =>
+  db(
+    `update "Recipient" set email = 'f7-vis-reenvio-${label}-${RUN}@revalle.com.br' where "envelopeId" = '${envelopeId}'`,
+  );
+
+const isQueued = async (cookie, filters, envelopeId) =>
+  (await find(cookie, filters)).data.some((row) => row.id === envelopeId);
+
+sessionTest(
+  'nova versão com o envio parado: está nas duas filas e nos dois contadores até alguém enviar de novo',
+  async () => {
+    const read = async () => ({
+      accounting: (await pendingCounts(accountant.cookie)).accounting,
+      finance: (await pendingCounts(financeOnly.cookie)).finance,
+    });
+    const finance = (id) => isQueued(financeOnly.cookie, { finance: 'pendentes' }, id);
+    const accounting = (id) => isQueued(accountant.cookie, { accounting: 'pendentes' }, id);
+
+    // Troca de conta pelo Financeiro: a v2 sai `APPROVED` e sem validação.
+    const swapped = await newInvoice('parada-conta');
+    const base = await read();
+
+    assert.equal(await finance(swapped.id), true);
+
+    const accountV2 = await stuckVersion(swapped, 'conta', changeAccount);
+
+    assert.equal(invoiceRow(accountV2, '"financeStatus"'), 'APPROVED');
+    // A v1 substituída saiu das filas e a v2 em rascunho entrou: o número não mudou, nos dois contadores.
+    assert.deepEqual(await read(), base, 'o rascunho da nova versão não entrou nos contadores');
+    assert.deepEqual(await pendingCounts(both.cookie), { finance: base.finance, accounting: base.accounting });
+    assert.equal(await finance(accountV2), true, 'fora da fila do Financeiro');
+    assert.equal(await accounting(accountV2), true, 'fora da fila da Contabilidade');
+    assert.equal(await finance(swapped.id), false, 'a v1 substituída continua na fila do Financeiro');
+    assert.equal(await accounting(swapped.id), false, 'a v1 substituída continua na fila da Contabilidade');
+
+    // O Financeiro envia de novo: aprovada pela troca, sai da fila dele; sem validação, continua na da Contabilidade.
+    fixRecipient(accountV2, 'conta');
+
+    const resent = await resendVersion(accountV2, financeOnly.cookie);
+
+    assert.equal(resent.status, 200, resent.text);
+    assert.deepEqual(data(resent), { sent: true });
+    assert.equal(status(accountV2), 'PENDING');
+    assert.deepEqual(await read(), { accounting: base.accounting, finance: base.finance - 1 }, 'depois do reenvio');
+    assert.equal(await finance(accountV2), false, 'aprovada e enviada, ainda na fila do Financeiro');
+    assert.equal(await accounting(accountV2), true, 'sem validação, saiu da fila da Contabilidade');
+
+    // Correção do centro pela Contabilidade: a v2 sai validada, aguardando o Financeiro, e quem a envia de novo é a Contabilidade.
+    const corrected = await newInvoice('parada-centro');
+    const baseCenter = await read();
+    const centerV2 = await stuckVersion(corrected, 'centro', changeCostCenter);
+
+    assert.equal(invoiceRow(centerV2, '"financeStatus"'), 'PENDING_APPROVAL');
+    assert.ok(invoiceRow(centerV2, '"costCenterValidatedAt"'), 'a correção deveria validar o centro');
+    assert.deepEqual(await read(), baseCenter, 'o rascunho da correção não entrou nos contadores');
+    assert.equal(await finance(centerV2), true);
+    assert.equal(await accounting(centerV2), true, 'a Contabilidade não vê o rascunho que só ela pode reenviar');
+
+    fixRecipient(centerV2, 'centro');
+
+    const resentByAccounting = await resendVersion(centerV2, accountant.cookie);
+
+    assert.equal(resentByAccounting.status, 200, resentByAccounting.text);
+    assert.deepEqual(data(resentByAccounting), { sent: true });
+    assert.equal(status(centerV2), 'PENDING');
+    // Enviada, ainda espera a aprovação; validada pela correção, não espera mais a Contabilidade.
+    assert.deepEqual(await read(), { accounting: baseCenter.accounting - 1, finance: baseCenter.finance });
+    assert.equal(await finance(centerV2), true, 'a versão enviada saiu da fila do Financeiro sem aprovação');
+    assert.equal(await accounting(centerV2), false, 'a versão validada continua na fila da Contabilidade');
+
+    // O dono exclui o rascunho que não saiu: ninguém mais o espera.
+    const discarded = await newInvoice('parada-excluida');
+    const baseDeleted = await read();
+    const discardedV2 = await stuckVersion(discarded, 'excluida', changeAccount);
+
+    assert.deepEqual(await read(), baseDeleted);
+    db(`update "Envelope" set "deletedAt" = now() where id = '${discardedV2}'`);
+    assert.deepEqual(await read(), { accounting: baseDeleted.accounting - 1, finance: baseDeleted.finance - 1 });
+    assert.equal(await finance(discardedV2), false);
+    assert.equal(await accounting(discardedV2), false);
+  },
+);
+
+sessionTest(
+  'fila do Financeiro: NF excluída não aparece nem para o admin que também é do Financeiro (aprovar daria 404)',
+  async () => {
+    const doc = await newInvoice('fila-excluida');
+
+    assert.equal(await isQueued(adminCookie, { finance: 'pendentes' }, doc.id), true, 'a NF viva não está na fila');
+    db(`update "Envelope" set "deletedAt" = now() where id = '${doc.id}'`);
+
+    assert.equal(await isQueued(adminCookie, { finance: 'pendentes' }, doc.id), false, 'a NF excluída está na fila');
+    assert.equal(await isQueued(adminCookie, { finance: 'aguardando-aprovacao' }, doc.id), false);
+    // O admin continua vendo a NF excluída fora das filas (a contabilidade pode já ter lançado), e a aprovação dela é 404.
+    assert.equal(await isQueued(adminCookie, {}, doc.id), true, 'o admin deixou de ver a NF excluída');
+    assert.equal((await approve(doc.id, adminCookie)).status, 404);
+  },
+);
+
 sessionTest('lista: centro, validação e quem validou; filtro da Contabilidade respeita a visibilidade', async () => {
   const waiting = await newInvoice('lista-aguarda');
   const validated = await newInvoice('lista-validada', { center: '201' });
@@ -623,7 +748,9 @@ sessionTest(
       assert.ok(!pendingRows.some((cells) => cells[1] === validated.title), 'a validada saiu na fila');
       assert.ok(doneRows.some((cells) => cells[1] === validated.title));
       assert.ok(!doneRows.some((cells) => cells[1] === waiting.title));
-      assert.ok(pendingRows.every((cells) => cells[17] !== 'Validado'));
+      // A fila só traz validada se for a nova versão que ficou sem enviar (a correção do centro a valida): a Contabilidade
+      // também a envia de novo.
+      assert.ok(pendingRows.every((cells) => cells[17] !== 'Validado' || cells[5] === 'Não enviado'));
       assert.ok(doneRows.every((cells) => cells[17] === 'Validado'));
 
       assert.equal((await csv(accountant.cookie, '?contabilidade=qualquer')).status, 400);

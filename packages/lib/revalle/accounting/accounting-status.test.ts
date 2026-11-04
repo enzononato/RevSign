@@ -7,22 +7,66 @@ import {
   invoicesDefaultFilters,
 } from './accounting-status';
 
+// Uma NF enviada e viva: é a que a Contabilidade ainda pode validar.
+const live = { status: 'PENDING', financeStatus: 'PENDING_APPROVAL', deleted: false };
+
 describe('accountingStatusLabel', () => {
   it('NF sem centro de custo não aguarda validação: falta o centro', () => {
-    expect(accountingStatusLabel({ costCenterCode: null, costCenterValidatedAt: null })).toBe('Sem centro de custo');
+    expect(accountingStatusLabel({ ...live, costCenterCode: null, costCenterValidatedAt: null })).toBe(
+      'Sem centro de custo',
+    );
   });
 
   it('com centro e sem validação aguarda a Contabilidade', () => {
-    expect(accountingStatusLabel({ costCenterCode: '101', costCenterValidatedAt: null })).toBe('Aguardando validação');
+    expect(accountingStatusLabel({ ...live, costCenterCode: '101', costCenterValidatedAt: null })).toBe(
+      'Aguardando validação',
+    );
   });
 
   it('com centro e validação está validada, com a data como Date ou como texto (vinda do tRPC)', () => {
-    const validated = { costCenterCode: '201' };
+    const validated = { ...live, costCenterCode: '201' };
 
     expect(accountingStatusLabel({ ...validated, costCenterValidatedAt: new Date('2026-11-04T12:00:00Z') })).toBe(
       'Validado',
     );
     expect(accountingStatusLabel({ ...validated, costCenterValidatedAt: '2026-11-04T12:00:00.000Z' })).toBe('Validado');
+  });
+
+  it.each([
+    ['recusada', { status: 'REJECTED' }],
+    ['cancelada', { status: 'CANCELLED' }],
+    ['substituída', { financeStatus: 'SUPERSEDED' }],
+    ['excluída', { deleted: true }],
+  ])('NF %s e sem validação não "aguarda": ninguém mais a valida', (_name, gone) => {
+    for (const costCenterCode of ['101', null]) {
+      expect(accountingStatusLabel({ ...live, ...gone, costCenterCode, costCenterValidatedAt: null })).toBe(
+        'Sem validação',
+      );
+    }
+  });
+
+  it('a validação já feita continua "Validado" mesmo recusada, substituída ou excluída', () => {
+    for (const gone of [{ status: 'REJECTED' }, { financeStatus: 'SUPERSEDED' }, { deleted: true }]) {
+      expect(
+        accountingStatusLabel({
+          ...live,
+          ...gone,
+          costCenterCode: '101',
+          costCenterValidatedAt: '2026-11-04T12:00:00Z',
+        }),
+      ).toBe('Validado');
+    }
+  });
+
+  it('o rascunho de uma nova versão e a NF concluída ainda esperam a validação', () => {
+    for (const waiting of [
+      { status: 'DRAFT', financeStatus: 'APPROVED' },
+      { status: 'COMPLETED', financeStatus: 'LEGACY' },
+    ]) {
+      expect(accountingStatusLabel({ ...live, ...waiting, costCenterCode: '101', costCenterValidatedAt: null })).toBe(
+        'Aguardando validação',
+      );
+    }
   });
 });
 

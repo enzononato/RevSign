@@ -10,7 +10,7 @@ export default function PrivacidadePage() {
       <header className="space-y-2">
         <h1 className="font-semibold text-3xl">Política de privacidade</h1>
         <p className="text-muted-foreground text-sm">
-          {REVALLE_TERM_NOTICE} Versão {REVALLE_TERM_VERSION} — 29/10/2026
+          {REVALLE_TERM_NOTICE} Versão {REVALLE_TERM_VERSION} — 04/11/2026
         </p>
       </header>
 

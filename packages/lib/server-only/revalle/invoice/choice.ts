@@ -7,6 +7,7 @@ import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { RequestMetadata } from '../../../universal/extract-request-metadata';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { isAdmin } from '../../../utils/is-admin';
+import { loadActionableInvoice } from '../accounting/validate-cost-center';
 import type { InvoiceState } from './classify';
 import {
   classifyEnvelope,
@@ -212,8 +213,9 @@ export const setInvoiceChoice = async ({
  * Grava o centro de custo da NF (só da lista fixa), com quem e quando, e registra no log de auditoria (de → para).
  * Espelha `setInvoiceChoice`: a mesma escolha de novo não grava nada e a gravação é condicionada ao que foi lido.
  * - Rascunho: quem acessa o documento escolhe e troca à vontade (salvo a nova versão com o envio parado).
- * - Depois do envio: só a PRIMEIRA escolha, pelo dono ou pelo admin, sem nova versão (ninguém viu centro ao assinar).
- *   Quem corrige um centro já escolhido é a Contabilidade (403 aqui).
+ * - Depois do envio: só a PRIMEIRA escolha, pelo dono ou pelo admin, sem nova versão (ninguém viu centro ao assinar), e
+ *   só numa NF viva (enviada ou concluída, sem recusa nem exclusão: `loadActionableInvoice`). Quem corrige um centro já
+ *   escolhido é a Contabilidade (403 aqui).
  * - Versão substituída: nunca (403); a nova versão é que vale.
  */
 export const setInvoiceCostCenter = async ({
@@ -277,6 +279,11 @@ export const setInvoiceCostCenter = async ({
 
   if (!row || !state || state.isInvoice !== 'YES') {
     throw new AppError(AppErrorCode.INVALID_REQUEST, { message: 'O documento não está marcado como nota fiscal.' });
+  }
+
+  // Depois do envio, a mesma guarda do `define` da Contabilidade: NF recusada, cancelada ou excluída não ganha centro.
+  if (!isDraft) {
+    await loadActionableInvoice(envelopeId);
   }
 
   if (row.costCenterCode === code) {

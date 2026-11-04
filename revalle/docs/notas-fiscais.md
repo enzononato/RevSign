@@ -117,7 +117,8 @@ o mesmo PDF for enviado de novo, a sugestão vem do cache, sem nova chamada. Por
      e a situação no Financeiro ("Aguardando aprovação do Financeiro", "Aprovada pelo Financeiro" ou, se o Financeiro
      trocou a conta ou a Contabilidade corrigiu o centro, "Substituída…" com o botão **Abrir a nova versão**). Depois do
      envio, quem troca a conta é o Financeiro e quem corrige o centro é a Contabilidade. Numa NF que ainda não tem centro (marcada depois do envio ou
-     enviada antes da Fase 7), o dono ou o admin escolhe o primeiro no próprio cartão, sem nova versão. Essas NFs
+     enviada antes da Fase 7), o dono ou o admin escolhe o primeiro no próprio cartão, sem nova versão, desde que a NF esteja enviada ou
+     concluída (numa NF recusada, cancelada ou excluída o servidor recusa, como na Contabilidade). Essas NFs
      continuam sendo aprovadas e concluídas normalmente sem o centro;
    - num PDF escaneado enviado sem a resposta (pela API), o cartão **Conta contábil** com a pergunta "Este documento é
      uma nota fiscal?" e o botão **Marcar como nota fiscal**;
@@ -133,8 +134,8 @@ o mesmo PDF for enviado de novo, a sugestão vem do cache, sem nova chamada. Por
    é selado na hora. Se o Financeiro aprovar antes de todos assinarem, a
    NF é concluída normalmente quando o último assinar. A retenção vale em todos os caminhos que selam (conclusão,
    varredura automática, remoção de destinatário pelo admin, reselagem pelo admin). NF recusada não é retida, e as NFs
-   de antes da Fase 6 (`LEGACY`) concluem como antes. Uma versão **substituída** pelo Financeiro (conta trocada) e
-   ainda não concluída nunca é selada. Se a selagem disparada pela aprovação se perder, a varredura automática a refaz
+   de antes da Fase 6 (`LEGACY`) concluem como antes. Uma versão **substituída** (conta trocada pelo Financeiro ou
+   centro corrigido pela Contabilidade) e ainda não concluída nunca é selada. Se a selagem disparada pela aprovação se perder, a varredura automática a refaz
    (de 15 minutos a 6 horas depois da aprovação). A aprovação fica no log de auditoria do documento (também no PDF).
    Pela API: `revalle.finance.approve({ envelopeId })`, só para membros do Financeiro; repetir não faz nada.
 7. No menu, **Notas fiscais** lista as NFs que ele enviou ou que chegaram para ele assinar (inclusive as versões
@@ -164,7 +165,9 @@ Desde a Fase 6 também aparecem:
 - o **rascunho de uma nova versão** (de uma troca de conta ou de uma correção do centro, aprovada ou aguardando
   aprovação, com o envio que ainda não saiu), para o Financeiro, a Contabilidade e quem enviou. A coluna de envio diz
   "não enviada". Outros rascunhos continuam fora: o rascunho comum de outra pessoa não aparece nem abre pelo endereço,
-  para o Financeiro e para a Contabilidade;
+  para o Financeiro e para a Contabilidade. Esse rascunho também está nas filas **Aguardando o Financeiro** e
+  **Aguardando a Contabilidade** e nos dois contadores (veja abaixo): o link antigo já está bloqueado e não há e-mail de
+  aviso, então a nota só sai dali quando alguém usa **Enviar de novo**;
 - a **versão substituída** (o Financeiro trocou a conta ou a Contabilidade corrigiu o centro), para quem enviou, quem
   assina, o Financeiro e a Contabilidade, mesmo que o documento tenha sumido das listas comuns do RevSign.
 
@@ -178,7 +181,8 @@ Colunas: título, remetente, data de envio, status, conta (número · nome; um t
 antes da Fase 6), **Centro de custo** ("101 – Puxada"; um traço quando a NF ainda não tem centro), "Sugestão aceita?"
 (Sim, Não ou "sem sugestão", quando não havia sugestão na hora da escolha), **Situação no Financeiro** (Aguardando
 aprovação, Aprovada, Substituída ou "Antiga, sem aprovação", para NF de antes da Fase 6), **Validação da Contabilidade**
-(Aguardando validação, Validado ou Sem centro de custo) e **Versão** (v1, v2…).
+(Aguardando validação, Validado, Sem centro de custo ou Sem validação, para a nota recusada, cancelada, substituída ou
+excluída que ninguém validou) e **Versão** (v1, v2…).
 
 O título abre o documento: quem enviou vai para a página do documento; o admin, para o painel do admin; quem é do
 Financeiro, a Contabilidade e quem assina, para a **página da NF** (só leitura, seção 9).
@@ -186,21 +190,27 @@ Financeiro, a Contabilidade e quem assina, para a **página da NF** (só leitura
 Filtros: período de envio (dias no horário de Brasília), status, **Situação no Financeiro**, **Validação da
 Contabilidade** e número da conta. A página abre na fila de cada perfil:
 
-- quem é do **Financeiro** abre em **Aguardando o Financeiro** (NFs esperando a aprovação), com ou sem a Contabilidade;
+- quem é do **Financeiro** abre em **Aguardando o Financeiro** (NFs esperando a aprovação e novas versões que ficaram
+  sem enviar), com ou sem a Contabilidade. O filtro **Aguardando aprovação**, da **Situação no Financeiro**, traz só as
+  que esperam a aprovação;
 - quem é **só da Contabilidade** abre em **Aguardando a Contabilidade** (NFs que ainda não tiveram o centro de custo
-  validado, inclusive as sem centro);
+  validado, inclusive as sem centro, e novas versões que ficaram sem enviar);
 - as outras pessoas abrem sem filtro.
 
 Escolha **Todas** no filtro para ver o resto. Escolher uma fila solta a outra: quem tem os dois perfis e escolhe
 **Aguardando a Contabilidade** deixa de ver só a fila do Financeiro. Os endereços `/notas-fiscais?financeiro=pendentes` e
 `/notas-fiscais?contabilidade=pendentes` abrem direto nesses filtros (`contabilidade` aceita `pendentes`, `validadas` e
-`todas`). **Aguardando a Contabilidade** não inclui nota recusada, substituída ou excluída pelo remetente. Se a data
+`todas`). **Aguardando a Contabilidade** não inclui nota recusada, substituída ou excluída pelo remetente (a nova versão
+sem enviar, sim, mesmo já validada pela correção do centro, porque a Contabilidade também a envia de novo). **Aguardando
+o Financeiro** também não inclui NF excluída pelo remetente, nem para o administrador que é do Financeiro. Se a data
 inicial for depois da final, a tela avisa "A data inicial é depois da data final." e nada é listado nem exportado.
 
 **Contador no menu.** Quem é do Financeiro ou da Contabilidade vê um número ao lado de **Notas fiscais**, no menu do
 computador e no do celular: quantas notas esperam a pessoa (a fila do Financeiro e a da Contabilidade, somadas para quem
-tem os dois perfis). O número é o mesmo que a página mostra ao abrir na fila, atualiza a cada minuto e some quando não há
-nada esperando. Quem não tem perfil não vê contador. Não há e-mail de aviso.
+tem os dois perfis). Para quem tem **um** perfil, o número é o mesmo que a página mostra ao abrir na fila. Para quem tem
+os **dois**, o contador é a **soma** das duas filas (uma nota que espera o Financeiro e a Contabilidade conta duas
+vezes) e a página abre só na do Financeiro: o número do menu pode ser maior que a lista que aparece. Ele atualiza a cada
+minuto e some quando não há nada esperando. Quem não tem perfil não vê contador. Não há e-mail de aviso.
 
 **Exportar planilha** baixa `notas-fiscais-AAAA-MM-DD.csv` (data de hoje em Brasília) com os **mesmos filtros** da tela.
 O arquivo abre direto no Excel (separador `;`, UTF-8 com BOM). Colunas:
@@ -224,16 +234,20 @@ O arquivo abre direto no Excel (separador `;`, UTF-8 com BOM). Colunas:
 | `aprovado_por` | Quem do Financeiro aprovou (ou definiu) a conta; vazio se ainda não foi aprovada |
 | `centro_custo` | Código do centro de custo (101, 201…); vazio quando a NF ainda não tem centro |
 | `nome_centro_custo` | Nome do centro de custo (Puxada, Armazém…); vazio quando a NF ainda não tem centro |
-| `validacao_contabilidade` | `Aguardando validação`, `Validado` ou `Sem centro de custo`, como na tela |
+| `validacao_contabilidade` | `Aguardando validação`, `Validado`, `Sem centro de custo` ou `Sem validação` (nota recusada, cancelada, substituída ou excluída que ninguém validou), como na tela |
 | `validado_por` | Quem da Contabilidade validou o centro (o nome na hora da validação); vazio sem validação |
 
 As colunas `financeiro` e `aprovado_por` (Fase 6) e as quatro do centro de custo (Fase 7) ficam **no fim**, nesta ordem:
 as planilhas que já leem as colunas anteriores continuam funcionando.
 
 **Para a contabilidade: não lance as linhas com `financeiro` = `Substituída`.** Elas são versões que o Financeiro
-substituiu ao trocar a conta (a mesma nota aparece de novo na linha da nova versão, com a conta certa). Uma versão
-substituída pode aparecer como `Concluído` quando a troca foi feita depois da conclusão; mesmo assim, vale a linha da
-nova versão.
+substituiu ao trocar a conta ou que a Contabilidade substituiu ao corrigir o centro de custo (a mesma nota aparece de
+novo na linha da nova versão, com a conta ou o centro certo). Uma versão substituída pode aparecer como `Concluído`
+quando a troca ou a correção foi feita depois da conclusão; mesmo assim, vale a linha da nova versão.
+
+**Nova versão recusada.** Se alguém que assina recusa a nova versão, não há uma terceira: a versão anterior continua
+substituída e o link dela, bloqueado. Quem enviou sobe a NF de novo, como um documento novo (escolhe a conta e o centro
+de novo). A contabilidade não lança a versão recusada nem a substituída: só a nota que concluir.
 
 Limite: **10.000 linhas** por planilha. Acima disso, a tela avisa "Filtre por período para exportar menos de 10.000
 notas." e a planilha não é gerada. Textos que começam com `=`, `+`, `-` ou `@` ganham um `'` na frente, para o Excel não
@@ -333,7 +347,8 @@ o número delas (o mesmo do contador da Contabilidade no menu).
    fiscais** (não lance as linhas com `financeiro` = `Substituída`).
 
 **Cartão Contabilidade.** Só para quem é do perfil. Mostra o centro de custo e a situação: **Aguardando validação**,
-**Validado por {nome} em {data}** ou **Sem centro de custo**.
+**Validado por {nome} em {data}**, **Sem centro de custo** ou **Sem validação** (nota recusada, cancelada ou substituída
+que ninguém validou).
 
 - **Validar centro de custo** (pede confirmação): a qualquer momento depois do envio, antes ou depois do Financeiro.
   Grava quem e quando. Repetir não faz nada. A validação **não segura a conclusão**: a NF conclui quando todos assinam e

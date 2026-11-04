@@ -2,7 +2,8 @@
 // tela, API v1 e v2) e a escolha vai para o log de auditoria. Fase 6: depois do envio quem troca a conta é o Financeiro
 // (403 para o dono e o admin nesta rota). Fase 7: "Deixar para o Financeiro" não existe mais (a rota recusa `defer`) e
 // o envio exige também o centro de custo (`revalle.invoice.setCostCenter`): sem um dos dois, ou com a conta que saiu da
-// lista, a resposta é a mesma recusa; depois do envio o centro já escolhido só a Contabilidade corrige.
+// lista, a resposta é a mesma recusa; depois do envio o centro já escolhido só a Contabilidade corrige, e a NF recusada,
+// cancelada ou excluída não recebe nem o primeiro centro (a mesma guarda do `define` da Contabilidade).
 // Documento comum (assets/example.pdf) não muda em nada.
 //
 // Sessões: REVSIGN_USER_* (dono do REVSIGN_API_TOKEN) e REVSIGN_ADMIN_* (importa a lista de contas e troca a conta
@@ -712,6 +713,44 @@ sessionTest(
 
     assert.equal(byAdmin.status, 200, byAdmin.text);
     assert.equal(centerRow(other.id), `501;${adminId};true`);
+  },
+);
+
+sessionTest(
+  'NF marcada depois do envio e sem centro: recusada, cancelada ou excluída não ganha centro (como o define da Contabilidade)',
+  async () => {
+    const env = await newEnvelope('assets/example.pdf', 'primeiro centro em NF encerrada');
+
+    assert.equal((await distribute(env.id)).status, 200);
+    assert.equal((await invoice('mutation', 'markAsInvoice', { envelopeId: env.id })).status, 200);
+    assert.equal(centerRow(env.id), '-;-;false');
+
+    const refuse = (expectedStatus, expectedText, label) => async () => {
+      const res = await setCostCenter(env.id, '101');
+
+      assert.equal(res.status, expectedStatus, `${label}: ${res.text}`);
+      assert.ok(res.text.includes(expectedText), `${label}: ${res.text}`);
+      assert.equal(centerRow(env.id), '-;-;false', `${label}: gravou o centro`);
+      assert.equal(JSON.parse(costCenterEvents(env.id)).length, 0, `${label}: registrou o evento`);
+    };
+
+    db(`update "Envelope" set status = 'REJECTED' where id = '${env.id}'`);
+    await refuse(400, 'Este documento foi recusado', 'recusada')();
+
+    db(`update "Envelope" set status = 'CANCELLED' where id = '${env.id}'`);
+    await refuse(400, 'Só dá para fazer isso numa nota fiscal enviada ou concluída.', 'cancelada')();
+
+    db(`update "Envelope" set status = 'PENDING', "deletedAt" = now() where id = '${env.id}'`);
+    await refuse(404, 'não encontrad', 'excluída')();
+
+    // Viva de novo (enviada, sem recusa nem exclusão): o dono escolhe o primeiro centro. Sem isto a guarda poderia estar
+    // recusando tudo.
+    db(`update "Envelope" set "deletedAt" = null where id = '${env.id}'`);
+
+    const first = await setCostCenter(env.id, '101');
+
+    assert.equal(first.status, 200, first.text);
+    assert.equal(centerRow(env.id), `101;${userId};true`);
   },
 );
 

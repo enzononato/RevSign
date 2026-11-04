@@ -224,7 +224,8 @@ export const isDraftFinanceStatusLocked = (
   row: Pick<RevalleInvoiceClassification, 'financeStatus' | 'previousEnvelopeId'> | null | undefined,
 ) => Boolean(row && (row.financeStatus === RevalleFinanceStatus.APPROVED || isNewVersionDraftRow(row)));
 
-export const isHeldForFinance = async (envelopeId: string) => {
+/** O rascunho do envelope está travado para o dono (`isDraftFinanceStatusLocked`): ele não troca a marcação de NF. */
+export const isDraftLockedForOwner = async (envelopeId: string) => {
   const row = await prisma.revalleInvoiceClassification.findUnique({
     where: { envelopeId },
     select: { financeStatus: true, previousEnvelopeId: true },
@@ -371,7 +372,7 @@ export const setInvoiceFlag = async ({
     throw new AppError(AppErrorCode.INVALID_REQUEST, { message: 'O documento já foi enviado.' });
   }
 
-  if (await isHeldForFinance(envelopeId)) {
+  if (await isDraftLockedForOwner(envelopeId)) {
     throw financeDecidesError();
   }
 

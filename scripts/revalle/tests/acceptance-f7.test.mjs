@@ -5,7 +5,7 @@
 //      centro 101 e envia com dois signatários; o contador da Contabilidade e o do Financeiro sobem;
 //   3. a Contabilidade valida, e só a fila dela desce;
 //   4. os signatários (o remetente, sem pedir CPF de novo, e uma pessoa de fora) veem o centro e assinam; a nota fica
-//      retida; o View do remetente abre o documento;
+//      retida; (4b, passo próprio, pulado sem a imagem do Playwright) o View do remetente abre o documento;
 //   5. o Financeiro aprova: COMPLETED, certificado com a conta e o centro, sem falar da validação; a Contabilidade baixa o
 //      PDF pela página da NF;
 //   6. segunda NF: a Contabilidade corrige de 101 para 201 com motivo; o link antigo é bloqueado; todos recebem o aviso e
@@ -465,39 +465,39 @@ testStep('3. a Contabilidade valida: só a fila dela desce, e repetir não faz n
   assert.equal(await isInQueue(fx.accountant.cookie, fx.first.id, { accounting: 'pendentes' }), false);
 });
 
-testStep(
-  '4. os signatários veem o centro e assinam; a nota fica retida; o View do remetente abre o documento',
-  async (t) => {
-    await sign(fx.first, fx.sender.email, PUXADA);
-    await sign(fx.first, fx.signerEmail, PUXADA);
-    await sleep(3000);
+testStep('4. os signatários veem o centro e assinam; a nota fica retida', async () => {
+  await sign(fx.first, fx.sender.email, PUXADA);
+  await sign(fx.first, fx.signerEmail, PUXADA);
+  await sleep(3000);
 
-    assert.equal(status(fx.first.id), 'PENDING', 'a nota não ficou retida');
-    assert.equal(financeStatus(fx.first.id), 'PENDING_APPROVAL');
-    assert.equal(sealJobs(fx.first.documentId), 0, 'a conclusão disparou a selagem da nota retida');
+  assert.equal(status(fx.first.id), 'PENDING', 'a nota não ficou retida');
+  assert.equal(financeStatus(fx.first.id), 'PENDING_APPROVAL');
+  assert.equal(sealJobs(fx.first.documentId), 0, 'a conclusão disparou a selagem da nota retida');
+});
 
-    if (!hasPlaywrightImage()) {
-      t.diagnostic(`View não conferido: imagem ${PLAYWRIGHT_IMAGE} ausente no Docker`);
+// Passo próprio: sem a imagem do Playwright ele aparece como pulado, nunca como verde sem ter conferido.
+testStep('4b. o View do remetente abre o documento (navegador)', async (t) => {
+  if (!hasPlaywrightImage()) {
+    t.skip(`imagem ${PLAYWRIGHT_IMAGE} ausente no Docker (docker pull ${PLAYWRIGHT_IMAGE})`);
 
-      return;
-    }
+    return;
+  }
 
-    const browser = await runBrowserScript({
-      script: 'invoice-visibility.browser.mjs',
-      payload: {
-        phase: 'owner-view',
-        baseUrl: BASE_URL,
-        teamUrl: fx.teamUrl,
-        cookies: { owner: fx.sender.cookie },
-        own: { id: fx.first.id, title: fx.first.title },
-      },
-      timeout: 120_000,
-    });
+  const browser = await runBrowserScript({
+    script: 'invoice-visibility.browser.mjs',
+    payload: {
+      phase: 'owner-view',
+      baseUrl: BASE_URL,
+      teamUrl: fx.teamUrl,
+      cookies: { owner: fx.sender.cookie },
+      own: { id: fx.first.id, title: fx.first.title },
+    },
+    timeout: 120_000,
+  });
 
-    t.diagnostic(browser.stdout);
-    assert.equal(browser.status, 0, `${browser.stdout}\n${browser.stderr}`);
-  },
-);
+  t.diagnostic(browser.stdout);
+  assert.equal(browser.status, 0, `${browser.stdout}\n${browser.stderr}`);
+});
 
 testStep(
   '5. o Financeiro aprova: COMPLETED, certificado com a conta e o centro, e a Contabilidade baixa o PDF',

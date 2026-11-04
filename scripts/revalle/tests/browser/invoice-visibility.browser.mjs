@@ -106,11 +106,28 @@ if (phase === 'main') {
     );
     report(await waitCount(page, pending), `a fila da Contabilidade mostra ${countText(pending)}`);
 
-    const states = await page.getByTestId('invoice-row-accounting').allTextContents();
+    // A fila tem as notas sem validação e a nova versão com o envio parado ("não enviada"), que a Contabilidade também
+    // envia de novo: essa pode vir validada (a correção do centro a valida).
+    const queueRows = await page
+      .getByTestId('invoices-page')
+      .locator('tbody tr')
+      .evaluateAll((rows) =>
+        rows.map((row) => ({
+          state: row.querySelector('[data-testid="invoice-row-accounting"]')?.textContent?.trim() ?? '',
+          isUnsent: (row.textContent ?? '').includes('não enviada'),
+        })),
+      );
+    const states = queueRows.map((row) => row.state);
 
     report(
-      states.length > 0 && states.every((text) => text === 'Aguardando validação' || text === 'Sem centro de custo'),
-      `a fila só tem notas sem validação (${[...new Set(states)].join(', ')})`,
+      queueRows.length > 0 &&
+        queueRows.every(
+          (row) =>
+            row.state === 'Aguardando validação' ||
+            row.state === 'Sem centro de custo' ||
+            (row.isUnsent && row.state === 'Validado'),
+        ),
+      `a fila só tem notas sem validação e versões não enviadas (${[...new Set(states)].join(', ')})`,
     );
 
     const centers = await page.getByTestId('invoice-row-cost-center').allTextContents();

@@ -1,5 +1,6 @@
 import { DO_NOT_INVALIDATE_QUERY_ON_MUTATION } from '@documenso/lib/constants/trpc';
 import { AppError } from '@documenso/lib/errors/app-error';
+import { accountingValidationState } from '@documenso/lib/revalle/accounting/accounting-status';
 import { formatRevalleDateTime } from '@documenso/lib/revalle/date-format';
 import {
   CHANGE_REASON_MAX,
@@ -219,6 +220,14 @@ export const AccountingCard = ({ envelopeId, onChanged }: AccountingCardProps) =
   const reasonLength = reason.trim().length;
   const isReasonValid = isValidChangeReason(reason);
   const canChange = newCode !== null && newCode !== card.costCenter?.code && isReasonValid;
+  // O cartão nunca abre para NF excluída (404), então `deleted` é sempre falso aqui.
+  const validation = accountingValidationState({
+    costCenterCode: card.costCenter?.code ?? null,
+    costCenterValidatedAt: card.validatedAt,
+    status: card.rejected ? 'REJECTED' : card.envelopeStatus,
+    financeStatus: card.financeStatus,
+    deleted: false,
+  });
 
   return (
     <section
@@ -244,14 +253,13 @@ export const AccountingCard = ({ envelopeId, onChanged }: AccountingCardProps) =
             <Trans>Situação</Trans>
           </dt>
           <dd className="break-words font-medium" data-testid="accounting-card-situation">
-            {!center ? (
-              <Trans>Sem centro de custo</Trans>
-            ) : card.validatedAt ? (
+            {validation === 'NO_COST_CENTER' && <Trans>Sem centro de custo</Trans>}
+            {validation === 'NO_VALIDATION' && <Trans>Sem validação</Trans>}
+            {validation === 'WAITING' && <Trans>Aguardando validação</Trans>}
+            {validation === 'VALIDATED' && (
               <Trans>
                 Validado por {validatedBy} em {validatedAt}
               </Trans>
-            ) : (
-              <Trans>Aguardando validação</Trans>
             )}
           </dd>
         </div>

@@ -25,6 +25,8 @@
 //     101 – Puxada" para qualquer NF com centro, também a que conclui como `LEGACY`, e não afirma validação;
 //   - o /verificar mostra "Centro de custo: …"; NF sem centro, nenhuma dessas linhas.
 //
+// Revisão final da Fase 7: o /verificar de NF retida diz "Aguardando aprovação do Financeiro"; o de NF recusada, não.
+//
 // Sessões: REVSIGN_USER_* (admin@hml.local, dono do REVSIGN_API_TOKEN, fora do Financeiro) e REVSIGN_ADMIN_* (rsadmin,
 // ADMIN, marcado como Financeiro aqui). Ver revalle/docs/testes.md.
 
@@ -481,6 +483,50 @@ sessionTest(
 
     assert.ok(!plainVerify.text.includes('Conta contábil'), '/verificar de documento comum com conta');
     assert.ok(!plainVerify.text.includes('Centro de custo'), '/verificar de documento comum com centro de custo');
+  },
+);
+
+sessionTest(
+  '/verificar: NF retida diz "Aguardando aprovação do Financeiro"; NF recusada não (a nota acabou)',
+  async () => {
+    // Retida: os dois assinaram e falta o Financeiro. A página pública diz que aguarda.
+    const held = await newInvoice('verificar-retida');
+
+    await sign(held, 0);
+    await sign(held, 1);
+    assert.equal(status(held.id), 'PENDING');
+    db('delete from "RateLimit"');
+
+    const waiting = await html(`/verificar?codigo=${encodeURIComponent(codeOf(held.recipients[0].id))}`);
+
+    assert.equal(waiting.status, 200);
+    assert.ok(waiting.text.includes(WAITING), '/verificar da NF retida sem "Aguardando aprovação do Financeiro"');
+
+    // Recusada: o primeiro assinou (tem código) e o segundo recusou. A conta e o centro seguem aparecendo, mas a nota
+    // não aguarda mais ninguém.
+    const refused = await newInvoice('verificar-recusada');
+
+    await sign(refused, 0);
+    await gate(refused.recipients[1].token);
+
+    const refusal = await trpc('recipient.rejectDocumentWithToken', {
+      token: refused.recipients[1].token,
+      documentId: refused.documentId,
+      reason: 'Teste',
+    });
+
+    assert.equal(refusal.status, 200, refusal.text);
+    assert.equal(await waitStatus(refused.id, 'REJECTED'), 'REJECTED');
+    assert.equal(financeStatus(refused.id), 'PENDING_APPROVAL');
+    db('delete from "RateLimit"');
+
+    const verify = await html(`/verificar?codigo=${encodeURIComponent(codeOf(refused.recipients[0].id))}`);
+
+    assert.equal(verify.status, 200);
+    assert.ok(verify.text.includes(refused.title), '/verificar da NF recusada não achou o documento');
+    assert.ok(verify.text.includes('Recusado em'), '/verificar da NF recusada sem "Recusado em"');
+    assert.ok(verify.text.includes('Conta contábil: 2.1.03 – Fornecedores'), '/verificar da NF recusada sem a conta');
+    assert.ok(!verify.text.includes(WAITING), '/verificar diz que a NF recusada aguarda aprovação do Financeiro');
   },
 );
 
