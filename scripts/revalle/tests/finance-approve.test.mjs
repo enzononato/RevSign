@@ -33,6 +33,7 @@ import {
   api,
   assertNoPaidGeminiCalls,
   BASE_URL,
+  chooseInvoice,
   completeWithCode,
   createEnvelope,
   db,
@@ -190,10 +191,7 @@ const sendDocument = async (label, { signers = 2, choice = { code: '2.1.03' }, p
   assert.equal(created.status, 200, created.text);
 
   if (choice) {
-    const chosen = await trpcAs(userCookie, 'mutation', 'revalle.invoice.setChoice', {
-      envelopeId: created.id,
-      choice,
-    });
+    const chosen = await chooseInvoice({ cookie: userCookie, envelopeId: created.id, code: choice.code });
 
     assert.equal(chosen.status, 200, chosen.text);
   }
@@ -701,15 +699,7 @@ sessionTest(
     );
 
     assert.equal(created.status, 200, created.text);
-    assert.equal(
-      (
-        await trpcAs(userCookie, 'mutation', 'revalle.invoice.setChoice', {
-          envelopeId: created.id,
-          choice: { code: '2.1.03' },
-        })
-      ).status,
-      200,
-    );
+    assert.equal((await chooseInvoice({ cookie: userCookie, envelopeId: created.id })).status, 200);
 
     const ccOnly = {
       id: created.id,

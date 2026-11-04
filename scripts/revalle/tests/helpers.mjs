@@ -283,6 +283,27 @@ export const trpcAs = async (cookie, kind, procedure, input, extraHeaders = {}) 
   );
 };
 
+// Escolhe a conta contábil e o centro de custo de uma NF em rascunho, como a tela faz (duas rotas). NF só é enviada com
+// os dois (Fase 7): todo teste que envia NF passa por aqui. `code` ou `costCenter` nulo pula a etapa (para testar o
+// envio com só um dos dois). Devolve a resposta da primeira etapa que falhou ou, se todas passaram, a da última.
+export const chooseInvoice = async ({ cookie, envelopeId, code = '2.1.03', costCenter = '101', headers = {} }) => {
+  let last;
+
+  if (code !== null) {
+    last = await trpcAs(cookie, 'mutation', 'revalle.invoice.setChoice', { envelopeId, choice: { code } }, headers);
+
+    if (!last.ok) {
+      return last;
+    }
+  }
+
+  if (costCenter !== null) {
+    last = await trpcAs(cookie, 'mutation', 'revalle.invoice.setCostCenter', { envelopeId, code: costCenter }, headers);
+  }
+
+  return last;
+};
+
 // Imagem com as ferramentas do poppler (scripts/revalle/tests/poppler.Dockerfile). Construída uma vez, se faltar:
 // antes cada chamada rodava `apk add` num alpine, o que falhava de vez em quando por rede ou disco.
 const POPPLER_IMAGE = 'revsign-test-poppler:local';

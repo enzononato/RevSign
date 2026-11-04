@@ -39,6 +39,7 @@ import {
   api,
   assertNoPaidGeminiCalls,
   BASE_URL,
+  chooseInvoice,
   completeWithCode,
   computeEmailCode,
   createEnvelope,
@@ -242,10 +243,7 @@ const newInvoice = async (label, { signers = 2, meta, sequential = false } = {})
 
   assert.equal(created.status, 200, created.text);
 
-  const chosen = await trpcAs(userCookie, 'mutation', 'revalle.invoice.setChoice', {
-    envelopeId: created.id,
-    choice: { code: '2.1.03' },
-  });
+  const chosen = await chooseInvoice({ cookie: userCookie, envelopeId: created.id });
 
   assert.equal(chosen.status, 200, chosen.text);
   assert.equal((await distribute(created.id)).length, signers);
@@ -753,6 +751,39 @@ sessionTest('v2 da v2: o título vira "(v3)", nunca "(v2) (v3)"', async () => {
     v3,
   );
 });
+
+const costCenterOf = (envelopeId) =>
+  one(
+    `select coalesce("costCenterCode", '-') || '|' || coalesce("costCenterById"::text, '-') || '|' || coalesce("costCenterAt"::text, '-') from "RevalleInvoiceClassification" where "envelopeId" = '${envelopeId}'`,
+  );
+
+sessionTest(
+  'a v2 leva o centro de custo da antiga (quem e quando); a NF enviada sem centro continua sem, e a v2 sai assim mesmo',
+  async () => {
+    const doc = await newInvoice('centro', { signers: 1 });
+    const original = costCenterOf(doc.id);
+
+    assert.match(original, new RegExp(`^101\\|${userId}\\|\\d{4}-`));
+
+    const v2 = changed(await change(doc.id));
+
+    assert.equal(await waitStatus(v2, 'PENDING', 10), 'PENDING');
+    assert.equal(costCenterOf(v2), original);
+
+    // NF enviada antes do centro de custo existir: a v2 também fica sem, e o envio dela não exige.
+    const legacy = await newInvoice('sem-centro', { signers: 1 });
+
+    db(
+      `update "RevalleInvoiceClassification" set "costCenterCode" = null, "costCenterById" = null, "costCenterAt" = null where "envelopeId" = '${legacy.id}'`,
+    );
+
+    const legacyV2 = changed(await change(legacy.id));
+
+    assert.equal(await waitStatus(legacyV2, 'PENDING', 10), 'PENDING');
+    assert.equal(costCenterOf(legacyV2), '-|-|-');
+    assert.equal(financeStatus(legacyV2), 'APPROVED');
+  },
+);
 
 sessionTest('falha ao criar a v2 (cota zerada): a troca é desfeita, nada fica SUPERSEDED sem sucessora', async () => {
   const doc = await newInvoice('cota', { signers: 1 });

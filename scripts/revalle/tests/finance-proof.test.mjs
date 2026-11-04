@@ -29,6 +29,7 @@ import { PDFDocument, rgb, StandardFonts } from '@cantoo/pdf-lib';
 import {
   assertNoPaidGeminiCalls,
   BASE_URL,
+  chooseInvoice,
   completeWithCode,
   createEnvelope,
   db,
@@ -167,10 +168,7 @@ const newInvoice = async (label, { signers = 2 } = {}) => {
 
   assert.equal(created.status, 200, created.text);
 
-  const chosen = await trpcAs(userCookie, 'mutation', 'revalle.invoice.setChoice', {
-    envelopeId: created.id,
-    choice: { code: '2.1.03' },
-  });
+  const chosen = await chooseInvoice({ cookie: userCookie, envelopeId: created.id });
 
   assert.equal(chosen.status, 200, chosen.text);
   assert.equal((await distribute(created.id)).length, signers);
@@ -234,10 +232,7 @@ const newV1Invoice = async (label) => {
   assert.equal(res.status, 200, JSON.stringify(body));
   assert.equal(db(`select "internalVersion" from "Envelope" where id = '${body.envelopeId}'`), '1');
 
-  const chosen = await trpcAs(userCookie, 'mutation', 'revalle.invoice.setChoice', {
-    envelopeId: body.envelopeId,
-    choice: { code: '2.1.03' },
-  });
+  const chosen = await chooseInvoice({ cookie: userCookie, envelopeId: body.envelopeId });
 
   assert.equal(chosen.status, 200, chosen.text);
 

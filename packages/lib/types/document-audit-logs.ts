@@ -73,6 +73,7 @@ export const ZDocumentAuditLogTypeSchema = z.enum([
   'REVALLE_IDENTITY_SKIPPED',
   'REVALLE_SIGNATURE_STAMPED', // REVALLE: desenhou ou não (carimbo sempre)
   'REVALLE_INVOICE_ACCOUNT_SET', // REVALLE: conta contábil da nota fiscal escolhida/trocada (fora do PDF selado)
+  'REVALLE_INVOICE_COST_CENTER_SET', // REVALLE: centro de custo da nota fiscal escolhido/trocado (fora do PDF selado)
   'REVALLE_FINANCE_ACCOUNT_DEFINED', // REVALLE: o Financeiro definiu a conta da NF marcada depois do envio (já aprovada)
   'REVALLE_FINANCE_APPROVED', // REVALLE: o Financeiro aprovou a conta da NF (libera a selagem)
   'REVALLE_FINANCE_ACCOUNT_CHANGED', // REVALLE: o Financeiro trocou a conta: versão substituída e nova versão
@@ -901,6 +902,15 @@ export const ZDocumentAuditLogEventRevalleInvoiceAccountSetSchema = z.object({
   }),
 });
 
+// REVALLE: centro de custo da nota fiscal (de → para); `fromCode` nulo = primeira escolha.
+export const ZDocumentAuditLogEventRevalleInvoiceCostCenterSetSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_COST_CENTER_SET),
+  data: z.object({
+    fromCode: z.string().nullable(),
+    toCode: z.string(),
+  }),
+});
+
 // REVALLE: quem é do Financeiro definiu a conta de uma NF marcada depois do envio (já vale como aprovada).
 export const ZDocumentAuditLogEventRevalleFinanceAccountDefinedSchema = z.object({
   type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_FINANCE_ACCOUNT_DEFINED),
@@ -980,6 +990,7 @@ export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
     ZDocumentAuditLogEventRevalleIdentitySkippedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleSignatureStampedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleInvoiceAccountSetSchema, // REVALLE:
+    ZDocumentAuditLogEventRevalleInvoiceCostCenterSetSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleFinanceAccountDefinedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleFinanceApprovedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleFinanceAccountChangedSchema, // REVALLE:

@@ -6,6 +6,7 @@ import { isDeepEqual } from 'remeda';
 import { match } from 'ts-pattern';
 
 import { formatInvoiceAccount } from '../revalle/finance/account-change'; // REVALLE:
+import { costCenterLabel } from '../revalle/invoice/cost-centers'; // REVALLE:
 import type {
   TDocumentAuditLog,
   TDocumentAuditLogDocumentMetaDiffSchema,
@@ -725,6 +726,14 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
           : from
             ? msg`Conta contábil trocada: ${from} → ${to}`
             : msg`Conta contábil escolhida: ${to}`;
+
+      return { anonymous: text, you: text, user: text };
+    })
+    // REVALLE:
+    .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_COST_CENTER_SET }, ({ data }) => {
+      const to = costCenterLabel(data.toCode);
+      const from = data.fromCode ? costCenterLabel(data.fromCode) : null;
+      const text = from ? msg`Centro de custo trocado: ${from} → ${to}` : msg`Centro de custo escolhido: ${to}`;
 
       return { anonymous: text, you: text, user: text };
     })

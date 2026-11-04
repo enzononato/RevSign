@@ -2,6 +2,7 @@ import { prisma } from '@documenso/prisma';
 import { RevalleInvoiceStatus } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
+import { isCostCenterCode } from '../../../revalle/invoice/cost-centers';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { RequestMetadata } from '../../../universal/extract-request-metadata';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
@@ -16,18 +17,36 @@ import {
   toInvoiceState,
 } from './classify';
 
-export const INVOICE_ACCOUNT_REQUIRED_MESSAGE = 'Escolha a conta contábil.';
+export const INVOICE_ACCOUNT_REQUIRED_MESSAGE = 'Escolha a conta contábil e o centro de custo.';
 
-/** Modelo e envio em lote: o documento é criado, mas o envio da nota fiscal espera a conta. */
+/** Modelo e envio em lote: o documento é criado, mas o envio da nota fiscal espera a conta e o centro de custo. */
 export const INVOICE_DRAFT_CREATED_MESSAGE =
-  'O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e envie.';
+  'O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e o centro de custo e envie.';
+
+/** Depois do envio, o centro já escolhido só muda pela Contabilidade; por esta rota ninguém o troca. */
+const INVOICE_COST_CENTER_AFTER_SEND_MESSAGE = 'Depois do envio, quem corrige o centro de custo é a Contabilidade.';
+
+/** Nova versão de uma troca de conta com o envio nas mãos do Financeiro: o centro vem da versão anterior. */
+const INVOICE_COST_CENTER_LOCKED_MESSAGE =
+  'Esta nova versão está com o Financeiro: o centro de custo é o da versão anterior.';
 
 export type InvoiceChoice = { code: string };
+
+const invoiceChoiceRequiredError = () =>
+  new AppError('INVOICE_ACCOUNT_REQUIRED', {
+    message: INVOICE_ACCOUNT_REQUIRED_MESSAGE,
+    userMessage: INVOICE_ACCOUNT_REQUIRED_MESSAGE,
+    statusCode: 400,
+  });
 
 /**
  * Conferência do envio (`sendDocument`), só no primeiro envio (rascunho). Classifica na hora se ainda não foi
  * (cliente da API que envia logo depois de criar): só a detecção, sem esperar a IA. NF sem escolha → recusa.
  * Devolve o que o envio faz com a NF (Fase 6): `APPROVAL` = NF com conta (sai e aguarda a aprovação); `NONE` = não é NF.
+ *
+ * Fase 7: o primeiro envio da NF exige a conta (ainda ativa na lista) E o centro de custo. A nova versão de uma troca
+ * de conta (`previousEnvelopeId`) herda o que a anterior tinha: uma NF que foi enviada sem centro continua podendo ser
+ * enviada de novo nela, e a conta é a que o Financeiro acabou de escolher.
  */
 export const assertInvoiceChoiceBeforeSend = async (envelopeId: string): Promise<'APPROVAL' | 'NONE'> => {
   const state = await classifyEnvelope(envelopeId, {}, { startSuggestion: false });
@@ -37,11 +56,25 @@ export const assertInvoiceChoiceBeforeSend = async (envelopeId: string): Promise
   }
 
   if (!state.choice) {
-    throw new AppError('INVOICE_ACCOUNT_REQUIRED', {
-      message: INVOICE_ACCOUNT_REQUIRED_MESSAGE,
-      userMessage: INVOICE_ACCOUNT_REQUIRED_MESSAGE,
-      statusCode: 400,
-    });
+    throw invoiceChoiceRequiredError();
+  }
+
+  const row = await prisma.revalleInvoiceClassification.findUnique({
+    where: { envelopeId },
+    select: { previousEnvelopeId: true },
+  });
+
+  if (row?.previousEnvelopeId) {
+    return 'APPROVAL';
+  }
+
+  const account = await prisma.revalleAccountingAccount.findUnique({
+    where: { code: state.choice.code },
+    select: { active: true },
+  });
+
+  if (!account?.active || !isCostCenterCode(state.costCenter?.code)) {
+    throw invoiceChoiceRequiredError();
   }
 
   return 'APPROVAL';
@@ -153,6 +186,110 @@ export const setInvoiceChoice = async ({
         type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_ACCOUNT_SET,
         envelopeId,
         data: { fromCode: row.choiceCode, toCode },
+        user,
+        requestMetadata,
+      }),
+    });
+  });
+
+  return await getInvoiceState(envelopeId);
+};
+
+/**
+ * Grava o centro de custo da NF (só da lista fixa), com quem e quando, e registra no log de auditoria (de → para).
+ * Espelha `setInvoiceChoice`: a mesma escolha de novo não grava nada e a gravação é condicionada ao que foi lido.
+ * - Rascunho: quem acessa o documento escolhe e troca à vontade (salvo a nova versão que está com o Financeiro).
+ * - Depois do envio: só a PRIMEIRA escolha, pelo dono ou pelo admin, sem nova versão (ninguém viu centro ao assinar).
+ *   Quem corrige um centro já escolhido é a Contabilidade (403 aqui).
+ */
+export const setInvoiceCostCenter = async ({
+  envelopeId,
+  code,
+  user,
+  requestMetadata,
+}: {
+  envelopeId: string;
+  code: string;
+  user: { id: number; name: string | null; email: string };
+  requestMetadata?: RequestMetadata;
+}): Promise<InvoiceState> => {
+  if (!isCostCenterCode(code)) {
+    throw new AppError(AppErrorCode.INVALID_REQUEST, { message: 'Centro de custo inexistente.' });
+  }
+
+  const isDraft = await isEnvelopeDraft(envelopeId);
+  const current = await prisma.revalleInvoiceClassification.findUnique({
+    where: { envelopeId },
+    select: { financeStatus: true, costCenterCode: true },
+  });
+
+  if (isDraft && isDraftFinanceStatusLocked(current?.financeStatus)) {
+    throw new AppError(AppErrorCode.FORBIDDEN, {
+      message: INVOICE_COST_CENTER_LOCKED_MESSAGE,
+      userMessage: INVOICE_COST_CENTER_LOCKED_MESSAGE,
+    });
+  }
+
+  if (!isDraft && current?.costCenterCode) {
+    throw new AppError(AppErrorCode.FORBIDDEN, {
+      message: INVOICE_COST_CENTER_AFTER_SEND_MESSAGE,
+      userMessage: INVOICE_COST_CENTER_AFTER_SEND_MESSAGE,
+    });
+  }
+
+  if (!isDraft) {
+    const [envelope, account] = await Promise.all([
+      prisma.envelope.findUniqueOrThrow({ where: { id: envelopeId }, select: { userId: true } }),
+      prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { roles: true } }),
+    ]);
+
+    if (envelope.userId !== user.id && !isAdmin(account)) {
+      throw new AppError(AppErrorCode.FORBIDDEN, {
+        message: 'Depois do envio, só o dono do documento ou o administrador escolhe o centro de custo.',
+      });
+    }
+  }
+
+  if (isDraft) {
+    await classifyEnvelope(envelopeId, { userId: user.id });
+  }
+
+  const row = await prisma.revalleInvoiceClassification.findUnique({ where: { envelopeId } });
+  const state = row ? await toInvoiceState(row) : null;
+
+  if (!row || !state || state.isInvoice !== 'YES') {
+    throw new AppError(AppErrorCode.INVALID_REQUEST, { message: 'O documento não está marcado como nota fiscal.' });
+  }
+
+  if (row.costCenterCode === code) {
+    return state;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // Condicionada ao que foi lido: se os arquivos mudaram (ou outro centro entrou, ou a NF foi substituída) no meio,
+    // nada é gravado.
+    const { count } = await tx.revalleInvoiceClassification.updateMany({
+      where: {
+        envelopeId,
+        isInvoice: RevalleInvoiceStatus.YES,
+        fileSha256: row.fileSha256,
+        costCenterCode: row.costCenterCode,
+        financeStatus: row.financeStatus,
+      },
+      data: { costCenterCode: code, costCenterById: user.id, costCenterAt: new Date() },
+    });
+
+    if (count === 0) {
+      throw new AppError(AppErrorCode.INVALID_REQUEST, {
+        message: 'O documento mudou enquanto o centro de custo era escolhido. Tente de novo.',
+      });
+    }
+
+    await tx.documentAuditLog.create({
+      data: createDocumentAuditLogData({
+        type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_COST_CENTER_SET,
+        envelopeId,
+        data: { fromCode: row.costCenterCode, toCode: code },
         user,
         requestMetadata,
       }),

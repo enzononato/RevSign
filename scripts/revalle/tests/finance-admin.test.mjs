@@ -22,6 +22,7 @@ import {
   api,
   assertNoPaidGeminiCalls,
   BASE_URL,
+  chooseInvoice,
   createEnvelope,
   db,
   fetchIdempotent,
@@ -181,10 +182,7 @@ const sentInvoice = async (variant) => {
 
   assert.equal(created.status, 200, created.text);
 
-  const chosen = await trpcAs(userCookie, 'mutation', 'revalle.invoice.setChoice', {
-    envelopeId: created.id,
-    choice: { code: '2.1.03' },
-  });
+  const chosen = await chooseInvoice({ cookie: userCookie, envelopeId: created.id });
 
   assert.equal(chosen.status, 200, chosen.text);
 

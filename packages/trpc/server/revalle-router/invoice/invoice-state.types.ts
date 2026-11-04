@@ -26,6 +26,8 @@ export const ZInvoiceStateSchema = z.object({
     ])
     .nullable(),
   choice: z.object({ code: z.string(), name: z.string().optional() }).nullable(),
+  /** Fase 7: centro de custo (lista fixa), exigido junto com a conta no primeiro envio. */
+  costCenter: z.object({ code: z.string(), name: z.string() }).nullable(),
   financeStatus: z.enum(['PENDING_APPROVAL', 'APPROVED', 'SUPERSEDED', 'LEGACY']).nullable(),
   /** `APPROVED` sem reserva de envio (`approvedAt` nulo): o envio da nova versão falhou e o rascunho pode ser enviado. */
   isFinanceSendReleased: z.boolean(),

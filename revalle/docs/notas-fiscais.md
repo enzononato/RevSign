@@ -1,4 +1,4 @@
-# RevSign — notas fiscais e conta contábil (Fases 5 e 6)
+# RevSign — notas fiscais, conta contábil e centro de custo (Fases 5 a 7)
 
 Guia para o Enzo e para a TI. Explica como configurar a sugestão de conta contábil, o que o remetente vê, a página
 **Notas fiscais**, a planilha exportada e o trabalho do **Financeiro** (seção 9).
@@ -6,13 +6,16 @@ Guia para o Enzo e para a TI. Explica como configurar a sugestão de conta cont�
 ## Como funciona, em uma frase
 
 Quando alguém envia uma nota fiscal (NF) para assinatura, o RevSign percebe que é uma NF, pede ao Gemini (Google) uma
-sugestão de conta contábil e obriga o remetente a escolher a conta antes de enviar. O RevSign não manda e-mail da nota
+sugestão de conta contábil e obriga o remetente a escolher a conta e o centro de custo antes de enviar. O RevSign não manda e-mail da nota
 para a contabilidade nem para o Financeiro: tudo o que precisa de ação fica na página **Notas fiscais** (seção 5).
 
 - Desde a Fase 6, a conta **faz parte do que é assinado**: quem assina vê "Nota fiscal · Conta contábil: {código} – {nome}",
   ela fica na prova de cada signatário e no certificado (com a aprovação do Financeiro). Ver `prova.md`. O carimbo não
   muda. Trocar a conta depois do envio cria uma nova versão, que todos assinam de novo.
 - A sugestão é só uma sugestão: o RevSign nunca escolhe a conta sozinho.
+- Desde a Fase 7, toda NF leva também um **centro de custo**, de uma lista fixa: 101 Puxada, 201 Armazém, 301
+  Administrativo, 401 Vendas e 501 Entrega. Quem envia escolhe; a IA não participa. A NF só é enviada com a conta **e**
+  o centro. Depois do envio, o centro já escolhido não muda pela página do documento: a correção é da Contabilidade.
 - Sem a chave do Gemini, tudo funciona do mesmo jeito, só que sem sugestão: o remetente escolhe na lista.
 
 ## 1. Importar a lista de contas
@@ -91,24 +94,32 @@ o mesmo PDF for enviado de novo, a sugestão vem do cache, sem nova chamada. Por
 2. Enquanto a IA pensa, aparece "Buscando sugestão…" (até uns 20 segundos). Depois, a sugestão com o motivo e o
    botão **Usar sugestão**. Ele também pode buscar outra conta na lista (por número ou nome). Sem a sugestão (IA fora do
    ar, por exemplo), ele escolhe na lista do mesmo jeito. Se a lista de contas estiver vazia, o bloco diz "Nenhuma
-   conta contábil cadastrada. Fale com o administrador." e nenhuma NF pode ser enviada.
-3. O botão **Enviar** só libera depois da escolha. Com uma conta, o documento sai e a NF fica aguardando a aprovação do
-   Financeiro.
+   conta contábil cadastrada. Fale com o administrador." (mesmo que já houvesse uma conta escolhida) e nenhuma NF pode
+   ser enviada.
+   Logo abaixo da conta fica o **Centro de custo**: uma lista com os cinco centros, "Selecione o centro de custo".
+3. O botão **Enviar** só libera depois das duas escolhas, a conta e o centro de custo. Com as duas, o documento sai e a
+   NF fica aguardando a aprovação do Financeiro. Se a conta escolhida saiu da lista antes do envio (ficou inativa), o
+   envio é recusado do mesmo jeito e a pessoa escolhe outra. A nova versão criada pelo Financeiro numa troca de conta
+   leva o centro da versão anterior e não pede o centro de novo.
 4. Se o RevSign não tiver certeza (PDF escaneado, sem texto), pergunta "Este documento é uma nota fiscal?" e o botão
    **Enviar** fica bloqueado até a resposta ("Responda para enviar"). Com "Sim", o PDF vai para a IA e a conta é
    escolhida como numa NF comum; com "Não", o documento segue como um documento comum. Se o RevSign errou e não é NF,
    há o botão **Não é nota fiscal**.
 5. Depois do envio, a página do documento mostra ao dono e ao admin:
-   - numa NF, o cartão **Conta contábil**, só de leitura: a conta e a situação no Financeiro ("Aguardando aprovação
-     do Financeiro", "Aprovada pelo Financeiro" ou, se o Financeiro trocou a conta, "Substituída…" com o botão **Abrir a
-     nova versão**). Depois do envio, quem troca a conta é o Financeiro;
+   - numa NF, o cartão **Conta contábil**, só de leitura: a conta, o centro de custo ("Centro de custo: 101 – Puxada")
+     e a situação no Financeiro ("Aguardando aprovação do Financeiro", "Aprovada pelo Financeiro" ou, se o Financeiro
+     trocou a conta, "Substituída…" com o botão **Abrir a nova versão**). Depois do envio, quem troca a conta é o
+     Financeiro e quem corrige o centro é a Contabilidade. Numa NF que ainda não tem centro (marcada depois do envio ou
+     enviada antes da Fase 7), o dono ou o admin escolhe o primeiro no próprio cartão, sem nova versão. Essas NFs
+     continuam sendo aprovadas e concluídas normalmente sem o centro;
    - num PDF escaneado enviado sem a resposta (pela API), o cartão **Conta contábil** com a pergunta "Este documento é
      uma nota fiscal?" e o botão **Marcar como nota fiscal**;
    - num documento comum (ou numa NF enviada antes desta versão), só uma linha discreta: "É uma nota fiscal?
      **Marcar como nota fiscal**". Nada de cartão, para não pesar na página de cada contrato.
 
    Marcar coloca o documento no fluxo, sem chamar a IA, aguardando a aprovação do Financeiro; em seguida o cartão pede
-   a conta (só a primeira escolha; depois, quem troca é o Financeiro).
+   a conta e o centro de custo (só a primeira escolha; depois, quem troca a conta é o Financeiro e quem corrige o centro
+   é a Contabilidade).
 6. **Conclusão retida.** Quando todos assinam uma NF que ainda aguarda a aprovação do Financeiro, ela **não é
    concluída**: o documento continua pendente e o PDF não é selado. Nenhum e-mail é enviado: o Financeiro encontra a NF
    em **Notas fiscais**, no filtro **Aguardando o Financeiro**. Quando alguém do Financeiro aprova a conta, o documento
@@ -123,7 +134,8 @@ o mesmo PDF for enviado de novo, a sugestão vem do cache, sem nova chamada. Por
    substituídas).
 
 **NF enviada pela API ou por modelo:** o documento é criado, mas o envio é recusado (`INVOICE_ACCOUNT_REQUIRED`) até a
-conta ser escolhida na tela. O documento fica como rascunho: abra-o no site, escolha a conta e envie. Documento na versão antiga
+conta e o centro de custo serem escolhidos na tela. O documento fica como rascunho: abra-o no site, escolha a conta e o
+centro e envie. Documento na versão antiga
 (criado por um modelo antigo ou pela API v2-beta de documento) abre no editor antigo, que mostra o bloco **Nota fiscal · Conta contábil** no topo. Usar
 modelo com "enviar" e envio em lote fazem o mesmo. Detalhes em `revalle/docs/deploy.md`, seção "Notas fiscais enviadas
 pela API ou por modelo".

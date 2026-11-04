@@ -4460,9 +4460,6 @@ msgstr "Nenhuma conta escolhida."
 msgid "Nota fiscal · Conta contábil"
 msgstr "Nota fiscal · Conta contábil"
 
-msgid "Nota fiscal sem conta contábil"
-msgstr "Nota fiscal sem conta contábil"
-
 msgid "Sim"
 msgstr "Sim"
 
@@ -4480,9 +4477,6 @@ msgstr "Usar sugestão"
 
 msgid "Conta contábil apagada porque o arquivo foi alterado (era {from})"
 msgstr "Conta contábil apagada porque o arquivo foi alterado (era {from})"
-
-msgid "O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e envie."
-msgstr "O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e envie."
 
 # REVALLE: Fase 5, página "Notas fiscais" e menu (msgids já em pt-BR).
 
@@ -4904,3 +4898,38 @@ msgstr "O Financeiro está enviando esta nova versão. Os convites saem em insta
 
 msgid "sem conta"
 msgstr "sem conta"
+
+# REVALLE: Fase 7, centro de custo da nota fiscal (msgids já em pt-BR).
+
+msgid "Centro de custo"
+msgstr "Centro de custo"
+
+msgid "Selecione o centro de custo"
+msgstr "Selecione o centro de custo"
+
+msgid "Escolha o centro de custo."
+msgstr "Escolha o centro de custo."
+
+msgid "Escolha o centro de custo. Depois, quem corrige é a Contabilidade."
+msgstr "Escolha o centro de custo. Depois, quem corrige é a Contabilidade."
+
+msgid "Centro de custo: {0}"
+msgstr "Centro de custo: {0}"
+
+msgid "Centro de custo atualizado."
+msgstr "Centro de custo atualizado."
+
+msgid "Centro de custo escolhido: {to}"
+msgstr "Centro de custo escolhido: {to}"
+
+msgid "Centro de custo trocado: {from} → {to}"
+msgstr "Centro de custo trocado: {from} → {to}"
+
+msgid "Nota fiscal sem conta contábil ou centro de custo"
+msgstr "Nota fiscal sem conta contábil ou centro de custo"
+
+msgid "Escolha a conta contábil e o centro de custo."
+msgstr "Escolha a conta contábil e o centro de custo."
+
+msgid "O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e o centro de custo e envie."
+msgstr "O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e o centro de custo e envie."

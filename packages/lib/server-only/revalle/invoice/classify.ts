@@ -10,6 +10,7 @@ import {
 } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
+import { REVALLE_COST_CENTERS } from '../../../revalle/invoice/cost-centers';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { findVisibleSuccessor } from '../finance/successor';
@@ -31,6 +32,8 @@ export type InvoiceState = {
   /** Código curto quando `suggestionStatus` é FAILED (nunca texto da NF nem do provedor). */
   failureReason: InvoiceFailureReason | null;
   choice: { code: string; name?: string } | null;
+  /** Fase 7: centro de custo escolhido (lista fixa); a conta e o centro são exigidos juntos no primeiro envio. */
+  costCenter: { code: string; name: string } | null;
   /** Fase 6: estado no Financeiro (nulo = não é NF, ou NF em rascunho que ainda não foi enviada). */
   financeStatus: 'PENDING_APPROVAL' | 'APPROVED' | 'SUPERSEDED' | 'LEGACY' | null;
   /**
@@ -111,6 +114,12 @@ export const toInvoiceState = async (row: RevalleInvoiceClassification): Promise
           (stored.failure as InvoiceFailureReason)
         : null,
     choice,
+    costCenter: row.costCenterCode
+      ? {
+          code: row.costCenterCode,
+          name: REVALLE_COST_CENTERS.find((center) => center.code === row.costCenterCode)?.name ?? row.costCenterCode,
+        }
+      : null,
     financeStatus: row.financeStatus,
     isFinanceSendReleased: row.financeStatus === RevalleFinanceStatus.APPROVED && row.approvedAt === null,
     supersededByEnvelopeId:
@@ -139,15 +148,18 @@ const expireStalePending = async (row: RevalleInvoiceClassification) => {
 };
 
 /**
- * Escolha da conta zerada: ela vale para um conjunto de arquivos (trocou o arquivo, escolhe de novo). A nova versão de
- * uma troca de conta (rascunho `APPROVED`) cujo arquivo muda volta a ser um rascunho comum do remetente: a aprovação
- * era para outro arquivo.
+ * Escolha da conta e do centro de custo zerada: ela vale para um conjunto de arquivos (trocou o arquivo, escolhe de
+ * novo). A nova versão de uma troca de conta (rascunho `APPROVED`) cujo arquivo muda volta a ser um rascunho comum do
+ * remetente: a aprovação era para outro arquivo.
  */
 const CLEARED_CHOICE = {
   choiceCode: null,
   choiceById: null,
   choiceAt: null,
   acceptedSuggestion: null,
+  costCenterCode: null,
+  costCenterById: null,
+  costCenterAt: null,
   financeStatus: null,
 };
 
@@ -159,6 +171,7 @@ const unclassifiedState = (): InvoiceState => ({
   suggestion: null,
   failureReason: null,
   choice: null,
+  costCenter: null,
   financeStatus: null,
   isFinanceSendReleased: false,
   supersededByEnvelopeId: null,

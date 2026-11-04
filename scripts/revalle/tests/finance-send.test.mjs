@@ -26,6 +26,7 @@ import {
   api,
   assertNoPaidGeminiCalls,
   BASE_URL,
+  chooseInvoice,
   createEnvelope,
   db,
   fetchIdempotent,
@@ -41,7 +42,7 @@ const admin = { email: process.env.REVSIGN_ADMIN_EMAIL, password: process.env.RE
 
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const MAILPIT = 'http://localhost:8025/api/v1';
-const REQUIRED_MESSAGE = 'Escolha a conta contábil.';
+const REQUIRED_MESSAGE = 'Escolha a conta contábil e o centro de custo.';
 const NOT_A_VERSION_MESSAGE = 'Esta nota fiscal não tem uma nova versão aguardando envio.';
 const FILE_CHANGED_MESSAGE = 'O remetente trocou o arquivo; a nota voltou para ele.';
 const REASON = 'Conta de serviço, não de material.';
@@ -64,6 +65,7 @@ let adminId;
 const data = (res) => res.body?.result?.data?.json;
 const setChoice = (envelopeId, choice, cookie = userCookie) =>
   trpcAs(cookie, 'mutation', 'revalle.invoice.setChoice', { envelopeId, choice });
+const choose = (envelopeId, options = {}) => chooseInvoice({ cookie: userCookie, envelopeId, ...options });
 const resendVersion = (envelopeId, cookie = adminCookie, extra = {}) =>
   trpcAs(cookie, 'mutation', 'revalle.finance.resendVersion', { envelopeId, ...extra });
 const changeAccount = (envelopeId, code) =>
@@ -161,7 +163,7 @@ const inviteCount = async (email) => (await mailsTo(email)).filter(isInvite).len
 const failedVersion = async (label) => {
   const doc = await newDocument(await danfe(label), label);
 
-  assert.equal((await setChoice(doc.id, { code: '2.1.03' })).status, 200);
+  assert.equal((await choose(doc.id)).status, 200);
   assert.equal((await distribute(doc.id)).status, 200);
   db(`update "Recipient" set email = 'f7-fora-${label}-${RUN}@example.com' where "envelopeId" = '${doc.id}'`);
 
@@ -225,7 +227,7 @@ before(async () => {
 sessionTest('NF com conta: é enviada e fica aguardando a aprovação do Financeiro', async () => {
   const doc = await newDocument(await danfe('com-conta'), 'com-conta');
 
-  assert.equal((await setChoice(doc.id, { code: '2.1.03' })).status, 200);
+  assert.equal((await choose(doc.id)).status, 200);
 
   const sent = await distribute(doc.id);
 
@@ -263,7 +265,7 @@ sessionTest('NF com conta: é enviada e fica aguardando a aprovação do Finance
 sessionTest('rascunho marcado LEGACY pela migração: ao enviar com conta, vai para PENDING_APPROVAL', async () => {
   const doc = await newDocument(await danfe('legacy-rascunho'), 'legacy-rascunho');
 
-  assert.equal((await setChoice(doc.id, { code: '2.1.03' })).status, 200);
+  assert.equal((await choose(doc.id)).status, 200);
   // Simula uma NF em rascunho antes da Fase 6 (a migração marcou todas as NFs como LEGACY).
   db(`update "RevalleInvoiceClassification" set "financeStatus" = 'LEGACY' where "envelopeId" = '${doc.id}'`);
 
@@ -478,8 +480,8 @@ sessionTest(
     assert.equal((await mailsTo(fixed)).length, 0);
     assert.equal(auditCount(v2, 'DOCUMENT_SENT'), 0);
 
-    // De volta ao dono: ele escolhe a conta de novo e envia como qualquer NF (aguarda a aprovação).
-    assert.equal((await setChoice(v2, { code: '2.1.03' })).status, 200);
+    // De volta ao dono: ele escolhe a conta e o centro de novo e envia como qualquer NF (aguarda a aprovação).
+    assert.equal((await choose(v2)).status, 200);
     assert.equal((await distribute(v2)).status, 200);
     assert.equal(financeStatus(v2), 'PENDING_APPROVAL');
   },

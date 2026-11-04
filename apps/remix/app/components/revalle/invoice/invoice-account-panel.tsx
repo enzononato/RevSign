@@ -1,5 +1,7 @@
 import { DO_NOT_INVALIDATE_QUERY_ON_MUTATION } from '@documenso/lib/constants/trpc';
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
+import { costCenterLabel } from '@documenso/lib/revalle/invoice/cost-centers';
+import { isInvoiceReady } from '@documenso/lib/revalle/invoice/invoice-ready';
 import { trpc } from '@documenso/trpc/react';
 import type { TInvoiceState } from '@documenso/trpc/server/revalle-router/invoice/invoice-state.types';
 import { Button } from '@documenso/ui/primitives/button';
@@ -9,12 +11,13 @@ import { Trans, useLingui } from '@lingui/react/macro';
 import { useEffect, useRef, useState } from 'react';
 
 import { AccountCombobox } from './account-combobox';
+import { CostCenterSelect } from './cost-center-select';
 
 export type InvoiceAccountPanelProps = {
   envelopeId: string;
   /**
-   * `false` enquanto a NF não tem escolha, enquanto "É nota fiscal?" (UNKNOWN) não foi respondida, ou enquanto o estado
-   * ainda não chegou: o botão de enviar fica bloqueado.
+   * `false` enquanto a NF não tem a conta e o centro de custo, enquanto "É nota fiscal?" (UNKNOWN) não foi respondida,
+   * ou enquanto o estado ainda não chegou: o botão de enviar fica bloqueado.
    */
   onReadyChange: (ready: boolean) => void;
 };
@@ -27,9 +30,9 @@ const POLL_LIMIT_MS = 30_000;
 const STALE_REFETCH_MS = 61_000;
 
 /**
- * Bloco "Nota fiscal · Conta contábil" do diálogo de envio. Classifica ao abrir, consulta a sugestão enquanto ela
- * está em andamento e grava cada escolha no servidor na hora (o envio confere de novo). A sugestão nunca vira
- * escolha sozinha.
+ * Bloco "Nota fiscal · Conta contábil" do diálogo de envio, com o centro de custo logo abaixo da conta. Classifica ao
+ * abrir, consulta a sugestão enquanto ela está em andamento e grava cada escolha no servidor na hora (o envio confere de
+ * novo). A sugestão nunca vira escolha sozinha.
  */
 export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccountPanelProps) => {
   const { t } = useLingui();
@@ -43,6 +46,8 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
 
   const { mutateAsync: classify } = trpc.revalle.invoice.classify.useMutation();
   const { mutateAsync: setChoice, isPending: isSavingChoice } = trpc.revalle.invoice.setChoice.useMutation();
+  const { mutateAsync: setCostCenter, isPending: isSavingCostCenter } =
+    trpc.revalle.invoice.setCostCenter.useMutation();
   const { mutateAsync: setInvoiceFlag, isPending: isSavingFlag } = trpc.revalle.invoice.setInvoiceFlag.useMutation();
   const { mutateAsync: resuggest, isPending: isResuggesting } = trpc.revalle.invoice.resuggest.useMutation();
 
@@ -111,15 +116,19 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
   // no celular não pode sair do fluxo da contabilidade com um toque em "Enviar". O servidor não exige a resposta (API).
   // Nova versão de uma troca de conta com o envio do Financeiro em andamento: quem envia agora é o Financeiro. Conta
   // aprovada cujo envio pelo Financeiro falhou (reserva solta): a conta fica travada, mas o rascunho pode sair por aqui.
-  // Sem nenhuma conta ativa na lista, nenhuma nota fiscal sai.
+  // Sem nenhuma conta ativa na lista, nenhuma nota fiscal sai (mesmo com uma escolha antiga). O centro de custo é
+  // exigido no primeiro envio: a nova versão com o envio parado (`isReleased`) pode sair sem ele.
   const isReleased = isInvoice && state?.financeStatus === 'APPROVED' && state.isFinanceSendReleased;
   const isHeld = isInvoice && !isReleased && state?.financeStatus === 'APPROVED';
   const hasNoAccounts = isInvoice && accountsData !== undefined && accountsData.accounts.length === 0;
-  const isReady =
-    isClassified &&
-    !isHeld &&
-    !hasNoAccounts &&
-    (isError || (state !== undefined && state.isInvoice !== 'UNKNOWN' && (!isInvoice || state.choice !== null)));
+  const isReady = isInvoiceReady({
+    isClassified,
+    isError,
+    isHeld,
+    hasNoAccounts,
+    requiresCostCenter: !isReleased,
+    state,
+  });
 
   useEffect(() => {
     onReadyChange(isReady);
@@ -132,6 +141,14 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
     try {
       store(await setChoice({ envelopeId, choice }));
       setIsChanging(false);
+    } catch {
+      showError();
+    }
+  };
+
+  const onChooseCostCenter = async (code: string) => {
+    try {
+      store(await setCostCenter({ envelopeId, code }));
     } catch {
       showError();
     }
@@ -175,7 +192,7 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
     );
   }
 
-  const isBusy = isSavingChoice || isSavingFlag || isResuggesting;
+  const isBusy = isSavingChoice || isSavingCostCenter || isSavingFlag || isResuggesting;
 
   if (state.isInvoice === 'NO') {
     // Só quem marcou "Não é nota fiscal" vê o desfazer; documento comum não muda em nada.
@@ -239,6 +256,11 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
         <p className="text-sm">
           {state.choice?.name ? `${state.choice.code} – ${state.choice.name}` : state.choice?.code}
         </p>
+        {state.costCenter && (
+          <p className="text-sm">
+            <Trans>Centro de custo: {costCenterLabel(state.costCenter.code)}</Trans>
+          </p>
+        )}
         <p className="text-muted-foreground text-sm">
           <Trans>Conta aprovada pelo Financeiro. O envio anterior falhou: corrija o rascunho e envie.</Trans>
         </p>
@@ -255,6 +277,11 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
         <p className="text-sm">
           {state.choice?.name ? `${state.choice.code} – ${state.choice.name}` : state.choice?.code}
         </p>
+        {state.costCenter && (
+          <p className="text-sm">
+            <Trans>Centro de custo: {costCenterLabel(state.costCenter.code)}</Trans>
+          </p>
+        )}
         <p className="text-muted-foreground text-sm">
           <Trans>O Financeiro está enviando esta nova versão. Os convites saem em instantes.</Trans>
         </p>
@@ -329,28 +356,34 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
         </Button>
       )}
 
-      {choice && !isChanging ? (
+      {choice && !isChanging && (
         <div className="flex flex-wrap items-center justify-between gap-x-2 text-sm">
           <p className="min-w-0 break-words">
             <Trans>
               Conta escolhida: {choiceCode} · {choiceName}
             </Trans>
           </p>
-          <Button
-            type="button"
-            variant="link"
-            className="h-11 px-0"
-            disabled={isBusy}
-            onClick={() => setIsChanging(true)}
-          >
-            <Trans>Trocar</Trans>
-          </Button>
+          {!hasNoAccounts && (
+            <Button
+              type="button"
+              variant="link"
+              className="h-11 px-0"
+              disabled={isBusy}
+              onClick={() => setIsChanging(true)}
+            >
+              <Trans>Trocar</Trans>
+            </Button>
+          )}
         </div>
-      ) : hasNoAccounts ? (
+      )}
+
+      {hasNoAccounts && (
         <p className="text-amber-700 text-sm dark:text-amber-400">
           <Trans>Nenhuma conta contábil cadastrada. Fale com o administrador.</Trans>
         </p>
-      ) : (
+      )}
+
+      {(!choice || isChanging) && !hasNoAccounts && (
         <AccountCombobox
           accounts={accountsData?.accounts ?? []}
           value={choiceCode ?? null}
@@ -362,6 +395,18 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
       {!choice && !hasNoAccounts && (
         <p className="text-amber-700 text-sm dark:text-amber-400">
           <Trans>Escolha a conta contábil.</Trans>
+        </p>
+      )}
+
+      <CostCenterSelect
+        value={state.costCenter?.code ?? null}
+        disabled={isBusy}
+        onSelect={(code) => void onChooseCostCenter(code)}
+      />
+
+      {!state.costCenter && (
+        <p className="text-amber-700 text-sm dark:text-amber-400">
+          <Trans>Escolha o centro de custo.</Trans>
         </p>
       )}
     </section>

@@ -19,6 +19,7 @@ import { PDFDocument, rgb, StandardFonts } from '@cantoo/pdf-lib';
 
 import {
   assertNoPaidGeminiCalls,
+  chooseInvoice,
   completeWithCode,
   createEnvelope,
   db,
@@ -210,10 +211,7 @@ const signDocument = async ({ label, pdf, choice, approve = true }) => {
   assert.equal(created.status, 200, created.text);
 
   if (choice) {
-    const res = await trpcAs(userCookie, 'mutation', 'revalle.invoice.setChoice', {
-      envelopeId: created.id,
-      choice,
-    });
+    const res = await chooseInvoice({ cookie: userCookie, envelopeId: created.id, code: choice.code });
 
     assert.equal(res.status, 200, res.text);
   }

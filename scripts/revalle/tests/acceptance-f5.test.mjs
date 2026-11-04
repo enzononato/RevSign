@@ -34,6 +34,7 @@ import {
   api,
   assertNoPaidGeminiCalls,
   BASE_URL,
+  chooseInvoice,
   completeWithCode,
   createEnvelope,
   db,
@@ -257,8 +258,9 @@ const waitSuggestion = async (envelopeId) => {
   throw new Error('a sugestão não terminou');
 };
 
-const setChoice = async (envelopeId, choice) => {
-  const res = await trpcAs(fx.sender.cookie, 'mutation', 'revalle.invoice.setChoice', { envelopeId, choice });
+// Conta e centro de custo (a NF só é enviada com os dois).
+const chooseNf = async (envelopeId, { code }) => {
+  const res = await chooseInvoice({ cookie: fx.sender.cookie, envelopeId, code });
 
   assert.equal(res.status, 200, res.text);
 
@@ -426,9 +428,9 @@ before(async () => {
     assert.equal(state.isInvoice, 'YES');
     assert.equal(state.suggestionStatus, 'DONE', JSON.stringify(state));
     assert.equal(state.suggestion.accountCode, '4.1.07');
-    await setChoice(fx.danfe.id, { code: state.suggestion.accountCode });
+    await chooseNf(fx.danfe.id, { code: state.suggestion.accountCode });
   } else {
-    await setChoice(fx.danfe.id, { code: '4.1.07' });
+    await chooseNf(fx.danfe.id, { code: '4.1.07' });
   }
 
   // 3. NFS-e sem sugestão (o servidor falso responde erro), enviada com uma conta e convertida depois do envio numa NF
@@ -443,7 +445,7 @@ before(async () => {
     await fake('/__program', { mode: 'error' });
   }
 
-  await setChoice(fx.nfse.id, { code: '4.2.19' });
+  await chooseNf(fx.nfse.id, { code: '4.2.19' });
 
   if (fakeUp) {
     assert.equal((await waitSuggestion(fx.nfse.id)).suggestionStatus, 'FAILED');
@@ -462,7 +464,7 @@ before(async () => {
   await signAll(fx.nfse, {
     afterSend: (id) =>
       db(
-        `update "RevalleInvoiceClassification" set "choiceCode" = null, "acceptedSuggestion" = null, "financeStatus" = 'LEGACY' where "envelopeId" = '${id}'`,
+        `update "RevalleInvoiceClassification" set "choiceCode" = null, "acceptedSuggestion" = null, "costCenterCode" = null, "financeStatus" = 'LEGACY' where "envelopeId" = '${id}'`,
       ),
   });
   // Fase 6: o DANFE fica retido depois das duas assinaturas e o Financeiro aprova pela rota.

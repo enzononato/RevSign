@@ -1465,6 +1465,10 @@ model RevalleInvoiceClassification {
   choiceById             Int?
   choiceAt               DateTime?
   acceptedSuggestion     Boolean?
+  /// Fase 7: centro de custo (lista fixa no código, `cost-centers.ts`), escolhido pela pessoa, com quem e quando (sem FK).
+  costCenterCode         String?
+  costCenterById         Int?
+  costCenterAt           DateTime?
   /// Fase 6: aprovação do Financeiro. Nulo = não é NF (ou NF ainda em rascunho); `LEGACY` = NF de antes da Fase 6.
   financeStatus          RevalleFinanceStatus?
   /// Quem do Financeiro aprovou (ou definiu) a conta e quando (sem FK, como choiceById).

@@ -7,7 +7,8 @@
 // 1º toque num campo abre o campo), pede o código por e-mail (lido no Mailpit) e conclui.
 // Antes, se houver sessão do remetente (REVSIGN_USER_EMAIL/REVSIGN_USER_PASSWORD, dono do token), confere o envio de
 // uma nota fiscal fictícia no celular: o diálogo de envio com o bloco "Nota fiscal · Conta contábil", a escolha da conta
-// na lista e o cartão "Conta contábil" (só leitura, "Aguardando aprovação do Financeiro") de uma NF enviada com conta.
+// na lista, o centro de custo logo abaixo e o cartão "Conta contábil" (só leitura, "Aguardando aprovação do
+// Financeiro") de uma NF enviada com conta.
 // Nesses passos a
 // conferência vale só para o bloco/cartão: o editor do upstream não é feito para celular (a 360 px a página passa da
 // largura da tela e as abas "E-mail"/"Nenhum" do diálogo têm 32 px). Depois abre a página "Notas fiscais": botões da
@@ -122,7 +123,7 @@ const runHost = async () => {
     console.log(`- nota fiscal ${nf.id} (rascunho) para o passo do remetente`);
 
     // NF enviada com conta (escolhida pelo remetente): o cartão da página do documento, só leitura.
-    const { trpcAs } = await import('./tests/helpers.mjs');
+    const { chooseInvoice, trpcAs } = await import('./tests/helpers.mjs');
     const accountCode = db(`select code from "RevalleAccountingAccount" where active order by code limit 1`);
 
     if (!accountCode) {
@@ -139,13 +140,15 @@ const runHost = async () => {
       throw new Error(`criar nota enviada: HTTP ${sentNf.status} ${sentNf.text}`);
     }
 
-    const chosen = await trpcAs(senderEnv.SENDER_COOKIE, 'mutation', 'revalle.invoice.setChoice', {
+    // NF só é enviada com a conta e o centro de custo.
+    const chosen = await chooseInvoice({
+      cookie: senderEnv.SENDER_COOKIE,
       envelopeId: sentNf.id,
-      choice: { code: accountCode },
+      code: accountCode,
     });
 
     if (chosen.status !== 200) {
-      throw new Error(`escolher a conta da nota enviada: HTTP ${chosen.status} ${chosen.text}`);
+      throw new Error(`escolher a conta e o centro da nota enviada: HTTP ${chosen.status} ${chosen.text}`);
     }
 
     const [nfSigner] = await distribute(sentNf.id);
@@ -257,13 +260,16 @@ const runHost = async () => {
         throw new Error(`criar nota para a troca: HTTP ${stuck.status} ${stuck.text}`);
       }
 
-      const stuckChoice = await trpcAs(senderEnv.SENDER_COOKIE, 'mutation', 'revalle.invoice.setChoice', {
+      const stuckChoice = await chooseInvoice({
+        cookie: senderEnv.SENDER_COOKIE,
         envelopeId: stuck.id,
-        choice: { code: accountCode },
+        code: accountCode,
       });
 
       if (stuckChoice.status !== 200) {
-        throw new Error(`escolher a conta da nota para a troca: HTTP ${stuckChoice.status} ${stuckChoice.text}`);
+        throw new Error(
+          `escolher a conta e o centro da nota para a troca: HTTP ${stuckChoice.status} ${stuckChoice.text}`,
+        );
       }
 
       await distribute(stuck.id);
@@ -592,6 +598,11 @@ const runBrowser = async () => {
       // Escolhe a primeira conta da lista (a sugestão da IA nunca vira escolha sozinha).
       await panel.locator('ul button').first().click();
       await panel.getByText(/Conta escolhida:/).waitFor();
+
+      // Centro de custo (Fase 7), logo abaixo da conta: a NF só sai com os dois.
+      await panel.getByTestId('invoice-cost-center').click();
+      await sender.getByRole('option', { name: '101 – Puxada' }).click();
+      await panel.getByText('Escolha o centro de custo.').waitFor({ state: 'detached' });
       await check('00b-nf-escolhida', sender, '[data-testid="invoice-account-panel"]');
 
       // NF enviada com conta: o cartão só mostra a conta e o estado no Financeiro.

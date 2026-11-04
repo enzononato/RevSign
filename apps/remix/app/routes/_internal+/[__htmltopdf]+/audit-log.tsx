@@ -67,8 +67,11 @@ export async function loader({ request }: Route.LoaderArgs) {
   const messages = await getTranslations(documentLanguage);
 
   return {
-    // REVALLE: a conta contábil da NF fica fora do PDF (selado ou baixado).
-    auditLogs: auditLogs.filter((auditLog) => auditLog.type !== 'REVALLE_INVOICE_ACCOUNT_SET'),
+    // REVALLE: a conta contábil e o centro de custo da NF ficam fora do PDF (selado ou baixado).
+    auditLogs: auditLogs.filter(
+      (auditLog) =>
+        auditLog.type !== 'REVALLE_INVOICE_ACCOUNT_SET' && auditLog.type !== 'REVALLE_INVOICE_COST_CENTER_SET',
+    ),
     document: {
       id: mapSecondaryIdToDocumentId(envelope.secondaryId),
       title: envelope.title,

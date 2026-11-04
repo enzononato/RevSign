@@ -69,7 +69,8 @@ const CHANGEABLE: Partial<Record<DocumentStatus, RevalleFinanceStatus[]>> = {
  *    pedidos ao mesmo tempo, só um vence; o outro recebe 409/400 e nada cria.
  * 2. Cria a nova com o `duplicateEnvelope` do upstream, em nome do dono: mesmo arquivo ORIGINAL (`initialData`, nunca o
  *    selado), destinatários, papéis, ordem, campos e configurações.
- * 3. Numa transação: título "(vN)", classificação da nova (`APPROVED` por quem trocou, `version` + 1, ligação), ligação
+ * 3. Numa transação: título "(vN)", classificação da nova (`APPROVED` por quem trocou, o mesmo centro de custo da antiga,
+ *    `version` + 1, ligação), ligação
  *    na antiga, a antiga pendente escondida das listas (sem os e-mails de cancelamento do upstream) e o evento
  *    `REVALLE_FINANCE_ACCOUNT_CHANGED` nas duas versões.
  *    Se 2 ou 3 falham, a marca de 1 é desfeita e a cópia apagada: a antiga nunca fica substituída sem sucessora.
@@ -162,6 +163,9 @@ export const changeInvoiceAccount = async ({
       envelopeId,
       isInvoice: RevalleInvoiceStatus.YES,
       choiceCode: row.choiceCode,
+      // O centro também é lido aqui: a nova versão copia o que a antiga tem, e um primeiro centro escolhido no meio
+      // (o dono, depois do envio) deve fazer esta troca recomeçar.
+      costCenterCode: row.costCenterCode,
       // O estado exato que foi lido (com a selagem, que trava esta linha antes de concluir, a ordem fica definida).
       financeStatus: row.financeStatus,
       supersededAt: row.supersededAt,
@@ -292,6 +296,11 @@ const createNewVersion = async ({
     choiceById: user.id,
     choiceAt: now,
     acceptedSuggestion: suggestion ? suggestion.accountCode === account.code : null,
+    // O centro de custo é o mesmo da versão anterior (a NF que não tinha centro continua sem: o envio da nova versão
+    // não o exige).
+    costCenterCode: row.costCenterCode,
+    costCenterById: row.costCenterById,
+    costCenterAt: row.costCenterAt,
     financeStatus: RevalleFinanceStatus.APPROVED,
     approvedById: user.id,
     approvedAt: now,

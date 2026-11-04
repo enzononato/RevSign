@@ -23,9 +23,9 @@ export const getDistributeErrorMessage = (code: string): ToastMessageDescriptor 
     .with('RECIPIENT_LIMIT_EXCEEDED', () => RECIPIENT_LIMIT_EXCEEDED_ERROR_MESSAGE)
     .with(AppErrorCode.TOO_MANY_REQUESTS, () => FAIR_USE_LIMIT_EXCEEDED_ERROR_MESSAGE)
     .with('INVOICE_ACCOUNT_REQUIRED', () => ({
-      // REVALLE: nota fiscal sem conta contábil (o servidor recusa o envio).
-      title: msg`Nota fiscal sem conta contábil`,
-      description: msg`Escolha a conta contábil.`,
+      // REVALLE: nota fiscal sem conta contábil ou sem centro de custo (o servidor recusa o envio).
+      title: msg`Nota fiscal sem conta contábil ou centro de custo`,
+      description: msg`Escolha a conta contábil e o centro de custo.`,
     }))
     .otherwise(() => ({
       title: msg`Something went wrong`,
@@ -132,9 +132,9 @@ export const getTemplateUseErrorMessage = (code: string): ToastMessageDescriptor
       description: msg`The document was created but could not be sent to recipients.`,
     }))
     .with('INVOICE_ACCOUNT_REQUIRED', () => ({
-      // REVALLE: nota fiscal criada a partir do modelo fica como rascunho até alguém escolher a conta contábil.
-      title: msg`Nota fiscal sem conta contábil`,
-      description: msg`O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e envie.`,
+      // REVALLE: nota fiscal criada a partir do modelo fica como rascunho até alguém escolher a conta contábil e o centro de custo.
+      title: msg`Nota fiscal sem conta contábil ou centro de custo`,
+      description: msg`O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e o centro de custo e envie.`,
     }))
     .with(AppErrorCode.MISSING_SIGNATURE_FIELD, () => ({
       title: msg`Missing signature fields`,
