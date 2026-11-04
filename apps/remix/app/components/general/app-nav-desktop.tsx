@@ -10,6 +10,7 @@ import type { HTMLAttributes } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 
+import { InvoicesNavBadge } from '~/components/revalle/invoice/invoices-nav-badge'; // REVALLE:
 import { useOptionalCurrentTeam } from '~/providers/team';
 
 export type AppNavDesktopProps = HTMLAttributes<HTMLDivElement> & {
@@ -76,13 +77,16 @@ export const AppNavDesktop = ({ className, setIsCommandMenuOpen, ...props }: App
                   key={href}
                   to={href}
                   className={cn(
-                    'rounded-md font-medium text-muted-foreground leading-5 ring-offset-background hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-muted-foreground/60',
+                    // REVALLE: whitespace-nowrap (com o contador, "Notas fiscais" quebrava em duas linhas)
+                    'whitespace-nowrap rounded-md font-medium text-muted-foreground leading-5 ring-offset-background hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-muted-foreground/60',
                     {
                       'text-foreground dark:text-muted-foreground': pathname?.startsWith(href),
                     },
                   )}
                 >
                   {_(label)}
+                  {/* REVALLE: contador de notas fiscais aguardando o Financeiro ou a Contabilidade */}
+                  {href === '/notas-fiscais' && <InvoicesNavBadge className="ml-2" />}
                 </Link>
               ))}
             </motion.div>

@@ -24,6 +24,10 @@ export const ZInvoiceListRowSchema = z.object({
   financeStatus: z.enum(FINANCE_STATUSES).nullable(),
   version: z.number(),
   approvedBy: z.string().nullable(),
+  costCenterCode: z.string().nullable(),
+  costCenterLabel: z.string().nullable(),
+  costCenterValidatedAt: z.date().nullable(),
+  costCenterValidatedBy: z.string().nullable(),
   link: z.string().nullable(),
 });
 

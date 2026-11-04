@@ -6,15 +6,18 @@ import {
   RevalleFinanceStatus,
   RevalleInvoiceStatus,
   RevalleSuggestionStatus,
+  SigningStatus,
 } from '@prisma/client';
 
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../../constants/app';
+import { type AccountingFilter, accountingStatusLabel } from '../../../revalle/accounting/accounting-status';
 import {
   type FinanceFilter,
   financeStatusLabel,
   invoiceViewPath,
   NEW_VERSION_DRAFT_STATUSES,
 } from '../../../revalle/finance/finance-status';
+import { costCenterLabel, costCenterName } from '../../../revalle/invoice/cost-centers';
 import { buildInvoiceExportCsv, type InvoiceExportRow } from '../../../revalle/invoice/export-csv';
 import {
   INVOICE_DELETED_LABEL,
@@ -53,6 +56,11 @@ export type InvoiceListRow = {
   financeStatus: RevalleFinanceStatus | null;
   version: number;
   approvedBy: string | null;
+  /** Fase 7: centro de custo ("101 – Puxada"), a validação da Contabilidade e quem validou (nome congelado). */
+  costCenterCode: string | null;
+  costCenterLabel: string | null;
+  costCenterValidatedAt: Date | null;
+  costCenterValidatedBy: string | null;
   /**
    * Caminho do documento para quem vê: o Financeiro, a Contabilidade e quem assina abrem a página da NF (só leitura);
    * o dono abre no time e o admin no painel.
@@ -80,13 +88,45 @@ const supersededHiddenVersion = {
   status: { not: DocumentStatus.COMPLETED },
 } satisfies Prisma.EnvelopeWhereInput;
 
+/** "Aguardando o Financeiro": a conta ainda não foi aprovada. A fila do Financeiro e o contador do menu leem este filtro. */
+export const financePendingWhere = {
+  revalleInvoice: { financeStatus: RevalleFinanceStatus.PENDING_APPROVAL },
+  status: { in: APPROVABLE_STATUSES },
+} satisfies Prisma.EnvelopeWhereInput;
+
+/**
+ * "Aguardando a Contabilidade": NF ainda válida (não substituída), enviada ou concluída, sem recusa, não excluída e sem a
+ * validação do centro. NF sem centro de custo também espera (a Contabilidade define o primeiro centro). A fila da
+ * Contabilidade, o contador do menu e o aviso do admin leem este filtro.
+ */
+export const accountingPendingWhere = {
+  revalleInvoice: {
+    costCenterValidatedAt: null,
+    OR: [{ financeStatus: null }, { financeStatus: { not: RevalleFinanceStatus.SUPERSEDED } }],
+  },
+  status: { in: APPROVABLE_STATUSES },
+  deletedAt: null,
+  recipients: { none: { signingStatus: SigningStatus.REJECTED } },
+} satisfies Prisma.EnvelopeWhereInput;
+
+const accountingFilterWhere = (filter: AccountingFilter | undefined): Prisma.EnvelopeWhereInput | null => {
+  switch (filter) {
+    case 'pendentes':
+      return accountingPendingWhere;
+    case 'validadas':
+      return { revalleInvoice: { costCenterValidatedAt: { not: null } } };
+    default:
+      return null;
+  }
+};
+
 const financeFilterWhere = (filter: FinanceFilter | undefined): Prisma.EnvelopeWhereInput | null => {
   const stateIs = (financeStatus: RevalleFinanceStatus) => ({ revalleInvoice: { financeStatus } });
 
   switch (filter) {
     case 'pendentes':
     case 'aguardando-aprovacao':
-      return { ...stateIs(RevalleFinanceStatus.PENDING_APPROVAL), status: { in: APPROVABLE_STATUSES } };
+      return financePendingWhere;
     case 'aprovadas':
       return stateIs(RevalleFinanceStatus.APPROVED);
     case 'substituidas':
@@ -163,6 +203,12 @@ const buildInvoiceWhere = async ({
     conditions.push(financeCondition);
   }
 
+  const accountingCondition = accountingFilterWhere(filters.accounting);
+
+  if (accountingCondition) {
+    conditions.push(accountingCondition);
+  }
+
   const range = invoiceDayRange(filters);
 
   // Data de envio = evento DOCUMENT_SENT. Documento concluído direto no envio (ninguém para assinar) não tem o evento:
@@ -206,6 +252,10 @@ const select = {
       financeStatus: true,
       approvedById: true,
       version: true,
+      costCenterCode: true,
+      costCenterValidatedAt: true,
+      costCenterValidatedById: true,
+      costCenterValidatedByName: true,
     },
   },
 } satisfies Prisma.EnvelopeSelect;
@@ -228,8 +278,14 @@ const toRows = async (envelopes: SelectedEnvelope[], viewer: ResolvedViewer): Pr
   const codes = [
     ...new Set(envelopes.flatMap((e) => (e.revalleInvoice?.choiceCode ? [e.revalleInvoice.choiceCode] : []))),
   ];
+  // Quem aprovou e, desde a Fase 7, quem validou o centro (o nome congelado vale; o atual só quando ele ficou vazio).
   const approverIds = [
-    ...new Set(envelopes.flatMap((e) => (e.revalleInvoice?.approvedById ? [e.revalleInvoice.approvedById] : []))),
+    ...new Set(
+      envelopes.flatMap((e) => [
+        ...(e.revalleInvoice?.approvedById ? [e.revalleInvoice.approvedById] : []),
+        ...(e.revalleInvoice?.costCenterValidatedById ? [e.revalleInvoice.costCenterValidatedById] : []),
+      ]),
+    ),
   ];
 
   // Inclusive contas inativas: NF antiga continua mostrando número e nome.
@@ -244,7 +300,7 @@ const toRows = async (envelopes: SelectedEnvelope[], viewer: ResolvedViewer): Pr
       : [],
   );
 
-  // Quem aprovou: o nome (o e-mail quando não tem nome). Sem FK: usuário apagado fica sem nome.
+  // O nome (o e-mail quando não tem nome). Sem FK: usuário apagado fica sem nome.
   const approvers = new Map(
     approverIds.length > 0
       ? (
@@ -294,6 +350,13 @@ const toRows = async (envelopes: SelectedEnvelope[], viewer: ResolvedViewer): Pr
       financeStatus,
       version: invoice?.version ?? 1,
       approvedBy: invoice?.approvedById ? (approvers.get(invoice.approvedById) ?? null) : null,
+      costCenterCode: invoice?.costCenterCode ?? null,
+      costCenterLabel: invoice?.costCenterCode ? costCenterLabel(invoice.costCenterCode) : null,
+      costCenterValidatedAt: invoice?.costCenterValidatedAt ?? null,
+      costCenterValidatedBy: invoice?.costCenterValidatedAt
+        ? (invoice.costCenterValidatedByName ??
+          (invoice.costCenterValidatedById ? (approvers.get(invoice.costCenterValidatedById) ?? null) : null))
+        : null,
       link,
     };
   });
@@ -387,6 +450,10 @@ export const exportInvoicesCsv = async ({
     link: row.link ? `${baseUrl}${row.link}` : '',
     financeStatus: financeStatusLabel(row.financeStatus, row.status),
     approvedBy: row.approvedBy,
+    costCenterCode: row.costCenterCode,
+    costCenterName: row.costCenterCode ? costCenterName(row.costCenterCode) : null,
+    accountingStatus: accountingStatusLabel(row),
+    validatedBy: row.costCenterValidatedBy,
   }));
 
   return { tooMany: false, csv: buildInvoiceExportCsv(rows) };

@@ -1,6 +1,7 @@
 import { DateTime } from 'luxon';
 import { z } from 'zod';
 
+import { ACCOUNTING_FILTERS } from '../accounting/accounting-status';
 import { REVALLE_TIME_ZONE } from '../date-format';
 import { FINANCE_FILTERS } from '../finance/finance-status';
 
@@ -48,6 +49,8 @@ export const ZInvoiceFiltersSchema = z.object({
   accountCode: z.string().trim().min(1).max(64).optional(),
   /** Situação no Financeiro (Fase 6). */
   finance: z.enum(FINANCE_FILTERS).optional(),
+  /** Validação da Contabilidade (Fase 7). */
+  accounting: z.enum(ACCOUNTING_FILTERS).optional(),
 });
 
 export type TInvoiceFilters = z.infer<typeof ZInvoiceFiltersSchema>;
@@ -59,6 +62,7 @@ export const INVOICE_FILTER_PARAMS = {
   status: 'status',
   accountCode: 'conta',
   finance: 'financeiro',
+  accounting: 'contabilidade',
 } as const;
 
 const readParams = (params: URLSearchParams) => {
@@ -74,6 +78,7 @@ const readParams = (params: URLSearchParams) => {
     status: value(INVOICE_FILTER_PARAMS.status),
     accountCode: value(INVOICE_FILTER_PARAMS.accountCode),
     finance: value(INVOICE_FILTER_PARAMS.finance),
+    accounting: value(INVOICE_FILTER_PARAMS.accounting),
   };
 };
 
@@ -122,6 +127,10 @@ export const invoiceFiltersToParams = (filters: TInvoiceFilters) => {
 
   if (filters.finance) {
     params.set(INVOICE_FILTER_PARAMS.finance, filters.finance);
+  }
+
+  if (filters.accounting) {
+    params.set(INVOICE_FILTER_PARAMS.accounting, filters.accounting);
   }
 
   return params;

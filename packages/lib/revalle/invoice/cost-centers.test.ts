@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { costCenterLabel, isCostCenterCode, REVALLE_COST_CENTERS } from './cost-centers';
+import { costCenterLabel, costCenterName, isCostCenterCode, REVALLE_COST_CENTERS } from './cost-centers';
 
 describe('centros de custo', () => {
   it('a lista fixa tem os cinco centros, na ordem do código', () => {
@@ -19,6 +19,11 @@ describe('centros de custo', () => {
     expect(costCenterLabel('201')).toBe('201 – Armazém');
     expect(costCenterLabel('999')).toBe('999');
     expect(costCenterLabel('')).toBe('');
+  });
+
+  it('o nome sozinho (coluna da planilha) vem da lista; código fora dela fica sem nome', () => {
+    expect(costCenterName('401')).toBe('Vendas');
+    expect(costCenterName('999')).toBeNull();
   });
 
   it('só os cinco códigos da lista valem', () => {

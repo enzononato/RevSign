@@ -212,6 +212,7 @@ export const InboxTableActionButton = ({ row }: InboxTableActionButtonProps) => 
     return null;
   }
 
+  // REVALLE: depois de assinar, o botão "View" continua ativo e abre a página de conclusão (que tem "Ver documento")
   return match({
     isPending,
     isComplete,
@@ -244,9 +245,11 @@ export const InboxTableActionButton = ({ row }: InboxTableActionButtonProps) => 
       </Button>
     ))
     .with({ isPending: true, isSigned: true }, () => (
-      <Button className="w-32" disabled={true}>
-        <EyeIcon className="mr-2 -ml-1 h-4 w-4" />
-        <Trans>View</Trans>
+      <Button className="w-32" asChild>
+        <a href={`/sign/${recipient.token}`}>
+          <EyeIcon className="mr-2 -ml-1 h-4 w-4" />
+          <Trans>View</Trans>
+        </a>
       </Button>
     ))
     .with({ isComplete: true }, () => (

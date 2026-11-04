@@ -57,6 +57,7 @@ export default function AdminRevallePerfisPage() {
 
   const users = data?.users ?? [];
   const approvalCount = data?.awaitingApprovalCount ?? 0;
+  const accountingPendingCount = data?.accountingPendingCount ?? 0;
   const hasNoFinanceMembers = data?.memberCount === 0;
   const hasNoAccountingMembers = data?.accountingMemberCount === 0;
 
@@ -93,7 +94,7 @@ export default function AdminRevallePerfisPage() {
         </div>
       )}
 
-      {hasNoAccountingMembers && (
+      {hasNoAccountingMembers && accountingPendingCount > 0 && (
         <div
           role="alert"
           className="mt-4 flex max-w-2xl flex-col gap-1 rounded-md border border-amber-500/50 bg-amber-50 p-3 text-amber-800 text-sm dark:bg-amber-950/30 dark:text-amber-300"
@@ -101,8 +102,9 @@ export default function AdminRevallePerfisPage() {
         >
           <p>
             <Trans>
-              Ninguém está marcado como Contabilidade: marque alguém abaixo. Sem ela, ninguém valida nem corrige o
-              centro de custo das notas fiscais.
+              Notas fiscais com o centro de custo aguardando a Contabilidade: {accountingPendingCount}. Ninguém está
+              marcado como Contabilidade: marque alguém abaixo para validar ou corrigir os centros. As notas seguem o
+              fluxo normal enquanto isso.
             </Trans>
           </p>
         </div>

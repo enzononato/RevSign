@@ -246,8 +246,8 @@ export const getInvoiceView = async ({
 };
 
 /**
- * Arquivo de uma NF para a prévia da página (mesmo acesso da página). Devolve o `documentData` do item (a versão atual:
- * a assinada, depois de selada), ou 404.
+ * Arquivo de uma NF para a prévia e o "Baixar PDF" da página (mesmo acesso da página). Devolve o `documentData` do item (a
+ * versão atual: a assinada, depois de selada), o nome do arquivo e se o documento já concluiu, ou 404.
  */
 export const getInvoiceViewFile = async ({
   envelopeId,
@@ -266,12 +266,16 @@ export const getInvoiceViewFile = async ({
 
   const item = await prisma.envelopeItem.findFirst({
     where: { id: itemId, envelopeId },
-    select: { documentData: { select: { type: true, data: true } } },
+    select: { title: true, documentData: { select: { type: true, data: true } } },
   });
 
   if (!item) {
     throw notFound();
   }
 
-  return item.documentData;
+  return {
+    documentData: item.documentData,
+    title: item.title,
+    isCompleted: envelope.status === DocumentStatus.COMPLETED,
+  };
 };

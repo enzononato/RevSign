@@ -35,6 +35,22 @@ describe('filtros da página de notas fiscais', () => {
     expect(readInvoiceFilterParams(new URLSearchParams('financeiro=qualquer'))).toEqual({});
   });
 
+  it('Fase 7: lê e escreve o filtro da Contabilidade (`contabilidade`); valor desconhecido é recusado ou ignorado', () => {
+    const parsed = parseInvoiceFilterParams(new URLSearchParams('contabilidade=pendentes'));
+
+    expect(parsed.success && parsed.data).toEqual({ accounting: 'pendentes' });
+    expect(invoiceFiltersToParams({ accounting: 'validadas' }).toString()).toBe('contabilidade=validadas');
+    expect(invoiceFiltersToParams({ finance: 'pendentes', accounting: 'todas' }).toString()).toBe(
+      'financeiro=pendentes&contabilidade=todas',
+    );
+    expect(parseInvoiceFilterParams(new URLSearchParams('contabilidade=qualquer')).success).toBe(false);
+    expect(readInvoiceFilterParams(new URLSearchParams('contabilidade=qualquer'))).toEqual({});
+    expect(readInvoiceFilterParams(new URLSearchParams('financeiro=todas&contabilidade=validadas'))).toEqual({
+      finance: 'todas',
+      accounting: 'validadas',
+    });
+  });
+
   it('recusa data, status ou conta inválidos para a planilha e os ignora na tela', () => {
     for (const query of ['de=ontem', 'ate=2026-02-30', 'status=DRAFT', `conta=${'9'.repeat(65)}`]) {
       const params = new URLSearchParams(query);

@@ -73,9 +73,9 @@ const ACCOUNTS_CSV = [
   `${NEW.code};${NEW.name};Conta do aceite da Fase 6;pagar`,
 ].join('\n');
 
-// Textos exatos (spec e global-constraints).
+// Textos exatos (spec e global-constraints). Fase 7: as quatro colunas do centro de custo vêm depois de `aprovado_por`.
 const HEADER =
-  'id;titulo;remetente;enviado_em;concluido_em;status;conta;nome_conta;tipo;sugestao_ia;confianca;aceitou_sugestao;link;financeiro;aprovado_por';
+  'id;titulo;remetente;enviado_em;concluido_em;status;conta;nome_conta;tipo;sugestao_ia;confianca;aceitou_sugestao;link;financeiro;aprovado_por;centro_custo;nome_centro_custo;validacao_contabilidade;validado_por';
 // Os dois e-mails de fluxo que saíram na Fase 7 (assunto antigo).
 const WORKFLOW_SUBJECT = /^Nota fiscal (assinada|aguardando aprovação do Financeiro): /;
 const AWAITING_SUBJECT_PREFIX = 'Nota fiscal aguardando o Financeiro:';

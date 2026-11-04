@@ -15,6 +15,7 @@ import {
 } from '@documenso/lib/server-only/revalle/gate/get-gate-state-for-loader'; // REVALLE:
 import { getUserByEmail } from '@documenso/lib/server-only/user/get-user-by-email';
 import { isDocumentCompleted } from '@documenso/lib/utils/document';
+import { getEnvelopeItemPdfUrl } from '@documenso/lib/utils/envelope-download'; // REVALLE:
 import { trpc } from '@documenso/trpc/react';
 import { SigningCard3D } from '@documenso/ui/components/signing-card';
 import { cn } from '@documenso/ui/lib/utils';
@@ -23,7 +24,7 @@ import { Button } from '@documenso/ui/primitives/button';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
 import { DocumentStatus, FieldType, RecipientRole } from '@prisma/client';
-import { CheckCircle2, Clock8, DownloadIcon, Loader2 } from 'lucide-react';
+import { CheckCircle2, Clock8, DownloadIcon, EyeIcon, Loader2 } from 'lucide-react'; // REVALLE: EyeIcon
 import { Link, redirect } from 'react-router'; // REVALLE: redirect
 import { getOptionalLoaderContext } from 'server/utils/get-loader-session'; // REVALLE:
 import { match } from 'ts-pattern';
@@ -305,6 +306,37 @@ export default function CompletedSigningPage({ loaderData }: Route.ComponentProp
                   }
                 />
               )}
+
+              {/* REVALLE: enquanto o documento não conclui (a nota fiscal pode esperar dias o Financeiro), quem assinou ainda
+                  abre o PDF de cada arquivo, em nova aba, pelo endpoint de arquivo do próprio token */}
+              {!isDocumentCompleted(document) &&
+                document.deletedAt === null &&
+                signingStatus !== 'REJECTED' &&
+                [...document.envelopeItems]
+                  .sort((a, b) => a.order - b.order)
+                  .map((item) => (
+                    <Button
+                      key={item.id}
+                      asChild
+                      type="button"
+                      variant="outline"
+                      className="min-h-11 flex-1 md:flex-initial"
+                    >
+                      <a
+                        href={getEnvelopeItemPdfUrl({ type: 'view', envelopeItem: item, token: recipient.token })}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        data-testid="complete-view-document"
+                      >
+                        <EyeIcon className="mr-2 h-5 w-5" />
+                        {document.envelopeItems.length > 1 ? (
+                          <Trans>Ver documento: {item.title}</Trans>
+                        ) : (
+                          <Trans>Ver documento</Trans>
+                        )}
+                      </a>
+                    </Button>
+                  ))}
 
               {user && (
                 <Button asChild>

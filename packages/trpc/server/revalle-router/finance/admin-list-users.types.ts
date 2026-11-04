@@ -20,6 +20,8 @@ export const ZAdminListFinanceUsersResponseSchema = z.object({
   accountingMemberCount: z.number(),
   /** NFs assinadas por todos esperando a aprovação do Financeiro. */
   awaitingApprovalCount: z.number(),
+  /** NFs com o centro de custo aguardando a validação da Contabilidade (o mesmo número do contador do menu). */
+  accountingPendingCount: z.number(),
 });
 
 export type TAdminListFinanceUsersResponse = z.infer<typeof ZAdminListFinanceUsersResponseSchema>;

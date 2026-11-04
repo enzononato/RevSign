@@ -46,7 +46,7 @@ export const isNewVersionDraftRow = (row: { previousEnvelopeId: string | null; f
 
 /**
  * Filtro "Situação no Financeiro" da página e da planilha (parâmetro `financeiro` da URL). `pendentes` = "Aguardando o
- * Financeiro" (aprovar a conta), o padrão da página para quem é do Financeiro; `todas` desliga esse padrão.
+ * Financeiro" (aprovar a conta), o padrão da página para quem é do Financeiro (`invoicesDefaultFilters`); `todas` desliga esse padrão.
  */
 export const FINANCE_FILTERS = [
   'pendentes',
@@ -67,9 +67,6 @@ export const FINANCE_FILTER_LABELS: Record<FinanceFilter, string> = {
   antigas: 'Antigas, sem aprovação',
   todas: 'Todas',
 };
-
-/** Padrão da página para quem é do Financeiro (sem `financeiro` na URL). */
-export const FINANCE_DEFAULT_FILTER: FinanceFilter = 'pendentes';
 
 /** Página da NF só de leitura (Financeiro e quem está na NF): a lista e o aviso da troca de conta levam a ela. */
 export const invoiceViewPath = (envelopeId: string) => `/notas-fiscais/${envelopeId}`;

@@ -4953,8 +4953,8 @@ msgstr "{name} saiu da Contabilidade."
 msgid "Toda conta é de colaborador: envia e assina. Marque quem também é do Financeiro (aprova a conta contábil de cada nota fiscal) ou da Contabilidade (valida e corrige o centro de custo). Os dois perfis veem todas as notas fiscais, e a mesma pessoa pode ter os dois. A mudança vale na hora."
 msgstr "Toda conta é de colaborador: envia e assina. Marque quem também é do Financeiro (aprova a conta contábil de cada nota fiscal) ou da Contabilidade (valida e corrige o centro de custo). Os dois perfis veem todas as notas fiscais, e a mesma pessoa pode ter os dois. A mudança vale na hora."
 
-msgid "Ninguém está marcado como Contabilidade: marque alguém abaixo. Sem ela, ninguém valida nem corrige o centro de custo das notas fiscais."
-msgstr "Ninguém está marcado como Contabilidade: marque alguém abaixo. Sem ela, ninguém valida nem corrige o centro de custo das notas fiscais."
+msgid "Notas fiscais com o centro de custo aguardando a Contabilidade: {accountingPendingCount}. Ninguém está marcado como Contabilidade: marque alguém abaixo para validar ou corrigir os centros. As notas seguem o fluxo normal enquanto isso."
+msgstr "Notas fiscais com o centro de custo aguardando a Contabilidade: {accountingPendingCount}. Ninguém está marcado como Contabilidade: marque alguém abaixo para validar ou corrigir os centros. As notas seguem o fluxo normal enquanto isso."
 
 msgid "Todas as notas fiscais enviadas para assinatura (você é do Financeiro e da Contabilidade)."
 msgstr "Todas as notas fiscais enviadas para assinatura (você é do Financeiro e da Contabilidade)."
@@ -5064,3 +5064,27 @@ msgstr "De {center} para {chosen}."
 
 msgid "Nota fiscal · Centro de custo: {centerLabel}"
 msgstr "Nota fiscal · Centro de custo: {centerLabel}"
+
+msgid "1 nota fiscal aguardando você"
+msgstr "1 nota fiscal aguardando você"
+
+msgid "{total} notas fiscais aguardando você"
+msgstr "{total} notas fiscais aguardando você"
+
+msgid "Validação da Contabilidade"
+msgstr "Validação da Contabilidade"
+
+msgid "Nenhuma nota fiscal aguardando a Contabilidade."
+msgstr "Nenhuma nota fiscal aguardando a Contabilidade."
+
+msgid "Baixar PDF"
+msgstr "Baixar PDF"
+
+msgid "Baixar PDF: {0}"
+msgstr "Baixar PDF: {0}"
+
+msgid "Ver documento"
+msgstr "Ver documento"
+
+msgid "Ver documento: {0}"
+msgstr "Ver documento: {0}"

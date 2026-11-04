@@ -12,6 +12,9 @@ export type RevalleCostCenterCode = (typeof REVALLE_COST_CENTERS)[number]['code'
 export const isCostCenterCode = (value: unknown): value is RevalleCostCenterCode =>
   REVALLE_COST_CENTERS.some((center) => center.code === value);
 
+/** Só o nome ("Puxada"); código fora da lista não tem nome. */
+export const costCenterName = (code: string) => REVALLE_COST_CENTERS.find((item) => item.code === code)?.name ?? null;
+
 /** "101 – Puxada"; código fora da lista volta como veio. */
 export const costCenterLabel = (code: string) => {
   const center = REVALLE_COST_CENTERS.find((item) => item.code === code);

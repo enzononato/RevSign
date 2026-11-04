@@ -18,6 +18,10 @@ const baseRow: InvoiceExportRow = {
   link: 'https://assinaturas.example/documents/42',
   financeStatus: 'Aguardando aprovação',
   approvedBy: null,
+  costCenterCode: '101',
+  costCenterName: 'Puxada',
+  accountingStatus: 'Aguardando validação',
+  validatedBy: null,
 };
 
 const lines = (csv: string) => csv.split('\r\n');
@@ -28,22 +32,60 @@ describe('buildInvoiceExportCsv', () => {
 
     expect(csv.startsWith('﻿')).toBe(true);
     expect(lines(csv)[0]).toBe(
-      '﻿id;titulo;remetente;enviado_em;concluido_em;status;conta;nome_conta;tipo;sugestao_ia;confianca;aceitou_sugestao;link;financeiro;aprovado_por',
+      '﻿id;titulo;remetente;enviado_em;concluido_em;status;conta;nome_conta;tipo;sugestao_ia;confianca;aceitou_sugestao;link;financeiro;aprovado_por;centro_custo;nome_centro_custo;validacao_contabilidade;validado_por',
     );
+  });
+
+  it('Fase 7: as quatro colunas novas vêm depois de aprovado_por e as anteriores não mudam de posição', () => {
+    const header = lines(buildInvoiceExportCsv([]))[0]?.replace('﻿', '').split(';') ?? [];
+
+    expect(header.slice(0, 15)).toEqual([
+      'id',
+      'titulo',
+      'remetente',
+      'enviado_em',
+      'concluido_em',
+      'status',
+      'conta',
+      'nome_conta',
+      'tipo',
+      'sugestao_ia',
+      'confianca',
+      'aceitou_sugestao',
+      'link',
+      'financeiro',
+      'aprovado_por',
+    ]);
+    expect(header.slice(15)).toEqual(['centro_custo', 'nome_centro_custo', 'validacao_contabilidade', 'validado_por']);
+  });
+
+  it('Fase 7: centro, situação da validação e quem validou (nome congelado, neutralizado como texto livre)', () => {
+    const validated = buildInvoiceExportCsv([
+      { ...baseRow, accountingStatus: 'Validado', validatedBy: '=Contabilidade Ana' },
+    ]);
+    const withoutCenter = buildInvoiceExportCsv([
+      { ...baseRow, costCenterCode: null, costCenterName: null, accountingStatus: 'Sem centro de custo' },
+    ]);
+
+    expect(lines(validated)[1]?.endsWith(";;101;Puxada;Validado;'=Contabilidade Ana")).toBe(true);
+    expect(lines(withoutCenter)[1]?.endsWith(';Aguardando aprovação;;;;Sem centro de custo;')).toBe(true);
+    expect(
+      lines(buildInvoiceExportCsv([baseRow]))[1]?.endsWith(';Aguardando aprovação;;101;Puxada;Aguardando validação;'),
+    ).toBe(true);
   });
 
   it('escreve uma linha completa com datas de Brasília', () => {
     const csv = buildInvoiceExportCsv([baseRow]);
 
     expect(lines(csv)[1]).toBe(
-      '42;NF 123;Maria;29/10/2026 14:30;;Pendente;2.1.03;Fornecedores;pagar;2.1.03;alta;sim;https://assinaturas.example/documents/42;Aguardando aprovação;',
+      '42;NF 123;Maria;29/10/2026 14:30;;Pendente;2.1.03;Fornecedores;pagar;2.1.03;alta;sim;https://assinaturas.example/documents/42;Aguardando aprovação;;101;Puxada;Aguardando validação;',
     );
   });
 
   it('Fase 6: a situação no Financeiro e quem aprovou ficam no fim (nome neutralizado como texto livre)', () => {
     const csv = buildInvoiceExportCsv([{ ...baseRow, financeStatus: 'Aprovada', approvedBy: '=Ana' }]);
 
-    expect(lines(csv)[1]?.endsWith(";https://assinaturas.example/documents/42;Aprovada;'=Ana")).toBe(true);
+    expect(lines(csv)[1]).toContain(";https://assinaturas.example/documents/42;Aprovada;'=Ana;101;Puxada;");
   });
 
   it('coloca entre aspas o título com ponto e vírgula, aspas e quebra de linha', () => {
@@ -81,7 +123,11 @@ describe('buildInvoiceExportCsv', () => {
     expect(csv).toContain(';"\'\rCR";');
     expect(first?.startsWith('42;')).toBe(true);
     expect(first).toContain(';2.1.03;');
-    expect(first?.endsWith(';https://assinaturas.example/documents/42;Aguardando aprovação;')).toBe(true);
+    expect(
+      first?.endsWith(
+        ';https://assinaturas.example/documents/42;Aguardando aprovação;;101;Puxada;Aguardando validação;',
+      ),
+    ).toBe(true);
   });
 
   it('deixa vazio o que não existe', () => {
@@ -98,7 +144,7 @@ describe('buildInvoiceExportCsv', () => {
     ]);
 
     expect(lines(csv)[1]).toBe(
-      '42;NF 123;Maria;29/10/2026 14:30;;Pendente;;;;;;;https://assinaturas.example/documents/42;Aguardando aprovação;',
+      '42;NF 123;Maria;29/10/2026 14:30;;Pendente;;;;;;;https://assinaturas.example/documents/42;Aguardando aprovação;;101;Puxada;Aguardando validação;',
     );
   });
 });

@@ -17,6 +17,11 @@ export type InvoiceExportRow = {
   /** Fase 6: situação no Financeiro (texto da tela) e quem do Financeiro aprovou (ou definiu) a conta. */
   financeStatus: string;
   approvedBy: string | null;
+  /** Fase 7: centro de custo (código e nome da lista fixa), situação da validação (texto da tela) e quem validou. */
+  costCenterCode: string | null;
+  costCenterName: string | null;
+  accountingStatus: string;
+  validatedBy: string | null;
 };
 
 const HEADER = [
@@ -36,6 +41,11 @@ const HEADER = [
   // Fase 6: sempre no fim, para não deslocar as colunas que a contabilidade já usa.
   'financeiro',
   'aprovado_por',
+  // Fase 7: de novo no fim.
+  'centro_custo',
+  'nome_centro_custo',
+  'validacao_contabilidade',
+  'validado_por',
 ];
 
 const BOM = '﻿';
@@ -82,6 +92,10 @@ export const buildInvoiceExportCsv = (rows: InvoiceExportRow[]): string => {
       row.link,
       row.financeStatus,
       safeText(row.approvedBy ?? ''),
+      safeText(row.costCenterCode ?? ''),
+      safeText(row.costCenterName ?? ''),
+      row.accountingStatus,
+      safeText(row.validatedBy ?? ''),
     ]
       .map(escapeCell)
       .join(';');

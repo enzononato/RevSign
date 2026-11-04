@@ -175,18 +175,32 @@ coluna `status` diz `excluído pelo remetente`.
 A lista vem da mais recente para a mais antiga pela **data de envio**.
 
 Colunas: título, remetente, data de envio, status, conta (número · nome; um traço quando a NF não tem conta, como a de
-antes da Fase 6), "Sugestão aceita?" (Sim, Não ou "sem sugestão", quando não havia sugestão na hora da escolha),
-**Situação no Financeiro** (Aguardando aprovação, Aprovada, Substituída ou "Antiga, sem aprovação", para NF de antes da
-Fase 6) e **Versão** (v1, v2…).
+antes da Fase 6), **Centro de custo** ("101 – Puxada"; um traço quando a NF ainda não tem centro), "Sugestão aceita?"
+(Sim, Não ou "sem sugestão", quando não havia sugestão na hora da escolha), **Situação no Financeiro** (Aguardando
+aprovação, Aprovada, Substituída ou "Antiga, sem aprovação", para NF de antes da Fase 6), **Validação da Contabilidade**
+(Aguardando validação, Validado ou Sem centro de custo) e **Versão** (v1, v2…).
 
 O título abre o documento: quem enviou vai para a página do documento; o admin, para o painel do admin; quem é do
 Financeiro, a Contabilidade e quem assina, para a **página da NF** (só leitura, seção 9).
 
-Filtros: período de envio (dias no horário de Brasília), status, **Situação no Financeiro** e número da conta. Para quem
-é do Financeiro, a página abre em **Aguardando o Financeiro** (NFs esperando a aprovação); escolha **Todas** para ver
-o resto. O endereço `/notas-fiscais?financeiro=pendentes` abre direto
-nesse filtro. Se a data inicial for depois da final, a tela avisa "A data inicial é depois da data final." e nada é
-listado nem exportado.
+Filtros: período de envio (dias no horário de Brasília), status, **Situação no Financeiro**, **Validação da
+Contabilidade** e número da conta. A página abre na fila de cada perfil:
+
+- quem é do **Financeiro** abre em **Aguardando o Financeiro** (NFs esperando a aprovação), com ou sem a Contabilidade;
+- quem é **só da Contabilidade** abre em **Aguardando a Contabilidade** (NFs que ainda não tiveram o centro de custo
+  validado, inclusive as sem centro);
+- as outras pessoas abrem sem filtro.
+
+Escolha **Todas** no filtro para ver o resto. Escolher uma fila solta a outra: quem tem os dois perfis e escolhe
+**Aguardando a Contabilidade** deixa de ver só a fila do Financeiro. Os endereços `/notas-fiscais?financeiro=pendentes` e
+`/notas-fiscais?contabilidade=pendentes` abrem direto nesses filtros (`contabilidade` aceita `pendentes`, `validadas` e
+`todas`). **Aguardando a Contabilidade** não inclui nota recusada, substituída ou excluída pelo remetente. Se a data
+inicial for depois da final, a tela avisa "A data inicial é depois da data final." e nada é listado nem exportado.
+
+**Contador no menu.** Quem é do Financeiro ou da Contabilidade vê um número ao lado de **Notas fiscais**, no menu do
+computador e no do celular: quantas notas esperam a pessoa (a fila do Financeiro e a da Contabilidade, somadas para quem
+tem os dois perfis). O número é o mesmo que a página mostra ao abrir na fila, atualiza a cada minuto e some quando não há
+nada esperando. Quem não tem perfil não vê contador. Não há e-mail de aviso.
 
 **Exportar planilha** baixa `notas-fiscais-AAAA-MM-DD.csv` (data de hoje em Brasília) com os **mesmos filtros** da tela.
 O arquivo abre direto no Excel (separador `;`, UTF-8 com BOM). Colunas:
@@ -208,9 +222,13 @@ O arquivo abre direto no Excel (separador `;`, UTF-8 com BOM). Colunas:
 | `link` | Endereço do documento no RevSign para quem exportou (dono: página do documento; admin: painel do admin; Financeiro, Contabilidade e quem assina: página da NF) |
 | `financeiro` | Situação no Financeiro, como na tela (ex.: `Aguardando aprovação`, `Aprovada`, `Substituída`) |
 | `aprovado_por` | Quem do Financeiro aprovou (ou definiu) a conta; vazio se ainda não foi aprovada |
+| `centro_custo` | Código do centro de custo (101, 201…); vazio quando a NF ainda não tem centro |
+| `nome_centro_custo` | Nome do centro de custo (Puxada, Armazém…); vazio quando a NF ainda não tem centro |
+| `validacao_contabilidade` | `Aguardando validação`, `Validado` ou `Sem centro de custo`, como na tela |
+| `validado_por` | Quem da Contabilidade validou o centro (o nome na hora da validação); vazio sem validação |
 
-As colunas `financeiro` e `aprovado_por` (Fase 6) ficam **no fim**: as planilhas que já leem as colunas anteriores
-continuam funcionando.
+As colunas `financeiro` e `aprovado_por` (Fase 6) e as quatro do centro de custo (Fase 7) ficam **no fim**, nesta ordem:
+as planilhas que já leem as colunas anteriores continuam funcionando.
 
 **Para a contabilidade: não lance as linhas com `financeiro` = `Substituída`.** Elas são versões que o Financeiro
 substituiu ao trocar a conta (a mesma nota aparece de novo na linha da nova versão, com a conta certa). Uma versão
@@ -268,13 +286,15 @@ Toda nota fiscal passa pelo **Financeiro** antes de ser concluída: alguém do F
 O administrador marca em **Admin → Perfis** (na Fase 6 a tela se chamava Admin → Financeiro; o endereço antigo leva
 para a nova): busque a pessoa pelo nome ou e-mail e ligue **Financeiro** (vale na hora; desligar tira o acesso na
 hora). Não há e-mail para o Financeiro: as notas aguardando aprovação ficam em **Notas fiscais**, no filtro
-**Aguardando o Financeiro**. Se não houver ninguém marcado e houver NF esperando, a tela do admin mostra um alerta.
+**Aguardando o Financeiro**, e o menu mostra o contador delas (seção 5). Se não houver ninguém marcado e houver NF
+esperando, a tela do admin mostra um alerta.
 
 ### O que o Financeiro vê
 
 - Em **Notas fiscais**, **todas** as NFs, começando pelo filtro **Aguardando o Financeiro**.
-- Clicando no título, a **página da NF**, só de leitura: o PDF, o título, o remetente, quem assina e a situação de cada
-  um, as versões (link para a anterior e a nova, quando houver) e o cartão **Financeiro**, com:
+- Clicando no título, a **página da NF**, só de leitura: o PDF (com o botão **Baixar PDF**, que baixa o arquivo; depois
+  de concluída, com `_signed` no nome), o título, o remetente, quem assina e a situação de cada um, as versões (link
+  para a anterior e a nova, quando houver) e o cartão **Financeiro**, com:
   - a conta atual e a situação;
   - o centro de custo, só de leitura (quem corrige é a Contabilidade);
   - quem escolheu a conta e quando;
@@ -289,7 +309,8 @@ hora). Não há e-mail para o Financeiro: as notas aguardando aprovação ficam 
 Terceiro perfil, ao lado do Financeiro. Todo mundo é **colaborador** (envia e assina); **Financeiro** e
 **Contabilidade** são colaborador mais as funções próprias. O administrador liga **Contabilidade** na mesma tela, **Admin
 → Perfis**: uma linha por pessoa e um interruptor por perfil. A mesma pessoa pode ter os dois, e cada interruptor vale na
-hora. Se ninguém estiver na Contabilidade, a tela do admin mostra um aviso.
+hora. Se ninguém estiver na Contabilidade **e houver nota esperando a validação**, a tela do admin mostra um aviso com
+o número delas (o mesmo do contador da Contabilidade no menu).
 
 - A Contabilidade vê **todas** as NFs, como o Financeiro: na lista **Notas fiscais**, na **página da NF**, no PDF e na
   planilha. Desligada, perde tudo na hora (a página da NF volta a dar "Nota fiscal não encontrada"). Ela não vê o
@@ -338,7 +359,16 @@ desta nota mudou. Atualize a página e tente de novo." (ou "Esta versão da nota
 já saiu).
 - Pela API: `revalle.accounting.me` devolve `{ isMember }`; `revalle.accounting.adminSetMember({ userId, isMember })` é só
   do administrador (sem sessão **401**, usuário comum **403**). `revalle.finance.adminListUsers` devolve, por pessoa,
-  `isFinanceMember` e `isAccountingMember`.
+  `isFinanceMember` e `isAccountingMember`, e `accountingPendingCount` (notas esperando a Contabilidade).
+  `revalle.invoice.pendingCounts` (sessão) devolve `{ finance, accounting }`, o número de cada fila ou `null` quando a
+  pessoa não é do perfil; é o que o contador do menu lê.
+
+**Botão View.** Depois que a pessoa assina, o botão **View** das listas deixa de ficar inativo (a nota fiscal pode esperar
+dias o Financeiro). Em **Documentos**, quem tem o documento no próprio time abre a página do documento; quem só recebeu
+abre a página de conclusão. Na **Caixa de entrada**, abre sempre a página de conclusão. Enquanto o documento não
+conclui, essa página tem o botão **Ver documento**, que abre o PDF de cada arquivo em nova aba (com o link do próprio
+destinatário). Numa versão substituída, o PDF não abre e a página mostra o aviso da nova versão. Quem é só copiado (CC)
+continua sem o botão até o documento concluir.
 
 ### Aprovar
 

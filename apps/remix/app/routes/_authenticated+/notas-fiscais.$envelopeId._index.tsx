@@ -8,7 +8,7 @@ import { Card, CardContent } from '@documenso/ui/primitives/card';
 import { msg } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { RecipientRole, SigningStatus } from '@prisma/client';
-import { ChevronLeft, ExternalLinkIcon } from 'lucide-react';
+import { ChevronLeft, DownloadIcon, ExternalLinkIcon } from 'lucide-react'; // REVALLE: DownloadIcon
 import { isRouteErrorResponse, Link, useRevalidator } from 'react-router';
 
 import { DocumentStatus } from '~/components/general/document/document-status';
@@ -188,6 +188,20 @@ export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
                 <Trans>Concluído em {formatRevalleDateTime(view.completedAt)}</Trans>
               </p>
             )}
+            {/* REVALLE: "Baixar PDF" (Fase 7): quem vê a nota baixa o arquivo sem depender de e-mail */}
+            {view.items.map((item) => (
+              <Button
+                key={item.id}
+                asChild
+                variant="outline"
+                className="mt-1 h-11 w-full whitespace-normal sm:w-auto sm:self-start"
+              >
+                <a href={`/notas-fiscais/${view.id}/pdf/${item.id}?download=1`} data-testid="invoice-view-download">
+                  <DownloadIcon className="mr-2 h-4 w-4 shrink-0" />
+                  {view.items.length > 1 ? <Trans>Baixar PDF: {item.title}</Trans> : <Trans>Baixar PDF</Trans>}
+                </a>
+              </Button>
+            ))}
             {view.documentPath && (
               <Button asChild variant="outline" className="mt-1 h-11 w-full whitespace-normal sm:w-auto sm:self-start">
                 <Link to={view.documentPath}>
