@@ -1,16 +1,18 @@
 import { prisma } from '@documenso/prisma';
 import { Prisma } from '@prisma/client';
-
+import { DOCUMENSO_ENCRYPTION_KEY } from '../../../constants/crypto';
 import { AppError } from '../../../errors/app-error';
 import { parseBirthDateInput } from '../../../revalle/birth-date';
 import { isValidCpf } from '../../../revalle/cpf';
 import { normalizeEmail } from '../../../revalle/email-domain';
 import { env } from '../../../utils/env';
 import { logger } from '../../../utils/logger';
+import { createRateLimit } from '../../rate-limit/rate-limit';
 import type { Colaborador } from '../colaboradores/repository';
 import { getColaboradoresRepository } from '../colaboradores/repository';
 import { revalleErrorCode } from '../error-code';
 import { isRevalleIdentityCheckDisabled, logRevalleBaseUnavailable } from '../gate/get-gate-state';
+import { hashCpfForRateLimit } from './cpf-key';
 
 export type SignupIdentityInput = { email: string; cpf?: string | null; birthDate?: string | null };
 
@@ -39,10 +41,27 @@ const SIGNUP_IDENTITY_ERRORS = {
     message: 'Não foi possível conferir seus dados agora. Tente de novo em alguns minutos.',
     statusCode: 503,
   },
+  LIMITED: {
+    code: 'SIGNUP_IDENTITY_LIMITED',
+    message: 'Muitas tentativas com este CPF. Tente de novo amanhã ou fale com o administrador.',
+    statusCode: 429,
+  },
 } as const;
 
-const fail = (error: (typeof SIGNUP_IDENTITY_ERRORS)[keyof typeof SIGNUP_IDENTITY_ERRORS]) =>
-  new AppError(error.code, { message: error.message, statusCode: error.statusCode });
+// O limite por IP do cadastro (`auth.signup`, 30 por hora) deixa um atacante com um CPF conhecido testar datas de
+// nascimento pelo cadastro. Este limite é por CPF e não depende do IP: 10 conferências por CPF a cada 24 horas
+// (janela fixa), ajustável em NEXT_PRIVATE_REVALLE_RATE_LIMITS (`revalle.signup-identity=10/24h`). O IP fica fixo de
+// propósito: o contador por IP desta ação não limita nada e nenhum IP de verdade vai para o banco por causa dele.
+const signupIdentityRateLimit = createRateLimit({ action: 'revalle.signup-identity', max: 10, window: '24h' });
+
+const fail = (error: (typeof SIGNUP_IDENTITY_ERRORS)[keyof typeof SIGNUP_IDENTITY_ERRORS]) => {
+  // UNAVAILABLE já registra o próprio motivo (`logRevalleBaseUnavailable`). Aqui nunca vão CPF, data nem e-mail.
+  if (error.code !== SIGNUP_IDENTITY_ERRORS.UNAVAILABLE.code) {
+    logger.warn({ msg: '[RevSign] cadastro recusado pela conferência de identidade', code: error.code });
+  }
+
+  return new AppError(error.code, { message: error.message, statusCode: error.statusCode });
+};
 
 export const isSignupIdentityRequired = (): boolean => !isRevalleIdentityCheckDisabled();
 
@@ -109,6 +128,21 @@ export const assertSignupIdentity = async ({
 
   if (!isValidCpf(typedCpf) || !isoBirthDate) {
     throw fail(SIGNUP_IDENTITY_ERRORS.INVALID);
+  }
+
+  if (!DOCUMENSO_ENCRYPTION_KEY) {
+    throw new Error('Missing DOCUMENSO_ENCRYPTION_KEY');
+  }
+
+  // Só um CPF e uma data com formato válido chegam à base, então só eles gastam tentativa. E-mails vinculados ou na
+  // base saíram antes e não contam.
+  const attempts = await signupIdentityRateLimit.check({
+    ip: 'signup-identity',
+    identifier: hashCpfForRateLimit(typedCpf, DOCUMENSO_ENCRYPTION_KEY),
+  });
+
+  if (attempts.isLimited) {
+    throw fail(SIGNUP_IDENTITY_ERRORS.LIMITED);
   }
 
   let colaborador: Colaborador | null;

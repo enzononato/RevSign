@@ -8,7 +8,6 @@ import {
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
 import { parseBirthDateInput } from '@documenso/lib/revalle/birth-date';
 import { isValidCpf } from '@documenso/lib/revalle/cpf';
-import { normalizeEmail } from '@documenso/lib/revalle/email-domain';
 import { formatBirthDateInput, formatCpfInput } from '@documenso/lib/revalle/input-masks';
 import { isSignupIdentityFormValid } from '@documenso/lib/revalle/signup-identity';
 import { ZNameSchema } from '@documenso/lib/types/name';
@@ -37,9 +36,10 @@ import { FcGoogle } from 'react-icons/fc';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { z } from 'zod';
 
-// REVALLE: CPF e data de nascimento (Fase 7) só são exigidos quando o cadastro pede a identidade do e-mail digitado
-// (`needsIdentity`): fica de fora a verificação desligada e o e-mail do administrador.
-export const createSignUpFormSchema = (needsIdentity: (email: string) => boolean) =>
+// REVALLE: CPF e data de nascimento (Fase 7). Os dois vazios vão ao servidor, que decide: o e-mail do administrador, os
+// já vinculados e os da base se cadastram sem CPF, e os demais recebem SIGNUP_IDENTITY_REQUIRED. Preenchido, o campo
+// precisa estar certo, e um preenchido sem o outro também é barrado aqui.
+export const createSignUpFormSchema = (identityRequired: boolean) =>
   z
     .object({
       name: ZNameSchema,
@@ -60,9 +60,9 @@ export const createSignUpFormSchema = (needsIdentity: (email: string) => boolean
       },
     )
     .superRefine((data, ctx) => {
-      const identity = { cpf: data.revalleCpf, birthDate: data.revalleBirthDate };
+      const identity = { cpf: data.revalleCpf.trim(), birthDate: data.revalleBirthDate.trim() };
 
-      if (!needsIdentity(data.email) || isSignupIdentityFormValid(identity)) {
+      if (!identityRequired || (!identity.cpf && !identity.birthDate) || isSignupIdentityFormValid(identity)) {
         return;
       }
 
@@ -89,6 +89,7 @@ export const SIGNUP_ERROR_MESSAGES: Record<string, MessageDescriptor> = {
   SIGNUP_IDENTITY_INVALID: msg`CPF ou data de nascimento não conferem com o cadastro de colaboradores.`,
   SIGNUP_IDENTITY_CONFLICT: msg`Este CPF já está vinculado a outro e-mail. Fale com o administrador.`,
   SIGNUP_IDENTITY_UNAVAILABLE: msg`Não foi possível conferir seus dados agora. Tente de novo em alguns minutos.`,
+  SIGNUP_IDENTITY_LIMITED: msg`Muitas tentativas com este CPF. Tente de novo amanhã ou fale com o administrador.`,
 };
 
 export type TSignUpFormSchema = z.infer<ReturnType<typeof createSignUpFormSchema>>;
@@ -103,8 +104,6 @@ export type SignUpFormProps = {
   returnTo?: string;
   /** REVALLE: o cadastro pede CPF e data de nascimento (falso com a verificação de identidade desligada). */
   identityRequired?: boolean;
-  /** REVALLE: e-mail (do administrador) que se cadastra sem CPF. */
-  identityExemptEmail?: string | null;
 };
 
 export const SignUpForm = ({
@@ -116,7 +115,6 @@ export const SignUpForm = ({
   isOidcSignupEnabled,
   returnTo,
   identityRequired = false,
-  identityExemptEmail = null,
 }: SignUpFormProps) => {
   const { _ } = useLingui();
   const { toast } = useToast();
@@ -132,12 +130,8 @@ export const SignUpForm = ({
 
   const hasSocialAuthEnabled = isGoogleSignupEnabled || isMicrosoftSignupEnabled || isOidcSignupEnabled;
 
-  // REVALLE: CPF e data de nascimento aparecem para quem não é o e-mail isento (ver `createSignUpFormSchema`)
-  const needsIdentity = useMemo(
-    () => (email: string) => identityRequired && normalizeEmail(email) !== identityExemptEmail,
-    [identityRequired, identityExemptEmail],
-  );
-  const signUpFormSchema = useMemo(() => createSignUpFormSchema(needsIdentity), [needsIdentity]);
+  // REVALLE: a página não sabe qual é o e-mail do administrador (não vai para o navegador); o servidor decide
+  const signUpFormSchema = useMemo(() => createSignUpFormSchema(identityRequired), [identityRequired]);
 
   const form = useForm<TSignUpFormSchema>({
     values: {
@@ -153,7 +147,14 @@ export const SignUpForm = ({
   });
 
   const isSubmitting = form.formState.isSubmitting;
-  const isIdentityShown = needsIdentity(form.watch('email'));
+
+  // REVALLE: CPF e data se validam juntos (os dois vazios valem). Ao mudar um, o erro que já estava no outro é refeito,
+  // para não sobrar um aviso velho; o erro novo do outro só aparece ao tocar nele ou ao enviar.
+  const refreshIdentityError = (name: 'revalleCpf' | 'revalleBirthDate') => {
+    if (form.getFieldState(name).error) {
+      void form.trigger(name);
+    }
+  };
 
   const legalLinks: { href: string | undefined; label: ReactNode }[] = [
     { href: NEXT_PUBLIC_TERMS_OF_SERVICE_URL(), label: <Trans>Terms of Service</Trans> },
@@ -194,8 +195,8 @@ export const SignUpForm = ({
         password,
         signature,
         captchaToken: token ?? undefined,
-        revalleCpf: needsIdentity(email) ? revalleCpf : undefined,
-        revalleBirthDate: needsIdentity(email) ? revalleBirthDate : undefined,
+        revalleCpf: identityRequired ? revalleCpf : undefined,
+        revalleBirthDate: identityRequired ? revalleBirthDate : undefined,
       });
 
       await navigate(returnTo ? returnTo : '/unverified-account');
@@ -333,7 +334,7 @@ export const SignUpForm = ({
                   />
 
                   {/* REVALLE: só colaborador cria conta (Fase 7); mesma máscara e mesmos rótulos do portão de assinatura */}
-                  {isIdentityShown && (
+                  {identityRequired && (
                     <>
                       <p className="text-muted-foreground text-xs md:text-sm">
                         <Trans>Confirmamos seu CPF e sua data de nascimento no cadastro de colaboradores.</Trans>
@@ -354,7 +355,10 @@ export const SignUpForm = ({
                                 autoComplete="off"
                                 placeholder="000.000.000-00"
                                 {...field}
-                                onChange={(event) => field.onChange(formatCpfInput(event.target.value))}
+                                onChange={(event) => {
+                                  field.onChange(formatCpfInput(event.target.value));
+                                  refreshIdentityError('revalleBirthDate');
+                                }}
                               />
                             </FormControl>
                             <FormMessage />
@@ -377,7 +381,10 @@ export const SignUpForm = ({
                                 autoComplete="off"
                                 placeholder="dd/mm/aaaa"
                                 {...field}
-                                onChange={(event) => field.onChange(formatBirthDateInput(event.target.value))}
+                                onChange={(event) => {
+                                  field.onChange(formatBirthDateInput(event.target.value));
+                                  refreshIdentityError('revalleCpf');
+                                }}
                               />
                             </FormControl>
                             <FormMessage />

@@ -5109,3 +5109,6 @@ msgstr "Este CPF já está vinculado a outro e-mail. Fale com o administrador."
 
 msgid "Não foi possível conferir seus dados agora. Tente de novo em alguns minutos."
 msgstr "Não foi possível conferir seus dados agora. Tente de novo em alguns minutos."
+
+msgid "Muitas tentativas com este CPF. Tente de novo amanhã ou fale com o administrador."
+msgstr "Muitas tentativas com este CPF. Tente de novo amanhã ou fale com o administrador."

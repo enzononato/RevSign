@@ -41,15 +41,16 @@ Se o e-mail da pessoa já constar na base de colaboradores (coluna `email` da vi
 |---|---|---|
 | Data de nascimento digitada | **Não.** Só é comparada com a base na hora | em lugar nenhum |
 | CPF | Sim, completo, na tabela de vínculos (e-mail ↔ CPF) | banco do RevSign |
-| CPF informado no cadastro (conta nova) | Sim, completo, **de lado**, só até a pessoa confirmar o e-mail. Depois vira o vínculo e a cópia de lado é apagada. Não fica no cadastro da pessoa (usuário) | banco do RevSign |
+| CPF informado no cadastro (conta nova) | Sim, completo, **de lado**, até a pessoa confirmar o e-mail. Depois vira o vínculo e a cópia de lado é apagada. Se a pessoa nunca confirmar, a cópia fica até a conta ser removida. Não fica no cadastro da pessoa (usuário) | banco do RevSign |
+| CPF na trava de tentativas do cadastro | **Não.** A trava guarda só um código embaralhado do CPF (HMAC com a chave do app), nunca o CPF | banco do RevSign |
 | Data de nascimento do cadastro | **Não.** Só é comparada com a base na hora | em lugar nenhum |
 | CPF nos registros de auditoria do documento | Só mascarado (`***.456.789-**`); o CPF digitado não vai inteiro para a auditoria | auditoria |
 | CPF no certificado anexado ao documento | Só mascarado | PDF final |
-| CPF nos logs do sistema | Não é registrado (nenhuma chamada de log do portão recebe o CPF) | — |
+| CPF nos logs do sistema | Não é registrado (nenhuma chamada de log do portão ou do cadastro recebe o CPF; o cadastro recusado registra só o código do motivo) | — |
 | Aceite do termo | Versão, data, IP e navegador | banco do RevSign |
 | Código de 6 dígitos | Não é registrado | — |
 
-A página pública `/privacidade` diz o mesmo: o CPF aparece só mascarado na auditoria e no certificado, e o vínculo e-mail ↔ CPF fica no banco.
+A página pública `/privacidade` diz o mesmo: o CPF aparece só mascarado na auditoria e no certificado, e o vínculo e-mail ↔ CPF fica no banco. Ela também diz que, ao criar a conta, a pessoa informa CPF e data de nascimento para confirmar que é colaborador, que o CPF fica guardado para ligar o e-mail a ele e que a data de nascimento não é gravada.
 
 ## Cadastro: só colaborador cria conta
 
@@ -76,7 +77,8 @@ Quem se cadastra **sem** informar CPF:
 Outras regras:
 
 - A situação na base (afastado, desligado) não bloqueia o cadastro, como na assinatura.
-- Os limites de tentativa são os do cadastro (`auth.signup`, tabela mais abaixo).
+- Os limites de tentativa são os do cadastro (`auth.signup`, por IP) e mais um **por CPF**: 10 conferências a cada 24 horas, não importa o IP (`revalle.signup-identity`, tabela mais abaixo). Só conta quando o CPF e a data têm formato válido; e-mail já vinculado ou que está na base não gasta tentativa. Passou do limite, a pessoa vê `Muitas tentativas com este CPF. Tente de novo amanhã ou fale com o administrador.` (também para quem acerta os dados) e o administrador pode liberar apagando as linhas dessa ação da tabela `RateLimit`. O limite existe porque, sem ele, o cadastro serviria para descobrir a data de nascimento de um CPF conhecido.
+- O cadastro por Google, Microsoft e OIDC não passa por esta conferência: mantenha esses logins desligados (ver `deploy.md`).
 - Com `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK=disabled` os campos de CPF e data somem e o cadastro volta a pedir só e-mail e senha.
 - Contas criadas antes desta versão não precisam fazer nada: o portão cuida delas na primeira assinatura.
 
@@ -200,6 +202,7 @@ Os limites do upstream contam por IP, e na Revalle cada unidade inteira sai para
 | Ação (nome técnico) | Limite padrão | Por quê |
 |---|---|---|
 | `auth.signup` | 30 cadastros por hora, por IP | Uma unidade inteira cadastrando gente no mesmo dia. Só e-mails dos domínios da empresa se cadastram |
+| `revalle.signup-identity` | 10 conferências de CPF a cada 24 horas, por CPF (não por IP) | Quem sabe um CPF não consegue testar datas de nascimento pelo cadastro. A janela é fixa (zera à meia-noite UTC). Ajuste com `revalle.signup-identity=10/24h` |
 | `auth.request-2fa-email` | 5 pedidos de código em 15 min por destinatário; 200 por IP | O código por e-mail é pedido a cada conclusão. O teto por destinatário evita abuso; o por IP cabe a unidade toda |
 | `auth.login` | 10 tentativas em 15 min por e-mail; 200 por IP | Protege contra adivinhar senha sem travar a unidade |
 | `api.trpc` | 3000 por minuto, por IP | A tela faz muitas chamadas internas |

@@ -288,10 +288,12 @@ export const postSignup = async (input) => parse(await fetchSignup(input));
 
 // Cria uma conta de teste como colaboradora "Teste Cadastro". O vínculo e-mail ↔ CPF é único e nasce quando a conta
 // confirma o e-mail, então a conta anterior do mesmo CPF seguraria o vínculo e a próxima receberia
-// SIGNUP_IDENTITY_CONFLICT: por isso solta o vínculo desse CPF antes de cadastrar. Devolve a Response do `fetch`
-// (como os testes antigos já usavam: `created.ok`, `await created.text()`).
+// SIGNUP_IDENTITY_CONFLICT: por isso solta o vínculo desse CPF antes de cadastrar. Também zera a trava de 10 conferências
+// por CPF a cada 24 horas (`revalle.signup-identity`): todas as contas de teste usam o mesmo CPF e passariam do limite.
+// Devolve a Response do `fetch` (como os testes antigos já usavam: `created.ok`, `await created.text()`).
 export const signupColaborador = ({ name, email, password, headers }) => {
   db(`delete from "RevalleEmailLink" where cpf = '${SIGNUP_COLABORADOR.cpf}'`);
+  db(`delete from "RateLimit" where action = 'revalle.signup-identity'`);
 
   return fetchSignup({
     name,
