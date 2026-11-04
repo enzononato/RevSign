@@ -138,7 +138,7 @@ const mailBody = (id) => fetchIdempotent(`${MAILPIT}/message/${id}`, {}, (res) =
 const flat = (text) => (text ?? '').replace(/\s+/g, ' ');
 
 const waitMails = async (to, filter, timeoutMs = 30_000) => {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = performance.now() + timeoutMs;
 
   do {
     const found = (await mailsTo(to)).filter(filter);
@@ -148,14 +148,14 @@ const waitMails = async (to, filter, timeoutMs = 30_000) => {
     }
 
     await sleep(500);
-  } while (Date.now() < deadline);
+  } while (performance.now() < deadline);
 
   return [];
 };
 
 // Convite de uma versão: o e-mail com o link do token dela que não é o aviso da correção.
 const waitInvite = async (email, token, title, timeoutMs = 30_000) => {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = performance.now() + timeoutMs;
 
   do {
     for (const mail of await mailsTo(email)) {
@@ -165,7 +165,7 @@ const waitInvite = async (email, token, title, timeoutMs = 30_000) => {
     }
 
     await sleep(1000);
-  } while (Date.now() < deadline);
+  } while (performance.now() < deadline);
 
   return false;
 };

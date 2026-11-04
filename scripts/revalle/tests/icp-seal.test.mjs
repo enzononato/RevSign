@@ -13,6 +13,7 @@ import path from 'node:path';
 import { before, test } from 'node:test';
 
 import {
+  appLogs,
   completeWithCode,
   createEnvelope,
   db,
@@ -111,13 +112,10 @@ before(async () => {
   fx.plain.verify = verify(fx.plain.dir);
 
   // O PDF selado acima volta como documento novo: já traz uma assinatura e /Perms /DocMDP.
-  const since = new Date().toISOString();
+  const logsBefore = appLogs().length;
 
   fx.preSigned = { dir: await sealed(path.join(fx.plain.dir, 'signed.pdf')) };
-  fx.preSigned.logs = execFileSync('sh', ['-c', `docker logs --since ${since} revsign-hml-documenso-1 2>&1`], {
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  });
+  fx.preSigned.logs = appLogs().slice(logsBefore);
   fx.preSigned.report = inspect(fx.preSigned.dir);
   fx.preSigned.verify = verify(fx.preSigned.dir);
 });

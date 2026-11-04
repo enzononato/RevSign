@@ -46,6 +46,7 @@ import {
   signupColaborador,
   trpc,
   trpcAs,
+  workflowMails,
 } from './helpers.mjs';
 
 // Para antes de criar qualquer NF se o app puder chamar o Gemini de verdade (pago). Ver helpers.mjs.
@@ -77,8 +78,6 @@ const ACCOUNTS_CSV = [
 // Textos exatos (spec e global-constraints). Fase 7: as quatro colunas do centro de custo vêm depois de `aprovado_por`.
 const HEADER =
   'id;titulo;remetente;enviado_em;concluido_em;status;conta;nome_conta;tipo;sugestao_ia;confianca;aceitou_sugestao;link;financeiro;aprovado_por;centro_custo;nome_centro_custo;validacao_contabilidade;validado_por';
-// Os dois e-mails de fluxo que saíram na Fase 7 (assunto antigo).
-const WORKFLOW_SUBJECT = /^Nota fiscal (assinada|aguardando aprovação do Financeiro): /;
 const AWAITING_SUBJECT_PREFIX = 'Nota fiscal aguardando o Financeiro:';
 const NOTICE_SUBJECT = (title) => `Conta contábil da nota fiscal alterada pelo Financeiro: ${title}`;
 const NOTICE = (title) =>
@@ -126,20 +125,8 @@ const mailsTo = async (to) =>
 const mailBody = (id) => fetchIdempotent(`${MAILPIT}/message/${id}`, {}, (res) => res.json());
 const flat = (text) => (text ?? '').replace(/\s+/g, ' ');
 
-// E-mails de fluxo desta NF na caixa inteira (o assunto antigo leva o título único): têm de ser zero.
-const workflowMails = async (doc) =>
-  (
-    (
-      await fetchIdempotent(`${MAILPIT}/search?query=${encodeURIComponent(`subject:"${doc.title}"`)}`, {}, (res) =>
-        res.json(),
-      )
-    ).messages ?? []
-  )
-    .filter((m) => WORKFLOW_SUBJECT.test(m.Subject))
-    .map((m) => `${m.Subject} -> ${m.To.map((to) => to.Address)}`);
-
 const waitMails = async (to, filter, timeoutMs = 40_000) => {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = performance.now() + timeoutMs;
 
   do {
     const found = (await mailsTo(to)).filter(filter);
@@ -149,13 +136,13 @@ const waitMails = async (to, filter, timeoutMs = 40_000) => {
     }
 
     await sleep(500);
-  } while (Date.now() < deadline);
+  } while (performance.now() < deadline);
 
   return [];
 };
 
 const waitInvite = async (email, token, timeoutMs = 40_000) => {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = performance.now() + timeoutMs;
 
   do {
     for (const mail of await mailsTo(email)) {
@@ -166,7 +153,7 @@ const waitInvite = async (email, token, timeoutMs = 40_000) => {
     }
 
     await sleep(1000);
-  } while (Date.now() < deadline);
+  } while (performance.now() < deadline);
 
   return false;
 };
@@ -297,8 +284,7 @@ const newInvoice = async (label, { signers = 2, choice = { code: OLD.code }, sen
 
   const doc = loadVersion(created.id);
 
-  // O convite chega por um job: esperar por ele antes de assinar, para ele não chegar depois do código por e-mail (o
-  // código é lido do e-mail mais recente).
+  // O convite chega por um job.
   for (const recipient of doc.recipients) {
     assert.ok(await waitInvite(recipient.email, recipient.token), `convite não chegou para ${recipient.email}`);
   }

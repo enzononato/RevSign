@@ -45,6 +45,8 @@ import {
   signIn,
   trpc,
   trpcAs,
+  workflowJobs,
+  workflowMails,
 } from './helpers.mjs';
 
 // Para antes de criar qualquer NF se o app puder chamar o Gemini de verdade (pago). Ver helpers.mjs.
@@ -56,9 +58,6 @@ const admin = { email: process.env.REVSIGN_ADMIN_EMAIL, password: process.env.RE
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const MAILPIT = 'http://localhost:8025/api/v1';
 const MARIA = { cpf: '39053344705', birthDate: '07/03/1990' };
-// Os dois e-mails de fluxo que saíram na Fase 7 (assunto antigo) e os jobs que os mandavam.
-const WORKFLOW_SUBJECT = /^Nota fiscal (assinada|aguardando aprovação do Financeiro): /;
-const WORKFLOW_JOBS = ['send.revalle.invoice.accounting.email', 'send.revalle.finance.approval.email'];
 
 const ACCOUNTS_CSV = [
   'numero;nome;descricao;tipo',
@@ -104,7 +103,7 @@ const mailsTo = async (to) =>
     .messages ?? [];
 
 const waitMails = async (to, filter, timeoutMs = 30_000) => {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = performance.now() + timeoutMs;
 
   do {
     const found = (await mailsTo(to)).filter(filter);
@@ -114,28 +113,10 @@ const waitMails = async (to, filter, timeoutMs = 30_000) => {
     }
 
     await sleep(500);
-  } while (Date.now() < deadline);
+  } while (performance.now() < deadline);
 
   return [];
 };
-
-// E-mails de fluxo desta NF na caixa inteira (o assunto antigo leva o título único): têm de ser zero.
-const workflowMails = async (doc) =>
-  (
-    (
-      await fetchIdempotent(`${MAILPIT}/search?query=${encodeURIComponent(`subject:"${doc.title}"`)}`, {}, (res) =>
-        res.json(),
-      )
-    ).messages ?? []
-  )
-    .filter((m) => WORKFLOW_SUBJECT.test(m.Subject))
-    .map((m) => `${m.Subject} -> ${m.To.map((to) => to.Address)}`);
-const workflowJobs = (envelopeId) =>
-  Number(
-    db(
-      `select count(*) from "BackgroundJob" where "jobId" in (${WORKFLOW_JOBS.map((job) => `'${job}'`).join(', ')}) and payload->>'envelopeId' = '${envelopeId}'`,
-    ),
-  );
 
 const waitStatus = async (envelopeId, wanted, attempts = 45) => {
   for (let i = 0; i < attempts && status(envelopeId) !== wanted; i += 1) {
@@ -538,9 +519,9 @@ sessionTest(
 
     assert.equal(retried, 'COMPLETED');
 
-    const deadline = Date.now() + 30_000;
+    const deadline = performance.now() + 30_000;
 
-    while ((await completedMails()) < 2 && Date.now() < deadline) {
+    while ((await completedMails()) < 2 && performance.now() < deadline) {
       await sleep(500);
     }
 

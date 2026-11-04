@@ -24,12 +24,10 @@
 // pessoa com os dois perfis e uma sem perfil. Ver revalle/docs/testes.md.
 
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, test } from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { PDFDocument, rgb, StandardFonts } from '@cantoo/pdf-lib';
 
 import {
@@ -41,7 +39,10 @@ import {
   db,
   distribute,
   fetchIdempotent,
+  hasPlaywrightImage,
+  PLAYWRIGHT_IMAGE,
   retryCreateOnStaleSocket,
+  runBrowserScript,
   signIn,
   signupColaborador,
   trpc,
@@ -59,8 +60,6 @@ const PASSWORD = `Visi-${RUN}-Senha!9`;
 const MAILPIT = 'http://localhost:8025/api/v1';
 const MARIA = { cpf: '39053344705', birthDate: '07/03/1990' };
 const origin = new URL(BASE_URL).origin;
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const PLAYWRIGHT_IMAGE = process.env.MOBILE_CHECK_IMAGE ?? 'mcr.microsoft.com/playwright:v1.56.1-noble';
 
 const GATE_MESSAGE = 'Este documento foi substituído por uma nova versão.';
 const SIGNING_FILE = (token, itemId) => `/api/files/token/${token}/envelopeItem/${itemId}`;
@@ -101,7 +100,7 @@ const mailsTo = async (to) =>
 const mailBody = (id) => fetchIdempotent(`${MAILPIT}/message/${id}`, {}, (res) => res.json());
 
 const waitFirstMail = async (to, timeoutMs = 40_000) => {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = performance.now() + timeoutMs;
 
   do {
     const [first] = await mailsTo(to);
@@ -111,7 +110,7 @@ const waitFirstMail = async (to, timeoutMs = 40_000) => {
     }
 
     await sleep(500);
-  } while (Date.now() < deadline);
+  } while (performance.now() < deadline);
 
   return undefined;
 };
@@ -791,9 +790,7 @@ test('navegador: contador do menu, fila de abertura e botão View (na imagem do 
     return;
   }
 
-  try {
-    execFileSync('docker', ['image', 'inspect', PLAYWRIGHT_IMAGE], { stdio: 'ignore' });
-  } catch {
+  if (!hasPlaywrightImage()) {
     t.skip(`imagem ${PLAYWRIGHT_IMAGE} ausente no Docker (docker pull ${PLAYWRIGHT_IMAGE})`);
 
     return;
@@ -843,47 +840,21 @@ test('navegador: contador do menu, fila de abertura e botão View (na imagem do 
     validatedTitle: validated.title,
   };
 
-  // REVSIGN_VISIBILITY_SHOTS: pasta (já criada) para os prints das telas, quando alguém quiser olhar.
-  const shotDir = process.env.REVSIGN_VISIBILITY_SHOTS ? path.resolve(process.env.REVSIGN_VISIBILITY_SHOTS) : undefined;
-
   // O script do navegador escreve uma linha por conferência (`ok ...` ou `FALHOU ...`) e sai com código 1 se alguma falhar.
-  const runBrowser = (extra) => {
-    const result = spawnSync(
-      'docker',
-      [
-        'run',
-        '--rm',
-        '--network',
-        'host',
-        '--ipc',
-        'host',
-        '-u',
-        `${process.getuid()}:${process.getgid()}`,
-        '-e',
-        'HOME=/tmp',
-        '-e',
-        'VISIBILITY_PAYLOAD',
-        ...(shotDir ? ['-e', 'SHOT_DIR=/shots', '-v', `${shotDir}:/shots`] : []),
-        '-v',
-        `${path.resolve(HERE, '../../..')}:/repo:ro`,
-        '-w',
-        '/repo',
-        PLAYWRIGHT_IMAGE,
-        'node',
-        'scripts/revalle/tests/browser/invoice-visibility.browser.mjs',
-      ],
-      {
-        encoding: 'utf8',
-        env: { ...process.env, VISIBILITY_PAYLOAD: JSON.stringify({ ...payload, ...extra }) },
-        timeout: 240_000,
-      },
-    );
+  // REVSIGN_VISIBILITY_SHOTS: pasta (já criada) para os prints das telas, quando alguém quiser olhar.
+  const runBrowser = async (extra) => {
+    const result = await runBrowserScript({
+      script: 'invoice-visibility.browser.mjs',
+      payload: { ...payload, ...extra },
+      shotDir: process.env.REVSIGN_VISIBILITY_SHOTS,
+      timeout: 240_000,
+    });
 
     t.diagnostic(result.stdout);
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   };
 
-  runBrowser({ phase: 'main' });
+  await runBrowser({ phase: 'main' });
 
   // Aviso do admin: sem ninguém na Contabilidade e com nota esperando a validação, a tela avisa com o número; com alguém
   // marcado, não avisa. Os membros saem do banco por instantes e voltam pela rota do admin, mesmo se o teste falhar.
@@ -896,7 +867,7 @@ test('navegador: contador do menu, fila de abertura e botão View (na imagem do 
 
     assert.equal(listed.accountingMemberCount, 0);
     assert.ok(listed.accountingPendingCount > 0, 'o teste precisa de nota esperando a Contabilidade');
-    runBrowser({ phase: 'admin-alert', adminCookie, adminPending: listed.accountingPendingCount });
+    await runBrowser({ phase: 'admin-alert', adminCookie, adminPending: listed.accountingPendingCount });
   } finally {
     for (const userId of members) {
       const restored = await trpcAs(adminCookie, 'mutation', 'revalle.accounting.adminSetMember', {
@@ -908,5 +879,5 @@ test('navegador: contador do menu, fila de abertura e botão View (na imagem do 
     }
   }
 
-  runBrowser({ phase: 'admin-quiet', adminCookie });
+  await runBrowser({ phase: 'admin-quiet', adminCookie });
 });

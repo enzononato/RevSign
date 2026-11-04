@@ -14,17 +14,24 @@
 // Usa REVSIGN_USER_* só para existir (a conta de teste é nova a cada execução). Ver revalle/docs/testes.md.
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import path from 'node:path';
 import { after, before, test } from 'node:test';
-import { fileURLToPath } from 'node:url';
 
-import { api, BASE_URL, createEnvelope, db, fetchIdempotent, signIn, signupColaborador, trpcAs } from './helpers.mjs';
+import {
+  api,
+  BASE_URL,
+  createEnvelope,
+  db,
+  fetchIdempotent,
+  hasPlaywrightImage,
+  PLAYWRIGHT_IMAGE,
+  runBrowserScript,
+  signIn,
+  signupColaborador,
+  trpcAs,
+} from './helpers.mjs';
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MAILPIT = 'http://localhost:8025/api/v1';
-const PLAYWRIGHT_IMAGE = process.env.MOBILE_CHECK_IMAGE ?? 'mcr.microsoft.com/playwright:v1.56.1-noble';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const PASSWORD = `Limpeza-${RUN}!`;
 const origin = new URL(BASE_URL).origin;
@@ -452,9 +459,7 @@ test('o painel não mostra o link de Modelos (menu), mas mostra o que ficou', as
 // ---------- 5. Navegador ----------
 
 test('navegador: menus, busca, configurações, editor e seletor de papel sem IA, Modelos, Assistente, Idioma e Suporte', async (t) => {
-  const probe = spawnSync('docker', ['image', 'inspect', PLAYWRIGHT_IMAGE], { encoding: 'utf8' });
-
-  if (probe.status !== 0) {
+  if (!hasPlaywrightImage()) {
     t.skip(`imagem ${PLAYWRIGHT_IMAGE} ausente no Docker (docker pull ${PLAYWRIGHT_IMAGE})`);
 
     return;
@@ -480,7 +485,6 @@ test('navegador: menus, busca, configurações, editor e seletor de papel sem IA
     return created;
   });
 
-  const shotDir = process.env.REVSIGN_UI_CLEANUP_SHOTS ? path.resolve(process.env.REVSIGN_UI_CLEANUP_SHOTS) : undefined;
   const payload = {
     baseUrl: BASE_URL,
     teamUrl: fx.teamUrl,
@@ -489,43 +493,18 @@ test('navegador: menus, busca, configurações, editor e seletor de papel sem IA
     draftId: draft.id,
   };
 
-  const runBrowser = (extra) => {
-    const result = spawnSync(
-      'docker',
-      [
-        'run',
-        '--rm',
-        '--network',
-        'host',
-        '--ipc',
-        'host',
-        '-u',
-        `${process.getuid()}:${process.getgid()}`,
-        '-e',
-        'HOME=/tmp',
-        '-e',
-        'CLEANUP_PAYLOAD',
-        ...(shotDir ? ['-e', 'SHOT_DIR=/shots', '-v', `${shotDir}:/shots`] : []),
-        '-v',
-        `${path.resolve(HERE, '../../..')}:/repo:ro`,
-        '-w',
-        '/repo',
-        PLAYWRIGHT_IMAGE,
-        'node',
-        'scripts/revalle/tests/browser/ui-cleanup.browser.mjs',
-      ],
-      {
-        encoding: 'utf8',
-        env: { ...process.env, CLEANUP_PAYLOAD: JSON.stringify({ ...payload, ...extra }) },
-        timeout: 300_000,
-      },
-    );
+  const runBrowser = async (extra) => {
+    const result = await runBrowserScript({
+      script: 'ui-cleanup.browser.mjs',
+      payload: { ...payload, ...extra },
+      shotDir: process.env.REVSIGN_UI_CLEANUP_SHOTS,
+    });
 
     t.diagnostic(result.stdout);
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   };
 
-  runBrowser({ phase: 'main' });
+  await runBrowser({ phase: 'main' });
 
   // Com o papel de ADMIN (devolvido no fim, mesmo se falhar): vê Tokens de API e Webhooks no menu e abre as duas páginas.
   await asAdmin(async () => runBrowser({ phase: 'admin' }));

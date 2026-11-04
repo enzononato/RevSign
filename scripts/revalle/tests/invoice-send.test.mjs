@@ -24,10 +24,11 @@ import {
   chooseInvoice,
   createEnvelope,
   db,
-  latestMail,
+  mailIdsTo,
   poppler,
   signIn,
   trpcAs,
+  waitNewMail,
 } from './helpers.mjs';
 
 // Para antes de criar qualquer NF se o app puder chamar o Gemini de verdade (pago). Ver helpers.mjs.
@@ -107,7 +108,7 @@ const importAccounts = async (csv) => {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const waitSettled = async (envelopeId, timeoutMs = 15_000) => {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = performance.now() + timeoutMs;
   let state;
 
   do {
@@ -121,7 +122,7 @@ const waitSettled = async (envelopeId, timeoutMs = 15_000) => {
     }
 
     await sleep(400);
-  } while (Date.now() < deadline);
+  } while (performance.now() < deadline);
 
   return state;
 };
@@ -825,6 +826,7 @@ sessionTest('envio em lote de modelo de NF: o e-mail de conclusão diz que é no
   const template = await newInvoiceTemplate('modelo-lote');
   const templateId = Number(db(`select "secondaryId" from "Envelope" where id = '${template.id}'`).replace(/\D/g, ''));
   const teamId = Number(db(`select "teamId" from "Envelope" where id = '${template.id}'`));
+  const seenMails = await mailIdsTo(user.email);
   const res = await trpcAs(
     userCookie,
     'mutation',
@@ -841,20 +843,14 @@ sessionTest('envio em lote de modelo de NF: o e-mail de conclusão diz que é no
   assert.equal(res.status, 200, res.text);
   assert.equal(data(res).success, true, res.text);
 
-  let mail;
+  const bodyOf = (message) => `${message.Text ?? ''}${message.HTML ?? ''}`;
+  const mail = bodyOf(
+    await waitNewMail(user.email, seenMails, {
+      matches: (message) => bodyOf(message).includes(template.envelope.title),
+      what: 'E-mail de conclusão do envio em lote',
+    }),
+  );
 
-  for (let i = 0; i < 60 && !mail; i += 1) {
-    const latest = await latestMail(user.email);
-    const body = `${latest?.Text ?? ''}${latest?.HTML ?? ''}`;
-
-    mail = body.includes(template.envelope.title) ? body : undefined;
-
-    if (!mail) {
-      await sleep(500);
-    }
-  }
-
-  assert.ok(mail, 'o e-mail de conclusão do envio em lote não chegou');
   assert.ok(mail.includes('INVOICE_ACCOUNT_REQUIRED'), mail.slice(0, 2000));
   assert.ok(mail.includes('é uma nota fiscal'), mail.slice(0, 2000));
 });

@@ -101,7 +101,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const mailpit = (route) => fetchIdempotent(`${MAILPIT}${route}`, {}, (res) => res.json());
 
 const waitMail = async (to, timeoutMs = 40_000) => {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = performance.now() + timeoutMs;
 
   do {
     const [message] = (await mailpit(`/search?query=${encodeURIComponent(`to:${to}`)}`)).messages ?? [];
@@ -111,7 +111,7 @@ const waitMail = async (to, timeoutMs = 40_000) => {
     }
 
     await sleep(500);
-  } while (Date.now() < deadline);
+  } while (performance.now() < deadline);
 
   return undefined;
 };

@@ -1,54 +1,15 @@
-// REVALLE (Fase 7, Task 7): roda DENTRO da imagem do Playwright, chamado por `invoice-visibility.test.mjs` (o WSL não
-// abre o Chromium; ver `scripts/revalle/mobile-check.mjs`). As telas desenham o contador do menu, a fila de abertura da
-// página "Notas fiscais" e o botão "View" no navegador (as consultas rodam lá), então só um navegador de verdade as vê.
+// REVALLE (Fase 7, Task 7): chamado por `invoice-visibility.test.mjs` e, na fase `owner-view`, por `acceptance-f7.test.mjs`
+// (ver `shared.mjs`). As telas desenham o contador do menu, a fila de abertura da página "Notas fiscais" e o botão "View"
+// no navegador (as consultas rodam lá), então só um navegador de verdade as vê.
 //
-// Entrada: a variável VISIBILITY_PAYLOAD (JSON com as sessões, o que cada tela deve mostrar e as NFs de teste). Escreve uma
-// linha por conferência (`ok ...` ou `FALHOU ...`) e sai com código 1 se alguma falhar. Com SHOT_DIR, guarda um print por
-// tela (a pasta precisa estar montada no container).
-import { chromium } from 'playwright';
+// Entrada: as sessões, o que cada tela deve mostrar e as NFs de teste.
+import { finish, openAs, payload, report, shot } from './shared.mjs';
 
-const payload = JSON.parse(process.env.VISIBILITY_PAYLOAD ?? '{}');
 const { phase = 'main', baseUrl, teamUrl, expected, cookies, own, received, validatedTitle } = payload;
-const shotDir = process.env.SHOT_DIR;
-const failures = [];
-
-const report = (passed, message) => {
-  console.log(`${passed ? 'ok' : 'FALHOU'} ${message}`);
-
-  if (!passed) {
-    failures.push(message);
-  }
-};
 
 const badgeLabel = (total) =>
   total === 1 ? '1 nota fiscal aguardando você' : `${total} notas fiscais aguardando você`;
 const countText = (total) => (total === 1 ? '1 nota fiscal' : `${total} notas fiscais`);
-
-const browser = await chromium.launch();
-
-const openAs = async (cookie, viewport = { width: 1280, height: 900 }) => {
-  const context = await browser.newContext({ viewport, locale: 'pt-BR' });
-
-  await context.addCookies(
-    cookie.split('; ').map((pair) => {
-      const index = pair.indexOf('=');
-
-      return { name: pair.slice(0, index), value: pair.slice(index + 1), url: baseUrl };
-    }),
-  );
-
-  const page = await context.newPage();
-
-  page.setDefaultTimeout(30_000);
-
-  return { context, page };
-};
-
-const shot = async (page, name) => {
-  if (shotDir) {
-    await page.screenshot({ path: `${shotDir}/${name}.png` });
-  }
-};
 
 const selectValue = (page, id) => page.locator(`#${id}`).inputValue();
 
@@ -91,6 +52,43 @@ const waitCount = async (page, total) => {
 };
 
 const badge = (page) => page.getByTestId('invoices-nav-badge');
+
+// Botão "View" depois de assinar: na lista de documentos, quem tem o documento no próprio time vai à página dele.
+const checkOwnerView = async () => {
+  const { context, page } = await openAs(cookies.owner);
+
+  await page.goto(`${baseUrl}/t/${teamUrl}/documents?query=${encodeURIComponent(own.title)}`, {
+    waitUntil: 'domcontentloaded',
+  });
+
+  const row = page.getByRole('row').filter({ hasText: own.title });
+
+  await row.first().waitFor();
+
+  const viewLink = row.locator(`a[href="/t/${teamUrl}/documents/${own.id}"]`);
+
+  report(
+    (await viewLink.count()) > 0,
+    'remetente que assinou: a lista de documentos tem o link para a página do documento',
+  );
+  report(
+    (await row.locator('button[disabled]').count()) === 0,
+    'remetente que assinou: nenhum botão desabilitado na linha',
+  );
+  await shot(page, '04-documentos-view');
+
+  if ((await viewLink.count()) > 0) {
+    await viewLink.first().click();
+    await page.waitForURL(new RegExp(`/t/${teamUrl}/documents/${own.id}$`));
+    report(true, 'o botão "View" abre a página do documento');
+  }
+
+  await context.close();
+};
+
+if (phase === 'owner-view') {
+  await checkOwnerView();
+}
 
 if (phase === 'main') {
   // ---- Contabilidade: abre na fila dela, com o contador do menu ------------------------------------------------------
@@ -254,38 +252,7 @@ if (phase === 'main') {
     await context.close();
   }
 
-  // ---- Botão "View" depois de assinar: lista de documentos do remetente --------------------------------------------------
-  {
-    const { context, page } = await openAs(cookies.owner);
-
-    await page.goto(`${baseUrl}/t/${teamUrl}/documents?query=${encodeURIComponent(own.title)}`, {
-      waitUntil: 'domcontentloaded',
-    });
-
-    const row = page.getByRole('row').filter({ hasText: own.title });
-
-    await row.first().waitFor();
-
-    const viewLink = row.locator(`a[href="/t/${teamUrl}/documents/${own.id}"]`);
-
-    report(
-      (await viewLink.count()) > 0,
-      'remetente que assinou: a lista de documentos tem o link para a página do documento',
-    );
-    report(
-      (await row.locator('button[disabled]').count()) === 0,
-      'remetente que assinou: nenhum botão desabilitado na linha',
-    );
-    await shot(page, '04-documentos-view');
-
-    if ((await viewLink.count()) > 0) {
-      await viewLink.first().click();
-      await page.waitForURL(new RegExp(`/t/${teamUrl}/documents/${own.id}$`));
-      report(true, 'o botão "View" abre a página do documento');
-    }
-
-    await context.close();
-  }
+  await checkOwnerView();
 
   // ---- Botão "View" depois de assinar: caixa de entrada de quem só recebeu --------------------------------------------------
   {
@@ -390,15 +357,8 @@ if (phase === 'admin-quiet') {
   await context.close();
 }
 
-await browser.close();
-
-if (validatedTitle === undefined) {
+if (phase === 'main' && validatedTitle === undefined) {
   report(false, 'o teste não mandou a NF validada');
 }
 
-if (failures.length > 0) {
-  console.log(`\n${failures.length} conferência(s) falharam`);
-  process.exit(1);
-}
-
-console.log('\ntodas as conferências do navegador passaram');
+await finish();

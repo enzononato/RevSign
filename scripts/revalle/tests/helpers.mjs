@@ -3,7 +3,7 @@
 // As funções de API aceitam `apiToken` para agir com outro token (ex.: o do remetente no aceite da Fase 4).
 // Uso: node --test --test-concurrency=1 scripts/revalle/tests/*.test.mjs (ver revalle/docs/testes.md)
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -150,55 +150,130 @@ export const createEnvelope = async ({
 export const distribute = async (id, { apiToken } = {}) =>
   (await api('POST', '/envelope/distribute', { envelopeId: id }, { apiToken })).body.recipients;
 
-// Último e-mail recebido por `to` no Mailpit (ou undefined).
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// O relógio da máquina pode saltar. No WSL2, com a hora do Windows atrasada, ele volta de 9 a 12 s e adianta de novo a
+// cada 32 s (ver revalle/docs/testes.md), e app, banco, Mailpit e testes dividem esse relógio. Por isso, nos testes: prazo
+// com `performance.now()`, e "o que veio depois" pela identidade (ID do e-mail, xmin da linha), nunca pela data.
+
 const mailpitJson = (url) => fetchIdempotent(url, {}, (res) => res.json());
 
-export const latestMail = async (to) => {
-  const list = await mailpitJson(`${MAILPIT}/search?query=${encodeURIComponent(`to:${to}`)}`);
-  const first = list.messages?.[0];
+export const mailsTo = async (to) =>
+  (await mailpitJson(`${MAILPIT}/search?query=${encodeURIComponent(`to:${to}`)}`)).messages ?? [];
 
-  return first ? await mailpitJson(`${MAILPIT}/message/${first.ID}`) : undefined;
+export const mailById = (id) => mailpitJson(`${MAILPIT}/message/${id}`);
+
+// O e-mail do topo da lista de `to` (ou undefined). Só serve para endereço novo, com um e-mail só (ver `mailIdsTo`).
+export const latestMail = async (to) => {
+  const [first] = await mailsTo(to);
+
+  return first ? await mailById(first.ID) : undefined;
 };
 
-// Código de 6 dígitos do e-mail mais recente enviado a `to` (Mailpit), ou undefined.
-export const getLatestCode = async (to) => {
-  const mail = await latestMail(to);
+// IDs dos e-mails que `to` já recebeu: guarde antes da ação e passe a `waitNewMail`. O Mailpit ordena pela data de
+// chegada no relógio da máquina, então "o primeiro da lista" não é o mais novo depois de um salto para trás.
+export const mailIdsTo = async (to) => new Set((await mailsTo(to)).map((message) => message.ID));
 
-  return mail?.Text?.match(/\b(\d{6})\b/)?.[1] ?? mail?.HTML?.replace(/<[^>]+>/g, ' ').match(/\b(\d{6})\b/)?.[1];
+// Primeiro e-mail completo que chegou a `to` depois do retrato `seen` e passa em `matches`. Lança se não vier no prazo.
+export const waitNewMail = async (to, seen, { matches = () => true, what = 'e-mail', timeoutMs = 60_000 } = {}) => {
+  const checked = new Set(seen);
+  const deadline = performance.now() + timeoutMs;
+
+  do {
+    for (const { ID } of await mailsTo(to)) {
+      if (!checked.has(ID)) {
+        checked.add(ID);
+
+        const mail = await mailById(ID);
+
+        if (matches(mail)) {
+          return mail;
+        }
+      }
+    }
+
+    await sleep(200);
+  } while (performance.now() < deadline);
+
+  throw new Error(`${what} não chegou a ${to} em ${timeoutMs / 1000} s`);
+};
+
+// O código fica sozinho numa linha. Procurar 6 dígitos em qualquer lugar pegaria um número do título do documento,
+// que vem antes no texto.
+export const emailCodeOf = (mail) => mail.Text?.match(/^\s*(\d{6})\s*$/m)?.[1];
+
+// Pede o código como a tela faz e o lê do e-mail que este pedido gerou. Devolve { requested, code }; se o pedido foi
+// recusado, só { requested }.
+export const requestEmailCode = async ({ token, email, headers = {} }) => {
+  const seen = await mailIdsTo(email);
+  const requested = await trpc('document.accessAuth.request2FAEmail', { token }, headers);
+
+  if (!requested.ok) {
+    return { requested };
+  }
+
+  const mail = await waitNewMail(email, seen, { matches: emailCodeOf, what: 'E-mail com o código' });
+
+  return { requested, code: emailCodeOf(mail) };
+};
+
+// O código vale do período de 30 s atual para trás, nunca para a frente. Se o relógio volta entre gerar e conferir,
+// passando para o período anterior, o código certo é recusado até o relógio chegar de novo aonde estava. Confere, com a
+// chave do app, se é esse o caso (o código é o do período atual ou o do próximo): se for, espera ele valer e devolve true.
+// Qualquer outro código é uma recusa de verdade e devolve false.
+const waitUntilCodeIsValid = async ({ token, code }) => {
+  const [email, envelopeId] = db(`select email || '|' || "envelopeId" from "Recipient" where token = '${token}'`).split(
+    '|',
+  );
+  const codeOfPeriod = (periodsAgo) => computeEmailCode({ email, envelopeId, periodsAgo });
+
+  if (codeOfPeriod(0) !== code && codeOfPeriod(-1) !== code) {
+    return false;
+  }
+
+  const deadline = performance.now() + 45_000;
+
+  while (codeOfPeriod(0) !== code && performance.now() < deadline) {
+    await sleep(1000);
+  }
+
+  return true;
+};
+
+// Conclui com um código pedido em `requestEmailCode` (`extra` entra no corpo, ex.: nextSigner). Devolve a resposta.
+export const completeWithSentCode = async ({ token, documentId, code, extra = {}, headers = {} }) => {
+  const complete = () =>
+    trpc(
+      'recipient.completeDocumentWithToken',
+      { token, documentId, accessAuthOptions: { type: 'TWO_FACTOR_AUTH', method: 'email', token: code }, ...extra },
+      headers,
+    );
+  const first = await complete();
+
+  if (first.text.includes('TWO_FACTOR_AUTH_FAILED') && (await waitUntilCodeIsValid({ token, code }))) {
+    return complete();
+  }
+
+  return first;
 };
 
 // Conclui o documento como a tela faz: pede o código por e-mail, lê no Mailpit e conclui com ele.
 // `extra` entra no corpo da conclusão (ex.: nextSigner). Devolve a resposta da conclusão.
 export const completeWithCode = async ({ token, documentId, email, extra = {}, headers = {} }) => {
-  const before = await getLatestCode(email);
-  const requested = await trpc('document.accessAuth.request2FAEmail', { token }, headers);
+  const { requested, code } = await requestEmailCode({ token, email, headers });
 
   if (!requested.ok) {
     return requested;
   }
 
-  let code;
-
-  for (let i = 0; i < 30; i += 1) {
-    code = await getLatestCode(email);
-
-    if (code && code !== before) {
-      break;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 300));
-  }
-
-  return trpc(
-    'recipient.completeDocumentWithToken',
-    { token, documentId, accessAuthOptions: { type: 'TWO_FACTOR_AUTH', method: 'email', token: code }, ...extra },
-    headers,
-  );
+  return completeWithSentCode({ token, documentId, code, extra, headers });
 };
 
 // Código de 6 dígitos do e-mail calculado DENTRO do container do app (a chave não sai de lá; só o código volta).
-// `periodsAgo`: quantos períodos de 30 s atrás (0 = código atual; a conclusão aceita até 9 atrás, 5 minutos).
-export const computeEmailCode = ({ email, envelopeId, periodsAgo = 0 }) => {
+// `periodsAgo`: quantos períodos de 30 s atrás (a conclusão aceita até 9 atrás, 5 minutos). O padrão é 1: o período atual
+// viraria um código "futuro" se o relógio voltasse antes da conferência (ver `waitUntilCodeIsValid`), e um período atrás
+// não.
+export const computeEmailCode = ({ email, envelopeId, periodsAgo = 1 }) => {
   const script = `
     const crypto = require('node:crypto');
     const [email, envelopeId, periodsAgo] = process.argv.slice(1);
@@ -305,6 +380,41 @@ export const signupColaborador = ({ name, email, password, headers }) => {
   });
 };
 
+// Conta nova e pronta: cadastro como colaboradora "Teste Cadastro" (ver `signupColaborador`), confirmação pelo link do
+// Mailpit e login. Devolve { email, name, id, cookie }.
+export const createConfirmedAccount = async ({ email, name, password }) => {
+  const seen = await mailIdsTo(email);
+  const created = await signupColaborador({ name, email, password });
+
+  if (!created.ok) {
+    throw new Error(`cadastro de ${email} falhou (${created.status}): ${await created.text()}`);
+  }
+
+  const mail = await waitNewMail(email, seen, { what: 'E-mail de confirmação da conta' });
+  const token = mail.HTML?.match(/\/verify-email\/([A-Za-z0-9_-]+)/)?.[1];
+
+  if (!token) {
+    throw new Error(`e-mail de confirmação de ${email} sem o link`);
+  }
+
+  const verified = await fetch(`${BASE_URL}/api/auth/email-password/verify-email`, {
+    method: 'POST',
+    headers: { Origin: new URL(BASE_URL).origin, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+
+  if (verified.status !== 200) {
+    throw new Error(`confirmação de ${email} falhou (${verified.status}): ${await verified.text()}`);
+  }
+
+  return {
+    email,
+    name,
+    id: Number(db(`select id from "User" where email = '${email}'`)),
+    cookie: await signIn(email, password),
+  };
+};
+
 // tRPC autenticado por sessão. `kind`: 'query' (GET com input na URL) ou 'mutation' (POST). `extraHeaders` (ex.: x-team-id).
 export const trpcAs = async (cookie, kind, procedure, input, extraHeaders = {}) => {
   const origin = new URL(BASE_URL).origin;
@@ -347,6 +457,23 @@ export const chooseInvoice = async ({ cookie, envelopeId, code = '2.1.03', costC
   return last;
 };
 
+// Os dois e-mails de fluxo que saíram na Fase 7 (assunto antigo) e os jobs que os mandavam.
+export const WORKFLOW_SUBJECT = /^Nota fiscal (assinada|aguardando aprovação do Financeiro): /;
+const WORKFLOW_JOBS = ['send.revalle.invoice.accounting.email', 'send.revalle.finance.approval.email'];
+
+// E-mails de fluxo de uma NF na caixa inteira (o assunto antigo leva o título único): têm de ser zero.
+export const workflowMails = async (doc) =>
+  ((await mailpitJson(`${MAILPIT}/search?query=${encodeURIComponent(`subject:"${doc.title}"`)}`)).messages ?? [])
+    .filter((message) => WORKFLOW_SUBJECT.test(message.Subject))
+    .map((message) => `${message.Subject} -> ${message.To.map((to) => to.Address)}`);
+
+export const workflowJobs = (envelopeId) =>
+  Number(
+    db(
+      `select count(*) from "BackgroundJob" where "jobId" in (${WORKFLOW_JOBS.map((job) => `'${job}'`).join(', ')}) and payload->>'envelopeId' = '${envelopeId}'`,
+    ),
+  );
+
 // Imagem com as ferramentas do poppler (scripts/revalle/tests/poppler.Dockerfile). Construída uma vez, se faltar:
 // antes cada chamada rodava `apk add` num alpine, o que falhava de vez em quando por rede ou disco.
 const POPPLER_IMAGE = 'revsign-test-poppler:local';
@@ -379,6 +506,61 @@ export const poppler = (dir, script) => {
     maxBuffer: 64 * 1024 * 1024,
   });
 };
+
+// Imagem do navegador (a mesma do `mobile-check`). O WSL não abre o Chromium.
+export const PLAYWRIGHT_IMAGE = process.env.MOBILE_CHECK_IMAGE ?? 'mcr.microsoft.com/playwright:v1.56.1-noble';
+
+export const hasPlaywrightImage = () =>
+  spawnSync('docker', ['image', 'inspect', PLAYWRIGHT_IMAGE], { stdio: 'ignore' }).status === 0;
+
+// Roda um script de `tests/browser/` na imagem do Playwright. `payload` (com as sessões) vai pelo ambiente, para não
+// aparecer na linha de comando. `shotDir` (pasta já criada) recebe os prints. Devolve { status, stdout, stderr }.
+// Assíncrono de propósito: um `spawnSync` longo trava o processo, o `fetch` não vê o app fechar a conexão ociosa e o
+// próximo POST cai nesse socket morto ("other side closed").
+export const runBrowserScript = ({ script, payload, shotDir, timeout = 300_000 }) =>
+  new Promise((resolve, reject) => {
+    const child = spawn(
+      'docker',
+      [
+        'run',
+        '--rm',
+        '--network',
+        'host',
+        '--ipc',
+        'host',
+        '-u',
+        `${process.getuid()}:${process.getgid()}`,
+        '-e',
+        'HOME=/tmp',
+        '-e',
+        'BROWSER_PAYLOAD',
+        ...(shotDir ? ['-e', 'SHOT_DIR=/shots', '-v', `${path.resolve(shotDir)}:/shots`] : []),
+        '-v',
+        `${path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')}:/repo:ro`,
+        '-w',
+        '/repo',
+        PLAYWRIGHT_IMAGE,
+        'node',
+        `scripts/revalle/tests/browser/${script}`,
+      ],
+      {
+        env: { ...process.env, BROWSER_PAYLOAD: JSON.stringify(payload) },
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout,
+      },
+    );
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.setEncoding('utf8').on('data', (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.setEncoding('utf8').on('data', (chunk) => {
+      stderr += chunk;
+    });
+    child.on('error', reject);
+    child.on('close', (status) => resolve({ status, stdout, stderr }));
+  });
 
 // dd/MM/yyyy HH:mm no fuso de Brasília (America/Bahia), como o carimbo, o certificado e o /verificar.
 export const brasilia = (date) => {
@@ -453,6 +635,11 @@ export const drawingPng = () => {
 
 export const APP_CONTAINER = 'revsign-hml-documenso-1';
 export const FAKE_GEMINI_BASE_URL = 'http://fake-gemini:8787/v1beta';
+
+// Log do app até agora, stdout e stderr juntos. Para ler só o que veio depois de um ponto, guarde `.length` e use `slice`:
+// `docker logs --since` compara com a data de cada linha, e um salto do relógio deixa linhas novas de fora.
+export const appLogs = () =>
+  execFileSync('sh', ['-c', `docker logs ${APP_CONTAINER} 2>&1`], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
 
 // Variável de ambiente do container do app ('' quando não existe). Nunca imprima o valor de uma chave.
 export const appContainerEnv = (name) =>

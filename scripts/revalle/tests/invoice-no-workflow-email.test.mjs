@@ -30,6 +30,8 @@ import {
   signIn,
   trpc,
   trpcAs,
+  WORKFLOW_SUBJECT,
+  workflowJobs,
 } from './helpers.mjs';
 
 // Para antes de criar qualquer NF se o app puder chamar o Gemini de verdade (pago). Ver helpers.mjs.
@@ -48,10 +50,6 @@ const ACCOUNTS_CSV = [
   '2.1.03;Fornecedores;Compra de mercadorias e insumos a prazo;pagar',
   '3.1.01;Serviços de terceiros;Serviços tomados de pessoa jurídica;pagar',
 ].join('\n');
-
-// Os dois e-mails de fluxo que saíram (assunto antigo) e os jobs que os mandavam.
-const WORKFLOW_SUBJECT = /^Nota fiscal (assinada|aguardando aprovação do Financeiro): /;
-const WORKFLOW_JOBS = ['send.revalle.invoice.accounting.email', 'send.revalle.finance.approval.email'];
 
 const tmp = mkdtempSync(path.join(tmpdir(), 'revsign-nf-sem-email-'));
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -82,7 +80,7 @@ const mailpit = (route) => fetchIdempotent(`${MAILPIT}${route}`, {}, (res) => re
 const mailsTo = async (to) => (await mailpit(`/search?query=${encodeURIComponent(`to:${to}`)}`)).messages ?? [];
 
 const waitMail = async (to, filter, timeoutMs = 30_000) => {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = performance.now() + timeoutMs;
 
   do {
     const found = (await mailsTo(to)).filter(filter);
@@ -92,7 +90,7 @@ const waitMail = async (to, filter, timeoutMs = 30_000) => {
     }
 
     await sleep(500);
-  } while (Date.now() < deadline);
+  } while (performance.now() < deadline);
 
   return [];
 };
@@ -108,13 +106,6 @@ const sentSince = async (before) =>
   ((await mailpit('/messages?limit=500')).messages ?? []).filter((m) => !before.has(m.ID));
 
 const addresses = (message) => message.To.map((to) => to.Address);
-
-const workflowJobsOf = (envelopeId) =>
-  Number(
-    db(
-      `select count(*) from "BackgroundJob" where "jobId" in (${WORKFLOW_JOBS.map((job) => `'${job}'`).join(', ')}) and payload->>'envelopeId' = '${envelopeId}'`,
-    ),
-  );
 
 const sealJobs = (documentId) =>
   db(
@@ -359,7 +350,7 @@ sessionTest(
       }
     }
 
-    assert.equal(workflowJobsOf(doc.id), 0, 'um job de e-mail de fluxo foi disparado');
+    assert.equal(workflowJobs(doc.id), 0, 'um job de e-mail de fluxo foi disparado');
   },
 );
 
@@ -399,14 +390,14 @@ sessionTest(
       [],
       'o membro do Financeiro recebeu e-mail',
     );
-    assert.equal(workflowJobsOf(doc.id), 0, 'um job de e-mail de fluxo foi disparado');
+    assert.equal(workflowJobs(doc.id), 0, 'um job de e-mail de fluxo foi disparado');
 
     // Selar depois de aprovar continua funcionando: o documento conclui e quem assina recebe o PDF selado.
     await approveAsFinance(doc.id);
     assert.equal(await waitStatus(doc.id, 'COMPLETED'), 'COMPLETED');
     assert.equal((await waitMail(doc.email, (m) => attachmentCount(m) > 0)).length, 1);
     assert.equal(financeStatus(doc.id), 'APPROVED');
-    assert.equal(workflowJobsOf(doc.id), 0);
+    assert.equal(workflowJobs(doc.id), 0);
     assert.deepEqual(
       (await sentSince(before)).filter((m) => WORKFLOW_SUBJECT.test(m.Subject)).map((m) => m.Subject),
       [],
@@ -447,5 +438,5 @@ sessionTest('NF escaneada concluída e marcada depois: a escolha da conta e a ap
     (await sentSince(before)).filter((m) => WORKFLOW_SUBJECT.test(m.Subject)).map((m) => m.Subject),
     [],
   );
-  assert.equal(workflowJobsOf(doc.id), 0);
+  assert.equal(workflowJobs(doc.id), 0);
 });

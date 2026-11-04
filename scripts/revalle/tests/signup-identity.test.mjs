@@ -9,6 +9,7 @@ import { after, before, beforeEach, test } from 'node:test';
 
 import {
   appContainerEnv,
+  appLogs,
   BASE_URL,
   createEnvelope,
   db,
@@ -22,7 +23,7 @@ import {
 } from './helpers.mjs';
 
 const PASSWORD = 'Revalle-Teste-2026!';
-const STARTED_AT = new Date().toISOString();
+const LOGS_BEFORE = appLogs().length;
 const SUFFIX = randomUUID().slice(0, 8);
 
 const CADASTRO = SIGNUP_COLABORADOR;
@@ -530,13 +531,8 @@ test('trava por CPF: passou de 10 conferências, o CPF recebe 429 até com os da
 });
 
 test('o log do app não tem o CPF nem a data de nascimento', () => {
-  const logs = spawnSync('docker', ['logs', '--since', STARTED_AT, 'revsign-hml-documenso-1'], {
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  });
-
   // O app escreve em stdout e em stderr: os dois contam.
-  const text = `${logs.stdout}\n${logs.stderr}`;
+  const text = appLogs().slice(LOGS_BEFORE);
 
   assert.ok(text.length > 0, 'o log veio vazio: a conferência não prova nada');
 

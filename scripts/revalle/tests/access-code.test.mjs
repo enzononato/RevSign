@@ -5,15 +5,17 @@ import { beforeEach, test } from 'node:test';
 import {
   api,
   completeWithCode,
+  completeWithSentCode,
   computeEmailCode,
   createEnvelope,
   db,
   distribute,
-  getLatestCode,
-  latestMail,
+  mailIdsTo,
+  requestEmailCode,
   signIn,
   trpc,
   trpcAs,
+  waitNewMail,
 } from './helpers.mjs';
 
 const MARIA = { cpf: '39053344705', birthDate: '07/03/1990' };
@@ -161,7 +163,6 @@ test('com o código do e-mail conclui, e os eventos do código trazem IP e naveg
   });
 
   assert.equal(done.status, 200, done.text);
-  assert.ok(await getLatestCode(s.recipient.email));
 
   for (let i = 0; i < 60; i += 1) {
     if ((await api('GET', `/envelope/${s.id}`)).body.status === 'COMPLETED') {
@@ -192,21 +193,11 @@ const complete = (s, accessAuthOptions, headers = {}) =>
   );
 
 const requestCode = async (s) => {
-  const before = await getLatestCode(s.recipient.email);
+  const sent = await requestEmailCode({ token: s.recipient.token, email: s.recipient.email });
 
-  assert.equal((await trpc('document.accessAuth.request2FAEmail', { token: s.recipient.token })).status, 200);
+  assert.equal(sent.requested.status, 200, sent.requested.text);
 
-  for (let i = 0; i < 30; i += 1) {
-    const code = await getLatestCode(s.recipient.email);
-
-    if (code && code !== before) {
-      return code;
-    }
-
-    await sleep(300);
-  }
-
-  throw new Error('código não chegou no Mailpit');
+  return sent;
 };
 
 const gateRow = (s) =>
@@ -216,7 +207,7 @@ const gateRow = (s) =>
 
 test('C1: método autenticador (mesmo com o código certo) e ACCOUNT são recusados; o código por e-mail conclui', async () => {
   const s = await setup();
-  const code = await requestCode(s);
+  const { code } = await requestCode(s);
 
   const authenticator = await complete(s, { type: 'TWO_FACTOR_AUTH', method: 'authenticator', token: code });
 
@@ -232,7 +223,7 @@ test('C1: método autenticador (mesmo com o código certo) e ACCOUNT são recusa
   assert.equal(db(`select "signingStatus" from "Recipient" where id = ${s.recipient.id}`), 'NOT_SIGNED');
   assert.equal(gateRow(s), '3||false');
 
-  const done = await complete(s, { type: 'TWO_FACTOR_AUTH', method: 'email', token: code });
+  const done = await completeWithSentCode({ token: s.recipient.token, documentId: s.documentId, code });
 
   assert.equal(done.status, 200, done.text);
   assert.equal(gateRow(s), '0||false');
@@ -279,6 +270,8 @@ test(
 
 test('C2: 5 códigos errados bloqueiam o link (CODE_ATTEMPTS), avisam dono e admin; o código certo depois é recusado', async () => {
   const s = await setup();
+  const notified = [OWNER_EMAIL, ADMIN_NOTICE_EMAIL];
+  const seen = await Promise.all(notified.map(mailIdsTo));
 
   for (let i = 1; i <= 5; i += 1) {
     const wrong = await complete(s, { type: 'TWO_FACTOR_AUTH', method: 'email', token: '000000' });
@@ -297,14 +290,13 @@ test('C2: 5 códigos errados bloqueiam o link (CODE_ATTEMPTS), avisam dono e adm
     /CODE_ATTEMPTS/,
   );
 
-  await sleep(1500);
+  for (const [index, to] of notified.entries()) {
+    const mail = await waitNewMail(to, seen[index], {
+      matches: (message) =>
+        /Link de assinatura bloqueado/.test(message.Subject) && message.HTML.includes(s.recipient.email),
+      what: 'Aviso de link bloqueado',
+    });
 
-  for (const to of [OWNER_EMAIL, ADMIN_NOTICE_EMAIL]) {
-    const mail = await latestMail(to);
-
-    assert.ok(mail, `sem e-mail para ${to}`);
-    assert.match(mail.Subject, /Link de assinatura bloqueado/);
-    assert.ok(mail.HTML.includes(s.recipient.email));
     assert.match(mail.Text, /código enviado por e-mail foi digitado errado 5 vezes/);
   }
 
@@ -349,7 +341,7 @@ test('C2: código vencido (fora dos 5 minutos) é recusado e conta tentativa; o 
   assert.notEqual(refused.status, 200, refused.text);
   assert.equal(gateRow(s), '1||false');
 
-  const current = computeEmailCode({ email: s.recipient.email, envelopeId: s.id, periodsAgo: 0 });
+  const current = computeEmailCode({ email: s.recipient.email, envelopeId: s.id });
   const done = await complete(s, { type: 'TWO_FACTOR_AUTH', method: 'email', token: current });
 
   assert.equal(done.status, 200, done.text);

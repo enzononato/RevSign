@@ -1,24 +1,11 @@
-// REVALLE (Fase 7, Task 9): roda DENTRO da imagem do Playwright, chamado por `ui-cleanup.test.mjs` (o WSL não abre o
-// Chromium; ver `scripts/revalle/mobile-check.mjs`). Os menus, a busca, a lista de configurações, o editor e o seletor de
-// papel são desenhados no navegador, então só um navegador de verdade confere que a IA, os Modelos, o papel Assistente,
-// o Idioma e o Suporte saíram da tela (e que o resto continua lá).
+// REVALLE (Fase 7, Task 9): chamado por `ui-cleanup.test.mjs` (ver `shared.mjs`). Os menus, a busca, a lista de
+// configurações, o editor e o seletor de papel são desenhados no navegador, então só um navegador de verdade confere que a
+// IA, os Modelos, o papel Assistente, o Idioma e o Suporte saíram da tela (e que o resto continua lá).
 //
-// Entrada: a variável CLEANUP_PAYLOAD (JSON com a URL, o time, a organização, o cookie de uma conta comum e um rascunho).
-// Escreve uma linha por conferência (`ok ...` ou `FALHOU ...`) e sai com código 1 se alguma falhar. Com SHOT_DIR, guarda
-// um print por tela (a pasta precisa estar montada no container).
-import { chromium } from 'playwright';
+// Entrada: a URL, o time, a organização, o cookie de uma conta comum e um rascunho.
+import { finish, openAs as openWithSession, payload, report, section, shot } from './shared.mjs';
 
-const { phase = 'main', baseUrl, teamUrl, orgUrl, cookie, draftId } = JSON.parse(process.env.CLEANUP_PAYLOAD ?? '{}');
-const shotDir = process.env.SHOT_DIR;
-const failures = [];
-
-const report = (passed, message) => {
-  console.log(`${passed ? 'ok' : 'FALHOU'} ${message}`);
-
-  if (!passed) {
-    failures.push(message);
-  }
-};
+const { phase = 'main', baseUrl, teamUrl, orgUrl, cookie, draftId } = payload;
 
 // A tela sai em português, mas o teste vale para os dois idiomas: o que não pode aparecer, nem em inglês.
 const TEMPLATES = /\b(Templates?|Modelos?)\b/i;
@@ -29,57 +16,14 @@ const AI_BUTTON =
 const ASSISTANT = /Can prepare|Pode preparar|Assistant|Assistente/i;
 const SAVE_AS_TEMPLATE = /Save as Template|Salvar como modelo/i;
 
-const browser = await chromium.launch();
-
-const openAs = async (viewport = { width: 1280, height: 900 }) => {
-  const context = await browser.newContext({ viewport, locale: 'pt-BR' });
-
-  await context.addCookies(
-    cookie.split('; ').map((pair) => {
-      const index = pair.indexOf('=');
-
-      return { name: pair.slice(0, index), value: pair.slice(index + 1), url: baseUrl };
-    }),
-  );
-
-  const page = await context.newPage();
-
-  page.setDefaultTimeout(30_000);
-
-  return { context, page };
-};
-
-const shot = async (page, name) => {
-  if (shotDir) {
-    await page.screenshot({ path: `${shotDir}/${name}.png` });
-  }
-};
+const openAs = (viewport) => openWithSession(cookie, viewport);
 
 const visit = async (page, route) => {
   await page.goto(`${baseUrl}${route}`, { waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('networkidle');
 };
 
-// Cada bloco roda isolado: um erro (elemento que não apareceu) vira uma falha com o motivo e os outros blocos seguem.
-const section = async (name, fn) => {
-  try {
-    await fn();
-  } catch (error) {
-    report(false, `${name}: ${String(error.message).split('\n')[0]}`);
-  }
-};
-
 const texts = (locator) => locator.allInnerTexts().then((list) => list.map((text) => text.trim()).filter(Boolean));
-
-const finish = async () => {
-  await browser.close();
-
-  if (failures.length > 0) {
-    console.log(`\n${failures.length} conferência(s) falharam`);
-  }
-
-  process.exit(failures.length > 0 ? 1 : 0);
-};
 
 // ---- Fase do ADMIN (a conta é promovida por quem chama): vê Tokens de API e Webhooks, e só isso a mais ---------------
 if (phase === 'admin') {

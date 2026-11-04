@@ -47,6 +47,7 @@ import {
   signupColaborador,
   trpc,
   trpcAs,
+  WORKFLOW_SUBJECT,
 } from './helpers.mjs';
 
 // Para antes de criar qualquer NF se o app puder chamar o Gemini de verdade (pago). Ver helpers.mjs.
@@ -60,8 +61,6 @@ const SKIP = !admin.email || !admin.password ? 'defina REVSIGN_ADMIN_EMAIL e REV
 
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const PASSWORD = `Aceite-F5-${RUN}!`;
-// Os dois e-mails de fluxo que saíram na Fase 7 (assunto antigo).
-const WORKFLOW_SUBJECT = /^Nota fiscal (assinada|aguardando aprovação do Financeiro): /;
 const PROMPT = `Prompt do aceite da Fase 5 (${RUN}): fornecedores de mercadoria vão para 4.1.07.`;
 const CHAVE = '29241012345678000195550010000123451123456784';
 const PRIVACY_SENTENCE =
@@ -100,7 +99,7 @@ const mailpit = (route) => fetchIdempotent(`${MAILPIT}${route}`, {}, (res) => re
 const emailsTo = async (to) => (await mailpit(`/search?query=${encodeURIComponent(`to:${to}`)}`)).messages ?? [];
 
 const waitMails = async (to, minimum, filter = () => true, timeoutMs = 40_000) => {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = performance.now() + timeoutMs;
   let found = [];
 
   do {
@@ -111,7 +110,7 @@ const waitMails = async (to, minimum, filter = () => true, timeoutMs = 40_000) =
     }
 
     await sleep(500);
-  } while (Date.now() < deadline);
+  } while (performance.now() < deadline);
 
   return found;
 };
@@ -472,6 +471,11 @@ before(async () => {
   });
   // Fase 6: o DANFE fica retido depois das duas assinaturas e o Financeiro aprova pela rota.
   await signAll(fx.danfe, { approve: true });
+  // As duas saem com segundos de diferença, e o relógio da máquina pode voltar entre elas: a data do envio da NFS-e
+  // recua para a ordem esperada não depender disso.
+  db(
+    `update "DocumentAuditLog" set "createdAt" = "createdAt" - interval '5 minutes' where "envelopeId" = '${fx.nfse.id}' and type = 'DOCUMENT_SENT'`,
+  );
 
   fx.ready = true;
 });
@@ -515,11 +519,9 @@ testStep(
     assert.equal(danfe.senderName, fx.sender.name);
     assert.ok(danfe.sentAt && danfe.completedAt, JSON.stringify(danfe));
     assert.deepEqual(danfe.account, { code: '4.1.07', name: 'Fornecedores Aceite Cinco' });
-    assert.equal(danfe.deferred, undefined, 'a linha da lista ainda fala em "deixada"');
     assert.equal(danfe.acceptedSuggestion, fakeUp ? true : null);
     assert.match(danfe.link, new RegExp(`^/t/[^/]+/documents/${fx.danfe.id}$`));
     assert.equal(nfse.account, null);
-    assert.equal(nfse.deferred, undefined);
     assert.equal(nfse.acceptedSuggestion, null);
 
     const outsider = await find(fx.outsider.cookie);

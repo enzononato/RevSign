@@ -84,7 +84,7 @@ const mailsTo = async (to) =>
     .messages ?? [];
 
 const waitMails = async (to, filter = () => true, timeoutMs = 30_000) => {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = performance.now() + timeoutMs;
 
   do {
     const found = (await mailsTo(to)).filter(filter);
@@ -94,7 +94,7 @@ const waitMails = async (to, filter = () => true, timeoutMs = 30_000) => {
     }
 
     await sleep(500);
-  } while (Date.now() < deadline);
+  } while (performance.now() < deadline);
 
   return [];
 };

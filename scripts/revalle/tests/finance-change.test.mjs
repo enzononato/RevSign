@@ -115,7 +115,7 @@ const mailBody = (id) => fetchIdempotent(`${MAILPIT}/message/${id}`, {}, (res) =
 const flat = (text) => (text ?? '').replace(/\s+/g, ' ');
 
 const waitMails = async (to, filter, timeoutMs = 30_000) => {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = performance.now() + timeoutMs;
 
   do {
     const found = (await mailsTo(to)).filter(filter);
@@ -125,7 +125,7 @@ const waitMails = async (to, filter, timeoutMs = 30_000) => {
     }
 
     await sleep(500);
-  } while (Date.now() < deadline);
+  } while (performance.now() < deadline);
 
   return [];
 };
@@ -133,7 +133,7 @@ const waitMails = async (to, filter, timeoutMs = 30_000) => {
 // Convite de uma versão: o e-mail ao destinatário com o link do token dela (o aviso da troca também leva o link, mas
 // não é o convite).
 const waitInvite = async (email, token, timeoutMs = 30_000) => {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = performance.now() + timeoutMs;
 
   do {
     for (const mail of await mailsTo(email)) {
@@ -143,7 +143,7 @@ const waitInvite = async (email, token, timeoutMs = 30_000) => {
     }
 
     await sleep(1000);
-  } while (Date.now() < deadline);
+  } while (performance.now() < deadline);
 
   return false;
 };
@@ -251,8 +251,7 @@ const newInvoice = async (label, { signers = 2, meta, sequential = false } = {})
 
   const doc = loadVersion(created.id);
 
-  // Com convite por e-mail, esperar por ele antes de assinar: ele não pode chegar depois do código por e-mail (o código
-  // é lido do e-mail mais recente).
+  // O convite chega por um job.
   if (meta?.distributionMethod === 'EMAIL') {
     for (const recipient of doc.recipients) {
       assert.ok(await waitInvite(recipient.email, recipient.token), `convite não chegou para ${recipient.email}`);
