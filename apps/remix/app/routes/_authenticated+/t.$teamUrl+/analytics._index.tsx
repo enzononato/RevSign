@@ -3,7 +3,7 @@ import { useCurrentOrganisation } from '@documenso/lib/client-only/providers/org
 import { getTeamByUrl } from '@documenso/lib/server-only/team/get-team';
 import { canAccessOrganisationAnalytics, formatOrganisationAnalyticsPath } from '@documenso/lib/utils/organisations';
 import { extractInitials } from '@documenso/lib/utils/recipient-formatter';
-import { canExecuteTeamAction, formatDocumentsPath, formatTemplatesPath } from '@documenso/lib/utils/teams';
+import { canExecuteTeamAction, formatDocumentsPath } from '@documenso/lib/utils/teams'; // REVALLE: sem formatTemplatesPath
 import { trpc } from '@documenso/trpc/react';
 import { Button } from '@documenso/ui/primitives/button';
 import { msg } from '@lingui/core/macro';
@@ -84,8 +84,6 @@ export default function TeamAnalyticsPage({ loaderData }: Route.ComponentProps) 
     overviewQuery.data.sent.previous === 0 &&
     documentsOverTimeQuery.data.total === 0;
 
-  const templatesPath = formatTemplatesPath(team.url);
-
   const memberRows: AnalyticsActivityRow[] = (memberActivityQuery.data?.members ?? []).map((member) => ({
     key: member.userId,
     avatar: { imageId: member.avatarImageId, fallback: formatMemberInitials(member.name, member.email) },
@@ -140,10 +138,8 @@ export default function TeamAnalyticsPage({ loaderData }: Route.ComponentProps) 
 
         <AnalyticsTemplateUsageCard
           query={templateUsageQuery}
-          templatesHref={templatesPath}
-          getTemplateHref={(template) =>
-            template.envelopeId !== null ? `${templatesPath}/${template.envelopeId}` : null
-          }
+          // REVALLE: a página de Modelos saiu da tela (Fase 7, spec §6): sem o botão "View templates" nem links.
+          getTemplateHref={() => null}
         />
 
         <AnalyticsActivityTableCard

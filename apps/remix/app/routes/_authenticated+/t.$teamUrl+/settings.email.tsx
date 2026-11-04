@@ -6,6 +6,13 @@ import { useLingui } from '@lingui/react/macro';
 import { EmailPreferencesForm, type TEmailPreferencesFormSchema } from '~/components/forms/email-preferences-form';
 import { SettingsHeader } from '~/components/general/settings-header';
 import { useCurrentTeam } from '~/providers/team';
+import { redirectHiddenTeamPage } from '~/utils/revalle-hidden-routes'; // REVALLE:
+import type { Route } from './+types/settings.email'; // REVALLE:
+
+// REVALLE: página escondida (Fase 7, spec §6); quem abre o endereço direto cai numa página que existe.
+export function loader(args: Route.LoaderArgs) {
+  return redirectHiddenTeamPage(args);
+}
 
 export default function TeamEmailSettingsGeneral() {
   const { t } = useLingui();

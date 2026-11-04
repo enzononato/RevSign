@@ -8,12 +8,13 @@ import { Card, CardContent } from '@documenso/ui/primitives/card';
 import { msg } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { RecipientRole, SigningStatus } from '@prisma/client';
-import { ChevronLeft, ExternalLinkIcon } from 'lucide-react';
+import { ChevronLeft, DownloadIcon, ExternalLinkIcon } from 'lucide-react'; // REVALLE: DownloadIcon
 import { isRouteErrorResponse, Link, useRevalidator } from 'react-router';
 
 import { DocumentStatus } from '~/components/general/document/document-status';
 import { GenericErrorLayout } from '~/components/general/generic-error-layout';
 import PDFViewerLazy from '~/components/general/pdf-viewer/pdf-viewer-lazy';
+import { AccountingCard } from '~/components/revalle/accounting/accounting-card';
 import { FinanceCard } from '~/components/revalle/finance/finance-card';
 import { appMetaTags } from '~/utils/meta';
 
@@ -24,8 +25,9 @@ export function meta() {
 }
 
 /**
- * Página da NF só de leitura (Fase 6): para quem é do Financeiro (com o cartão "Financeiro") e para quem está na NF.
- * Quem não é do Financeiro nem está na NF recebe 404, sem saber que ela existe.
+ * Página da NF só de leitura (Fase 6): para quem é do Financeiro (com o cartão "Financeiro"), para a Contabilidade (Fase
+ * 7, com o cartão "Contabilidade") e para quem está na NF. Quem não é de nenhum dos perfis nem está na NF recebe 404, sem
+ * saber que ela existe.
  */
 export async function loader({ request, params }: Route.LoaderArgs) {
   const { user } = await getSession(request);
@@ -105,7 +107,11 @@ export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
               data-testid="invoice-view-superseded"
             >
               <p className="font-medium">
-                <Trans>Esta versão foi substituída (conta contábil alterada pelo Financeiro).</Trans>
+                {finance.supersedeKind === 'COST_CENTER' ? (
+                  <Trans>Esta versão foi substituída (centro de custo corrigido pela Contabilidade).</Trans>
+                ) : (
+                  <Trans>Esta versão foi substituída (conta contábil alterada pelo Financeiro).</Trans>
+                )}
               </p>
               {finance.supersedeReason && (
                 <p className="mt-1 break-words">
@@ -149,20 +155,20 @@ export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
                 <Trans>Conta contábil</Trans>
               </h2>
               <p className="break-words">
-                {finance.deferred ? (
-                  finance.status === 'LEGACY' ? (
-                    <Trans>A definir pela contabilidade.</Trans>
-                  ) : (
-                    <Trans>A definir pelo Financeiro.</Trans>
-                  )
-                ) : finance.account ? (
-                  `${finance.account.code} – ${finance.account.name ?? ''}`
-                ) : (
-                  '-'
-                )}
+                {finance.account ? `${finance.account.code} – ${finance.account.name ?? ''}` : '-'}
               </p>
               {situation && <p className="text-muted-foreground">{situation}</p>}
+              <h2 className="mt-2 font-medium">
+                <Trans>Centro de custo</Trans>
+              </h2>
+              <p className="break-words" data-testid="invoice-view-cost-center">
+                {finance.costCenterLabel ?? '-'}
+              </p>
             </section>
+          )}
+
+          {view.viewer.isAccounting && (
+            <AccountingCard envelopeId={view.id} onChanged={() => void revalidator.revalidate()} />
           )}
 
           <section className="flex flex-col gap-2 rounded-xl border border-border bg-widget p-4 text-sm dark:bg-background">
@@ -182,6 +188,20 @@ export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
                 <Trans>Concluído em {formatRevalleDateTime(view.completedAt)}</Trans>
               </p>
             )}
+            {/* REVALLE: "Baixar PDF" (Fase 7): quem vê a nota baixa o arquivo sem depender de e-mail */}
+            {view.items.map((item) => (
+              <Button
+                key={item.id}
+                asChild
+                variant="outline"
+                className="mt-1 h-11 w-full whitespace-normal sm:w-auto sm:self-start"
+              >
+                <a href={`/notas-fiscais/${view.id}/pdf/${item.id}?download=1`} data-testid="invoice-view-download">
+                  <DownloadIcon className="mr-2 h-4 w-4 shrink-0" />
+                  {view.items.length > 1 ? <Trans>Baixar PDF: {item.title}</Trans> : <Trans>Baixar PDF</Trans>}
+                </a>
+              </Button>
+            ))}
             {view.documentPath && (
               <Button asChild variant="outline" className="mt-1 h-11 w-full whitespace-normal sm:w-auto sm:self-start">
                 <Link to={view.documentPath}>

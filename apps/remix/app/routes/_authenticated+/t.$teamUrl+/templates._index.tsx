@@ -26,7 +26,14 @@ import { TemplatesTableOwnerFilter } from '~/components/tables/templates-table-o
 import { TemplatesTableViewFilter } from '~/components/tables/templates-table-view-filter';
 import { useCurrentTeam } from '~/providers/team';
 import { appMetaTags } from '~/utils/meta';
+import { redirectHiddenTeamPage } from '~/utils/revalle-hidden-routes'; // REVALLE:
 import { templatesSearchParams } from '~/utils/templates-search-params';
+import type { Route } from './+types/templates._index'; // REVALLE:
+
+// REVALLE: página escondida (Fase 7, spec §6); quem abre o endereço direto cai numa página que existe.
+export function loader(args: Route.LoaderArgs) {
+  return redirectHiddenTeamPage(args);
+}
 
 export function meta() {
   return appMetaTags(msg`Templates`);

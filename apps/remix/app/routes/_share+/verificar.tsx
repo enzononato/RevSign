@@ -1,6 +1,7 @@
 // REVALLE: página pública de verificação de documento assinado (Fase 4).
 
 import { formatRevalleDateTime } from '@documenso/lib/revalle/date-format';
+import { costCenterLabel } from '@documenso/lib/revalle/invoice/cost-centers';
 import { revalleRoleVerb } from '@documenso/lib/revalle/role-verbs';
 import {
   findSealedVersionMatch,
@@ -49,6 +50,8 @@ type LoaderData =
         isAwaitingApproval: boolean;
         supersededLabel: string | null;
       } | null;
+      /** Fase 7, NF com centro de custo (com ou sem passagem pelo Financeiro): "Centro de custo: 101 – Puxada". */
+      costCenterLabel: string | null;
     };
 
 export const loader = async ({ request }: Route.LoaderArgs) => {
@@ -123,9 +126,10 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
         : null,
       isAwaitingApproval: result.invoice.isAwaitingApproval,
       supersededLabel: result.invoice.supersededAt
-        ? `Substituído por uma nova versão em ${formatRevalleDateTime(result.invoice.supersededAt)} (conta contábil alterada)`
+        ? `Substituído por uma nova versão em ${formatRevalleDateTime(result.invoice.supersededAt)} (${result.invoice.supersedeKind === 'COST_CENTER' ? 'centro de custo corrigido' : 'conta contábil alterada'})`
         : null,
     },
+    costCenterLabel: result.costCenter ? `Centro de custo: ${costCenterLabel(result.costCenter.code)}` : null,
   });
 };
 
@@ -260,12 +264,13 @@ export default function VerificarPage() {
               <p className="font-medium text-amber-700 dark:text-amber-400">{result.invoice.supersededLabel}</p>
             )}
 
-            {result.invoice && (result.invoice.accountLabel || result.invoice.isAwaitingApproval) && (
+            {(result.invoice?.accountLabel || result.invoice?.isAwaitingApproval || result.costCenterLabel) && (
               <div className="space-y-1 text-sm" data-testid="verify-invoice">
                 <h3 className="font-medium text-base">Nota fiscal</h3>
-                {result.invoice.accountLabel && <p className="break-words">{result.invoice.accountLabel}</p>}
-                {result.invoice.approvalLabel && <p>{result.invoice.approvalLabel}</p>}
-                {result.invoice.isAwaitingApproval && (
+                {result.invoice?.accountLabel && <p className="break-words">{result.invoice.accountLabel}</p>}
+                {result.invoice?.approvalLabel && <p>{result.invoice.approvalLabel}</p>}
+                {result.costCenterLabel && <p className="break-words">{result.costCenterLabel}</p>}
+                {result.invoice?.isAwaitingApproval && (
                   <p className="text-muted-foreground">Aguardando aprovação do Financeiro</p>
                 )}
               </div>

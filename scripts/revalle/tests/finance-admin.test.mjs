@@ -22,10 +22,12 @@ import {
   api,
   assertNoPaidGeminiCalls,
   BASE_URL,
+  chooseInvoice,
   createEnvelope,
   db,
   fetchIdempotent,
   signIn,
+  signupColaborador,
   trpcAs,
 } from './helpers.mjs';
 
@@ -82,7 +84,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const mailpit = (route) => fetchIdempotent(`${MAILPIT}${route}`, {}, (res) => res.json());
 
 const waitMail = async (to, timeoutMs = 40_000) => {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = performance.now() + timeoutMs;
 
   do {
     const [message] = (await mailpit(`/search?query=${encodeURIComponent(`to:${to}`)}`)).messages ?? [];
@@ -92,7 +94,7 @@ const waitMail = async (to, timeoutMs = 40_000) => {
     }
 
     await sleep(500);
-  } while (Date.now() < deadline);
+  } while (performance.now() < deadline);
 
   return undefined;
 };
@@ -100,15 +102,7 @@ const waitMail = async (to, timeoutMs = 40_000) => {
 // Conta nova com e-mail da empresa (o cadastro só aceita os domínios da empresa), confirmada pelo link do Mailpit.
 const newAccount = async (label) => {
   const email = `f6-${label}-${RUN}@revalle.com.br`;
-  const created = await fetch(`${BASE_URL}/api/auth/email-password/signup`, {
-    method: 'POST',
-    headers: {
-      Origin: origin,
-      'Content-Type': 'application/json',
-      'X-Forwarded-For': `203.0.113.${Math.floor(Math.random() * 250) + 1}`,
-    },
-    body: JSON.stringify({ name: `Financeiro F6 ${label}`, email, password: PASSWORD }),
-  });
+  const created = await signupColaborador({ name: `Financeiro F6 ${label}`, email, password: PASSWORD });
 
   assert.ok(created.ok, `cadastro de ${label} falhou (${created.status}): ${await created.text()}`);
 
@@ -181,10 +175,7 @@ const sentInvoice = async (variant) => {
 
   assert.equal(created.status, 200, created.text);
 
-  const chosen = await trpcAs(userCookie, 'mutation', 'revalle.invoice.setChoice', {
-    envelopeId: created.id,
-    choice: { code: '2.1.03' },
-  });
+  const chosen = await chooseInvoice({ cookie: userCookie, envelopeId: created.id });
 
   assert.equal(chosen.status, 200, chosen.text);
 
@@ -256,14 +247,24 @@ sessionTest('o admin marca e desmarca um usuário; a lista e me() mostram a muda
 
   const [before] = await listUsers(outsider.email);
 
-  assert.deepEqual(before, { id: outsider.id, name: `Financeiro F6 membro`, email: outsider.email, isFinance: false });
+  assert.deepEqual(before, {
+    id: outsider.id,
+    name: `Financeiro F6 membro`,
+    email: outsider.email,
+    isFinanceMember: false,
+    isAccountingMember: false,
+  });
 
   const marked = await setMember(adminCookie, outsider.id, true);
 
   assert.equal(marked.status, 200, marked.text);
   assert.equal(await isFinance(outsider.cookie), true);
   assert.equal(db(`select "addedById" from "RevalleFinanceMember" where "userId" = ${outsider.id}`), String(adminId));
-  assert.equal((await listUsers(outsider.email))[0].isFinance, true);
+  // Marcar o Financeiro não marca a Contabilidade (são perfis separados).
+  const afterMark = (await listUsers(outsider.email))[0];
+
+  assert.equal(afterMark.isFinanceMember, true);
+  assert.equal(afterMark.isAccountingMember, false);
 
   // Marcar de novo não duplica nem dá erro.
   assert.equal((await setMember(adminCookie, outsider.id, true)).status, 200);
@@ -274,17 +275,20 @@ sessionTest('o admin marca e desmarca um usuário; a lista e me() mostram a muda
 
   // Sem busca, quem é do Financeiro aparece primeiro.
   const all = await listUsers();
-  const firstOther = all.findIndex((row) => !row.isFinance);
+  const firstOther = all.findIndex((row) => !row.isFinanceMember && !row.isAccountingMember);
 
-  assert.ok(all.some((row) => row.id === adminId && row.isFinance));
-  assert.ok(firstOther === -1 || all.slice(firstOther).every((row) => !row.isFinance), 'membros primeiro');
+  assert.ok(all.some((row) => row.id === adminId && row.isFinanceMember));
+  assert.ok(
+    firstOther === -1 || all.slice(firstOther).every((row) => !row.isFinanceMember && !row.isAccountingMember),
+    'membros primeiro',
+  );
 
   const unmarked = await setMember(adminCookie, outsider.id, false);
 
   assert.equal(unmarked.status, 200, unmarked.text);
   assert.equal(await isFinance(outsider.cookie), false);
   assert.equal(memberRows(outsider.id), '0');
-  assert.equal((await listUsers(outsider.email))[0].isFinance, false);
+  assert.equal((await listUsers(outsider.email))[0].isFinanceMember, false);
 
   // Desmarcar quem não é membro também não dá erro.
   assert.equal((await setMember(adminCookie, outsider.id, false)).status, 200);
@@ -358,10 +362,30 @@ sessionTest(
   },
 );
 
+test('Fase 7: a migração tirou "deixar para o Financeiro" (colunas e estado) e nenhuma linha ficou retida', () => {
+  assert.equal(
+    db(
+      `select count(*) from "_prisma_migrations" where migration_name = '20261104100000_revalle_remove_defer' and finished_at is not null and rolled_back_at is null`,
+    ),
+    '1',
+    'migração da Fase 7 não aplicada',
+  );
+  assert.equal(
+    db(
+      `select count(*) from information_schema.columns where table_name = 'RevalleInvoiceClassification' and column_name in ('choiceDefer', 'accountRequestedAt')`,
+    ),
+    '0',
+  );
+  assert.equal(
+    db(`select count(*) from "RevalleInvoiceClassification" where "financeStatus"::text = 'AWAITING_ACCOUNT'`),
+    '0',
+  );
+});
+
 test('a migração marcou como LEGACY as NFs que já existiam', (t) => {
   assert.equal(
     db(`select enum_range(null::"RevalleFinanceStatus")::text`),
-    '{AWAITING_ACCOUNT,PENDING_APPROVAL,APPROVED,SUPERSEDED,LEGACY}',
+    '{PENDING_APPROVAL,APPROVED,SUPERSEDED,LEGACY}',
   );
 
   const startedAt = db(`select started_at from "_prisma_migrations" where migration_name = '${MIGRATION}'`);

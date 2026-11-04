@@ -4,7 +4,7 @@ Para quem: Enzo (TI) e o time de TI da Revalle.
 
 Resumo: antes de assinar, cada pessoa aceita um termo e, na primeira vez, confirma o CPF e a data de nascimento com a base de colaboradores. Depois disso o sistema "lembra" quem é a pessoa. Ao concluir, o RevSign sempre pede um código enviado por e-mail.
 
-Esta etapa se chama **portão** nos textos técnicos.
+Esta etapa se chama **portão** nos textos técnicos. Quem **cria conta** passa por uma conferência parecida no cadastro (seção "Cadastro: só colaborador cria conta").
 
 O que fica registrado no PDF final (carimbo, certificado) e como conferir um documento pelo código: `prova.md`.
 
@@ -41,13 +41,46 @@ Se o e-mail da pessoa já constar na base de colaboradores (coluna `email` da vi
 |---|---|---|
 | Data de nascimento digitada | **Não.** Só é comparada com a base na hora | em lugar nenhum |
 | CPF | Sim, completo, na tabela de vínculos (e-mail ↔ CPF) | banco do RevSign |
+| CPF informado no cadastro (conta nova) | Sim, completo, **de lado**, até a pessoa confirmar o e-mail. Depois vira o vínculo e a cópia de lado é apagada. Se a pessoa nunca confirmar, a cópia fica até a conta ser removida. Não fica no cadastro da pessoa (usuário) | banco do RevSign |
+| CPF na trava de tentativas do cadastro | **Não.** A trava guarda só um código embaralhado do CPF (HMAC com a chave do app), nunca o CPF | banco do RevSign |
+| Data de nascimento do cadastro | **Não.** Só é comparada com a base na hora | em lugar nenhum |
 | CPF nos registros de auditoria do documento | Só mascarado (`***.456.789-**`); o CPF digitado não vai inteiro para a auditoria | auditoria |
 | CPF no certificado anexado ao documento | Só mascarado | PDF final |
-| CPF nos logs do sistema | Não é registrado (nenhuma chamada de log do portão recebe o CPF) | — |
+| CPF nos logs do sistema | Não é registrado (nenhuma chamada de log do portão ou do cadastro recebe o CPF; o cadastro recusado registra só o código do motivo) | — |
 | Aceite do termo | Versão, data, IP e navegador | banco do RevSign |
 | Código de 6 dígitos | Não é registrado | — |
 
-A página pública `/privacidade` diz o mesmo: o CPF aparece só mascarado na auditoria e no certificado, e o vínculo e-mail ↔ CPF fica no banco.
+A página pública `/privacidade` diz o mesmo: o CPF aparece só mascarado na auditoria e no certificado, e o vínculo e-mail ↔ CPF fica no banco. Ela também diz que, ao criar a conta, a pessoa informa CPF e data de nascimento para confirmar que é colaborador, que o CPF fica guardado para ligar o e-mail a ele e que a data de nascimento não é gravada.
+
+## Cadastro: só colaborador cria conta
+
+Quem clica em **Criar conta** informa o e-mail da empresa (como antes) e também o **CPF** e a **data de nascimento**. O RevSign confere os dois na base de colaboradores antes de criar a conta.
+
+O que a pessoa vê:
+
+- **Dado errado** (CPF inválido, CPF que não está na base ou data diferente): sempre a mesma mensagem, `CPF ou data de nascimento não conferem com o cadastro de colaboradores.`, e a conta não é criada. Quem erra não descobre qual dos dois estava errado.
+- **CPF já ligado a outro e-mail** (ou que, na base, tem outro e-mail): `Este CPF já está vinculado a outro e-mail. Fale com o administrador.` O administrador resolve como em "Remover um vínculo", mais abaixo.
+- **Base fora do ar**: `Não foi possível conferir seus dados agora. Tente de novo em alguns minutos.` O cadastro não passa sem conferir.
+- **E-mail de fora da empresa**: continua a mensagem de cadastro indisponível, antes de olhar o CPF.
+
+Quando o vínculo e-mail ↔ CPF nasce:
+
+- Só quando a pessoa **confirma o e-mail** (clica no link que chega na caixa de entrada). Antes disso o CPF fica guardado de lado e nenhum vínculo existe.
+- Por isso a primeira assinatura dessa pessoa não pede o CPF de novo, e ninguém prende o CPF de outra pessoa usando um e-mail que não é dele.
+- Se duas contas informarem o mesmo CPF e nenhuma confirmar, nada acontece. A primeira que confirmar o e-mail fica com o vínculo. A outra confirma o e-mail normalmente, mas não ganha vínculo (na primeira assinatura o portão pede o CPF).
+
+Quem se cadastra **sem** informar CPF:
+
+- A conta de `NEXT_PRIVATE_REVALLE_ADMIN_EMAIL`, que pode nem estar na base de colaboradores (é a conta do passo "Criar a conta do administrador", no `deploy.md`).
+- O e-mail que **já passou pelo portão**: tem vínculo, ou já está na base de colaboradores. É o caso do botão **Criar conta** na página de conclusão da assinatura. Se esse e-mail não se encaixa em nenhum dos dois, aparece a mensagem `Para criar a conta, informe o CPF e a data de nascimento na página de cadastro.` e a pessoa se cadastra em **Criar conta** com CPF e data.
+
+Outras regras:
+
+- A situação na base (afastado, desligado) não bloqueia o cadastro, como na assinatura.
+- Os limites de tentativa são os do cadastro (`auth.signup`, por IP) e mais um **por CPF**: 10 conferências a cada 24 horas, não importa o IP (`revalle.signup-identity`, tabela mais abaixo). Só conta quando o CPF e a data têm formato válido; e-mail já vinculado ou que está na base não gasta tentativa. Passou do limite, a pessoa vê `Muitas tentativas com este CPF. Tente de novo amanhã ou fale com o administrador.` (também para quem acerta os dados) e o administrador pode liberar apagando as linhas dessa ação da tabela `RateLimit`. O limite existe porque, sem ele, o cadastro serviria para descobrir a data de nascimento de um CPF conhecido.
+- O cadastro por Google, Microsoft e OIDC não passa por esta conferência: mantenha esses logins desligados (ver `deploy.md`).
+- Com `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK=disabled` os campos de CPF e data somem e o cadastro volta a pedir só e-mail e senha.
+- Contas criadas antes desta versão não precisam fazer nada: o portão cuida delas na primeira assinatura.
 
 ## Quando um link é bloqueado
 
@@ -133,7 +166,7 @@ Quem faz: quem administra o banco de RH (TI), com Enzo.
    - Se a senha tiver caracteres especiais (`@`, `:`, `/`, `#`, `%`), troque-os pelo código com `%` (por exemplo `@` vira `%40`). Para evitar o trabalho, use uma senha só com letras e números.
    - `<host>`: se o Postgres de RH roda na mesma VPS pelo EasyPanel, use o nome interno do serviço, no formato `<projeto>_<serviço-postgres>` (o mesmo padrão do passo 2 do `deploy.md`). Esse nome só funciona de dentro da VPS. Se o banco de RH fica em outro servidor, use o endereço dele e libere o IP da VPS no firewall.
 2. No EasyPanel, abra o serviço `revsign` e a aba **Environment**.
-3. Crie (ou troque) a linha `COLABORADORES_DATABASE_URL=<a URL do item 1>`.
+3. Crie (ou troque) a linha `COLABORADORES_DATABASE_URL=<a URL do item 1>`. A mesma base vale para a assinatura e, desde a Fase 7, para o cadastro: sem ela no ar, ninguém cria conta (seção "Cadastro: só colaborador cria conta").
 4. Confira que NÃO existe a linha `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK=disabled`. Sem a variável, vale `required`.
 5. Clique em **Save**.
 6. Clique em **Restart** (ou **Deploy**) e espere ficar verde.
@@ -158,7 +191,7 @@ Se a base real ainda não está pronta, dá para testar o resto do fluxo:
 1. No EasyPanel, serviço `revsign`, aba **Environment**: adicione `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK=disabled`.
 2. **Save** e **Restart**.
 
-Efeito: a tela de CPF e data de nascimento é **pulada**. A etapa fica registrada como **não verificada** no estado do destinatário e no log de auditoria do documento ("Verificação de identidade desativada nesta instalação (não verificado)", com IP e navegador), e nenhum vínculo e-mail ↔ CPF é criado. O termo e o código por e-mail continuam obrigatórios.
+Efeito: a tela de CPF e data de nascimento é **pulada** (e o cadastro deixa de pedir CPF e data). A etapa fica registrada como **não verificada** no estado do destinatário e no log de auditoria do documento ("Verificação de identidade desativada nesta instalação (não verificado)", com IP e navegador), e nenhum vínculo e-mail ↔ CPF é criado. O termo e o código por e-mail continuam obrigatórios.
 
 **Nunca use em produção**: sem a conferência, qualquer pessoa com o link assina sem provar quem é. Para voltar ao normal, apague a linha (ou troque por `required`), salve e reinicie.
 
@@ -169,6 +202,7 @@ Os limites do upstream contam por IP, e na Revalle cada unidade inteira sai para
 | Ação (nome técnico) | Limite padrão | Por quê |
 |---|---|---|
 | `auth.signup` | 30 cadastros por hora, por IP | Uma unidade inteira cadastrando gente no mesmo dia. Só e-mails dos domínios da empresa se cadastram |
+| `revalle.signup-identity` | 10 conferências de CPF a cada 24 horas, por CPF (não por IP) | Quem sabe um CPF não consegue testar datas de nascimento pelo cadastro. A janela é fixa (zera à meia-noite UTC). Ajuste com `revalle.signup-identity=10/24h` |
 | `auth.request-2fa-email` | 5 pedidos de código em 15 min por destinatário; 200 por IP | O código por e-mail é pedido a cada conclusão. O teto por destinatário evita abuso; o por IP cabe a unidade toda |
 | `auth.login` | 10 tentativas em 15 min por e-mail; 200 por IP | Protege contra adivinhar senha sem travar a unidade |
 | `api.trpc` | 3000 por minuto, por IP | A tela faz muitas chamadas internas |

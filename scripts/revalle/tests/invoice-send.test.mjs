@@ -1,7 +1,10 @@
-// Fase 5, Task 4: nota fiscal só é enviada com a conta contábil escolhida (ou "Deixar para o Financeiro").
-// O servidor confere no envio (sendDocument: tela, API v1 e v2) e a escolha vai para o log de auditoria. Fase 6: depois
-// do envio quem troca a conta é o Financeiro (403 para o dono e o admin nesta rota), e "Deixar para o Financeiro"
-// retém o envio (o caso completo está em finance-send.test.mjs). Documento comum (assets/example.pdf) não muda em nada.
+// Fase 5, Task 4: nota fiscal só é enviada com a conta contábil escolhida. O servidor confere no envio (sendDocument:
+// tela, API v1 e v2) e a escolha vai para o log de auditoria. Fase 6: depois do envio quem troca a conta é o Financeiro
+// (403 para o dono e o admin nesta rota). Fase 7: "Deixar para o Financeiro" não existe mais (a rota recusa `defer`) e
+// o envio exige também o centro de custo (`revalle.invoice.setCostCenter`): sem um dos dois, ou com a conta que saiu da
+// lista, a resposta é a mesma recusa; depois do envio o centro já escolhido só a Contabilidade corrige, e a NF recusada,
+// cancelada ou excluída não recebe nem o primeiro centro (a mesma guarda do `define` da Contabilidade).
+// Documento comum (assets/example.pdf) não muda em nada.
 //
 // Sessões: REVSIGN_USER_* (dono do REVSIGN_API_TOKEN) e REVSIGN_ADMIN_* (importa a lista de contas e troca a conta
 // como admin). Com o servidor falso do Gemini (compose.test.yml), também confere `acceptedSuggestion` contra a
@@ -19,12 +22,14 @@ import {
   api,
   assertNoPaidGeminiCalls,
   BASE_URL,
+  chooseInvoice,
   createEnvelope,
   db,
-  latestMail,
+  mailIdsTo,
   poppler,
   signIn,
   trpcAs,
+  waitNewMail,
 } from './helpers.mjs';
 
 // Para antes de criar qualquer NF se o app puder chamar o Gemini de verdade (pago). Ver helpers.mjs.
@@ -37,8 +42,11 @@ const admin = { email: process.env.REVSIGN_ADMIN_EMAIL, password: process.env.RE
 
 const CHAVE = '29241012345678000195550010000123451123456784';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-const REQUIRED_MESSAGE = 'Escolha a conta contábil ou deixe para o Financeiro.';
+const REQUIRED_MESSAGE = 'Escolha a conta contábil e o centro de custo.';
 const AFTER_SEND_MESSAGE = 'Depois do envio, quem troca a conta é o Financeiro.';
+const CENTER_AFTER_SEND_MESSAGE = 'Depois do envio, quem corrige o centro de custo é a Contabilidade.';
+const CENTER_NOT_OWNER_MESSAGE =
+  'Depois do envio, só o dono do documento ou o administrador escolhe o centro de custo.';
 
 const ACCOUNTS_CSV = [
   'numero;nome;descricao;tipo',
@@ -60,6 +68,10 @@ const data = (res) => res.body?.result?.data?.json;
 const invoice = (kind, name, input, cookie = userCookie) => trpcAs(cookie, kind, `revalle.invoice.${name}`, input);
 const setChoice = (envelopeId, choice, cookie = userCookie) =>
   invoice('mutation', 'setChoice', { envelopeId, choice }, cookie);
+const setCostCenter = (envelopeId, code, cookie = userCookie) =>
+  invoice('mutation', 'setCostCenter', { envelopeId, code }, cookie);
+const choose = (envelopeId, options = {}) => chooseInvoice({ cookie: userCookie, envelopeId, ...options });
+const getState = async (envelopeId) => data(await invoice('query', 'get', { envelopeId }));
 const distribute = (envelopeId) => api('POST', '/envelope/distribute', { envelopeId });
 const status = (envelopeId) => db(`select status from "Envelope" where id = '${envelopeId}'`);
 const row = (envelopeId, columns) =>
@@ -67,6 +79,17 @@ const row = (envelopeId, columns) =>
 const accountEvents = (envelopeId) =>
   db(
     `select coalesce(json_agg(json_build_object('data', data, 'userId', "userId", 'email', email) order by "createdAt"), '[]') from "DocumentAuditLog" where "envelopeId" = '${envelopeId}' and type = 'REVALLE_INVOICE_ACCOUNT_SET'`,
+  );
+
+const costCenterEvents = (envelopeId) =>
+  db(
+    `select coalesce(json_agg(json_build_object('data', data, 'userId', "userId") order by "createdAt"), '[]') from "DocumentAuditLog" where "envelopeId" = '${envelopeId}' and type = 'REVALLE_INVOICE_COST_CENTER_SET'`,
+  );
+// Centro de custo gravado: código ; quem ; se tem data.
+const centerRow = (envelopeId) =>
+  row(
+    envelopeId,
+    `coalesce("costCenterCode", '-') || ';' || coalesce("costCenterById"::text, '-') || ';' || ("costCenterAt" is not null)`,
   );
 
 const fake = async (route, body) => {
@@ -77,10 +100,16 @@ const fake = async (route, body) => {
   return res.json();
 };
 
+const importAccounts = async (csv) => {
+  const imported = await trpcAs(adminCookie, 'mutation', 'revalle.invoice.adminImportAccounts', { csv });
+
+  assert.equal(imported.status, 200, imported.text);
+};
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const waitSettled = async (envelopeId, timeoutMs = 15_000) => {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = performance.now() + timeoutMs;
   let state;
 
   do {
@@ -94,7 +123,7 @@ const waitSettled = async (envelopeId, timeoutMs = 15_000) => {
     }
 
     await sleep(400);
-  } while (Date.now() < deadline);
+  } while (performance.now() < deadline);
 
   return state;
 };
@@ -186,6 +215,36 @@ const assertRefused = (res) => {
   assert.ok(res.text.includes('INVOICE_ACCOUNT_REQUIRED'), res.text);
 };
 
+// A mesma recusa pela API v2, pela tela (tRPC) e pela API v1; o documento continua rascunho.
+const assertRefusedEverywhere = async (envelopeId) => {
+  assertRefused(await distribute(envelopeId));
+
+  const teamId = db(`select "teamId" from "Envelope" where id = '${envelopeId}'`);
+  const viaScreen = await trpcAs(
+    userCookie,
+    'mutation',
+    'envelope.distribute',
+    { envelopeId },
+    { 'x-team-id': teamId },
+  );
+
+  assert.equal(viaScreen.status, 400, viaScreen.text);
+  assert.ok(viaScreen.text.includes('INVOICE_ACCOUNT_REQUIRED'), viaScreen.text);
+  assert.ok(viaScreen.text.includes(REQUIRED_MESSAGE), viaScreen.text);
+
+  const documentId = db(`select "secondaryId" from "Envelope" where id = '${envelopeId}'`).replace(/\D/g, '');
+  const viaV1 = await fetch(`${BASE_URL}/api/v1/documents/${documentId}/send`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.REVSIGN_API_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sendEmail: false }),
+  });
+  const v1Text = await viaV1.text();
+
+  assert.equal(viaV1.status, 400, v1Text);
+  assert.ok(v1Text.includes(REQUIRED_MESSAGE), v1Text);
+  assert.equal(status(envelopeId), 'DRAFT');
+};
+
 const sessionTest = (name, fn) =>
   test(name, async (t) => {
     if (!userCookie || !adminCookie) {
@@ -248,55 +307,79 @@ sessionTest('NF enviada pela API v2 sem passar pela tela: recusada (detecção n
   }
 
   // A tela (tRPC) e a API v1 passam pela mesma conferência.
-  const teamId = db(`select "teamId" from "Envelope" where id = '${env.id}'`);
-  const viaScreen = await trpcAs(
-    userCookie,
-    'mutation',
-    'envelope.distribute',
-    { envelopeId: env.id },
-    { 'x-team-id': teamId },
-  );
-
-  assert.equal(viaScreen.status, 400, viaScreen.text);
-  assert.ok(viaScreen.text.includes('INVOICE_ACCOUNT_REQUIRED'), viaScreen.text);
-
-  const documentId = db(`select "secondaryId" from "Envelope" where id = '${env.id}'`).replace(/\D/g, '');
-  const viaV1 = await fetch(`${BASE_URL}/api/v1/documents/${documentId}/send`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.REVSIGN_API_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sendEmail: false }),
-  });
-  const v1Text = await viaV1.text();
-
-  assert.equal(viaV1.status, 400, v1Text);
-  assert.ok(v1Text.includes(REQUIRED_MESSAGE), v1Text);
-  assert.equal(status(env.id), 'DRAFT');
+  await assertRefusedEverywhere(env.id);
 });
 
-sessionTest('"Deixar para o Financeiro": o log de auditoria registra a escolha; o envio fica retido', async () => {
-  const env = await newEnvelope(await danfe('deixar'), 'deixar para o Financeiro');
+sessionTest(
+  'NF com a conta e sem o centro, ou com o centro e sem a conta: recusada pela v2, pela v1 e pela tela; com os dois, envia',
+  async () => {
+    const onlyAccount = await newEnvelope(await danfe('so-conta'), 'só a conta');
 
-  const res = await setChoice(env.id, { defer: true });
+    assert.equal((await choose(onlyAccount.id, { costCenter: null })).status, 200);
+    assert.equal(centerRow(onlyAccount.id), '-;-;false');
+    await assertRefusedEverywhere(onlyAccount.id);
 
-  assert.equal(res.status, 200, res.text);
-  assert.deepEqual(data(res).choice, { code: 'DEFER' });
-  assert.equal(
-    row(env.id, `"choiceDefer" || ';' || coalesce("choiceCode", '-') || ';' || "choiceById"`),
-    `true;-;${userId}`,
-  );
+    const onlyCenter = await newEnvelope(await danfe('so-centro'), 'só o centro');
 
-  const held = await distribute(env.id);
+    assert.equal((await choose(onlyCenter.id, { code: null })).status, 200);
+    assert.equal(row(onlyCenter.id, `coalesce("choiceCode", '-')`), '-');
+    await assertRefusedEverywhere(onlyCenter.id);
 
-  assert.equal(held.status, 409, held.text);
-  assert.ok(held.text.includes('INVOICE_HELD_FOR_FINANCE'), held.text);
-  assert.equal(status(env.id), 'DRAFT');
+    // Completado o que faltava, o mesmo documento sai.
+    assert.equal((await setCostCenter(onlyAccount.id, '401')).status, 200);
+    assert.equal((await setChoice(onlyCenter.id, { code: '3.1.01' })).status, 200);
 
-  const events = JSON.parse(accountEvents(env.id));
+    for (const id of [onlyAccount.id, onlyCenter.id]) {
+      const sent = await distribute(id);
 
-  assert.equal(events.length, 1);
-  assert.deepEqual(events[0].data, { fromCode: null, fromDefer: false, toCode: null, toDefer: true });
-  assert.equal(String(events[0].userId), userId);
-});
+      assert.equal(sent.status, 200, sent.text);
+      assert.equal(status(id), 'PENDING');
+    }
+  },
+);
+
+sessionTest(
+  'o primeiro envio recusa a conta que saiu da lista e o rascunho guarda a escolha até outra ser feita',
+  async () => {
+    const env = await newEnvelope(await danfe('conta-saiu'), 'conta que saiu da lista');
+    const leaving = `8.8.${RUN.slice(0, 6)}`;
+
+    // A conta existe e é escolhida; a reimportação sem ela a deixa inativa antes do envio.
+    await importAccounts(`${ACCOUNTS_CSV}\n${leaving};Conta que sai;Sai da lista;pagar`);
+    assert.equal((await choose(env.id, { code: leaving })).status, 200);
+    await importAccounts(ACCOUNTS_CSV);
+
+    assert.equal(db(`select active from "RevalleAccountingAccount" where code = '${leaving}'`), 'f');
+    assert.equal(row(env.id, `"choiceCode"`), leaving);
+    assert.equal(centerRow(env.id), `101;${userId};true`);
+    assertRefused(await distribute(env.id));
+    assert.equal(status(env.id), 'DRAFT');
+
+    // Outra conta ativa libera o mesmo rascunho.
+    assert.equal((await setChoice(env.id, { code: '2.1.03' })).status, 200);
+    assert.equal((await distribute(env.id)).status, 200);
+    assert.equal(status(env.id), 'PENDING');
+  },
+);
+
+sessionTest(
+  'não existe mais "deixar para o Financeiro": { defer: true } é recusado pela rota e nada muda',
+  async () => {
+    const env = await newEnvelope(await danfe('deixar'), 'sem deixar para o Financeiro');
+
+    for (const choice of [{ defer: true }, { code: '2.1.03', defer: true }]) {
+      const res = await invoice('mutation', 'setChoice', { envelopeId: env.id, choice });
+
+      assert.equal(res.status, 400, res.text);
+    }
+
+    assert.equal((await getState(env.id)).choice, null);
+    assert.equal(row(env.id, `coalesce("choiceCode", '-') || ';' || coalesce("choiceById"::text, '-')`), '-;-');
+    assert.equal(JSON.parse(accountEvents(env.id)).length, 0);
+    assertRefused(await distribute(env.id));
+    assert.equal(status(env.id), 'DRAFT');
+  },
+);
 
 sessionTest('conta ativa: envia, e "aceitou a sugestão" confere com a sugestão da IA', async () => {
   const env = await newEnvelope(await danfe('conta-ativa'), 'conta ativa');
@@ -319,29 +402,50 @@ sessionTest('conta ativa: envia, e "aceitou a sugestão" confere com a sugestão
 
     assert.equal(other.status, 200, other.text);
     assert.equal(row(env.id, `"acceptedSuggestion"`), 'f');
-
-    // "Deixar para o Financeiro" com sugestão na tela: não aceitou a sugestão.
-    assert.equal((await setChoice(env.id, { defer: true })).status, 200);
-    assert.equal(row(env.id, `"acceptedSuggestion" || ';' || "choiceDefer"`), 'false;true');
   }
 
   const chosen = await setChoice(env.id, { code: '2.1.03' });
 
   assert.equal(chosen.status, 200, chosen.text);
   assert.deepEqual(data(chosen).choice, { code: '2.1.03', name: 'Fornecedores' });
+  assert.equal(data(chosen).costCenter, null);
   // Sem servidor falso não há sugestão: "aceitou" fica vazio.
   assert.equal(row(env.id, `coalesce("acceptedSuggestion"::text, 'null')`), fakeUp ? 'true' : 'null');
+
+  // A conta sozinha não basta.
+  assertRefused(await distribute(env.id));
+
+  // O centro é do rascunho: escolhe, troca (de/para no histórico) e a mesma escolha de novo não grava nada.
+  const centered = await setCostCenter(env.id, '201');
+
+  assert.equal(centered.status, 200, centered.text);
+  assert.deepEqual(data(centered).costCenter, { code: '201', name: 'Armazém' });
+  assert.equal(centerRow(env.id), `201;${userId};true`);
+  assert.equal((await setCostCenter(env.id, '201')).status, 200);
+  assert.equal(JSON.parse(costCenterEvents(env.id)).length, 1);
+  assert.equal((await setCostCenter(env.id, '101')).status, 200);
+  assert.equal(centerRow(env.id), `101;${userId};true`);
+
+  const centerEvents = JSON.parse(costCenterEvents(env.id));
+
+  assert.equal(centerEvents.length, 2, JSON.stringify(centerEvents));
+  assert.ok(centerEvents.some((event) => event.data.fromCode === null && event.data.toCode === '201'));
+  assert.ok(centerEvents.some((event) => event.data.fromCode === '201' && event.data.toCode === '101'));
+  assert.ok(centerEvents.every((event) => String(event.userId) === userId));
+  assert.deepEqual(Object.keys(centerEvents[0].data).sort(), ['fromCode', 'toCode']);
 
   const sent = await distribute(env.id);
 
   assert.equal(sent.status, 200, sent.text);
   sentId = env.id;
-  // Eventos seguidos podem ter o mesmo `createdAt` (ordem empatada): confere a presença, não a posição.
-  assert.ok(
-    JSON.parse(accountEvents(env.id)).some((event) => event.data.toCode === '2.1.03'),
-    accountEvents(env.id),
-  );
+  // Eventos seguidos podem ter o mesmo `createdAt` (ordem empatada): confere a presença, não a posição. O evento novo
+  // só leva de/para a conta (sem os campos de "deixar").
+  const chosenEvent = JSON.parse(accountEvents(env.id)).find((event) => event.data.toCode === '2.1.03');
+
+  assert.deepEqual(chosenEvent?.data, { fromCode: fakeUp ? '3.1.01' : null, toCode: '2.1.03' });
+  assert.equal(String(chosenEvent.userId), userId);
   assert.equal(row(env.id, `"choiceCode"`), '2.1.03');
+  assert.equal(centerRow(env.id), `101;${userId};true`);
 
   // Depois do envio a classificação fica congelada: "Sugerir de novo" é recusado e não conta tentativa.
   const attemptsBefore = row(env.id, `"suggestionAttempts"`);
@@ -364,9 +468,35 @@ sessionTest('conta inativa ou inexistente: 400, e nada muda', async () => {
   const malformed = await invoice('mutation', 'setChoice', { envelopeId: env.id, choice: { defer: false } });
 
   assert.equal(malformed.status, 400, malformed.text);
-  assert.equal(row(env.id, `coalesce("choiceCode", '-') || ';' || "choiceDefer"`), '-;false');
+  assert.equal(row(env.id, `coalesce("choiceCode", '-')`), '-');
   assert.equal(JSON.parse(accountEvents(env.id)).length, 0);
   assertRefused(await distribute(env.id));
+});
+
+sessionTest('centro de custo fora da lista ou malformado: 400, e nada muda', async () => {
+  const env = await newEnvelope(await danfe('centro-invalido'), 'centro inválido');
+
+  for (const code of ['999', '102', 'abc', '1011']) {
+    const res = await setCostCenter(env.id, code);
+
+    assert.equal(res.status, 400, `${code}: ${res.text}`);
+  }
+
+  for (const input of [
+    { envelopeId: env.id, code: 101 },
+    { envelopeId: env.id },
+    { envelopeId: env.id, code: ['101'] },
+  ]) {
+    const res = await invoice('mutation', 'setCostCenter', input);
+
+    assert.equal(res.status, 400, `${JSON.stringify(input)}: ${res.text}`);
+  }
+
+  // Recusado antes de tocar em qualquer coisa: nem a classificação do documento foi criada.
+  assert.equal(row(env.id, 'count(*)'), '0');
+  assert.equal((await getState(env.id)).costCenter, null);
+  assert.equal(centerRow(env.id), '-;-;false');
+  assert.equal(JSON.parse(costCenterEvents(env.id)).length, 0);
 });
 
 sessionTest('assets/example.pdf: envia sem nada (documento comum não muda)', async () => {
@@ -377,10 +507,12 @@ sessionTest('assets/example.pdf: envia sem nada (documento comum não muda)', as
   assert.equal(status(env.id), 'PENDING');
   assert.equal(row(env.id, `"isInvoice"`), 'NO');
 
-  // Escolher conta num documento que não é NF não faz sentido.
-  const res = await setChoice(env.id, { defer: true });
+  // Escolher conta ou centro num documento que não é NF não faz sentido.
+  const res = await setChoice(env.id, { code: '2.1.03' });
 
   assert.equal(res.status, 400, res.text);
+  assert.equal((await setCostCenter(env.id, '101')).status, 400);
+  assert.equal(row(env.id, `"costCenterCode" is null`), 't');
 });
 
 sessionTest('depois do envio, nem o dono nem o admin trocam a conta (quem troca é o Financeiro)', async () => {
@@ -392,7 +524,7 @@ sessionTest('depois do envio, nem o dono nem o admin trocam a conta (quem troca 
     [userCookie, { code: '3.1.01' }],
     [userCookie, { code: '2.1.03' }],
     [adminCookie, { code: '3.1.01' }],
-    [adminCookie, { defer: true }],
+    [adminCookie, { code: '2.1.03' }],
   ]) {
     const res = await setChoice(sentId, choice, cookie);
 
@@ -400,10 +532,29 @@ sessionTest('depois do envio, nem o dono nem o admin trocam a conta (quem troca 
     assert.ok(res.text.includes(AFTER_SEND_MESSAGE), res.text);
   }
 
-  assert.equal(row(sentId, `"choiceCode" || ';' || "choiceDefer"`), '2.1.03;false');
+  assert.equal(row(sentId, `"choiceCode"`), '2.1.03');
   assert.equal(JSON.parse(accountEvents(sentId)).length, eventsBefore);
 
-  // A conta fica fora do log em PDF (o mesmo gerador anexa o log ao PDF selado); o histórico da tela mostra.
+  // O centro já escolhido também não muda por aqui: depois do envio quem corrige é a Contabilidade.
+  const centerEventsBefore = JSON.parse(costCenterEvents(sentId)).length;
+
+  for (const [cookie, code] of [
+    [userCookie, '201'],
+    [userCookie, '101'],
+    [adminCookie, '201'],
+    [adminCookie, '101'],
+  ]) {
+    const res = await setCostCenter(sentId, code, cookie);
+
+    assert.equal(res.status, 403, res.text);
+    assert.ok(res.text.includes(CENTER_AFTER_SEND_MESSAGE), res.text);
+  }
+
+  assert.equal(centerRow(sentId), `101;${userId};true`);
+  assert.equal(JSON.parse(costCenterEvents(sentId)).length, centerEventsBefore);
+  assert.ok(centerEventsBefore > 0);
+
+  // A conta e o centro ficam fora do log em PDF (o mesmo gerador anexa o log ao PDF selado); o histórico da tela mostra.
   const teamId = db(`select "teamId" from "Envelope" where id = '${sentId}'`);
   const pdf = await trpcAs(
     userCookie,
@@ -423,7 +574,7 @@ sessionTest('depois do envio, nem o dono nem o admin trocam a conta (quem troca 
   await api('GET', `/envelope/${sentId}`);
 
   assert.match(text, /enviou|sent/i);
-  assert.ok(!/Conta contábil|3\.1\.01|2\.1\.03|deixar para o Financeiro/.test(text), text);
+  assert.ok(!/Conta contábil|3\.1\.01|2\.1\.03|Centro de custo|Puxada|Armazém/.test(text), text);
 });
 
 sessionTest('reenvio de um documento já enviado não é bloqueado', async () => {
@@ -431,7 +582,7 @@ sessionTest('reenvio de um documento já enviado não é bloqueado', async () =>
 
   // Simula uma NF enviada sem escolha (ex.: antes desta versão): o reenvio aos destinatários continua livre.
   db(
-    `update "RevalleInvoiceClassification" set "choiceCode" = null, "choiceDefer" = false where "envelopeId" = '${sentId}'`,
+    `update "RevalleInvoiceClassification" set "choiceCode" = null, "costCenterCode" = null where "envelopeId" = '${sentId}'`,
   );
 
   const recipientIds = db(`select id from "Recipient" where "envelopeId" = '${sentId}'`).split('\n').map(Number);
@@ -452,7 +603,7 @@ sessionTest(
   async () => {
     const env = await newEnvelope(await danfe('sem-linha'), 'enviado sem linha');
 
-    assert.equal((await setChoice(env.id, { code: '2.1.03' })).status, 200);
+    assert.equal((await choose(env.id)).status, 200);
     assert.equal((await distribute(env.id)).status, 200);
     db(`delete from "RevalleInvoiceClassification" where "envelopeId" = '${env.id}'`);
 
@@ -462,14 +613,15 @@ sessionTest(
     assert.equal(state.choice, null);
     assert.equal(data(await invoice('mutation', 'classify', { envelopeId: env.id })).isInvoice, 'NO');
     assert.equal(row(env.id, 'count(*)'), '0');
-    assert.equal((await setChoice(env.id, { defer: true })).status, 400);
+    assert.equal((await setChoice(env.id, { code: '2.1.03' })).status, 400);
+    assert.equal((await setCostCenter(env.id, '101')).status, 400);
   },
 );
 
 sessionTest('depois do envio, alguém do time que não é o dono recebe 403', async () => {
   const env = await newEnvelope(await danfe('nao-dono'), 'não dono');
 
-  assert.equal((await setChoice(env.id, { code: '2.1.03' })).status, 200);
+  assert.equal((await choose(env.id)).status, 200);
   assert.equal((await distribute(env.id)).status, 200);
 
   // O documento passa a ser de outra conta, no mesmo time: o usuário do teste continua vendo (é do time), mas não é
@@ -487,18 +639,124 @@ sessionTest('depois do envio, alguém do time que não é o dono recebe 403', as
     assert.equal(res.status, 403, res.text);
     assert.equal(row(env.id, `"choiceCode"`), '2.1.03');
     assert.equal(JSON.parse(accountEvents(env.id)).length, 1);
+
+    const center = await setCostCenter(env.id, '201');
+
+    assert.equal(center.status, 403, center.text);
+    assert.equal(centerRow(env.id), `101;${userId};true`);
   } finally {
     db(`update "Envelope" set "userId" = ${ownerId} where id = '${env.id}'`);
   }
 });
 
-sessionTest('escolha concorrente com troca de arquivo: a escolha não é gravada (gravação condicionada)', async () => {
-  const env = await newEnvelope(await danfe('corrida-escolha'), 'corrida escolha');
+sessionTest(
+  'NF marcada depois do envio, sem centro: o dono ou o admin escolhe o primeiro, sem nova versão; outro do time recebe 403',
+  async () => {
+    const env = await newEnvelope('assets/example.pdf', 'primeiro centro depois do envio');
 
-  assert.equal(data(await invoice('mutation', 'classify', { envelopeId: env.id })).isInvoice, 'YES');
+    assert.equal((await distribute(env.id)).status, 200);
+    assert.equal((await invoice('mutation', 'markAsInvoice', { envelopeId: env.id })).status, 200);
+    assert.equal(centerRow(env.id), '-;-;false');
 
-  // Outra transação troca a chave dos arquivos e segura a linha por 2 s (como uma reclassificação no meio). A
-  // escolha lê a versão antiga e, ao gravar, espera a trava; depois disso a condição não vale mais: nada é gravado.
+    const versionsBefore = db(
+      `select count(*) from "RevalleInvoiceClassification" where "previousEnvelopeId" = '${env.id}'`,
+    );
+    const ownerId = db(`select "userId" from "Envelope" where id = '${env.id}'`);
+    const adminId = db(`select id from "User" where email = '${admin.email}'`);
+
+    // Alguém do time que não é o dono: 403, e nada muda.
+    db(`update "Envelope" set "userId" = ${adminId} where id = '${env.id}'`);
+
+    try {
+      const refused = await setCostCenter(env.id, '101');
+
+      assert.equal(refused.status, 403, refused.text);
+      assert.ok(refused.text.includes(CENTER_NOT_OWNER_MESSAGE), refused.text);
+      assert.equal(centerRow(env.id), '-;-;false');
+      assert.equal(JSON.parse(costCenterEvents(env.id)).length, 0);
+    } finally {
+      db(`update "Envelope" set "userId" = ${ownerId} where id = '${env.id}'`);
+    }
+
+    // O dono escolhe o primeiro: grava, registra o evento e não cria versão nem mexe na situação do documento.
+    const financeBefore = row(env.id, `"financeStatus" || ';' || "version"`);
+    const first = await setCostCenter(env.id, '301');
+
+    assert.equal(first.status, 200, first.text);
+    assert.deepEqual(data(first).costCenter, { code: '301', name: 'Administrativo' });
+    assert.equal(centerRow(env.id), `301;${userId};true`);
+    assert.deepEqual(
+      JSON.parse(costCenterEvents(env.id)).map((event) => event.data),
+      [{ fromCode: null, toCode: '301' }],
+    );
+    assert.equal(row(env.id, `"financeStatus" || ';' || "version"`), financeBefore);
+    assert.equal(
+      db(`select count(*) from "RevalleInvoiceClassification" where "previousEnvelopeId" = '${env.id}'`),
+      versionsBefore,
+    );
+    assert.equal(db(`select count(*) from "Envelope" where title like '${env.envelope.title}%'`), '1');
+    assert.equal(status(env.id), 'PENDING');
+
+    // Escolhido o primeiro, trocar já é com a Contabilidade.
+    const again = await setCostCenter(env.id, '401');
+
+    assert.equal(again.status, 403, again.text);
+    assert.ok(again.text.includes(CENTER_AFTER_SEND_MESSAGE), again.text);
+
+    // O admin também escolhe o primeiro centro de uma NF que não é dele.
+    const other = await newEnvelope('assets/example.pdf', 'primeiro centro pelo admin');
+
+    assert.equal((await distribute(other.id)).status, 200);
+    assert.equal((await invoice('mutation', 'markAsInvoice', { envelopeId: other.id })).status, 200);
+
+    const byAdmin = await setCostCenter(other.id, '501', adminCookie);
+
+    assert.equal(byAdmin.status, 200, byAdmin.text);
+    assert.equal(centerRow(other.id), `501;${adminId};true`);
+  },
+);
+
+sessionTest(
+  'NF marcada depois do envio e sem centro: recusada, cancelada ou excluída não ganha centro (como o define da Contabilidade)',
+  async () => {
+    const env = await newEnvelope('assets/example.pdf', 'primeiro centro em NF encerrada');
+
+    assert.equal((await distribute(env.id)).status, 200);
+    assert.equal((await invoice('mutation', 'markAsInvoice', { envelopeId: env.id })).status, 200);
+    assert.equal(centerRow(env.id), '-;-;false');
+
+    const refuse = (expectedStatus, expectedText, label) => async () => {
+      const res = await setCostCenter(env.id, '101');
+
+      assert.equal(res.status, expectedStatus, `${label}: ${res.text}`);
+      assert.ok(res.text.includes(expectedText), `${label}: ${res.text}`);
+      assert.equal(centerRow(env.id), '-;-;false', `${label}: gravou o centro`);
+      assert.equal(JSON.parse(costCenterEvents(env.id)).length, 0, `${label}: registrou o evento`);
+    };
+
+    db(`update "Envelope" set status = 'REJECTED' where id = '${env.id}'`);
+    await refuse(400, 'Este documento foi recusado', 'recusada')();
+
+    db(`update "Envelope" set status = 'CANCELLED' where id = '${env.id}'`);
+    await refuse(400, 'Só dá para fazer isso numa nota fiscal enviada ou concluída.', 'cancelada')();
+
+    db(`update "Envelope" set status = 'PENDING', "deletedAt" = now() where id = '${env.id}'`);
+    await refuse(404, 'não encontrad', 'excluída')();
+
+    // Viva de novo (enviada, sem recusa nem exclusão): o dono escolhe o primeiro centro. Sem isto a guarda poderia estar
+    // recusando tudo.
+    db(`update "Envelope" set "deletedAt" = null where id = '${env.id}'`);
+
+    const first = await setCostCenter(env.id, '101');
+
+    assert.equal(first.status, 200, first.text);
+    assert.equal(centerRow(env.id), `101;${userId};true`);
+  },
+);
+
+// Outra transação troca a chave dos arquivos e segura a linha por 2 s (como uma reclassificação no meio). A escolha lê
+// a versão antiga e, ao gravar, espera a trava; depois disso a condição não vale mais: nada é gravado.
+const choosingWhileFilesChange = async (envelopeId, choose) => {
   const holder = spawn('docker', [
     'exec',
     '-i',
@@ -514,21 +772,43 @@ sessionTest('escolha concorrente com troca de arquivo: a escolha não é gravada
   const holderDone = new Promise((resolve) => holder.on('close', resolve));
 
   holder.stdin.end(
-    `begin; update "RevalleInvoiceClassification" set "fileSha256" = 'corrida-${RUN}' where "envelopeId" = '${env.id}'; select pg_sleep(2); commit;\n`,
+    `begin; update "RevalleInvoiceClassification" set "fileSha256" = 'corrida-${RUN}' where "envelopeId" = '${envelopeId}'; select pg_sleep(2); commit;\n`,
   );
   await sleep(700);
 
-  const res = await setChoice(env.id, { defer: true });
+  const res = await choose();
 
   assert.equal(await holderDone, 0);
+
+  return res;
+};
+
+sessionTest('escolha concorrente com troca de arquivo: a escolha não é gravada (gravação condicionada)', async () => {
+  const env = await newEnvelope(await danfe('corrida-escolha'), 'corrida escolha');
+
+  assert.equal(data(await invoice('mutation', 'classify', { envelopeId: env.id })).isInvoice, 'YES');
+
+  const res = await choosingWhileFilesChange(env.id, () => setChoice(env.id, { code: '2.1.03' }));
+
   assert.equal(res.status, 400, res.text);
   assert.match(res.text, /O documento mudou enquanto a conta era escolhida/);
-  assert.equal(row(env.id, `coalesce("choiceCode", '-') || ';' || "choiceDefer"`), '-;false');
+  assert.equal(row(env.id, `coalesce("choiceCode", '-')`), '-');
   assert.equal(JSON.parse(accountEvents(env.id)).length, 0);
 
   // A próxima classificação vê os arquivos de verdade e a escolha funciona.
   assert.equal(data(await invoice('mutation', 'classify', { envelopeId: env.id })).isInvoice, 'YES');
-  assert.equal((await setChoice(env.id, { defer: true })).status, 200);
+  assert.equal((await setChoice(env.id, { code: '2.1.03' })).status, 200);
+
+  // O centro de custo tem a mesma condição.
+  const center = await choosingWhileFilesChange(env.id, () => setCostCenter(env.id, '101'));
+
+  assert.equal(center.status, 400, center.text);
+  assert.match(center.text, /O documento mudou enquanto o centro de custo era escolhido/);
+  assert.equal(centerRow(env.id), '-;-;false');
+  assert.equal(JSON.parse(costCenterEvents(env.id)).length, 0);
+
+  assert.equal(data(await invoice('mutation', 'classify', { envelopeId: env.id })).isInvoice, 'YES');
+  assert.equal((await setCostCenter(env.id, '101')).status, 200);
 });
 
 // Modelo (TEMPLATE) com o PDF de uma NF, para os fluxos de modelo.
@@ -585,6 +865,7 @@ sessionTest('envio em lote de modelo de NF: o e-mail de conclusão diz que é no
   const template = await newInvoiceTemplate('modelo-lote');
   const templateId = Number(db(`select "secondaryId" from "Envelope" where id = '${template.id}'`).replace(/\D/g, ''));
   const teamId = Number(db(`select "teamId" from "Envelope" where id = '${template.id}'`));
+  const seenMails = await mailIdsTo(user.email);
   const res = await trpcAs(
     userCookie,
     'mutation',
@@ -601,20 +882,14 @@ sessionTest('envio em lote de modelo de NF: o e-mail de conclusão diz que é no
   assert.equal(res.status, 200, res.text);
   assert.equal(data(res).success, true, res.text);
 
-  let mail;
+  const bodyOf = (message) => `${message.Text ?? ''}${message.HTML ?? ''}`;
+  const mail = bodyOf(
+    await waitNewMail(user.email, seenMails, {
+      matches: (message) => bodyOf(message).includes(template.envelope.title),
+      what: 'E-mail de conclusão do envio em lote',
+    }),
+  );
 
-  for (let i = 0; i < 60 && !mail; i += 1) {
-    const latest = await latestMail(user.email);
-    const body = `${latest?.Text ?? ''}${latest?.HTML ?? ''}`;
-
-    mail = body.includes(template.envelope.title) ? body : undefined;
-
-    if (!mail) {
-      await sleep(500);
-    }
-  }
-
-  assert.ok(mail, 'o e-mail de conclusão do envio em lote não chegou');
   assert.ok(mail.includes('INVOICE_ACCOUNT_REQUIRED'), mail.slice(0, 2000));
   assert.ok(mail.includes('é uma nota fiscal'), mail.slice(0, 2000));
 });
@@ -623,7 +898,8 @@ sessionTest('trocar os arquivos apaga a escolha (ela era de outro arquivo)', asy
   const envelope = await newEnvelopeWithFiles(['assets/example.pdf', await danfe('troca-arquivo')], 'troca de arquivo');
 
   assert.equal(data(await invoice('mutation', 'classify', { envelopeId: envelope.id })).isInvoice, 'YES');
-  assert.equal((await setChoice(envelope.id, { defer: true })).status, 200);
+  assert.equal((await choose(envelope.id)).status, 200);
+  assert.equal(centerRow(envelope.id), `101;${userId};true`);
 
   const exampleItem = envelope.envelopeItems.find((item) => item.title.startsWith('example'));
 
@@ -636,17 +912,19 @@ sessionTest('trocar os arquivos apaga a escolha (ela era de outro arquivo)', asy
 
   assert.equal(removed.status, 200, removed.text);
 
-  // Continua NF (o DANFE ficou), mas a escolha foi para outro conjunto de arquivos.
+  // Continua NF (o DANFE ficou), mas a escolha (conta e centro) foi para outro conjunto de arquivos.
   const after = data(await invoice('mutation', 'classify', { envelopeId: envelope.id }));
 
   assert.equal(after.isInvoice, 'YES');
   assert.equal(after.choice, null);
+  assert.equal(after.costCenter, null);
+  assert.equal(centerRow(envelope.id), '-;-;false');
   assert.equal(
     row(
       envelope.id,
-      `coalesce("choiceCode", '-') || ';' || "choiceDefer" || ';' || coalesce("choiceById"::text, '-') || ';' || coalesce("acceptedSuggestion"::text, '-')`,
+      `coalesce("choiceCode", '-') || ';' || coalesce("choiceById"::text, '-') || ';' || coalesce("acceptedSuggestion"::text, '-')`,
     ),
-    '-;false;-;-',
+    '-;-;-',
   );
 
   // A escolha apagada vai para o histórico, com o motivo.
@@ -655,22 +933,17 @@ sessionTest('trocar os arquivos apaga a escolha (ela era de outro arquivo)', asy
   assert.equal(events.length, 2, JSON.stringify(events));
   const cleared = events.find((event) => event.data.reason === 'FILES_CHANGED');
 
-  assert.deepEqual(cleared?.data, {
-    fromCode: null,
-    fromDefer: true,
-    toCode: null,
-    toDefer: false,
-    reason: 'FILES_CHANGED',
-  });
+  assert.deepEqual(cleared?.data, { fromCode: '2.1.03', toCode: null, reason: 'FILES_CHANGED' });
   assert.equal(String(cleared.userId), userId);
   assertRefused(await distribute(envelope.id));
 });
 
 sessionTest('acesso: visitante recebe 401; usuário de outro time recebe 404', async (t) => {
   const env = await newEnvelope(await danfe('acesso'), 'acesso');
-  const anonymous = await setChoice(env.id, { defer: true }, '');
+  const anonymous = await setChoice(env.id, { code: '2.1.03' }, '');
 
   assert.equal(anonymous.status, 401, anonymous.text);
+  assert.equal((await setCostCenter(env.id, '101', '')).status, 401);
 
   if (!process.env.REVSIGN_SENDER_API_TOKEN) {
     t.diagnostic('REVSIGN_SENDER_API_TOKEN ausente: caso do outro time pulado');
@@ -687,9 +960,14 @@ sessionTest('acesso: visitante recebe 401; usuário de outro time recebe 404', a
 
   assert.equal(other.status, 200, other.text);
 
-  const res = await setChoice(other.id, { defer: true });
+  const res = await setChoice(other.id, { code: '2.1.03' });
 
   assert.equal(res.status, 404, res.text);
+  assert.equal(row(other.id, 'count(*)'), '0');
+
+  const center = await setCostCenter(other.id, '101');
+
+  assert.equal(center.status, 404, center.text);
   assert.equal(row(other.id, 'count(*)'), '0');
 });
 
@@ -791,7 +1069,7 @@ sessionTest(
     assert.equal(page.status, 200, html.slice(0, 500));
     assert.ok(html.includes('Conferindo se é nota fiscal'), 'o editor antigo não tem o bloco da nota fiscal');
 
-    const chosen = await setChoice(envelopeId, { code: '2.1.03' });
+    const chosen = await choose(envelopeId);
 
     assert.equal(chosen.status, 200, chosen.text);
 
@@ -799,7 +1077,7 @@ sessionTest(
 
     assert.equal(sent.status, 200, await sent.text());
     assert.equal(status(envelopeId), 'PENDING');
-    assert.equal(row(envelopeId, `"choiceCode"`), '2.1.03');
+    assert.equal(row(envelopeId, `"choiceCode" || ';' || "costCenterCode"`), '2.1.03;101');
   },
 );
 
@@ -848,8 +1126,7 @@ sessionTest(
       `YES;SENDER;${userId};true`,
     );
 
-    // A primeira conta é escolhida em seguida (dono, depois do envio; "deixar para o Financeiro" não cabe mais).
-    assert.equal((await setChoice(env.id, { defer: true })).status, 400);
+    // A primeira conta é escolhida em seguida (dono, depois do envio).
     assert.equal((await setChoice(env.id, { code: '2.1.03' })).status, 200);
 
     // Marcar de novo: nada muda (nem a escolha).

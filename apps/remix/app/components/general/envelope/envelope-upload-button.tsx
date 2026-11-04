@@ -97,9 +97,8 @@ export const EnvelopeUploadButton = ({ className, type, folderId }: EnvelopeUplo
 
       const pathPrefix = type === EnvelopeType.DOCUMENT ? formatDocumentsPath(team.url) : formatTemplatesPath(team.url);
 
-      const aiQueryParam = team.preferences.aiFeaturesEnabled ? '?ai=true' : '';
-
-      await navigate(`${pathPrefix}/${id}/edit${aiQueryParam}`);
+      // REVALLE: sem `?ai=true` (a detecção por IA saiu do editor, Fase 7, spec §6).
+      await navigate(`${pathPrefix}/${id}/edit`);
 
       toast({
         title: type === EnvelopeType.DOCUMENT ? t`Document uploaded` : t`Template uploaded`,

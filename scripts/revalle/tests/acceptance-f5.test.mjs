@@ -1,9 +1,9 @@
 // Aceite da Fase 5 (nota fiscal com conta contábil sugerida; spec §8, §9 e §11). Roda contra a stack local, de ponta a
 // ponta, na ordem do plano:
-//   1. o admin importa 4 contas e define o prompt e o e-mail da contabilidade;
+//   1. o admin importa 4 contas e define o prompt;
 //   2. um remetente da empresa (conta nova, criada pelo teste) sobe um DANFE fictício; a sugestão sai e ele aceita;
-//   3. segundo documento: NFS-e sem conta (Fase 6: "Deixar para o Financeiro" retém o envio, então a NFS-e é uma NF
-//      de antes da Fase 6, deixada para a contabilidade, simulada no banco logo depois do envio);
+//   3. segundo documento: NFS-e sem conta (sem "Deixar para o Financeiro" desde a Fase 7, a NFS-e é uma NF de antes
+//      da Fase 6, sem conta, simulada no banco logo depois do envio);
 //   4. terceiro documento: contrato comum;
 //   5. dois signatários assinam cada NF (portão + código por e-mail); as NFs são concluídas (Fase 6: o DANFE fica
 //      retido depois das duas assinaturas e o Financeiro, o admin marcado aqui, aprova pela rota; a NFS-e é de antes
@@ -11,7 +11,7 @@
 //   6. a página "Notas fiscais" (rota `revalle.invoice.find`) lista as 2 NFs para o remetente, 0 para um terceiro
 //      usuário sem envolvimento, só a NF em que é signatário para um colega, e as 2 para o admin; filtros;
 //   7. a planilha (`/notas-fiscais/csv`) tem BOM, o cabeçalho exato, 2 linhas e as contas certas, e respeita os filtros;
-//   8. chegaram 2 e-mails para a contabilidade;
+//   8. nenhum e-mail de fluxo (Fase 7): a contabilidade não recebe o PDF e o Financeiro não recebe pedido de aprovação;
 //   9. a política de privacidade tem a frase da spec §9 e diz com exatidão o que acontece com o CPF;
 //  10. Fase 6: o PDF selado do DANFE traz a conta no certificado (linha do documento com a aprovação e "Conta contábil
 //      vista ao assinar" em cada signatário); o da NFS-e (de antes da Fase 6, sem conta) não fala de conta.
@@ -21,7 +21,7 @@
 // remetente escolhe a mesma conta na lista e a planilha fica sem sugestão (o resto do aceite é igual).
 // Sessão: REVSIGN_ADMIN_* (conta ADMIN, marcada como Financeiro). O remetente, o terceiro e o colega são contas novas a
 // cada execução.
-// O prompt e o e-mail da contabilidade anteriores são restaurados no final. Ver revalle/docs/testes.md.
+// O prompt anterior é restaurado no final. Ver revalle/docs/testes.md.
 
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync } from 'node:fs';
@@ -34,6 +34,7 @@ import {
   api,
   assertNoPaidGeminiCalls,
   BASE_URL,
+  chooseInvoice,
   completeWithCode,
   createEnvelope,
   db,
@@ -43,8 +44,10 @@ import {
   poppler,
   retryCreateOnStaleSocket,
   signIn,
+  signupColaborador,
   trpc,
   trpcAs,
+  WORKFLOW_SUBJECT,
 } from './helpers.mjs';
 
 // Para antes de criar qualquer NF se o app puder chamar o Gemini de verdade (pago). Ver helpers.mjs.
@@ -58,7 +61,6 @@ const SKIP = !admin.email || !admin.password ? 'defina REVSIGN_ADMIN_EMAIL e REV
 
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const PASSWORD = `Aceite-F5-${RUN}!`;
-const ACCOUNTING = `contabilidade-f5-${RUN}@revalle.com.br`;
 const PROMPT = `Prompt do aceite da Fase 5 (${RUN}): fornecedores de mercadoria vão para 4.1.07.`;
 const CHAVE = '29241012345678000195550010000123451123456784';
 const PRIVACY_SENTENCE =
@@ -77,9 +79,9 @@ const ACCOUNTS_CSV = [
   'numero;nome;descricao;tipo',
   ...ACCOUNTS.map((a) => `${a.code};${a.name};Conta do aceite da Fase 5;${a.kind}`),
 ].join('\n');
-// Fase 6: `financeiro;aprovado_por` no fim do cabeçalho.
+// Fase 6: `financeiro;aprovado_por` no fim do cabeçalho; Fase 7: depois deles, as quatro colunas do centro de custo.
 const HEADER =
-  'id;titulo;remetente;enviado_em;concluido_em;status;conta;nome_conta;tipo;sugestao_ia;confianca;aceitou_sugestao;link;financeiro;aprovado_por';
+  'id;titulo;remetente;enviado_em;concluido_em;status;conta;nome_conta;tipo;sugestao_ia;confianca;aceitou_sugestao;link;financeiro;aprovado_por;centro_custo;nome_centro_custo;validacao_contabilidade;validado_por';
 
 const tmp = mkdtempSync(path.join(tmpdir(), 'revsign-aceite-f5-'));
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -97,7 +99,7 @@ const mailpit = (route) => fetchIdempotent(`${MAILPIT}${route}`, {}, (res) => re
 const emailsTo = async (to) => (await mailpit(`/search?query=${encodeURIComponent(`to:${to}`)}`)).messages ?? [];
 
 const waitMails = async (to, minimum, filter = () => true, timeoutMs = 40_000) => {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = performance.now() + timeoutMs;
   let found = [];
 
   do {
@@ -108,22 +110,14 @@ const waitMails = async (to, minimum, filter = () => true, timeoutMs = 40_000) =
     }
 
     await sleep(500);
-  } while (Date.now() < deadline);
+  } while (performance.now() < deadline);
 
   return found;
 };
 
 const newAccount = async (label) => {
   const email = `f5-${label}-${RUN}@revalle.com.br`;
-  const created = await fetch(`${BASE_URL}/api/auth/email-password/signup`, {
-    method: 'POST',
-    headers: {
-      Origin: origin,
-      'Content-Type': 'application/json',
-      'X-Forwarded-For': `203.0.113.${Math.floor(Math.random() * 250) + 1}`,
-    },
-    body: JSON.stringify({ name: `Aceite F5 ${label}`, email, password: PASSWORD }),
-  });
+  const created = await signupColaborador({ name: `Aceite F5 ${label}`, email, password: PASSWORD });
 
   assert.ok(created.ok, `cadastro de ${label} falhou (${created.status}): ${await created.text()}`);
 
@@ -167,11 +161,8 @@ const getSettings = async () => {
   return data(res);
 };
 
-const saveSettings = async ({ prompt, accountingEmail }) => {
-  const res = await trpcAs(adminCookie, 'mutation', 'revalle.invoice.adminUpdateSettings', {
-    prompt,
-    accountingEmail,
-  });
+const saveSettings = async ({ prompt }) => {
+  const res = await trpcAs(adminCookie, 'mutation', 'revalle.invoice.adminUpdateSettings', { prompt });
 
   assert.equal(res.status, 200, res.text);
 };
@@ -259,8 +250,9 @@ const waitSuggestion = async (envelopeId) => {
   throw new Error('a sugestão não terminou');
 };
 
-const setChoice = async (envelopeId, choice) => {
-  const res = await trpcAs(fx.sender.cookie, 'mutation', 'revalle.invoice.setChoice', { envelopeId, choice });
+// Conta e centro de custo (a NF só é enviada com os dois).
+const chooseNf = async (envelopeId, { code }) => {
+  const res = await chooseInvoice({ cookie: fx.sender.cookie, envelopeId, code });
 
   assert.equal(res.status, 200, res.text);
 
@@ -382,11 +374,11 @@ before(async () => {
       .then((res) => res.ok)
       .catch(() => false));
 
-  // 1. Contas, prompt e e-mail da contabilidade.
+  // 1. Contas e prompt.
   const imported = await trpcAs(adminCookie, 'mutation', 'revalle.invoice.adminImportAccounts', { csv: ACCOUNTS_CSV });
 
   assert.equal(imported.status, 200, imported.text);
-  await saveSettings({ prompt: PROMPT, accountingEmail: ACCOUNTING });
+  await saveSettings({ prompt: PROMPT });
   db(`delete from "RateLimit" where action like 'revalle.invoice%'`);
 
   fx.sender = await newAccount('remetente');
@@ -398,11 +390,21 @@ before(async () => {
       `select t.id from "Team" t join "Organisation" o on o.id = t."organisationId" join "User" u on u.id = o."ownerUserId" where u.email = '${fx.sender.email}' limit 1`,
     ),
   );
-  const token = await trpcAs(fx.sender.cookie, 'mutation', 'apiToken.create', {
-    teamId,
-    tokenName: `aceite-f5-${RUN}`,
-    expirationDate: null,
-  });
+  // Fase 7 (Task 9): só o ADMIN cria token de API. O remetente comum é promovido só para esta chamada e volta a
+  // usuário comum no `finally`; o token criado continua valendo sem o papel.
+  db(`update "User" set roles = array['USER','ADMIN']::"Role"[] where email = '${fx.sender.email}'`);
+
+  let token;
+
+  try {
+    token = await trpcAs(fx.sender.cookie, 'mutation', 'apiToken.create', {
+      teamId,
+      tokenName: `aceite-f5-${RUN}`,
+      expirationDate: null,
+    });
+  } finally {
+    db(`update "User" set roles = array['USER']::"Role"[] where email = '${fx.sender.email}'`);
+  }
 
   assert.equal(token.status, 200, token.text);
   fx.senderToken = data(token).token;
@@ -428,13 +430,13 @@ before(async () => {
     assert.equal(state.isInvoice, 'YES');
     assert.equal(state.suggestionStatus, 'DONE', JSON.stringify(state));
     assert.equal(state.suggestion.accountCode, '4.1.07');
-    await setChoice(fx.danfe.id, { code: state.suggestion.accountCode });
+    await chooseNf(fx.danfe.id, { code: state.suggestion.accountCode });
   } else {
-    await setChoice(fx.danfe.id, { code: '4.1.07' });
+    await chooseNf(fx.danfe.id, { code: '4.1.07' });
   }
 
   // 3. NFS-e sem sugestão (o servidor falso responde erro), enviada com uma conta e convertida depois do envio numa NF
-  //    de antes da Fase 6 deixada para a contabilidade (`LEGACY`, sem conta).
+  //    de antes da Fase 6 (`LEGACY`, sem conta).
   fx.nfse = await create({
     label: 'NFS-e',
     pdf: await nfsePdf(),
@@ -445,7 +447,7 @@ before(async () => {
     await fake('/__program', { mode: 'error' });
   }
 
-  await setChoice(fx.nfse.id, { code: '4.2.19' });
+  await chooseNf(fx.nfse.id, { code: '4.2.19' });
 
   if (fakeUp) {
     assert.equal((await waitSuggestion(fx.nfse.id)).suggestionStatus, 'FAILED');
@@ -464,11 +466,16 @@ before(async () => {
   await signAll(fx.nfse, {
     afterSend: (id) =>
       db(
-        `update "RevalleInvoiceClassification" set "choiceCode" = null, "choiceDefer" = true, "acceptedSuggestion" = null, "financeStatus" = 'LEGACY' where "envelopeId" = '${id}'`,
+        `update "RevalleInvoiceClassification" set "choiceCode" = null, "acceptedSuggestion" = null, "costCenterCode" = null, "financeStatus" = 'LEGACY' where "envelopeId" = '${id}'`,
       ),
   });
   // Fase 6: o DANFE fica retido depois das duas assinaturas e o Financeiro aprova pela rota.
   await signAll(fx.danfe, { approve: true });
+  // As duas saem com segundos de diferença, e o relógio da máquina pode voltar entre elas: a data do envio da NFS-e
+  // recua para a ordem esperada não depender disso.
+  db(
+    `update "DocumentAuditLog" set "createdAt" = "createdAt" - interval '1 minute' where "envelopeId" = '${fx.nfse.id}' and type = 'DOCUMENT_SENT'`,
+  );
 
   fx.ready = true;
 });
@@ -484,7 +491,7 @@ after(async () => {
     }
   } finally {
     if (previous) {
-      await saveSettings({ prompt: previous.prompt, accountingEmail: previous.accountingEmail ?? '' });
+      await saveSettings({ prompt: previous.prompt });
     }
   }
 });
@@ -512,11 +519,9 @@ testStep(
     assert.equal(danfe.senderName, fx.sender.name);
     assert.ok(danfe.sentAt && danfe.completedAt, JSON.stringify(danfe));
     assert.deepEqual(danfe.account, { code: '4.1.07', name: 'Fornecedores Aceite Cinco' });
-    assert.equal(danfe.deferred, false);
     assert.equal(danfe.acceptedSuggestion, fakeUp ? true : null);
     assert.match(danfe.link, new RegExp(`^/t/[^/]+/documents/${fx.danfe.id}$`));
     assert.equal(nfse.account, null);
-    assert.equal(nfse.deferred, true);
     assert.equal(nfse.acceptedSuggestion, null);
 
     const outsider = await find(fx.outsider.cookie);
@@ -547,7 +552,7 @@ testStep(
     const today = brasiliaDay();
     const tomorrow = brasiliaDay(new Date(Date.now() + 24 * 3600 * 1000));
 
-    assert.deepEqual(await ids({ deferred: true }), [fx.nfse.id]);
+    assert.deepEqual(await ids({ finance: 'antigas' }), [fx.nfse.id]);
     assert.deepEqual(await ids({ accountCode: '4.1.07' }), [fx.danfe.id]);
     assert.deepEqual(await ids({ accountCode: '4.2.19' }), []);
     assert.equal((await ids({ status: 'COMPLETED' })).length, 2);
@@ -618,7 +623,7 @@ testStep('7. planilha: BOM, cabeçalho exato, 2 linhas com as contas certas, fil
 
   const nfse = cells(fx.nfse.id);
 
-  assert.equal(nfse.conta, 'a definir pela contabilidade');
+  assert.equal(nfse.conta, '');
   assert.equal(nfse.nome_conta, '');
   assert.equal(nfse.tipo, '');
   assert.equal(nfse.sugestao_ia, '');
@@ -626,11 +631,11 @@ testStep('7. planilha: BOM, cabeçalho exato, 2 linhas com as contas certas, fil
   assert.equal(nfse.aceitou_sugestao, '');
 
   // A planilha segue os filtros da tela.
-  const deferred = await csv(fx.sender.cookie, '?deixadas=1');
+  const legacy = await csv(fx.sender.cookie, '?financeiro=antigas');
 
-  assert.equal(deferred.status, 200);
+  assert.equal(legacy.status, 200);
   assert.deepEqual(
-    deferred.text
+    legacy.text
       .slice(1)
       .split('\r\n')
       .filter(Boolean)
@@ -672,25 +677,30 @@ testStep('7. planilha: BOM, cabeçalho exato, 2 linhas com as contas certas, fil
   assert.equal(reversed.text, 'A data inicial é depois da data final.');
 });
 
-testStep('8. a contabilidade recebeu 2 e-mails (um por NF)', async () => {
-  const mails = await waitMails(ACCOUNTING, 2);
+testStep(
+  '8. nenhum e-mail de fluxo: sem PDF para a contabilidade e sem pedido de aprovação ao Financeiro',
+  async () => {
+    // As duas NFs já concluíram (o DANFE passou pela aprovação do admin, que é do Financeiro). O assunto antigo leva o
+    // título único de cada NF.
+    await sleep(4000);
 
-  assert.equal(mails.length, 2, JSON.stringify(mails.map((m) => m.Subject)));
+    for (const doc of [fx.danfe, fx.nfse]) {
+      const found = (await mailpit(`/search?query=${encodeURIComponent(`subject:"${doc.title}"`)}`)).messages ?? [];
 
-  const subjects = mails.map((m) => m.Subject).sort();
+      assert.deepEqual(
+        found.filter((m) => WORKFLOW_SUBJECT.test(m.Subject)).map((m) => m.Subject),
+        [],
+        `saiu e-mail de fluxo de ${doc.title}`,
+      );
+    }
 
-  assert.deepEqual(
-    subjects,
-    [
-      `Nota fiscal assinada: ${fx.danfe.title} · Conta 4.1.07 – Fornecedores Aceite Cinco`,
-      `Nota fiscal assinada: ${fx.nfse.title} · Conta: a definir pela contabilidade`,
-    ].sort(),
-  );
-
-  // Nada para o contrato comum.
-  await sleep(2000);
-  assert.equal((await emailsTo(ACCOUNTING)).length, 2);
-});
+    // O admin, do Financeiro, não recebeu o pedido de aprovação do DANFE.
+    assert.deepEqual(
+      (await emailsTo(admin.email)).filter((m) => m.Subject.includes(fx.danfe.title)).map((m) => m.Subject),
+      [],
+    );
+  },
+);
 
 testStep('9. a política de privacidade tem a frase do Gemini (spec §9) e a do CPF, exata', async () => {
   const html = await fetchIdempotent(`${BASE_URL}/privacidade`, {}, (res) => res.text());
@@ -753,7 +763,7 @@ testStep(
       assert.ok(!danfe.includes(account.name), `DANFE: o PDF tem o nome ${account.name}`);
     }
 
-    // NFS-e de antes da Fase 6, deixada para a contabilidade: ninguém viu conta ao assinar, nada de conta no PDF.
+    // NFS-e de antes da Fase 6, sem conta: ninguém viu conta ao assinar, nada de conta no PDF.
     const nfse = await sealedText(fx.nfse);
 
     for (const account of ACCOUNTS) {
@@ -782,17 +792,17 @@ testStep(
     assert.ok(!(await csv(fx.sender.cookie)).text.includes(fx.nfse.id));
 
     // Admin: continua vendo, com a marca (e o link da página da NF, por ser do Financeiro nos testes).
-    const row = (await find(adminCookie, { deferred: true })).data.find((r) => r.id === fx.nfse.id);
+    const row = (await find(adminCookie, { finance: 'antigas' })).data.find((r) => r.id === fx.nfse.id);
 
     assert.ok(row, 'o admin não vê a NF excluída');
     assert.equal(row.deleted, true);
     assert.equal(row.link, `/notas-fiscais/${fx.nfse.id}`);
     assert.equal(
-      (await find(adminCookie, { deferred: true })).data.find((r) => r.id === fx.danfe.id),
+      (await find(adminCookie, { finance: 'antigas' })).data.find((r) => r.id === fx.danfe.id),
       undefined,
     );
 
-    const exported = await csv(adminCookie, '?deixadas=1');
+    const exported = await csv(adminCookie, '?financeiro=antigas');
     const line = exported.text
       .slice(1)
       .split('\r\n')

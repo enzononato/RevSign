@@ -44,6 +44,7 @@ No topo de cada página do certificado:
 - `Horários em horário de Brasília (UTC−3)`: todas as datas do certificado estão no horário de Brasília;
 - `SHA-256 do original: <64 letras e números>`: a "impressão digital" do PDF **como foi enviado**, antes de qualquer assinatura. Se alguém tiver uma cópia do original, dá para conferir que é o mesmo arquivo.
 - Só em nota fiscal aprovada pelo Financeiro (Fase 6): `Conta contábil: <código> – <nome> · aprovada pelo Financeiro (<nome>) em <dd/MM/aaaa HH:mm> (horário de Brasília)`. O nome da conta é o do momento da aprovação (se a lista de contas for reimportada com outro nome, o certificado não muda); sem o nome de quem aprovou, aparece `Financeiro`.
+- Em qualquer nota fiscal que tenha centro de custo (Fase 7): `Centro de custo: <código> – <nome>`, por exemplo `Centro de custo: 101 – Puxada`. Essa linha não depende do Financeiro: sai mesmo em nota que concluiu sem aprovação (as de antes da Fase 6) e vem na linha logo abaixo da conta. O certificado só informa qual é o centro. Ele não diz que a Contabilidade validou, porque a validação pode acontecer depois que o PDF foi selado. Nota sem centro (marcada como nota fiscal depois do envio, ou enviada antes da Fase 7) não tem essa linha.
 
 No rodapé: o **ID do Envelope** (identificador único do documento), um **QR code** que leva à página pública do documento (ver seção 3) e, quando o documento tem prova congelada, a atribuição "IP Geolocation by DB-IP".
 
@@ -84,6 +85,7 @@ Cada pessoa ocupa um bloco com três colunas. Em ordem, para cada uma:
 | Localização do aparelho | Latitude, longitude e precisão, ex.: `-9,4167, -40,5033 (±25 m)`, **se a pessoa autorizou** no navegador. Senão: `não autorizada` (recusou), `indisponível` (o aparelho não respondeu a tempo, ou a assinatura foi feita dentro de outro site, onde o navegador não deixa perguntar) ou `não solicitada` (nada foi pedido: quem só visualiza ou recebe cópia não passa pelo termo, então a localização do aparelho nunca é pedida a essas pessoas) | Navegador, opcional |
 | Assinatura visual | `imagem (desenho/arquivo)`, `texto digitado` ou `somente carimbo`. Só para quem assina | Prova congelada |
 | Conta contábil vista ao assinar | Só em nota fiscal (Fase 6): o número da conta contábil que a pessoa viu na tela ao assinar | Prova congelada |
+| Centro de custo visto ao assinar | Só em nota fiscal com centro (Fase 7): o número do centro de custo (101, 201, 301, 401 ou 501) que a pessoa viu na tela ao assinar, com ou sem conta contábil (numa nota fiscal sem conta, a tela mostra `Nota fiscal · Centro de custo: 101 – Puxada`). Vale a mesma regra da conta: só aparece se a página de assinatura mostrou esse centro. Quem assina sem abrir a página do RevSign (como pelo embed), ou com a página aberta antes de o centro ser definido, fica sem a linha | Prova congelada |
 | Código de verificação | O mesmo código do carimbo | Prova congelada |
 
 As formas de **Verificação**:
@@ -105,7 +107,8 @@ Destinatário de documento assinado antes da Fase 4 não tem prova congelada: o 
    - o título do documento;
    - a situação: `Concluído em <data>`, `Recusado em <data>` ou `Em andamento`;
    - **Participantes**: nome (o da base de RH; sem ele, por exemplo para quem só visualiza, o nome cadastrado no documento), CPF mascarado e a data em que cada um assinou (ou aprovou, visualizou…);
-   - em nota fiscal (Fase 6): a conta contábil e a aprovação do Financeiro (quem e quando), ou `Aguardando aprovação do Financeiro`. Se a conta foi trocada, a versão antiga mostra `Substituído por uma nova versão em <data> (conta contábil alterada)`; nada da nova versão aparece (ela tem os próprios códigos);
+   - em nota fiscal (Fase 6): a conta contábil e a aprovação do Financeiro (quem e quando), ou `Aguardando aprovação do Financeiro`. Se a conta foi trocada, a versão antiga mostra `Substituído por uma nova versão em <data> (conta contábil alterada)`; se a Contabilidade corrigiu o centro de custo (Fase 7), `Substituído por uma nova versão em <data> (centro de custo corrigido)`. Nada da nova versão aparece (ela tem os próprios códigos);
+   - em nota fiscal com centro de custo (Fase 7): `Centro de custo: <código> – <nome>`, no mesmo quadro da nota fiscal, com ou sem passagem pelo Financeiro. É o centro daquela versão do documento; a página não diz se a Contabilidade já validou. Corrigir o centro cria uma nova versão que todos assinam de novo: a prova de cada versão guarda o centro que a pessoa viu naquela versão;
    - **SHA-256 do documento final** (só quando concluído). Se o documento foi **reselado** (ex.: troca do certificado da empresa), aparecem também as **versões seladas anteriores**, cada uma com a data da selagem.
 4. Para saber se o PDF que você tem nas mãos é o mesmo que foi assinado, vá em **"Conferir um arquivo"** (aparece quando o documento já foi concluído) e escolha o PDF. A conta é feita no seu próprio navegador: o arquivo **não é enviado** para lugar nenhum. Resultado:
    - `Este arquivo confere com a versão selada em <data> (horário de Brasília).`: é um PDF final selado deste documento, sem nenhuma alteração;
@@ -147,7 +150,7 @@ O aceite automatizado é o teste `scripts/revalle/tests/acceptance-f4.test.mjs`.
 Pré-requisitos e variáveis: `testes.md`, seção "Aceite da Fase 4". Em resumo:
 
 1. Stack local no ar com a imagem atual e os colaboradores fictícios do aceite carregados.
-2. Token de API do remetente, criado na tela **Configurações → API** entrando com a conta do remetente.
+2. Token de API do remetente. Desde a Fase 7, só o ADMIN cria token: em homologação o remetente é o rsadmin, que é ADMIN e cria o token em **Configurações do time → Tokens de API**. Para uma conta comum, veja `testes.md`, seção "O que precisa estar de pé", item 4.
 3. Rodar a suíte inteira (o aceite faz parte dela), o smoke e o `verify-signed-pdf.sh`.
 
 Resultado esperado: `fail 0`. Confira também que o aceite não aparece como `skipped`; sem o token do remetente ele é pulado.

@@ -1,21 +1,21 @@
 import { RevalleFinanceAccountChangedTemplate } from '@documenso/email/templates/revalle-finance-account-changed';
 import { prisma } from '@documenso/prisma';
-import { RecipientRole, RevalleFinanceStatus } from '@prisma/client';
+import { RecipientRole, RevalleFinanceStatus, RevalleSupersedeKind } from '@prisma/client';
 import { createElement } from 'react';
 
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../../constants/app';
 import { normalizeEmail } from '../../../revalle/email-domain';
-import { buildAccountChangeNotice, formatInvoiceAccount } from '../../../revalle/finance/account-change';
+import { buildVersionChangeNotice, formatInvoiceAccount } from '../../../revalle/finance/account-change';
 import { invoiceViewPath } from '../../../revalle/finance/finance-status';
 import { getEmailContext } from '../../../server-only/email/get-email-context';
 import { renderEmailWithI18N } from '../../../utils/render-email-with-i18n';
 import type { JobRunIO } from '../../client/_internal/job';
 import type { TRevalleSendFinanceAccountChangedEmailJobDefinition } from './revalle-send-finance-account-changed-email';
 
-export const buildAccountChangedSubject = (title: string) =>
-  `Conta contábil da nota fiscal alterada pelo Financeiro: ${title}`;
-
-const DEFER_LABEL = 'a definir pelo Financeiro';
+export const buildAccountChangedSubject = (title: string, kind: RevalleSupersedeKind = RevalleSupersedeKind.ACCOUNT) =>
+  kind === RevalleSupersedeKind.COST_CENTER
+    ? `Centro de custo da nota fiscal corrigido pela Contabilidade: ${title}`
+    : `Conta contábil da nota fiscal alterada pelo Financeiro: ${title}`;
 
 type NoticeAction = 'SIGN' | 'VIEW' | 'VERIFY';
 
@@ -46,7 +46,8 @@ export const run = async ({
       select: {
         financeStatus: true,
         choiceCode: true,
-        choiceDefer: true,
+        costCenterCode: true,
+        supersedeKind: true,
         supersedeReason: true,
         supersededByEnvelopeId: true,
       },
@@ -59,7 +60,9 @@ export const run = async ({
   ]);
 
   const previousRow = previous?.revalleInvoice;
-  const nextCode = next?.revalleInvoice?.choiceCode;
+  const kind = previousRow?.supersedeKind ?? RevalleSupersedeKind.ACCOUNT;
+  const isCostCenter = kind === RevalleSupersedeKind.COST_CENTER;
+  const nextCode = isCostCenter ? next?.revalleInvoice?.costCenterCode : next?.revalleInvoice?.choiceCode;
 
   if (
     !previous ||
@@ -70,7 +73,7 @@ export const run = async ({
     !previousRow.supersedeReason
   ) {
     io.logger.warn({
-      msg: 'Troca de conta sem as duas versões ligadas; aviso não enviado',
+      msg: 'Nova versão sem as duas versões ligadas; aviso não enviado',
       oldEnvelopeId,
       newEnvelopeId,
     });
@@ -78,25 +81,33 @@ export const run = async ({
     return;
   }
 
-  const codes = [previousRow.choiceCode, nextCode].filter((code): code is string => Boolean(code));
-  const names = new Map(
-    (
-      await prisma.revalleAccountingAccount.findMany({
-        where: { code: { in: codes } },
-        select: { code: true, name: true },
-      })
-    ).map((account) => [account.code, account.name]),
-  );
+  const buildAccountLine = async () => {
+    const codes = [previousRow.choiceCode, nextCode].filter((code): code is string => Boolean(code));
+    const names = new Map(
+      (
+        await prisma.revalleAccountingAccount.findMany({
+          where: { code: { in: codes } },
+          select: { code: true, name: true },
+        })
+      ).map((account) => [account.code, account.name]),
+    );
 
-  const notice = buildAccountChangeNotice({
-    title: previous.title,
-    from:
-      previousRow.choiceCode && !previousRow.choiceDefer
+    return {
+      kind: 'ACCOUNT',
+      title: previous.title,
+      from: previousRow.choiceCode
         ? formatInvoiceAccount(previousRow.choiceCode, names.get(previousRow.choiceCode))
-        : DEFER_LABEL,
-    to: formatInvoiceAccount(nextCode, names.get(nextCode)),
-    reason: previousRow.supersedeReason,
-  });
+        : null,
+      to: formatInvoiceAccount(nextCode, names.get(nextCode)),
+    } as const;
+  };
+
+  const notice = buildVersionChangeNotice(
+    isCostCenter
+      ? { kind: 'COST_CENTER', fromCode: previousRow.costCenterCode ?? '', toCode: nextCode }
+      : await buildAccountLine(),
+    previousRow.supersedeReason,
+  );
 
   const assetBaseUrl = NEXT_PUBLIC_WEBAPP_URL() || 'http://localhost:3000';
   const ownerEmail = normalizeEmail(previous.user.email);
@@ -135,6 +146,7 @@ export const run = async ({
 
   const render = async (action: NoticeAction, url: string) => {
     const template = createElement(RevalleFinanceAccountChangedTemplate, {
+      kind,
       documentName: previous.title,
       newDocumentName: next.title,
       notice,
@@ -156,7 +168,7 @@ export const run = async ({
       await emailTransport.sendMail({
         to: { name, address },
         from: senderEmail,
-        subject: buildAccountChangedSubject(previous.title),
+        subject: buildAccountChangedSubject(previous.title, kind),
         html,
         text,
       });

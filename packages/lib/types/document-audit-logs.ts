@@ -73,9 +73,12 @@ export const ZDocumentAuditLogTypeSchema = z.enum([
   'REVALLE_IDENTITY_SKIPPED',
   'REVALLE_SIGNATURE_STAMPED', // REVALLE: desenhou ou não (carimbo sempre)
   'REVALLE_INVOICE_ACCOUNT_SET', // REVALLE: conta contábil da nota fiscal escolhida/trocada (fora do PDF selado)
-  'REVALLE_FINANCE_ACCOUNT_DEFINED', // REVALLE: o Financeiro definiu a conta da NF retida (já aprovada) e enviou
+  'REVALLE_INVOICE_COST_CENTER_SET', // REVALLE: centro de custo da nota fiscal escolhido/trocado (fora do PDF selado)
+  'REVALLE_FINANCE_ACCOUNT_DEFINED', // REVALLE: o Financeiro definiu a conta da NF marcada depois do envio (já aprovada)
   'REVALLE_FINANCE_APPROVED', // REVALLE: o Financeiro aprovou a conta da NF (libera a selagem)
   'REVALLE_FINANCE_ACCOUNT_CHANGED', // REVALLE: o Financeiro trocou a conta: versão substituída e nova versão
+  'REVALLE_COST_CENTER_VALIDATED', // REVALLE: a Contabilidade validou o centro de custo (fora do PDF selado)
+  'REVALLE_COST_CENTER_CHANGED', // REVALLE: a Contabilidade corrigiu o centro: versão substituída e nova versão
 ]);
 
 export const ZDocumentAuditLogEmailTypeSchema = z.enum([
@@ -887,20 +890,30 @@ export const ZDocumentAuditLogEventRevalleSignatureStampedSchema = z.object({
   data: z.object({ recipientId: z.number(), signatureKind: z.enum(['IMAGE', 'TYPED', 'NONE']) }),
 });
 
-// REVALLE: conta contábil da nota fiscal (de → para). `*Defer` = "Deixar para o Financeiro"; `null` = nenhuma.
+// REVALLE: conta contábil da nota fiscal (de → para); `null` = nenhuma.
 // `reason: FILES_CHANGED`: a escolha foi apagada porque os arquivos do documento mudaram.
+// `*Defer`: só nos eventos de antes da Fase 7 ("Deixar para o Financeiro" saiu); os novos não gravam.
 export const ZDocumentAuditLogEventRevalleInvoiceAccountSetSchema = z.object({
   type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_ACCOUNT_SET),
   data: z.object({
     fromCode: z.string().nullable(),
-    fromDefer: z.boolean(),
+    fromDefer: z.boolean().optional(),
     toCode: z.string().nullable(),
-    toDefer: z.boolean(),
+    toDefer: z.boolean().optional(),
     reason: z.enum(['FILES_CHANGED']).optional(),
   }),
 });
 
-// REVALLE: "Deixar para o Financeiro": quem é do Financeiro definiu a conta (já vale como aprovada) e o documento saiu.
+// REVALLE: centro de custo da nota fiscal (de → para); `fromCode` nulo = primeira escolha.
+export const ZDocumentAuditLogEventRevalleInvoiceCostCenterSetSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_COST_CENTER_SET),
+  data: z.object({
+    fromCode: z.string().nullable(),
+    toCode: z.string(),
+  }),
+});
+
+// REVALLE: quem é do Financeiro definiu a conta de uma NF marcada depois do envio (já vale como aprovada).
 export const ZDocumentAuditLogEventRevalleFinanceAccountDefinedSchema = z.object({
   type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_FINANCE_ACCOUNT_DEFINED),
   data: z.object({ code: z.string(), name: z.string().nullable() }),
@@ -921,6 +934,26 @@ export const ZDocumentAuditLogEventRevalleFinanceAccountChangedSchema = z.object
     fromName: z.string().nullable(),
     toCode: z.string(),
     toName: z.string().nullable(),
+    reason: z.string(),
+    otherEnvelopeId: z.string(),
+    isNewVersion: z.boolean(),
+  }),
+});
+
+// REVALLE: a Contabilidade validou o centro de custo. Fica fora do PDF: pode acontecer depois da selagem, e o certificado
+// não afirma validação.
+export const ZDocumentAuditLogEventRevalleCostCenterValidatedSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_COST_CENTER_VALIDATED),
+  data: z.object({ code: z.string() }),
+});
+
+// REVALLE: a Contabilidade corrigiu o centro (com o motivo): fica nas duas versões, com o id da outra. `isNewVersion`: este
+// evento está na versão nova (senão, na substituída).
+export const ZDocumentAuditLogEventRevalleCostCenterChangedSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_COST_CENTER_CHANGED),
+  data: z.object({
+    fromCode: z.string(),
+    toCode: z.string(),
     reason: z.string(),
     otherEnvelopeId: z.string(),
     isNewVersion: z.boolean(),
@@ -979,9 +1012,12 @@ export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
     ZDocumentAuditLogEventRevalleIdentitySkippedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleSignatureStampedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleInvoiceAccountSetSchema, // REVALLE:
+    ZDocumentAuditLogEventRevalleInvoiceCostCenterSetSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleFinanceAccountDefinedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleFinanceApprovedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleFinanceAccountChangedSchema, // REVALLE:
+    ZDocumentAuditLogEventRevalleCostCenterValidatedSchema, // REVALLE:
+    ZDocumentAuditLogEventRevalleCostCenterChangedSchema, // REVALLE:
   ]),
 );
 

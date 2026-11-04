@@ -95,9 +95,8 @@ export const EnvelopeDropZoneWrapper = ({ children, type, className }: EnvelopeD
 
       const pathPrefix = type === EnvelopeType.DOCUMENT ? formatDocumentsPath(team.url) : formatTemplatesPath(team.url);
 
-      const aiQueryParam = team.preferences.aiFeaturesEnabled ? '?ai=true' : '';
-
-      await navigate(`${pathPrefix}/${id}/edit${aiQueryParam}`);
+      // REVALLE: sem `?ai=true` (a detecção por IA saiu do editor, Fase 7, spec §6).
+      await navigate(`${pathPrefix}/${id}/edit`);
     } catch (err) {
       const error = AppError.parseError(err);
 

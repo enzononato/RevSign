@@ -4,6 +4,7 @@ import {
   IS_OIDC_SSO_ENABLED,
   isSignupEnabledForProvider,
 } from '@documenso/lib/constants/auth';
+import { isSignupIdentityRequired } from '@documenso/lib/server-only/revalle/signup/identity';
 import { isValidReturnTo, normalizeReturnTo } from '@documenso/lib/utils/is-valid-return-to';
 import { msg } from '@lingui/core/macro';
 import { redirect } from 'react-router';
@@ -40,6 +41,8 @@ export function loader({ request }: Route.LoaderArgs) {
     isMicrosoftSignupEnabled,
     isOidcSignupEnabled,
     returnTo,
+    // REVALLE: cadastro só para colaborador (Fase 7). O e-mail isento (do administrador) não vai para o navegador.
+    identityRequired: isSignupIdentityRequired(),
   };
 }
 
@@ -50,6 +53,7 @@ export default function SignUp({ loaderData }: Route.ComponentProps) {
     isMicrosoftSignupEnabled,
     isOidcSignupEnabled,
     returnTo,
+    identityRequired,
   } = loaderData;
 
   return (
@@ -60,6 +64,7 @@ export default function SignUp({ loaderData }: Route.ComponentProps) {
       isMicrosoftSignupEnabled={isMicrosoftSignupEnabled}
       isOidcSignupEnabled={isOidcSignupEnabled}
       returnTo={returnTo}
+      identityRequired={identityRequired}
     />
   );
 }

@@ -7,12 +7,15 @@ import {
   RevalleInvoiceDetectedBy,
   RevalleInvoiceStatus,
   RevalleSuggestionStatus,
+  RevalleSupersedeKind,
 } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
+import { isNewVersionDraftRow } from '../../../revalle/finance/finance-status';
+import { REVALLE_COST_CENTERS } from '../../../revalle/invoice/cost-centers';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
-import { findVisibleSuccessor } from '../finance/successor';
+import { findNewVersionKind, findVisibleSuccessor } from '../finance/successor';
 import { filesKey, loadEnvelopeFiles, readFilesContent } from './envelope-files';
 import { getRevalleInvoiceAiConfig } from './settings';
 import type { InvoiceFailureReason, InvoiceRequester } from './suggest';
@@ -30,19 +33,23 @@ export type InvoiceState = {
   } | null;
   /** Código curto quando `suggestionStatus` é FAILED (nunca texto da NF nem do provedor). */
   failureReason: InvoiceFailureReason | null;
-  choice: { code: string | 'DEFER'; name?: string } | null;
+  choice: { code: string; name?: string } | null;
+  /** Fase 7: centro de custo escolhido (lista fixa); a conta e o centro são exigidos juntos no primeiro envio. */
+  costCenter: { code: string; name: string } | null;
   /** Fase 6: estado no Financeiro (nulo = não é NF, ou NF em rascunho que ainda não foi enviada). */
-  financeStatus: 'AWAITING_ACCOUNT' | 'PENDING_APPROVAL' | 'APPROVED' | 'SUPERSEDED' | 'LEGACY' | null;
+  financeStatus: 'PENDING_APPROVAL' | 'APPROVED' | 'SUPERSEDED' | 'LEGACY' | null;
   /**
-   * `APPROVED` sem reserva de envio (`approvedAt` nulo): o envio feito pelo Financeiro (troca de conta, "Definir conta e
-   * enviar") falhou. A conta continua travada, mas o rascunho pode ser enviado por quem tem acesso a ele.
+   * Nova versão em rascunho que quem tem acesso a ela pode enviar (o envio falhou): `APPROVED` sem reserva de envio
+   * (`approvedAt` nulo), ou uma correção do centro, que não tem reserva. A conta e o centro continuam travados.
    */
   isFinanceSendReleased: boolean;
   /**
-   * Versão substituída: a nova versão (com a conta trocada pelo Financeiro), para o cartão do remetente apontar. Nula
-   * quando a nova versão não existe mais ou foi excluída.
+   * Versão substituída: a nova versão (com a conta trocada ou o centro corrigido), para o cartão do remetente apontar.
+   * Nula quando a nova versão não existe mais ou foi excluída.
    */
   supersededByEnvelopeId: string | null;
+  /** Versão substituída: o que mudou. */
+  supersedeKind: RevalleSupersedeKind | null;
   aiAvailable: boolean;
 };
 
@@ -57,6 +64,21 @@ const readStored = (value: unknown): StoredSuggestion =>
   value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 
 const CONFIDENCES = new Set(['alta', 'media', 'baixa']);
+
+const isSendReleased = async (row: RevalleInvoiceClassification) => {
+  if (row.financeStatus === RevalleFinanceStatus.APPROVED && row.approvedAt === null) {
+    return true;
+  }
+
+  if (!isNewVersionDraftRow(row) || !(await isEnvelopeDraft(row.envelopeId))) {
+    return false;
+  }
+
+  return (
+    row.financeStatus === RevalleFinanceStatus.PENDING_APPROVAL ||
+    (await findNewVersionKind(row.previousEnvelopeId)) === RevalleSupersedeKind.COST_CENTER
+  );
+};
 
 /** Monta o estado da tela. Nomes das contas vêm da lista (inclusive inativas: documento antigo mostra número e nome). */
 export const toInvoiceState = async (row: RevalleInvoiceClassification): Promise<InvoiceState> => {
@@ -96,11 +118,9 @@ export const toInvoiceState = async (row: RevalleInvoiceClassification): Promise
       }
     : null;
 
-  const choice: InvoiceState['choice'] = row.choiceDefer
-    ? { code: 'DEFER' }
-    : row.choiceCode
-      ? { code: row.choiceCode, name: accounts.get(row.choiceCode)?.name }
-      : null;
+  const choice: InvoiceState['choice'] = row.choiceCode
+    ? { code: row.choiceCode, name: accounts.get(row.choiceCode)?.name }
+    : null;
 
   return {
     isInvoice: row.isInvoice,
@@ -113,12 +133,19 @@ export const toInvoiceState = async (row: RevalleInvoiceClassification): Promise
           (stored.failure as InvoiceFailureReason)
         : null,
     choice,
+    costCenter: row.costCenterCode
+      ? {
+          code: row.costCenterCode,
+          name: REVALLE_COST_CENTERS.find((center) => center.code === row.costCenterCode)?.name ?? row.costCenterCode,
+        }
+      : null,
     financeStatus: row.financeStatus,
-    isFinanceSendReleased: row.financeStatus === RevalleFinanceStatus.APPROVED && row.approvedAt === null,
+    isFinanceSendReleased: await isSendReleased(row),
     supersededByEnvelopeId:
       row.financeStatus === RevalleFinanceStatus.SUPERSEDED
         ? ((await findVisibleSuccessor(row.supersededByEnvelopeId))?.id ?? null)
         : null,
+    supersedeKind: row.financeStatus === RevalleFinanceStatus.SUPERSEDED ? row.supersedeKind : null,
     aiAvailable: getRevalleInvoiceAiConfig().status === 'CONFIGURED',
   };
 };
@@ -141,18 +168,26 @@ const expireStalePending = async (row: RevalleInvoiceClassification) => {
 };
 
 /**
- * Escolha da conta zerada: ela vale para um conjunto de arquivos (trocou o arquivo, escolhe de novo). Rascunho retido
- * para o Financeiro ("Deixar para o Financeiro") cujo arquivo muda volta a ser um rascunho comum: a retenção era para
- * outro arquivo. O remetente escolhe de novo; se deixar outra vez para o Financeiro, o envio retém e avisa de novo.
+ * Escolha da conta e do centro de custo zerada: ela vale para um conjunto de arquivos (trocou o arquivo, escolhe de
+ * novo). A nova versão em rascunho cujo arquivo muda volta a ser um rascunho comum do remetente: a aprovação e a validação
+ * eram para outro arquivo. Sem a aprovação na linha, ela também não volta numa retomada (`nextClassification`).
  */
 const CLEARED_CHOICE = {
   choiceCode: null,
-  choiceDefer: false,
   choiceById: null,
   choiceAt: null,
   acceptedSuggestion: null,
+  costCenterCode: null,
+  costCenterById: null,
+  costCenterAt: null,
+  costCenterValidatedAt: null,
+  costCenterValidatedById: null,
+  costCenterValidatedByName: null,
   financeStatus: null,
-  accountRequestedAt: null,
+  approvedById: null,
+  approvedAt: null,
+  approvedAccountName: null,
+  approvedByName: null,
 };
 
 /** Documento já enviado que nunca foi classificado (ex.: enviado antes desta versão): não é tratado como NF. */
@@ -163,16 +198,15 @@ const unclassifiedState = (): InvoiceState => ({
   suggestion: null,
   failureReason: null,
   choice: null,
+  costCenter: null,
   financeStatus: null,
   isFinanceSendReleased: false,
   supersededByEnvelopeId: null,
+  supersedeKind: null,
   aiAvailable: getRevalleInvoiceAiConfig().status === 'CONFIGURED',
 });
 
-/**
- * Fase 6: depois do envio (inclusive o envio retido para o Financeiro, que mantém o rascunho), o remetente não troca
- * mais a conta nem a marcação de NF; quem troca é o Financeiro.
- */
+/** Fase 6: depois do envio, o remetente não troca mais a conta nem a marcação de NF; quem troca é o Financeiro. */
 export const INVOICE_FINANCE_DECIDES_MESSAGE = 'Depois do envio, quem troca a conta é o Financeiro.';
 
 export const financeDecidesError = () =>
@@ -182,19 +216,22 @@ export const financeDecidesError = () =>
   });
 
 /**
- * Rascunho nas mãos do Financeiro: retido esperando a conta (`AWAITING_ACCOUNT`) ou com a conta definida e o envio em
- * andamento (`APPROVED` ainda em rascunho; ver `define-and-send.ts`).
+ * Rascunho travado para o dono: uma nova versão, com o envio em andamento ou parado (ver `define-and-send.ts`). A conta e
+ * o centro são os que o Financeiro ou a Contabilidade definiram, e a aprovação ou a validação valem para eles. O dono
+ * ainda pode trocar o arquivo, que zera tudo e devolve a NF a ele.
  */
-export const isDraftFinanceStatusLocked = (financeStatus: RevalleFinanceStatus | null | undefined) =>
-  financeStatus === RevalleFinanceStatus.AWAITING_ACCOUNT || financeStatus === RevalleFinanceStatus.APPROVED;
+export const isDraftFinanceStatusLocked = (
+  row: Pick<RevalleInvoiceClassification, 'financeStatus' | 'previousEnvelopeId'> | null | undefined,
+) => Boolean(row && (row.financeStatus === RevalleFinanceStatus.APPROVED || isNewVersionDraftRow(row)));
 
-export const isHeldForFinance = async (envelopeId: string) => {
+/** O rascunho do envelope está travado para o dono (`isDraftFinanceStatusLocked`): ele não troca a marcação de NF. */
+export const isDraftLockedForOwner = async (envelopeId: string) => {
   const row = await prisma.revalleInvoiceClassification.findUnique({
     where: { envelopeId },
-    select: { financeStatus: true },
+    select: { financeStatus: true, previousEnvelopeId: true },
   });
 
-  return isDraftFinanceStatusLocked(row?.financeStatus);
+  return isDraftFinanceStatusLocked(row);
 };
 
 export const isEnvelopeDraft = async (envelopeId: string) => {
@@ -253,7 +290,7 @@ export const classifyEnvelope = async (
     // dele (inclusive uma sugestão já em andamento).
     if (row) {
       const previous = row;
-      const hadChoice = previous.choiceCode !== null || previous.choiceDefer;
+      const hadChoice = previous.choiceCode !== null;
       const user =
         hadChoice && requester.userId !== undefined
           ? await prisma.user.findUnique({
@@ -276,9 +313,7 @@ export const classifyEnvelope = async (
               envelopeId,
               data: {
                 fromCode: previous.choiceCode,
-                fromDefer: previous.choiceDefer,
                 toCode: null,
-                toDefer: false,
                 reason: 'FILES_CHANGED',
               },
               user,
@@ -337,7 +372,7 @@ export const setInvoiceFlag = async ({
     throw new AppError(AppErrorCode.INVALID_REQUEST, { message: 'O documento já foi enviado.' });
   }
 
-  if (await isHeldForFinance(envelopeId)) {
+  if (await isDraftLockedForOwner(envelopeId)) {
     throw financeDecidesError();
   }
 

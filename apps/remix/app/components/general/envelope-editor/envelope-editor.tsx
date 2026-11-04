@@ -15,7 +15,6 @@ import {
   CopyPlusIcon,
   DownloadCloudIcon,
   EyeIcon,
-  FileOutputIcon,
   LinkIcon,
   type LucideIcon,
   MousePointerIcon,
@@ -33,7 +32,6 @@ import { EnvelopeDistributeDialog } from '~/components/dialogs/envelope-distribu
 import { EnvelopeDownloadDialog } from '~/components/dialogs/envelope-download-dialog';
 import { EnvelopeDuplicateDialog } from '~/components/dialogs/envelope-duplicate-dialog';
 import { EnvelopeRedistributeDialog } from '~/components/dialogs/envelope-redistribute-dialog';
-import { EnvelopeSaveAsTemplateDialog } from '~/components/dialogs/envelope-save-as-template-dialog';
 import { TemplateDirectLinkDialog } from '~/components/dialogs/template-direct-link-dialog';
 import { EnvelopeEditorSettingsDialog } from '~/components/general/envelope-editor/envelope-editor-settings-dialog';
 
@@ -91,14 +89,7 @@ export const EnvelopeEditor = () => {
 
   const {
     general: { minimizeLeftSidebar, allowUploadAndRecipientStep, allowAddFieldsStep, allowPreviewStep },
-    actions: {
-      allowDistributing,
-      allowDirectLink,
-      allowDuplication,
-      allowSaveAsTemplate,
-      allowDownloadPDF,
-      allowDeletion,
-    },
+    actions: { allowDistributing, allowDirectLink, allowDuplication, allowDownloadPDF, allowDeletion },
   } = editorConfig;
 
   const envelopeEditorSteps = useMemo(() => {
@@ -417,22 +408,7 @@ export const EnvelopeEditor = () => {
               />
             )}
 
-            {allowSaveAsTemplate && isDocument && (
-              <EnvelopeSaveAsTemplateDialog
-                envelopeId={envelope.id}
-                trigger={
-                  <Button variant="ghost" size="sm" className="w-full justify-start" title={t(msg`Save as Template`)}>
-                    <FileOutputIcon className="h-4 w-4" />
-
-                    {!minimizeLeftSidebar && (
-                      <span className="ml-2">
-                        <Trans>Save as Template</Trans>
-                      </span>
-                    )}
-                  </Button>
-                }
-              />
-            )}
+            {/* REVALLE: "Salvar como modelo" saiu (Modelos saem da tela, Fase 7, spec §6). */}
 
             {allowDownloadPDF && (
               <EnvelopeDownloadDialog

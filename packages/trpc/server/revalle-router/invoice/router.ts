@@ -9,8 +9,10 @@ import { findInvoicesRoute } from './find';
 import { findInvoiceAccountsRoute } from './find-accounts';
 import { getInvoiceRoute } from './get';
 import { markAsInvoiceRoute } from './mark-as-invoice';
+import { invoicePendingCountsRoute } from './pending-counts';
 import { resuggestInvoiceRoute } from './resuggest';
 import { setInvoiceChoiceRoute } from './set-choice';
+import { setInvoiceCostCenterRoute } from './set-cost-center';
 import { setInvoiceFlagRoute } from './set-invoice-flag';
 
 export const invoiceRouter = router({
@@ -24,7 +26,9 @@ export const invoiceRouter = router({
   setInvoiceFlag: setInvoiceFlagRoute,
   resuggest: resuggestInvoiceRoute,
   setChoice: setInvoiceChoiceRoute,
+  setCostCenter: setInvoiceCostCenterRoute,
   markAsInvoice: markAsInvoiceRoute,
   findAccounts: findInvoiceAccountsRoute,
   find: findInvoicesRoute,
+  pendingCounts: invoicePendingCountsRoute,
 });

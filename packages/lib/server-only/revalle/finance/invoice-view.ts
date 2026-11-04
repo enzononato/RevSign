@@ -5,20 +5,27 @@ import {
   type RecipientRole,
   RevalleFinanceStatus,
   RevalleInvoiceStatus,
+  type RevalleSupersedeKind,
   type SigningStatus,
 } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { normalizeEmail } from '../../../revalle/email-domain';
+import { isNewVersionDraftRow } from '../../../revalle/finance/finance-status';
+import { costCenterLabel } from '../../../revalle/invoice/cost-centers';
 import { isAdmin as isAdminUser } from '../../../utils/is-admin';
+import { isAccountingMember } from '../accounting/members';
 import { isFinanceMember } from './members';
 import { findVisibleSuccessor } from './successor';
 
 /**
- * Página da NF só de leitura (Fase 6): `/notas-fiscais/:envelopeId`, para quem é do Financeiro e para quem está na NF.
+ * Página da NF só de leitura (Fase 6): `/notas-fiscais/:envelopeId`, para quem é do Financeiro (e, desde a Fase 7, da
+ * Contabilidade) e para quem está na NF.
  *
  * Quem abre:
- * - o Financeiro e o admin: qualquer NF (inclusive o rascunho retido e a versão substituída escondida);
+ * - o admin: qualquer NF (inclusive a versão substituída escondida e o rascunho);
+ * - o Financeiro e a Contabilidade: qualquer NF enviada, a versão substituída escondida e o rascunho de uma nova versão
+ *   (envio parado, `isNewVersionDraftRow`); o rascunho comum de outra pessoa, não;
  * - o dono: as dele;
  * - quem é destinatário (pelo e-mail): a NF já enviada; o rascunho de uma nova versão também (o aviso da troca leva a
  *   ele e o envio pode ter falhado).
@@ -26,7 +33,7 @@ import { findVisibleSuccessor } from './successor';
  * Destinatário que escondeu o documento da própria lista: 404, como na lista.
  * Qualquer outro caso, ou um documento que não é NF: 404, sem revelar que existe.
  */
-export type InvoiceViewer = { isAdmin: boolean; isFinance: boolean; isOwner: boolean };
+export type InvoiceViewer = { isAdmin: boolean; isFinance: boolean; isAccounting: boolean; isOwner: boolean };
 
 const notFound = () => new AppError(AppErrorCode.NOT_FOUND, { message: 'Nota fiscal não encontrada.' });
 
@@ -61,12 +68,13 @@ const loadEnvelope = async (envelopeId: string) =>
           isInvoice: true,
           financeStatus: true,
           choiceCode: true,
-          choiceDefer: true,
+          costCenterCode: true,
           version: true,
           previousEnvelopeId: true,
           supersededByEnvelopeId: true,
           supersededAt: true,
           supersedeReason: true,
+          supersedeKind: true,
         },
       },
     },
@@ -74,7 +82,7 @@ const loadEnvelope = async (envelopeId: string) =>
 
 type LoadedEnvelope = NonNullable<Awaited<ReturnType<typeof loadEnvelope>>>;
 
-/** Quem pode abrir (ou `null` = 404). Admin e Financeiro lidos do banco a cada pedido. */
+/** Quem pode abrir (ou `null` = 404). Admin, Financeiro e Contabilidade lidos do banco a cada pedido. */
 const resolveViewer = async (envelope: LoadedEnvelope, userId: number): Promise<InvoiceViewer | null> => {
   const invoice = envelope.revalleInvoice;
 
@@ -89,9 +97,17 @@ const resolveViewer = async (envelope: LoadedEnvelope, userId: number): Promise<
   }
 
   const isAdmin = isAdminUser(user);
-  const isFinance = await isFinanceMember(userId);
+  const [isFinance, isAccounting] = await Promise.all([isFinanceMember(userId), isAccountingMember(userId)]);
   const isOwner = envelope.userId === userId;
-  const viewer = { isAdmin, isFinance, isOwner };
+  // O rascunho comum é trabalho do dono: o perfil não vale nele. Quem o abre por ser admin ou dono vê a leitura, sem os
+  // cartões, cujas rotas dão 404 nele.
+  const isOpenToProfiles = envelope.status !== DocumentStatus.DRAFT || isNewVersionDraftRow(invoice);
+  const viewer = {
+    isAdmin,
+    isFinance: isFinance && isOpenToProfiles,
+    isAccounting: isAccounting && isOpenToProfiles,
+    isOwner,
+  };
 
   if (isAdmin) {
     return viewer;
@@ -104,7 +120,8 @@ const resolveViewer = async (envelope: LoadedEnvelope, userId: number): Promise<
     return null;
   }
 
-  if (isFinance || isOwner) {
+  // A Contabilidade lê o mesmo que o Financeiro.
+  if (viewer.isFinance || viewer.isAccounting || isOwner) {
     return viewer;
   }
 
@@ -139,12 +156,14 @@ export type InvoiceView = {
   finance: {
     status: RevalleFinanceStatus | null;
     account: { code: string; name: string | null } | null;
-    deferred: boolean;
+    /** Centro de custo ("101 – Puxada"), para quem só está vendo. */
+    costCenterLabel: string | null;
     version: number;
     previous: { id: string; title: string } | null;
     next: { id: string; title: string } | null;
     supersededAt: Date | null;
     supersedeReason: string | null;
+    supersedeKind: RevalleSupersedeKind | null;
   };
   viewer: InvoiceViewer;
   /** Página completa do documento para quem tem: o dono (no time) e o admin (no painel). */
@@ -182,7 +201,7 @@ export const getInvoiceView = async ({
     throw notFound();
   }
 
-  const code = invoice.choiceDefer ? null : invoice.choiceCode;
+  const code = invoice.choiceCode;
   const account = code
     ? await prisma.revalleAccountingAccount.findUnique({ where: { code }, select: { name: true } })
     : null;
@@ -213,12 +232,13 @@ export const getInvoiceView = async ({
     finance: {
       status: invoice.financeStatus,
       account: code ? { code, name: account?.name ?? null } : null,
-      deferred: invoice.choiceDefer,
+      costCenterLabel: invoice.costCenterCode ? costCenterLabel(invoice.costCenterCode) : null,
       version: invoice.version,
       previous,
       next,
       supersededAt: invoice.supersededAt,
       supersedeReason: invoice.supersedeReason,
+      supersedeKind: invoice.supersedeKind,
     },
     viewer,
     documentPath,
@@ -226,8 +246,8 @@ export const getInvoiceView = async ({
 };
 
 /**
- * Arquivo de uma NF para a prévia da página (mesmo acesso da página). Devolve o `documentData` do item (a versão atual:
- * a assinada, depois de selada), ou 404.
+ * Arquivo de uma NF para a prévia e o "Baixar PDF" da página (mesmo acesso da página). Devolve o `documentData` do item (a
+ * versão atual: a assinada, depois de selada), o nome do arquivo e se o documento já concluiu, ou 404.
  */
 export const getInvoiceViewFile = async ({
   envelopeId,
@@ -246,12 +266,16 @@ export const getInvoiceViewFile = async ({
 
   const item = await prisma.envelopeItem.findFirst({
     where: { id: itemId, envelopeId },
-    select: { documentData: { select: { type: true, data: true } } },
+    select: { title: true, documentData: { select: { type: true, data: true } } },
   });
 
   if (!item) {
     throw notFound();
   }
 
-  return item.documentData;
+  return {
+    documentData: item.documentData,
+    title: item.title,
+    isCompleted: envelope.status === DocumentStatus.COMPLETED,
+  };
 };

@@ -10,6 +10,13 @@ import { useSearchParams } from 'react-router';
 
 import { SupportTicketForm } from '~/components/forms/support-ticket-form';
 import { appMetaTags } from '~/utils/meta';
+import { redirectHiddenOrganisationPage } from '~/utils/revalle-hidden-routes'; // REVALLE:
+import type { Route } from './+types/o.$orgUrl.support'; // REVALLE:
+
+// REVALLE: página escondida (Fase 7, spec §6); quem abre o endereço direto cai numa página que existe.
+export function loader(args: Route.LoaderArgs) {
+  return redirectHiddenOrganisationPage(args);
+}
 
 export function meta() {
   return appMetaTags(msg`Support`);

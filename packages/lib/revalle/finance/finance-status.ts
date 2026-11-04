@@ -2,12 +2,11 @@
  * Situação da NF no Financeiro (Fase 6), como a página "Notas fiscais", a página da NF e a planilha mostram. Os mesmos
  * textos nos três lugares (o app é só pt-BR).
  */
-export const FINANCE_STATUSES = ['AWAITING_ACCOUNT', 'PENDING_APPROVAL', 'APPROVED', 'SUPERSEDED', 'LEGACY'] as const;
+export const FINANCE_STATUSES = ['PENDING_APPROVAL', 'APPROVED', 'SUPERSEDED', 'LEGACY'] as const;
 
 export type FinanceStatus = (typeof FINANCE_STATUSES)[number];
 
 export const FINANCE_STATUS_LABELS: Record<FinanceStatus, string> = {
-  AWAITING_ACCOUNT: 'Aguardando a conta',
   PENDING_APPROVAL: 'Aguardando aprovação',
   APPROVED: 'Aprovada',
   SUPERSEDED: 'Substituída',
@@ -27,10 +26,7 @@ export const financeStatusLabel = (financeStatus: FinanceStatus | null, envelope
     return 'Aprovada, ainda não enviada';
   }
 
-  if (
-    (financeStatus === 'PENDING_APPROVAL' || financeStatus === 'AWAITING_ACCOUNT') &&
-    (envelopeStatus === 'REJECTED' || envelopeStatus === 'CANCELLED')
-  ) {
+  if (financeStatus === 'PENDING_APPROVAL' && (envelopeStatus === 'REJECTED' || envelopeStatus === 'CANCELLED')) {
     return 'Sem aprovação (recusada)';
   }
 
@@ -38,12 +34,22 @@ export const financeStatusLabel = (financeStatus: FinanceStatus | null, envelope
 };
 
 /**
+ * Rascunho de uma nova versão (a classificação veio da versão anterior e o envio ainda não saiu): é o que fica com o
+ * Financeiro e a Contabilidade, que o abrem e o enviam de novo, e o dono não troca nem conta nem centro. O arquivo
+ * trocado zera a situação e o rascunho volta a ser comum. A lista filtra pelo mesmo `NEW_VERSION_DRAFT_STATUSES`.
+ */
+export const NEW_VERSION_DRAFT_STATUSES = ['APPROVED', 'PENDING_APPROVAL'] as const satisfies FinanceStatus[];
+
+export const isNewVersionDraftRow = (row: { previousEnvelopeId: string | null; financeStatus: FinanceStatus | null }) =>
+  row.previousEnvelopeId !== null &&
+  NEW_VERSION_DRAFT_STATUSES.some((financeStatus) => financeStatus === row.financeStatus);
+
+/**
  * Filtro "Situação no Financeiro" da página e da planilha (parâmetro `financeiro` da URL). `pendentes` = "Aguardando o
- * Financeiro" (definir a conta ou aprovar), o padrão da página para quem é do Financeiro; `todas` desliga esse padrão.
+ * Financeiro" (aprovar a conta), o padrão da página para quem é do Financeiro (`invoicesDefaultFilters`); `todas` desliga esse padrão.
  */
 export const FINANCE_FILTERS = [
   'pendentes',
-  'aguardando-conta',
   'aguardando-aprovacao',
   'aprovadas',
   'substituidas',
@@ -55,7 +61,6 @@ export type FinanceFilter = (typeof FINANCE_FILTERS)[number];
 
 export const FINANCE_FILTER_LABELS: Record<FinanceFilter, string> = {
   pendentes: 'Aguardando o Financeiro',
-  'aguardando-conta': 'Aguardando a conta',
   'aguardando-aprovacao': 'Aguardando aprovação',
   aprovadas: 'Aprovadas',
   substituidas: 'Substituídas',
@@ -63,8 +68,5 @@ export const FINANCE_FILTER_LABELS: Record<FinanceFilter, string> = {
   todas: 'Todas',
 };
 
-/** Padrão da página para quem é do Financeiro (sem `financeiro` na URL). */
-export const FINANCE_DEFAULT_FILTER: FinanceFilter = 'pendentes';
-
-/** Página da NF só de leitura (Financeiro e quem está na NF): a lista e os e-mails do Financeiro levam a ela. */
+/** Página da NF só de leitura (Financeiro e quem está na NF): a lista e o aviso da troca de conta levam a ela. */
 export const invoiceViewPath = (envelopeId: string) => `/notas-fiscais/${envelopeId}`;

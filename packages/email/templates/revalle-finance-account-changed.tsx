@@ -7,11 +7,14 @@ import { TemplateBrandingLogo } from '../template-components/template-branding-l
 import { TemplateDocumentImage } from '../template-components/template-document-image';
 import { TemplateFooter } from '../template-components/template-footer';
 
-// REVALLE: o Financeiro trocou a conta contábil da NF (Fase 6): aviso ao remetente e aos destinatários das duas versões.
+// REVALLE: o Financeiro trocou a conta contábil da NF (Fase 6) ou a Contabilidade corrigiu o centro de custo (Fase 7):
+// aviso ao remetente e aos destinatários das duas versões.
 export type RevalleFinanceAccountChangedTemplateProps = {
+  /** O que mudou: muda só o título, a prévia e o texto do aviso. */
+  kind: 'ACCOUNT' | 'COST_CENTER';
   documentName: string;
   newDocumentName: string;
-  /** Texto exato do aviso (`buildAccountChangeNotice`), com as contas e o motivo. */
+  /** Texto exato do aviso (`buildVersionChangeNotice`), com o que mudou e o motivo. */
   notice: string;
   /**
    * O botão desta pessoa: `SIGN` = o link de assinatura dela na nova versão; `VIEW` = a página da NF (o dono, que tem
@@ -23,6 +26,7 @@ export type RevalleFinanceAccountChangedTemplateProps = {
 };
 
 export const RevalleFinanceAccountChangedTemplate = ({
+  kind = 'ACCOUNT',
   documentName = 'Nota fiscal.pdf',
   newDocumentName = 'Nota fiscal.pdf (v2)',
   notice = 'A conta contábil da nota fiscal Nota fiscal.pdf foi alterada pelo Financeiro de 2.1.03 – Fornecedores para 3.1.01 – Serviços de terceiros. Motivo: Conta de serviço, não de material.',
@@ -32,7 +36,10 @@ export const RevalleFinanceAccountChangedTemplate = ({
 }: Partial<RevalleFinanceAccountChangedTemplateProps>) => {
   const { _ } = useLingui();
 
-  const previewText = msg`Conta contábil da nota fiscal alterada pelo Financeiro: ${documentName}`;
+  const previewText =
+    kind === 'COST_CENTER'
+      ? msg`Centro de custo da nota fiscal corrigido pela Contabilidade: ${documentName}`
+      : msg`Conta contábil da nota fiscal alterada pelo Financeiro: ${documentName}`;
 
   return (
     <Html>
@@ -49,7 +56,11 @@ export const RevalleFinanceAccountChangedTemplate = ({
               <TemplateDocumentImage className="mt-6" assetBaseUrl={assetBaseUrl} />
 
               <Text className="mx-auto mb-0 max-w-[80%] text-center font-semibold text-foreground text-lg">
-                <Trans>A conta contábil de uma nota fiscal foi alterada</Trans>
+                {kind === 'COST_CENTER' ? (
+                  <Trans>O centro de custo de uma nota fiscal foi corrigido</Trans>
+                ) : (
+                  <Trans>A conta contábil de uma nota fiscal foi alterada</Trans>
+                )}
               </Text>
 
               <Text className="my-2 text-center text-base text-foreground">{notice}</Text>

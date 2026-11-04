@@ -26,11 +26,14 @@ export const ZInvoiceStateSchema = z.object({
     ])
     .nullable(),
   choice: z.object({ code: z.string(), name: z.string().optional() }).nullable(),
-  financeStatus: z.enum(['AWAITING_ACCOUNT', 'PENDING_APPROVAL', 'APPROVED', 'SUPERSEDED', 'LEGACY']).nullable(),
-  /** `APPROVED` sem reserva de envio (`approvedAt` nulo): o envio do Financeiro falhou e o rascunho pode ser enviado. */
+  /** Fase 7: centro de custo (lista fixa), exigido junto com a conta no primeiro envio. */
+  costCenter: z.object({ code: z.string(), name: z.string() }).nullable(),
+  financeStatus: z.enum(['PENDING_APPROVAL', 'APPROVED', 'SUPERSEDED', 'LEGACY']).nullable(),
+  /** Nova versão em rascunho cujo envio falhou: o rascunho pode ser enviado, com a conta e o centro travados. */
   isFinanceSendReleased: z.boolean(),
-  /** Versão substituída pelo Financeiro: a nova versão (link no cartão do remetente). */
+  /** Versão substituída: a nova versão (link no cartão do remetente) e o que mudou. */
   supersededByEnvelopeId: z.string().nullable(),
+  supersedeKind: z.enum(['ACCOUNT', 'COST_CENTER']).nullable(),
   aiAvailable: z.boolean(),
 });
 

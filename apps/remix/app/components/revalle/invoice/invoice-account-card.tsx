@@ -1,6 +1,7 @@
 import { useSession } from '@documenso/lib/client-only/providers/session';
 import { DO_NOT_INVALIDATE_QUERY_ON_MUTATION } from '@documenso/lib/constants/trpc';
 import { invoiceViewPath } from '@documenso/lib/revalle/finance/finance-status';
+import { costCenterLabel } from '@documenso/lib/revalle/invoice/cost-centers';
 import { isAdmin } from '@documenso/lib/utils/is-admin';
 import { trpc } from '@documenso/trpc/react';
 import { Button } from '@documenso/ui/primitives/button';
@@ -10,6 +11,7 @@ import { DocumentStatus } from '@prisma/client';
 import { Link } from 'react-router';
 
 import { AccountCombobox } from './account-combobox';
+import { CostCenterSelect } from './cost-center-select';
 
 export type InvoiceAccountCardProps = {
   envelope: { id: string; userId: number; status: DocumentStatus };
@@ -18,14 +20,16 @@ export type InvoiceAccountCardProps = {
 /**
  * "Conta contábil" na página do documento já enviado (inclusive concluído), só para o dono e o admin.
  * - NF com conta: só leitura (Fase 6: depois do envio, quem troca a conta é o Financeiro), com o estado no Financeiro;
- *   substituída (o Financeiro trocou a conta), com o link para a nova versão.
+ *   substituída (o Financeiro trocou a conta ou a Contabilidade corrigiu o centro), com o link para a nova versão.
  * - NF sem conta (marcada depois do envio): a lista já vem aberta, até a primeira escolha.
+ * - Centro de custo (Fase 7): em leitura quando já escolhido (depois do envio quem corrige é a Contabilidade); sem
+ *   centro (NF marcada depois do envio, ou enviada antes desta versão), o dono e o admin escolhem o primeiro aqui, sem
+ *   nova versão.
  * - Enviado (pendente ou concluído) sem resposta a "É nota fiscal?" (UNKNOWN, ex.: NF escaneada enviada pela API): o
  *   cartão com a pergunta e "Marcar como nota fiscal".
  * - Enviado que não é NF (NO, ou enviado antes desta versão): só um link discreto "É uma nota fiscal? Marcar como
  *   nota fiscal", para não pesar na página de todo contrato.
  * Marcar (sem IA) abre em seguida a escolha da conta, no cartão; a NF fica aguardando a aprovação do Financeiro.
- * Num documento concluído, a escolha avisa a contabilidade.
  */
 export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
   const { user } = useSession();
@@ -49,8 +53,10 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
   });
 
   const { mutateAsync: setChoice, isPending: isSavingChoice } = trpc.revalle.invoice.setChoice.useMutation();
+  const { mutateAsync: setCostCenter, isPending: isSavingCostCenter } =
+    trpc.revalle.invoice.setCostCenter.useMutation();
   const { mutateAsync: markAsInvoice, isPending: isMarking } = trpc.revalle.invoice.markAsInvoice.useMutation();
-  const isPending = isSavingChoice || isMarking;
+  const isPending = isSavingChoice || isSavingCostCenter || isMarking;
 
   if (!isOwnerOrAdmin || !state || (!isInvoice && !canMark)) {
     return null;
@@ -129,8 +135,22 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
     }
   };
 
+  const onChooseCostCenter = async (code: string) => {
+    try {
+      utils.revalle.invoice.get.setData(
+        { envelopeId: envelope.id },
+        await setCostCenter({ envelopeId: envelope.id, code }),
+      );
+      toast({ title: t`Centro de custo atualizado.`, duration: 5000 });
+    } catch {
+      toast({ title: t`Não foi possível salvar. Tente de novo.`, variant: 'destructive', duration: 5000 });
+    }
+  };
+
   const choiceCode = state.choice?.code;
   const choiceName = state.choice?.name ?? '';
+  // A versão substituída não recebe conta nem centro: a nova versão é a que vale.
+  const canChooseCostCenter = !state.costCenter && state.financeStatus !== 'SUPERSEDED';
 
   return (
     <section
@@ -142,24 +162,8 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
       </h2>
 
       <p className="break-words text-sm">
-        {!state.choice ? (
-          <Trans>Nenhuma conta escolhida.</Trans>
-        ) : choiceCode === 'DEFER' ? (
-          state.financeStatus === 'LEGACY' ? (
-            <Trans>A definir pela contabilidade.</Trans>
-          ) : (
-            <Trans>A definir pelo Financeiro.</Trans>
-          )
-        ) : (
-          `${choiceCode} · ${choiceName}`
-        )}
+        {state.choice ? `${choiceCode} · ${choiceName}` : <Trans>Nenhuma conta escolhida.</Trans>}
       </p>
-
-      {state.financeStatus === 'AWAITING_ACCOUNT' && (
-        <p className="text-muted-foreground text-sm">
-          <Trans>Aguardando o Financeiro definir a conta</Trans>
-        </p>
-      )}
 
       {state.financeStatus === 'PENDING_APPROVAL' && state.choice && (
         <p className="text-muted-foreground text-sm">
@@ -176,7 +180,16 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
       {state.financeStatus === 'SUPERSEDED' && (
         <>
           <p className="text-muted-foreground text-sm" data-testid="invoice-account-superseded">
-            <Trans>Substituída: o Financeiro trocou a conta e criou uma nova versão, que todos assinam de novo.</Trans>
+            {state.supersedeKind === 'COST_CENTER' ? (
+              <Trans>
+                Substituída: a Contabilidade corrigiu o centro de custo e criou uma nova versão, que todos assinam de
+                novo.
+              </Trans>
+            ) : (
+              <Trans>
+                Substituída: o Financeiro trocou a conta e criou uma nova versão, que todos assinam de novo.
+              </Trans>
+            )}
           </p>
           {state.supersededByEnvelopeId && (
             <Button asChild variant="outline" className="h-11 w-full whitespace-normal sm:w-auto sm:self-start">
@@ -188,7 +201,7 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
         </>
       )}
 
-      {!state.choice && (
+      {!state.choice && state.financeStatus !== 'SUPERSEDED' && (
         <>
           <AccountCombobox
             accounts={accountsData?.accounts ?? []}
@@ -199,6 +212,22 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
 
           <p className="text-amber-700 text-sm dark:text-amber-400">
             <Trans>Escolha a conta contábil. Depois, quem aprova ou troca é o Financeiro.</Trans>
+          </p>
+        </>
+      )}
+
+      {state.costCenter && (
+        <p className="break-words text-sm" data-testid="invoice-cost-center-value">
+          <Trans>Centro de custo: {costCenterLabel(state.costCenter.code)}</Trans>
+        </p>
+      )}
+
+      {canChooseCostCenter && (
+        <>
+          <CostCenterSelect value={null} disabled={isPending} onSelect={(code) => void onChooseCostCenter(code)} />
+
+          <p className="text-amber-700 text-sm dark:text-amber-400">
+            <Trans>Escolha o centro de custo. Depois, quem corrige é a Contabilidade.</Trans>
           </p>
         </>
       )}

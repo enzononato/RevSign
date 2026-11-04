@@ -1,5 +1,5 @@
-import TemplatesPage, { meta } from './templates._index';
+import TemplatesPage, { loader, meta } from './templates._index'; // REVALLE: loader (redireciona, Modelos saíram)
 
-export { meta };
+export { loader, meta };
 
 export default TemplatesPage;

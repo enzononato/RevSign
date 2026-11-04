@@ -10,7 +10,7 @@ export default function PrivacidadePage() {
       <header className="space-y-2">
         <h1 className="font-semibold text-3xl">Política de privacidade</h1>
         <p className="text-muted-foreground text-sm">
-          {REVALLE_TERM_NOTICE} Versão {REVALLE_TERM_VERSION} — 29/10/2026
+          {REVALLE_TERM_NOTICE} Versão {REVALLE_TERM_VERSION} — 04/11/2026
         </p>
       </header>
 
@@ -40,8 +40,13 @@ export default function PrivacidadePage() {
           .
         </p>
         <p>
-          Não coletamos nada além disso. A data de nascimento é usada apenas para conferir com o cadastro de
-          colaboradores e não é gravada pelo RevSign.
+          Ao criar uma conta, você também informa o seu CPF e a sua data de nascimento, só para confirmarmos que você é
+          colaborador. O CPF fica guardado para ligar o seu e-mail ao seu CPF, e assim você não precisa confirmar seus
+          dados a cada assinatura.
+        </p>
+        <p>
+          Não coletamos nada além do que está descrito nesta página. A data de nascimento é usada apenas para conferir
+          com o cadastro de colaboradores e não é gravada pelo RevSign.
         </p>
       </section>
 

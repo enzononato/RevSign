@@ -207,36 +207,6 @@ msgstr "Usuário criado e e-mail de boas-vindas enviado"
 msgid "We encountered an error while creating the user. Please try again later."
 msgstr "Ocorreu um erro ao criar o usuário. Tente novamente mais tarde."
 
-msgid "AI features are disabled for your team. Please ask your team owner or organisation owner to enable them."
-msgstr "Os recursos de IA estão desativados para sua equipe. Peça ao proprietário da equipe ou da organização para ativá-los."
-
-msgid "Enable AI features"
-msgstr "Ativar recursos de IA"
-
-msgid "Turn on AI detection to automatically find recipients and fields in your documents. AI providers do not retain your data for training."
-msgstr "Ative a detecção por IA para encontrar destinatários e campos nos seus documentos automaticamente. Os provedores de IA não guardam seus dados para treinamento."
-
-msgid "We couldn't enable AI features right now. Please try again."
-msgstr "Não foi possível ativar os recursos de IA agora. Tente novamente."
-
-msgid "You're an admin. You can enable AI features for this team right away. Everyone on the team will see AI detection once enabled."
-msgstr "Você é administrador. Pode ativar os recursos de IA para esta equipe agora mesmo. Todos da equipe verão a detecção por IA depois de ativada."
-
-msgid "Your document content will be sent securely to our AI provider solely for detection and will not be stored or used for training."
-msgstr "O conteúdo do seu documento será enviado com segurança ao nosso provedor de IA apenas para a detecção e não será armazenado nem usado para treinamento."
-
-msgid "{0, plural, one {Page {1} of {2} - # field found} other {Page {3} of {4} - # fields found}}"
-msgstr "{0, plural, one {Página {1} de {2} - # campo encontrado} other {Página {3} de {4} - # campos encontrados}}"
-
-msgid "{0, plural, one {We found # field in your document.} other {We found # fields in your document.}}"
-msgstr "{0, plural, one {Encontramos # campo no seu documento.} other {Encontramos # campos no seu documento.}}"
-
-msgid "{0, plural, one {Page {1} of {2} - # recipient found} other {Page {3} of {4} - # recipients found}}"
-msgstr "{0, plural, one {Página {1} de {2} - # destinatário encontrado} other {Página {3} de {4} - # destinatários encontrados}}"
-
-msgid "{0, plural, one {We found # recipient in your document.} other {We found # recipients in your document.}}"
-msgstr "{0, plural, one {Encontramos # destinatário no seu documento.} other {Encontramos # destinatários no seu documento.}}"
-
 msgid "The next recipient to sign this document will be <0>{0}</0> (<1>{1}</1>)."
 msgstr "O próximo destinatário a assinar este documento será <0>{0}</0> (<1>{1}</1>)."
 
@@ -1450,9 +1420,6 @@ msgstr "Ver modelos"
 msgid "{0, plural, one {# use} other {# uses}}"
 msgstr "{0, plural, one {# uso} other {# usos}}"
 
-msgid "Change language"
-msgstr "Alterar idioma"
-
 msgid "Change theme"
 msgstr "Alterar tema"
 
@@ -1831,17 +1798,8 @@ msgstr "Os destinatários não podem usar este modelo de link direto porque os s
 msgid "Add recipients to your document"
 msgstr "Adicione destinatários ao seu documento"
 
-msgid "Enable AI detection"
-msgstr "Ativar detecção por IA"
-
 msgid "This envelope cannot have more than {recipientCountLimit} recipients. Please contact support if you need more."
 msgstr "Este documento não pode ter mais de {recipientCountLimit} destinatários. Entre em contato com o suporte se precisar de mais."
-
-msgid "{0, plural, one {# recipient have been added from AI detection.} other {# recipients have been added from AI detection.}}"
-msgstr "{0, plural, one {# destinatário foi adicionado pela detecção por IA.} other {# destinatários foram adicionados pela detecção por IA.}}"
-
-msgid "{0, plural, one {Recipient added} other {Recipients added}}"
-msgstr "{0, plural, one {Destinatário adicionado} other {Destinatários adicionados}}"
 
 msgid "Configure notification settings for the document."
 msgstr "Defina as configurações de notificação do documento."
@@ -3862,9 +3820,6 @@ msgstr "Ocorreu um erro ao remover este arquivo do documento. Tente novamente ma
 msgid "We encountered an unknown error while attempting to update the envelope. Please try again later."
 msgstr "Ocorreu um erro ao atualizar o documento. Tente novamente mais tarde."
 
-msgid "You can only detect fields in draft envelopes"
-msgstr "Só é possível detectar campos em documentos em rascunho"
-
 msgid "You have successfully removed this envelope item."
 msgstr "Arquivo removido do documento."
 
@@ -4329,9 +4284,6 @@ msgstr "Corrija estes erros e envie de novo. Nada foi gravado."
 msgid "Descrição"
 msgstr "Descrição"
 
-msgid "E-mail da contabilidade"
-msgstr "E-mail da contabilidade"
-
 msgid "Enviar arquivo CSV"
 msgstr "Enviar arquivo CSV"
 
@@ -4359,9 +4311,6 @@ msgstr "Não foi possível aplicar a lista."
 msgid "Não foi possível ler a lista."
 msgstr "Não foi possível ler a lista."
 
-msgid "Não foi possível salvar. Confira o e-mail da contabilidade."
-msgstr "Não foi possível salvar. Confira o e-mail da contabilidade."
-
 msgid "Nenhuma conta encontrada."
 msgstr "Nenhuma conta encontrada."
 
@@ -4386,17 +4335,11 @@ msgstr "Ou cole a lista aqui"
 msgid "Prompt"
 msgstr "Prompt"
 
-msgid "Recebe o PDF assinado das notas fiscais. Pode ficar vazio."
-msgstr "Recebe o PDF assinado das notas fiscais. Pode ficar vazio."
-
 msgid "Salvar"
 msgstr "Salvar"
 
 msgid "Situação"
 msgstr "Situação"
-
-msgid "Sugestão e contabilidade"
-msgstr "Sugestão e contabilidade"
 
 msgid "Sugestão por IA: desligada. A escolha da conta funciona, mas sem sugestão."
 msgstr "Sugestão por IA: desligada. A escolha da conta funciona, mas sem sugestão."
@@ -4472,9 +4415,6 @@ msgstr "Nenhuma conta escolhida."
 msgid "Nota fiscal · Conta contábil"
 msgstr "Nota fiscal · Conta contábil"
 
-msgid "Nota fiscal sem conta contábil"
-msgstr "Nota fiscal sem conta contábil"
-
 msgid "Sim"
 msgstr "Sim"
 
@@ -4492,36 +4432,6 @@ msgstr "Usar sugestão"
 
 msgid "Conta contábil apagada porque o arquivo foi alterado (era {from})"
 msgstr "Conta contábil apagada porque o arquivo foi alterado (era {from})"
-
-msgid "O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e envie."
-msgstr "O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e envie."
-
-msgid "A conta foi escolhida pelo remetente."
-msgstr "A conta foi escolhida pelo remetente."
-
-msgid "A conta foi sugerida pela IA e aceita pelo remetente."
-msgstr "A conta foi sugerida pela IA e aceita pelo remetente."
-
-msgid "Concluído em {completedAt}"
-msgstr "Concluído em {completedAt}"
-
-msgid "Conta contábil: {account}"
-msgstr "Conta contábil: {account}"
-
-msgid "Documento: {documentName}"
-msgstr "Documento: {documentName}"
-
-msgid "Enviado por {senderName} ({senderEmail})"
-msgstr "Enviado por {senderName} ({senderEmail})"
-
-msgid "Nota fiscal assinada: {documentName}"
-msgstr "Nota fiscal assinada: {documentName}"
-
-msgid "O PDF assinado está em anexo."
-msgstr "O PDF assinado está em anexo."
-
-msgid "Uma nota fiscal foi assinada"
-msgstr "Uma nota fiscal foi assinada"
 
 # REVALLE: Fase 5, página "Notas fiscais" e menu (msgids já em pt-BR).
 
@@ -4658,25 +4568,13 @@ msgstr "Não foi possível carregar os usuários. Tente de novo."
 msgid "Nenhum usuário encontrado."
 msgstr "Nenhum usuário encontrado."
 
-msgid "Quem é do Financeiro vê todas as notas fiscais e aprova a conta contábil de cada uma. Marque quem faz parte; a mudança vale na hora."
-msgstr "Quem é do Financeiro vê todas as notas fiscais e aprova a conta contábil de cada uma. Marque quem faz parte; a mudança vale na hora."
-
 msgid "Todas as notas fiscais enviadas para assinatura (você é do Financeiro)."
 msgstr "Todas as notas fiscais enviadas para assinatura (você é do Financeiro)."
 
-# REVALLE: Fase 6, "Deixar para o Financeiro", envio retido e estado no cartão do remetente (msgids já em pt-BR).
-
-msgid "A definir pelo Financeiro"
-msgstr "A definir pelo Financeiro"
-
-msgid "A definir pelo Financeiro."
-msgstr "A definir pelo Financeiro."
+# REVALLE: Fase 6, estado da NF no cartão do remetente e avisos do Financeiro (msgids já em pt-BR).
 
 msgid "Aguardando aprovação do Financeiro"
 msgstr "Aguardando aprovação do Financeiro"
-
-msgid "Aguardando o Financeiro definir a conta"
-msgstr "Aguardando o Financeiro definir a conta"
 
 msgid "Aprovada pelo Financeiro"
 msgstr "Aprovada pelo Financeiro"
@@ -4684,59 +4582,17 @@ msgstr "Aprovada pelo Financeiro"
 msgid "Conta contábil definida pelo Financeiro: {account} (já aprovada)"
 msgstr "Conta contábil definida pelo Financeiro: {account} (já aprovada)"
 
-msgid "Conta: a definir pela contabilidade"
-msgstr "Conta: a definir pela contabilidade"
-
 msgid "deixar para o Financeiro"
 msgstr "deixar para o Financeiro"
-
-msgid "Deixar para o Financeiro"
-msgstr "Deixar para o Financeiro"
-
-msgid "Enviado para o Financeiro definir a conta. Os convites saem depois disso."
-msgstr "Enviado para o Financeiro definir a conta. Os convites saem depois disso."
-
-msgid "Escolha a conta contábil ou deixe para o Financeiro."
-msgstr "Escolha a conta contábil ou deixe para o Financeiro."
 
 msgid "Escolha a conta contábil. Depois, quem aprova ou troca é o Financeiro."
 msgstr "Escolha a conta contábil. Depois, quem aprova ou troca é o Financeiro."
 
-msgid "Escolha: deixar para o Financeiro"
-msgstr "Escolha: deixar para o Financeiro"
-
-msgid "Nota fiscal aguardando o Financeiro: {documentName}"
-msgstr "Nota fiscal aguardando o Financeiro: {documentName}"
-
-msgid "Nota fiscal enviada para o Financeiro"
-msgstr "Nota fiscal enviada para o Financeiro"
-
-msgid "Notas fiscais aguardando o Financeiro definir a conta: {awaitingCount}. Ninguém está marcado como Financeiro: marque alguém abaixo para que essas notas possam ser enviadas."
-msgstr "Notas fiscais aguardando o Financeiro definir a conta: {awaitingCount}. Ninguém está marcado como Financeiro: marque alguém abaixo para que essas notas possam ser enviadas."
-
-msgid "O remetente escolheu \"Deixar para o Financeiro\". Os convites para assinar só saem depois que alguém do Financeiro definir a conta."
-msgstr "O remetente escolheu \"Deixar para o Financeiro\". Os convites para assinar só saem depois que alguém do Financeiro definir a conta."
-
-msgid "Os convites saem depois que o Financeiro definir a conta."
-msgstr "Os convites saem depois que o Financeiro definir a conta."
-
-msgid "Uma nota fiscal aguarda o Financeiro definir a conta contábil"
-msgstr "Uma nota fiscal aguarda o Financeiro definir a conta contábil"
-
-msgid "Nota fiscal aguardando aprovação do Financeiro: {documentName}"
-msgstr "Nota fiscal aguardando aprovação do Financeiro: {documentName}"
-
-msgid "Uma nota fiscal aguarda a aprovação do Financeiro"
-msgstr "Uma nota fiscal aguarda a aprovação do Financeiro"
-
-msgid "Todos já assinaram. O documento só é concluído (e enviado à contabilidade) depois que alguém do Financeiro aprovar a conta."
-msgstr "Todos já assinaram. O documento só é concluído (e enviado à contabilidade) depois que alguém do Financeiro aprovar a conta."
-
 msgid "Conta contábil aprovada pelo Financeiro: {account}"
 msgstr "Conta contábil aprovada pelo Financeiro: {account}"
 
-msgid "Este documento foi substituído por uma nova versão (conta contábil alterada)."
-msgstr "Este documento foi substituído por uma nova versão (conta contábil alterada)."
+msgid "Este documento foi substituído por uma nova versão."
+msgstr "Este documento foi substituído por uma nova versão."
 
 msgid "O convite da nova versão chega por e-mail."
 msgstr "O convite da nova versão chega por e-mail."
@@ -4755,9 +4611,6 @@ msgstr "Nova versão criada pelo Financeiro com a conta contábil {to} (antes {f
 
 msgid "Conta contábil trocada pelo Financeiro de {from} para {to}: substituído por uma nova versão. Motivo: {reason}"
 msgstr "Conta contábil trocada pelo Financeiro de {from} para {to}: substituído por uma nova versão. Motivo: {reason}"
-
-msgid "a definir pelo Financeiro"
-msgstr "a definir pelo Financeiro"
 
 msgid "Conta aprovada pelo Financeiro. O envio anterior falhou: corrija o rascunho e envie."
 msgstr "Conta aprovada pelo Financeiro. O envio anterior falhou: corrija o rascunho e envie."
@@ -4792,9 +4645,6 @@ msgstr "Conta aprovada."
 msgid "Conta atual: {0}. Escolha a nova conta e escreva o motivo."
 msgstr "Conta atual: {0}. Escolha a nova conta e escreva o motivo."
 
-msgid "Conta definida. O documento foi enviado para assinatura."
-msgstr "Conta definida. O documento foi enviado para assinatura."
-
 msgid "Conta escolhida: {0} – {1}"
 msgstr "Conta escolhida: {0} – {1}"
 
@@ -4809,9 +4659,6 @@ msgstr "Conta: {account}. Depois de aprovada, a nota fiscal é concluída quando
 
 msgid "De {0} para {1} – {2}."
 msgstr "De {0} para {1} – {2}."
-
-msgid "Definir conta e enviar"
-msgstr "Definir conta e enviar"
 
 msgid "Enviado de novo para assinatura."
 msgstr "Enviado de novo para assinatura."
@@ -4836,9 +4683,6 @@ msgstr "Não foi possível carregar o Financeiro. Tente de novo."
 
 msgid "Não foi possível concluir."
 msgstr "Não foi possível concluir."
-
-msgid "O remetente deixou a conta para o Financeiro. Escolha a conta: o documento é enviado na hora, com a conta já aprovada."
-msgstr "O remetente deixou a conta para o Financeiro. Escolha a conta: o documento é enviado na hora, com a conta já aprovada."
 
 msgid "Quem escolheu"
 msgstr "Quem escolheu"
@@ -4954,23 +4798,11 @@ msgstr "Nenhuma nota fiscal aguardando o Financeiro."
 msgid "Situação no Financeiro"
 msgstr "Situação no Financeiro"
 
-msgid "Só as deixadas para o Financeiro"
-msgstr "Só as deixadas para o Financeiro"
-
 msgid "Versão"
 msgstr "Versão"
 
 msgid "não enviada"
 msgstr "não enviada"
-
-msgid "Abrir a nota fiscal"
-msgstr "Abrir a nota fiscal"
-
-msgid "A definir pela contabilidade"
-msgstr "A definir pela contabilidade"
-
-msgid "A definir pela contabilidade."
-msgstr "A definir pela contabilidade."
 
 msgid "A nova versão não existe mais: troque a conta de novo."
 msgstr "A nova versão não existe mais: troque a conta de novo."
@@ -4978,26 +4810,14 @@ msgstr "A nova versão não existe mais: troque a conta de novo."
 msgid "Assinar a nova versão"
 msgstr "Assinar a nova versão"
 
-msgid "Conta alterada pelo Financeiro ({financeName}) — motivo: {changeReason}"
-msgstr "Conta alterada pelo Financeiro ({financeName}) — motivo: {changeReason}"
-
 msgid "Conta definida e aprovada."
 msgstr "Conta definida e aprovada."
-
-msgid "Conta definida pelo Financeiro ({financeName})"
-msgstr "Conta definida pelo Financeiro ({financeName})"
 
 msgid "Conta: {accountLabel}. O documento é enviado agora, em nome do remetente, para todos os destinatários assinarem."
 msgstr "Conta: {accountLabel}. O documento é enviado agora, em nome do remetente, para todos os destinatários assinarem."
 
 msgid "Conta: {definedLabel}. Ela fica aprovada na hora; a nota fiscal é concluída quando todos tiverem assinado (se todos já assinaram, na hora)."
 msgstr "Conta: {definedLabel}. Ela fica aprovada na hora; a nota fiscal é concluída quando todos tiverem assinado (se todos já assinaram, na hora)."
-
-msgid "Conta: {definedLabel}. O documento é enviado agora, em nome do remetente, para todos os destinatários assinarem."
-msgstr "Conta: {definedLabel}. O documento é enviado agora, em nome do remetente, para todos os destinatários assinarem."
-
-msgid "Definir a conta e enviar?"
-msgstr "Definir a conta e enviar?"
 
 msgid "Definir e aprovar"
 msgstr "Definir e aprovar"
@@ -5011,11 +4831,242 @@ msgstr "Enviar de novo?"
 msgid "Esta nota fiscal foi marcada depois do envio e ainda não tem conta. Escolha a conta: ela fica aprovada na hora, sem nova versão (ninguém viu conta ao assinar)."
 msgstr "Esta nota fiscal foi marcada depois do envio e ainda não tem conta. Escolha a conta: ela fica aprovada na hora, sem nova versão (ninguém viu conta ao assinar)."
 
-msgid "Notas fiscais assinadas aguardando a aprovação do Financeiro: {approvalCount}. Ninguém está marcado como Financeiro: marque alguém abaixo; o pedido de aprovação sai em até 15 minutos."
-msgstr "Notas fiscais assinadas aguardando a aprovação do Financeiro: {approvalCount}. Ninguém está marcado como Financeiro: marque alguém abaixo; o pedido de aprovação sai em até 15 minutos."
-
-msgid "Substitui o envio da versão anterior: {replacedTitle}"
-msgstr "Substitui o envio da versão anterior: {replacedTitle}"
+msgid "Notas fiscais assinadas aguardando a aprovação do Financeiro: {approvalCount}. Ninguém está marcado como Financeiro: marque alguém abaixo. As notas esperam na página Notas fiscais até alguém do Financeiro aprovar."
+msgstr "Notas fiscais assinadas aguardando a aprovação do Financeiro: {approvalCount}. Ninguém está marcado como Financeiro: marque alguém abaixo. As notas esperam na página Notas fiscais até alguém do Financeiro aprovar."
 
 msgid "Verificar um documento"
 msgstr "Verificar um documento"
+
+# REVALLE: Fase 7, sem "Deixar para o Financeiro" (msgids já em pt-BR).
+
+msgid "Escolha a conta contábil."
+msgstr "Escolha a conta contábil."
+
+msgid "Nenhuma conta contábil cadastrada. Fale com o administrador."
+msgstr "Nenhuma conta contábil cadastrada. Fale com o administrador."
+
+msgid "O Financeiro está enviando esta nova versão. Os convites saem em instantes."
+msgstr "O Financeiro está enviando esta nova versão. Os convites saem em instantes."
+
+msgid "sem conta"
+msgstr "sem conta"
+
+# REVALLE: Fase 7, centro de custo da nota fiscal (msgids já em pt-BR).
+
+msgid "Centro de custo"
+msgstr "Centro de custo"
+
+msgid "Selecione o centro de custo"
+msgstr "Selecione o centro de custo"
+
+msgid "Escolha o centro de custo."
+msgstr "Escolha o centro de custo."
+
+msgid "Escolha o centro de custo. Depois, quem corrige é a Contabilidade."
+msgstr "Escolha o centro de custo. Depois, quem corrige é a Contabilidade."
+
+msgid "Centro de custo: {0}"
+msgstr "Centro de custo: {0}"
+
+msgid "Centro de custo atualizado."
+msgstr "Centro de custo atualizado."
+
+msgid "Centro de custo escolhido: {to}"
+msgstr "Centro de custo escolhido: {to}"
+
+msgid "Centro de custo trocado: {from} → {to}"
+msgstr "Centro de custo trocado: {from} → {to}"
+
+msgid "Nota fiscal sem conta contábil ou centro de custo"
+msgstr "Nota fiscal sem conta contábil ou centro de custo"
+
+msgid "Escolha a conta contábil e o centro de custo."
+msgstr "Escolha a conta contábil e o centro de custo."
+
+msgid "O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e o centro de custo e envie."
+msgstr "O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e o centro de custo e envie."
+
+msgid "Nota fiscal · Conta contábil: {label} · Centro de custo: {centerLabel}"
+msgstr "Nota fiscal · Conta contábil: {label} · Centro de custo: {centerLabel}"
+
+# REVALLE: Fase 7, Task 5: tela Admin → Perfis (Financeiro e Contabilidade) e cabeçalho da página "Notas fiscais" (msgids já em pt-BR).
+msgid "Perfis"
+msgstr "Perfis"
+
+msgid "Contabilidade"
+msgstr "Contabilidade"
+
+msgid "Contabilidade: {0}"
+msgstr "Contabilidade: {0}"
+
+msgid "{name} agora é da Contabilidade."
+msgstr "{name} agora é da Contabilidade."
+
+msgid "{name} saiu da Contabilidade."
+msgstr "{name} saiu da Contabilidade."
+
+msgid "Toda conta é de colaborador: envia e assina. Marque quem também é do Financeiro (aprova a conta contábil de cada nota fiscal) ou da Contabilidade (valida e corrige o centro de custo). Os dois perfis veem todas as notas fiscais, e a mesma pessoa pode ter os dois. A mudança vale na hora."
+msgstr "Toda conta é de colaborador: envia e assina. Marque quem também é do Financeiro (aprova a conta contábil de cada nota fiscal) ou da Contabilidade (valida e corrige o centro de custo). Os dois perfis veem todas as notas fiscais, e a mesma pessoa pode ter os dois. A mudança vale na hora."
+
+msgid "Notas fiscais com o centro de custo aguardando a Contabilidade: {accountingPendingCount}. Ninguém está marcado como Contabilidade: marque alguém abaixo para validar ou corrigir os centros. As notas seguem o fluxo normal enquanto isso."
+msgstr "Notas fiscais com o centro de custo aguardando a Contabilidade: {accountingPendingCount}. Ninguém está marcado como Contabilidade: marque alguém abaixo para validar ou corrigir os centros. As notas seguem o fluxo normal enquanto isso."
+
+msgid "Todas as notas fiscais enviadas para assinatura (você é do Financeiro e da Contabilidade)."
+msgstr "Todas as notas fiscais enviadas para assinatura (você é do Financeiro e da Contabilidade)."
+
+msgid "Todas as notas fiscais enviadas para assinatura (você é da Contabilidade)."
+msgstr "Todas as notas fiscais enviadas para assinatura (você é da Contabilidade)."
+
+# REVALLE: Fase 7, Task 6: a Contabilidade valida e corrige o centro de custo; nova versão (msgids já em pt-BR).
+msgid "Centro de custo da nota fiscal corrigido pela Contabilidade: {documentName}"
+msgstr "Centro de custo da nota fiscal corrigido pela Contabilidade: {documentName}"
+
+msgid "O centro de custo de uma nota fiscal foi corrigido"
+msgstr "O centro de custo de uma nota fiscal foi corrigido"
+
+msgid "Centro de custo validado pela Contabilidade: {center}"
+msgstr "Centro de custo validado pela Contabilidade: {center}"
+
+msgid "Nova versão criada pela Contabilidade com o centro de custo {to} (antes {from}). Motivo: {reason}"
+msgstr "Nova versão criada pela Contabilidade com o centro de custo {to} (antes {from}). Motivo: {reason}"
+
+msgid "Centro de custo corrigido pela Contabilidade de {from} para {to}: substituído por uma nova versão. Motivo: {reason}"
+msgstr "Centro de custo corrigido pela Contabilidade de {from} para {to}: substituído por uma nova versão. Motivo: {reason}"
+
+msgid "Esta versão foi substituída (centro de custo corrigido pela Contabilidade)."
+msgstr "Esta versão foi substituída (centro de custo corrigido pela Contabilidade)."
+
+msgid "Substituída: a Contabilidade corrigiu o centro de custo e criou uma nova versão, que todos assinam de novo."
+msgstr "Substituída: a Contabilidade corrigiu o centro de custo e criou uma nova versão, que todos assinam de novo."
+
+msgid "O envio anterior falhou: corrija o rascunho e envie."
+msgstr "O envio anterior falhou: corrija o rascunho e envie."
+
+msgid "Motivo da correção"
+msgstr "Motivo da correção"
+
+msgid "A nova versão ainda não foi enviada. Se o envio falhou, corrija o problema e envie de novo (mesma conta e mesmo centro)."
+msgstr "A nova versão ainda não foi enviada. Se o envio falhou, corrija o problema e envie de novo (mesma conta e mesmo centro)."
+
+msgid "Não foi possível carregar a Contabilidade. Tente de novo."
+msgstr "Não foi possível carregar a Contabilidade. Tente de novo."
+
+msgid "Centro de custo corrigido, mas a nova versão não foi enviada"
+msgstr "Centro de custo corrigido, mas a nova versão não foi enviada"
+
+msgid "Centro de custo validado."
+msgstr "Centro de custo validado."
+
+msgid "Este centro de custo já estava validado."
+msgstr "Este centro de custo já estava validado."
+
+msgid "Centro de custo definido e validado."
+msgstr "Centro de custo definido e validado."
+
+msgid "Centro de custo corrigido. A nova versão foi enviada para todos assinarem de novo."
+msgstr "Centro de custo corrigido. A nova versão foi enviada para todos assinarem de novo."
+
+msgid "Sem centro de custo"
+msgstr "Sem centro de custo"
+
+msgid "Validado por {validatedBy} em {validatedAt}"
+msgstr "Validado por {validatedBy} em {validatedAt}"
+
+msgid "Aguardando validação"
+msgstr "Aguardando validação"
+
+msgid "Sem validação"
+msgstr "Sem validação"
+
+msgid "A nova versão não existe mais: corrija o centro de custo de novo."
+msgstr "A nova versão não existe mais: corrija o centro de custo de novo."
+
+msgid "Esta nota fiscal foi enviada sem centro de custo. Escolha o centro: ele fica validado na hora, sem nova versão (ninguém viu centro ao assinar)."
+msgstr "Esta nota fiscal foi enviada sem centro de custo. Escolha o centro: ele fica validado na hora, sem nova versão (ninguém viu centro ao assinar)."
+
+msgid "Definir centro de custo"
+msgstr "Definir centro de custo"
+
+msgid "Validar centro de custo"
+msgstr "Validar centro de custo"
+
+msgid "Corrigir centro de custo"
+msgstr "Corrigir centro de custo"
+
+msgid "Validar o centro de custo?"
+msgstr "Validar o centro de custo?"
+
+msgid "Centro de custo: {center}. A validação fica registrada com o seu nome e a data, e não muda o que foi assinado."
+msgstr "Centro de custo: {center}. A validação fica registrada com o seu nome e a data, e não muda o que foi assinado."
+
+msgid "Definir o centro de custo?"
+msgstr "Definir o centro de custo?"
+
+msgid "Centro de custo: {defined}. Ele fica validado na hora, sem nova versão."
+msgstr "Centro de custo: {defined}. Ele fica validado na hora, sem nova versão."
+
+msgid "O documento é enviado agora, em nome do remetente, para todos os destinatários assinarem."
+msgstr "O documento é enviado agora, em nome do remetente, para todos os destinatários assinarem."
+
+msgid "Centro de custo atual: {center}. Escolha o centro certo e escreva o motivo."
+msgstr "Centro de custo atual: {center}. Escolha o centro certo e escreva o motivo."
+
+msgid "Escolha um centro de custo diferente do atual."
+msgstr "Escolha um centro de custo diferente do atual."
+
+msgid "Todos vão precisar assinar de novo."
+msgstr "Todos vão precisar assinar de novo."
+
+msgid "De {center} para {chosen}."
+msgstr "De {center} para {chosen}."
+
+msgid "Nota fiscal · Centro de custo: {centerLabel}"
+msgstr "Nota fiscal · Centro de custo: {centerLabel}"
+
+msgid "1 nota fiscal aguardando você"
+msgstr "1 nota fiscal aguardando você"
+
+msgid "{total} notas fiscais aguardando você"
+msgstr "{total} notas fiscais aguardando você"
+
+msgid "Validação da Contabilidade"
+msgstr "Validação da Contabilidade"
+
+msgid "Nenhuma nota fiscal aguardando a Contabilidade."
+msgstr "Nenhuma nota fiscal aguardando a Contabilidade."
+
+msgid "Baixar PDF"
+msgstr "Baixar PDF"
+
+msgid "Baixar PDF: {0}"
+msgstr "Baixar PDF: {0}"
+
+msgid "Ver documento"
+msgstr "Ver documento"
+
+msgid "Ver documento: {0}"
+msgstr "Ver documento: {0}"
+
+msgid "Confirmamos seu CPF e sua data de nascimento no cadastro de colaboradores."
+msgstr "Confirmamos seu CPF e sua data de nascimento no cadastro de colaboradores."
+
+msgid "Informe um CPF válido."
+msgstr "Informe um CPF válido."
+
+msgid "Informe a data de nascimento no formato dd/mm/aaaa."
+msgstr "Informe a data de nascimento no formato dd/mm/aaaa."
+
+msgid "Para criar a conta, informe o CPF e a data de nascimento na página de cadastro."
+msgstr "Para criar a conta, informe o CPF e a data de nascimento na página de cadastro."
+
+msgid "CPF ou data de nascimento não conferem com o cadastro de colaboradores."
+msgstr "CPF ou data de nascimento não conferem com o cadastro de colaboradores."
+
+msgid "Este CPF já está vinculado a outro e-mail. Fale com o administrador."
+msgstr "Este CPF já está vinculado a outro e-mail. Fale com o administrador."
+
+msgid "Não foi possível conferir seus dados agora. Tente de novo em alguns minutos."
+msgstr "Não foi possível conferir seus dados agora. Tente de novo em alguns minutos."
+
+msgid "Muitas tentativas com este CPF. Tente de novo amanhã ou fale com o administrador."
+msgstr "Muitas tentativas com este CPF. Tente de novo amanhã ou fale com o administrador."

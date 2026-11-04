@@ -6,6 +6,7 @@ import { isDeepEqual } from 'remeda';
 import { match } from 'ts-pattern';
 
 import { formatInvoiceAccount } from '../revalle/finance/account-change'; // REVALLE:
+import { costCenterLabel } from '../revalle/invoice/cost-centers'; // REVALLE:
 import type {
   TDocumentAuditLog,
   TDocumentAuditLogDocumentMetaDiffSchema,
@@ -715,7 +716,7 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
     })
     // REVALLE:
     .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_ACCOUNT_SET }, ({ data }) => {
-      const label = (code: string | null, defer: boolean) =>
+      const label = (code: string | null, defer?: boolean) =>
         defer ? i18n._(msg`deixar para o Financeiro`) : (code ?? '');
       const from = label(data.fromCode, data.fromDefer);
       const to = label(data.toCode, data.toDefer);
@@ -725,6 +726,14 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
           : from
             ? msg`Conta contábil trocada: ${from} → ${to}`
             : msg`Conta contábil escolhida: ${to}`;
+
+      return { anonymous: text, you: text, user: text };
+    })
+    // REVALLE:
+    .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_COST_CENTER_SET }, ({ data }) => {
+      const to = costCenterLabel(data.toCode);
+      const from = data.fromCode ? costCenterLabel(data.fromCode) : null;
+      const text = from ? msg`Centro de custo trocado: ${from} → ${to}` : msg`Centro de custo escolhido: ${to}`;
 
       return { anonymous: text, you: text, user: text };
     })
@@ -744,14 +753,30 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
     })
     // REVALLE:
     .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_FINANCE_ACCOUNT_CHANGED }, ({ data }) => {
-      const from = data.fromCode
-        ? formatInvoiceAccount(data.fromCode, data.fromName)
-        : i18n._(msg`a definir pelo Financeiro`);
+      const from = data.fromCode ? formatInvoiceAccount(data.fromCode, data.fromName) : i18n._(msg`sem conta`);
       const to = formatInvoiceAccount(data.toCode, data.toName);
       const reason = data.reason;
       const text = data.isNewVersion
         ? msg`Nova versão criada pelo Financeiro com a conta contábil ${to} (antes ${from}). Motivo: ${reason}`
         : msg`Conta contábil trocada pelo Financeiro de ${from} para ${to}: substituído por uma nova versão. Motivo: ${reason}`;
+
+      return { anonymous: text, you: text, user: text };
+    })
+    // REVALLE:
+    .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_COST_CENTER_VALIDATED }, ({ data }) => {
+      const center = costCenterLabel(data.code);
+      const text = msg`Centro de custo validado pela Contabilidade: ${center}`;
+
+      return { anonymous: text, you: text, user: text };
+    })
+    // REVALLE:
+    .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_COST_CENTER_CHANGED }, ({ data }) => {
+      const from = costCenterLabel(data.fromCode);
+      const to = costCenterLabel(data.toCode);
+      const reason = data.reason;
+      const text = data.isNewVersion
+        ? msg`Nova versão criada pela Contabilidade com o centro de custo ${to} (antes ${from}). Motivo: ${reason}`
+        : msg`Centro de custo corrigido pela Contabilidade de ${from} para ${to}: substituído por uma nova versão. Motivo: ${reason}`;
 
       return { anonymous: text, you: text, user: text };
     })

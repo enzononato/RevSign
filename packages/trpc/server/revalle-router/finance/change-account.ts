@@ -1,4 +1,4 @@
-import { changeInvoiceAccount } from '@documenso/lib/server-only/revalle/finance/change-account';
+import { createInvoiceNewVersion } from '@documenso/lib/server-only/revalle/finance/new-version';
 
 import { ZChangeFinanceAccountRequestSchema, ZChangeFinanceAccountResponseSchema } from './change-account.types';
 import { financeProcedure } from './finance-procedure';
@@ -10,9 +10,9 @@ export const changeFinanceAccountRoute = financeProcedure
   .mutation(async ({ input, ctx }) => {
     const { envelopeId, code, reason } = input;
 
-    return await changeInvoiceAccount({
+    return await createInvoiceNewVersion({
       envelopeId,
-      code,
+      change: { kind: 'ACCOUNT', code },
       reason,
       user: { id: ctx.user.id, name: ctx.user.name, email: ctx.user.email },
       requestMetadata: ctx.metadata,

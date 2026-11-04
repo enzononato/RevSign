@@ -9,7 +9,6 @@ export const adminUpdateSettingsRoute = adminProcedure
   .mutation(async ({ input, ctx }) => {
     await updateAccountingSettings({
       prompt: input.prompt,
-      accountingEmail: input.accountingEmail || null,
       userId: ctx.user.id,
     });
   });

@@ -1,6 +1,7 @@
 import { DateTime } from 'luxon';
 import { z } from 'zod';
 
+import { ACCOUNTING_FILTERS } from '../accounting/accounting-status';
 import { REVALLE_TIME_ZONE } from '../date-format';
 import { FINANCE_FILTERS } from '../finance/finance-status';
 
@@ -16,8 +17,8 @@ export const INVOICE_DELETED_LABEL = 'excluído pelo remetente';
 export const isOverInvoiceExportLimit = (count: number) => count > INVOICE_EXPORT_LIMIT;
 
 /**
- * Status do filtro da página: as NFs já enviadas. Rascunho só entra na lista quando está com o Financeiro (retido em
- * "Deixar para o Financeiro" ou com a conta aprovada e o envio ainda não saído): ver `INVOICE_ROW_STATUSES`.
+ * Status do filtro da página: as NFs já enviadas. Rascunho só entra na lista quando está com o Financeiro (nova versão
+ * de uma troca de conta, aprovada e com o envio ainda não saído): ver `INVOICE_ROW_STATUSES`.
  */
 export const INVOICE_LIST_STATUSES = ['PENDING', 'COMPLETED', 'REJECTED', 'CANCELLED'] as const;
 
@@ -46,9 +47,10 @@ export const ZInvoiceFiltersSchema = z.object({
   to: ZDaySchema.optional(),
   status: z.enum(INVOICE_LIST_STATUSES).optional(),
   accountCode: z.string().trim().min(1).max(64).optional(),
-  deferred: z.boolean().optional(),
   /** Situação no Financeiro (Fase 6). */
   finance: z.enum(FINANCE_FILTERS).optional(),
+  /** Validação da Contabilidade (Fase 7). */
+  accounting: z.enum(ACCOUNTING_FILTERS).optional(),
 });
 
 export type TInvoiceFilters = z.infer<typeof ZInvoiceFiltersSchema>;
@@ -59,8 +61,8 @@ export const INVOICE_FILTER_PARAMS = {
   to: 'ate',
   status: 'status',
   accountCode: 'conta',
-  deferred: 'deixadas',
   finance: 'financeiro',
+  accounting: 'contabilidade',
 } as const;
 
 const readParams = (params: URLSearchParams) => {
@@ -75,8 +77,8 @@ const readParams = (params: URLSearchParams) => {
     to: value(INVOICE_FILTER_PARAMS.to),
     status: value(INVOICE_FILTER_PARAMS.status),
     accountCode: value(INVOICE_FILTER_PARAMS.accountCode),
-    deferred: params.get(INVOICE_FILTER_PARAMS.deferred) === '1' ? true : undefined,
     finance: value(INVOICE_FILTER_PARAMS.finance),
+    accounting: value(INVOICE_FILTER_PARAMS.accounting),
   };
 };
 
@@ -123,12 +125,12 @@ export const invoiceFiltersToParams = (filters: TInvoiceFilters) => {
     params.set(INVOICE_FILTER_PARAMS.accountCode, filters.accountCode);
   }
 
-  if (filters.deferred) {
-    params.set(INVOICE_FILTER_PARAMS.deferred, '1');
-  }
-
   if (filters.finance) {
     params.set(INVOICE_FILTER_PARAMS.finance, filters.finance);
+  }
+
+  if (filters.accounting) {
+    params.set(INVOICE_FILTER_PARAMS.accounting, filters.accounting);
   }
 
   return params;

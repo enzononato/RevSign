@@ -1,7 +1,13 @@
 import { useSession } from '@documenso/lib/client-only/providers/session';
+import {
+  ACCOUNTING_FILTER_LABELS,
+  ACCOUNTING_FILTERS,
+  type AccountingFilter,
+  accountingStatusLabel,
+  invoicesDefaultFilters,
+} from '@documenso/lib/revalle/accounting/accounting-status'; // REVALLE:
 import { formatRevalleDateTime } from '@documenso/lib/revalle/date-format';
 import {
-  FINANCE_DEFAULT_FILTER,
   FINANCE_FILTER_LABELS,
   FINANCE_FILTERS,
   type FinanceFilter,
@@ -21,7 +27,6 @@ import { isAdmin } from '@documenso/lib/utils/is-admin';
 import { trpc } from '@documenso/trpc/react';
 import type { TFindInvoicesResponse } from '@documenso/trpc/server/revalle-router/invoice/find.types';
 import { Button } from '@documenso/ui/primitives/button';
-import { Checkbox } from '@documenso/ui/primitives/checkbox';
 import { Input } from '@documenso/ui/primitives/input';
 import { Label } from '@documenso/ui/primitives/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@documenso/ui/primitives/table';
@@ -57,22 +62,39 @@ export default function InvoicesPage() {
 
   // Fase 6: quem é do Financeiro vê todas as NFs (o servidor decide) e, sem filtro na URL, começa em "Aguardando o
   // Financeiro". "Todas" desliga esse padrão.
-  const { data: financeProfile, isPending: isLoadingProfile } = trpc.revalle.finance.me.useQuery();
+  const { data: financeProfile, isPending: isLoadingFinanceProfile } = trpc.revalle.finance.me.useQuery();
   const isFinance = financeProfile?.isFinance === true;
+
+  // Fase 7: a Contabilidade também vê todas as NFs (o servidor decide) e, sendo só da Contabilidade, abre em "Aguardando a
+  // Contabilidade". Quem é dos dois perfis abre na fila do Financeiro.
+  const { data: accountingProfile, isPending: isLoadingAccountingProfile } = trpc.revalle.accounting.me.useQuery();
+  const isAccounting = accountingProfile?.isMember === true;
+  const isLoadingProfile = isLoadingFinanceProfile || isLoadingAccountingProfile;
+
+  // O padrão só vale sem nenhum filtro de fila na URL: escolher uma das filas (ou "Todas" em qualquer uma) desliga o outro.
+  const defaults = invoicesDefaultFilters({ isFinance, isAccounting });
+  const isDefaultActive = !urlFilters.finance && !urlFilters.accounting;
+  const financeFilter: FinanceFilter | undefined =
+    urlFilters.finance ?? (isDefaultActive ? defaults.financeiro : undefined);
+  const accountingFilter: AccountingFilter | undefined =
+    urlFilters.accounting ?? (isDefaultActive ? defaults.contabilidade : undefined);
 
   const filters = useMemo(() => {
     const effective = { ...urlFilters };
 
-    if (!effective.finance && isFinance) {
-      effective.finance = FINANCE_DEFAULT_FILTER;
+    delete effective.finance;
+    delete effective.accounting;
+
+    if (financeFilter && financeFilter !== 'todas') {
+      effective.finance = financeFilter;
     }
 
-    if (effective.finance === 'todas') {
-      delete effective.finance;
+    if (accountingFilter && accountingFilter !== 'todas') {
+      effective.accounting = accountingFilter;
     }
 
     return effective;
-  }, [urlFilters, isFinance]);
+  }, [urlFilters, financeFilter, accountingFilter]);
 
   const [accountInput, setAccountInput] = useState(urlFilters.accountCode ?? '');
 
@@ -93,7 +115,7 @@ export default function InvoicesPage() {
   const setFilter = <K extends keyof TInvoiceFilters>(key: K, value: TInvoiceFilters[K]) => {
     const next = { ...urlFilters };
 
-    if (value === undefined || value === '' || value === false) {
+    if (value === undefined || value === '') {
       delete next[key];
     } else {
       next[key] = value;
@@ -130,8 +152,6 @@ export default function InvoicesPage() {
   const count = data?.count ?? 0;
   const isOverLimit = isOverInvoiceExportLimit(count);
 
-  const financeFilter: FinanceFilter | '' = urlFilters.finance ?? (isFinance ? FINANCE_DEFAULT_FILTER : '');
-
   const statusLabels: Record<InvoiceListStatus, string> = {
     PENDING: t`Pendente`,
     COMPLETED: t`Concluído`,
@@ -149,15 +169,19 @@ export default function InvoicesPage() {
         <p className="mt-1 text-muted-foreground">
           {isAdmin(user) ? (
             <Trans>Todas as notas fiscais enviadas para assinatura (você é administrador).</Trans>
-          ) : financeProfile?.isFinance ? (
+          ) : isFinance && isAccounting ? (
+            <Trans>Todas as notas fiscais enviadas para assinatura (você é do Financeiro e da Contabilidade).</Trans>
+          ) : isFinance ? (
             <Trans>Todas as notas fiscais enviadas para assinatura (você é do Financeiro).</Trans>
+          ) : isAccounting ? (
+            <Trans>Todas as notas fiscais enviadas para assinatura (você é da Contabilidade).</Trans>
           ) : (
             <Trans>As notas fiscais que você enviou ou que chegaram para você assinar.</Trans>
           )}
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
         <div className="space-y-1">
           <Label htmlFor="invoices-from">
             <Trans>Enviadas de</Trans>
@@ -207,7 +231,7 @@ export default function InvoicesPage() {
           <select
             id="invoices-finance"
             className={FIELD_CLASS}
-            value={financeFilter}
+            value={financeFilter ?? (isFinance ? 'todas' : '')}
             onChange={(event) =>
               setFilter('finance', (event.target.value || (isFinance ? 'todas' : undefined)) as FinanceFilter)
             }
@@ -216,6 +240,27 @@ export default function InvoicesPage() {
             {FINANCE_FILTERS.filter((value) => isFinance || value !== 'todas').map((value) => (
               <option key={value} value={value}>
                 {FINANCE_FILTER_LABELS[value]}
+              </option>
+            ))}
+          </select>
+        </div>
+        {/* REVALLE: validação do centro de custo pela Contabilidade (Fase 7) */}
+        <div className="space-y-1">
+          <Label htmlFor="invoices-accounting">
+            <Trans>Validação da Contabilidade</Trans>
+          </Label>
+          <select
+            id="invoices-accounting"
+            className={FIELD_CLASS}
+            value={accountingFilter ?? (isAccounting ? 'todas' : '')}
+            onChange={(event) =>
+              setFilter('accounting', (event.target.value || (isAccounting ? 'todas' : undefined)) as AccountingFilter)
+            }
+          >
+            {!isAccounting && <option value="">{ACCOUNTING_FILTER_LABELS.todas}</option>}
+            {ACCOUNTING_FILTERS.filter((value) => isAccounting || value !== 'todas').map((value) => (
+              <option key={value} value={value}>
+                {ACCOUNTING_FILTER_LABELS[value]}
               </option>
             ))}
           </select>
@@ -235,17 +280,8 @@ export default function InvoicesPage() {
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
-        {/* O rótulo inteiro é a área de toque (44 px) da caixa de seleção. */}
-        <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
-          <Checkbox
-            checked={filters.deferred ?? false}
-            onCheckedChange={(checked) => setFilter('deferred', checked === true ? true : undefined)}
-          />
-          <Trans>Só as deixadas para o Financeiro</Trans>
-        </label>
-
-        {hasFilters && (
+      {hasFilters && (
+        <div className="mt-4">
           <Button
             variant="ghost"
             className="h-11"
@@ -256,8 +292,8 @@ export default function InvoicesPage() {
           >
             <Trans>Limpar filtros</Trans>
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
         <p className="text-muted-foreground text-sm">
@@ -300,10 +336,16 @@ export default function InvoicesPage() {
                 <Trans>Conta</Trans>
               </TableHead>
               <TableHead className="whitespace-nowrap">
+                <Trans>Centro de custo</Trans>
+              </TableHead>
+              <TableHead className="whitespace-nowrap">
                 <Trans>Sugestão aceita?</Trans>
               </TableHead>
               <TableHead className="whitespace-nowrap">
                 <Trans>Situação no Financeiro</Trans>
+              </TableHead>
+              <TableHead className="whitespace-nowrap">
+                <Trans>Validação da Contabilidade</Trans>
               </TableHead>
               <TableHead>
                 <Trans>Versão</Trans>
@@ -317,9 +359,11 @@ export default function InvoicesPage() {
 
             {data && data.data.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
-                  {filters.finance === FINANCE_DEFAULT_FILTER && !hasFilters ? (
+                <TableCell colSpan={10} className="h-32 text-center text-muted-foreground">
+                  {financeFilter === 'pendentes' && !hasFilters ? (
                     <Trans>Nenhuma nota fiscal aguardando o Financeiro.</Trans>
+                  ) : accountingFilter === 'pendentes' && !hasFilters ? (
+                    <Trans>Nenhuma nota fiscal aguardando a Contabilidade.</Trans>
                   ) : hasFilters ? (
                     <Trans>Nenhuma nota fiscal com esses filtros.</Trans>
                   ) : (
@@ -331,7 +375,7 @@ export default function InvoicesPage() {
 
             {!data && !dateError && (
               <TableRow>
-                <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={10} className="h-32 text-center text-muted-foreground">
                   {isError && !isPending ? (
                     <Trans>Não foi possível carregar as notas fiscais. Tente de novo.</Trans>
                   ) : (
@@ -371,19 +415,13 @@ export default function InvoicesPage() {
 }
 
 const InvoiceTableRow = ({ row }: { row: InvoiceRow }) => {
-  const account = row.deferred ? (
-    row.financeStatus === 'LEGACY' ? (
-      <Trans>A definir pela contabilidade</Trans>
-    ) : (
-      <Trans>A definir pelo Financeiro</Trans>
-    )
-  ) : row.account ? (
+  const account = row.account ? (
     <span>
       <span className="font-mono">{row.account.code}</span>
       {row.account.name ? ` · ${row.account.name}` : ''}
     </span>
   ) : (
-    '-'
+    '—'
   );
 
   const accepted =
@@ -429,9 +467,15 @@ const InvoiceTableRow = ({ row }: { row: InvoiceRow }) => {
         </div>
       </TableCell>
       <TableCell className="min-w-[10rem]">{account}</TableCell>
+      <TableCell className="min-w-[8rem]" data-testid="invoice-row-cost-center">
+        {row.costCenterLabel ?? '-'}
+      </TableCell>
       <TableCell className="whitespace-nowrap">{accepted}</TableCell>
       <TableCell className="min-w-[9rem]" data-testid="invoice-row-finance">
         {financeStatusLabel(row.financeStatus, row.status) || '-'}
+      </TableCell>
+      <TableCell className="min-w-[9rem]" data-testid="invoice-row-accounting">
+        {accountingStatusLabel(row)}
       </TableCell>
       <TableCell className="whitespace-nowrap">{`v${row.version}`}</TableCell>
     </TableRow>

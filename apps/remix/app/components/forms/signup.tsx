@@ -6,6 +6,10 @@ import {
   NEXT_PUBLIC_TERMS_OF_SERVICE_URL,
 } from '@documenso/lib/constants/app';
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
+import { parseBirthDateInput } from '@documenso/lib/revalle/birth-date';
+import { isValidCpf } from '@documenso/lib/revalle/cpf';
+import { formatBirthDateInput, formatCpfInput } from '@documenso/lib/revalle/input-masks';
+import { isSignupIdentityFormValid } from '@documenso/lib/revalle/signup-identity';
 import { ZNameSchema } from '@documenso/lib/types/name';
 import { env } from '@documenso/lib/utils/env';
 import { zEmail } from '@documenso/lib/utils/zod';
@@ -25,39 +29,70 @@ import { Trans } from '@lingui/react/macro';
 import type { TurnstileInstance } from '@marsidev/react-turnstile';
 import { Turnstile } from '@marsidev/react-turnstile';
 import type { ReactNode } from 'react';
-import { Fragment, useEffect, useRef } from 'react';
+import { Fragment, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { FaIdCardClip } from 'react-icons/fa6';
 import { FcGoogle } from 'react-icons/fc';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { z } from 'zod';
 
-export const ZSignUpFormSchema = z
-  .object({
-    name: ZNameSchema,
-    email: zEmail().min(1),
-    password: ZPasswordSchema,
-    signature: z.string().min(1, { message: msg`We need your signature to sign documents`.id }),
-  })
-  .refine(
-    (data) => {
-      const { name, email, password } = data;
-      return !password.includes(name) && !password.includes(email.split('@')[0]);
-    },
-    {
-      message: msg`Password should not be common or based on personal information`.id,
-      path: ['password'],
-    },
-  );
+// REVALLE: CPF e data de nascimento (Fase 7). Os dois vazios vão ao servidor, que decide: o e-mail do administrador, os
+// já vinculados e os da base se cadastram sem CPF, e os demais recebem SIGNUP_IDENTITY_REQUIRED. Preenchido, o campo
+// precisa estar certo, e um preenchido sem o outro também é barrado aqui.
+export const createSignUpFormSchema = (identityRequired: boolean) =>
+  z
+    .object({
+      name: ZNameSchema,
+      email: zEmail().min(1),
+      password: ZPasswordSchema,
+      signature: z.string().min(1, { message: msg`We need your signature to sign documents`.id }),
+      revalleCpf: z.string(),
+      revalleBirthDate: z.string(),
+    })
+    .refine(
+      (data) => {
+        const { name, email, password } = data;
+        return !password.includes(name) && !password.includes(email.split('@')[0]);
+      },
+      {
+        message: msg`Password should not be common or based on personal information`.id,
+        path: ['password'],
+      },
+    )
+    .superRefine((data, ctx) => {
+      const identity = { cpf: data.revalleCpf.trim(), birthDate: data.revalleBirthDate.trim() };
+
+      if (!identityRequired || (!identity.cpf && !identity.birthDate) || isSignupIdentityFormValid(identity)) {
+        return;
+      }
+
+      if (!isValidCpf(identity.cpf)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: msg`Informe um CPF válido.`.id, path: ['revalleCpf'] });
+      }
+
+      if (!parseBirthDateInput(identity.birthDate)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: msg`Informe a data de nascimento no formato dd/mm/aaaa.`.id,
+          path: ['revalleBirthDate'],
+        });
+      }
+    });
 
 export const SIGNUP_ERROR_MESSAGES: Record<string, MessageDescriptor> = {
   SIGNUP_DISABLED: msg`Signup is currently disabled or not available for your email domain.`,
   SIGNUP_DISPOSABLE_EMAIL: msg`Disposable email addresses are not allowed. Please sign up with a permanent email address.`,
   [AppErrorCode.ALREADY_EXISTS]: msg`We were unable to create your account. If you already have an account, try signing in instead.`,
   [AppErrorCode.INVALID_REQUEST]: msg`We were unable to create your account. Please review the information you provided and try again.`,
+  // REVALLE: cadastro só para colaborador (Fase 7). O "criar conta" da página de conclusão usa este mesmo mapa.
+  SIGNUP_IDENTITY_REQUIRED: msg`Para criar a conta, informe o CPF e a data de nascimento na página de cadastro.`,
+  SIGNUP_IDENTITY_INVALID: msg`CPF ou data de nascimento não conferem com o cadastro de colaboradores.`,
+  SIGNUP_IDENTITY_CONFLICT: msg`Este CPF já está vinculado a outro e-mail. Fale com o administrador.`,
+  SIGNUP_IDENTITY_UNAVAILABLE: msg`Não foi possível conferir seus dados agora. Tente de novo em alguns minutos.`,
+  SIGNUP_IDENTITY_LIMITED: msg`Muitas tentativas com este CPF. Tente de novo amanhã ou fale com o administrador.`,
 };
 
-export type TSignUpFormSchema = z.infer<typeof ZSignUpFormSchema>;
+export type TSignUpFormSchema = z.infer<ReturnType<typeof createSignUpFormSchema>>;
 
 export type SignUpFormProps = {
   className?: string;
@@ -67,6 +102,8 @@ export type SignUpFormProps = {
   isMicrosoftSignupEnabled?: boolean;
   isOidcSignupEnabled?: boolean;
   returnTo?: string;
+  /** REVALLE: o cadastro pede CPF e data de nascimento (falso com a verificação de identidade desligada). */
+  identityRequired?: boolean;
 };
 
 export const SignUpForm = ({
@@ -77,6 +114,7 @@ export const SignUpForm = ({
   isMicrosoftSignupEnabled,
   isOidcSignupEnabled,
   returnTo,
+  identityRequired = false,
 }: SignUpFormProps) => {
   const { _ } = useLingui();
   const { toast } = useToast();
@@ -92,18 +130,31 @@ export const SignUpForm = ({
 
   const hasSocialAuthEnabled = isGoogleSignupEnabled || isMicrosoftSignupEnabled || isOidcSignupEnabled;
 
+  // REVALLE: a página não sabe qual é o e-mail do administrador (não vai para o navegador); o servidor decide
+  const signUpFormSchema = useMemo(() => createSignUpFormSchema(identityRequired), [identityRequired]);
+
   const form = useForm<TSignUpFormSchema>({
     values: {
       name: '',
       email: initialEmail ?? '',
       password: '',
       signature: '',
+      revalleCpf: '',
+      revalleBirthDate: '',
     },
     mode: 'onChange',
-    resolver: zodResolver(ZSignUpFormSchema),
+    resolver: zodResolver(signUpFormSchema),
   });
 
   const isSubmitting = form.formState.isSubmitting;
+
+  // REVALLE: CPF e data se validam juntos (os dois vazios valem). Ao mudar um, o erro que já estava no outro é refeito,
+  // para não sobrar um aviso velho; o erro novo do outro só aparece ao tocar nele ou ao enviar.
+  const refreshIdentityError = (name: 'revalleCpf' | 'revalleBirthDate') => {
+    if (form.getFieldState(name).error) {
+      void form.trigger(name);
+    }
+  };
 
   const legalLinks: { href: string | undefined; label: ReactNode }[] = [
     { href: NEXT_PUBLIC_TERMS_OF_SERVICE_URL(), label: <Trans>Terms of Service</Trans> },
@@ -113,7 +164,14 @@ export const SignUpForm = ({
 
   const availableLegalLinks = legalLinks.filter((link): link is { href: string; label: ReactNode } => !!link.href);
 
-  const onFormSubmit = async ({ name, email, password, signature }: TSignUpFormSchema) => {
+  const onFormSubmit = async ({
+    name,
+    email,
+    password,
+    signature,
+    revalleCpf,
+    revalleBirthDate,
+  }: TSignUpFormSchema) => {
     try {
       let token: string | undefined;
 
@@ -137,6 +195,8 @@ export const SignUpForm = ({
         password,
         signature,
         captchaToken: token ?? undefined,
+        revalleCpf: identityRequired ? revalleCpf : undefined,
+        revalleBirthDate: identityRequired ? revalleBirthDate : undefined,
       });
 
       await navigate(returnTo ? returnTo : '/unverified-account');
@@ -272,6 +332,67 @@ export const SignUpForm = ({
                       </FormItem>
                     )}
                   />
+
+                  {/* REVALLE: só colaborador cria conta (Fase 7); mesma máscara e mesmos rótulos do portão de assinatura */}
+                  {identityRequired && (
+                    <>
+                      <p className="text-muted-foreground text-xs md:text-sm">
+                        <Trans>Confirmamos seu CPF e sua data de nascimento no cadastro de colaboradores.</Trans>
+                      </p>
+
+                      <FormField
+                        control={form.control}
+                        name="revalleCpf"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              <Trans>CPF</Trans>
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                type="text"
+                                inputMode="numeric"
+                                autoComplete="off"
+                                placeholder="000.000.000-00"
+                                {...field}
+                                onChange={(event) => {
+                                  field.onChange(formatCpfInput(event.target.value));
+                                  refreshIdentityError('revalleBirthDate');
+                                }}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="revalleBirthDate"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              <Trans>Data de nascimento</Trans>
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                type="text"
+                                inputMode="numeric"
+                                autoComplete="off"
+                                placeholder="dd/mm/aaaa"
+                                {...field}
+                                onChange={(event) => {
+                                  field.onChange(formatBirthDateInput(event.target.value));
+                                  refreshIdentityError('revalleCpf');
+                                }}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </>
+                  )}
 
                   <FormField
                     control={form.control}

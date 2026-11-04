@@ -70,23 +70,26 @@ const trpcMutation = async (procedure, input) => {
   return (await res.json()).result?.data?.json;
 };
 
-// Mailpit da stack local (SMOKE_MAILPIT_URL muda o endereço): ID do e-mail mais recente enviado a `to`.
+// Mailpit da stack local (SMOKE_MAILPIT_URL muda o endereço): IDs dos e-mails já enviados a `to`.
 const MAILPIT = process.env.SMOKE_MAILPIT_URL ?? 'http://localhost:8025/api/v1';
 
-const latestMailId = async (to) =>
-  (await (await fetch(`${MAILPIT}/search?query=${encodeURIComponent(`to:${to}`)}`)).json()).messages?.[0]?.ID;
+const mailIdsTo = async (to) =>
+  ((await (await fetch(`${MAILPIT}/search?query=${encodeURIComponent(`to:${to}`)}`)).json()).messages ?? []).map(
+    (message) => message.ID,
+  );
 
-// Código de 6 dígitos do primeiro e-mail novo (ID diferente de `previousId`) enviado a `to`.
-const readEmailCode = async (to, previousId) => {
-  for (let i = 0; i < 30; i += 1) {
-    const id = await latestMailId(to);
+// Código de 6 dígitos (sozinho numa linha) do primeiro e-mail novo enviado a `to`. "Novo" é o ID fora de `seen`, e não o
+// topo da lista: o Mailpit ordena pela data de chegada, que depende do relógio da máquina.
+const readEmailCode = async (to, seen) => {
+  for (let i = 0; i < 60; i += 1) {
+    for (const id of await mailIdsTo(to)) {
+      if (!seen.includes(id)) {
+        const mail = await (await fetch(`${MAILPIT}/message/${id}`)).json();
+        const code = mail.Text?.match(/^\s*(\d{6})\s*$/m)?.[1];
 
-    if (id && id !== previousId) {
-      const mail = await (await fetch(`${MAILPIT}/message/${id}`)).json();
-      const code = mail.Text?.match(/\b(\d{6})\b/)?.[1];
-
-      if (code) {
-        return code;
+        if (code) {
+          return code;
+        }
       }
     }
 
@@ -195,11 +198,11 @@ const main = async () => {
     fieldId: field.id,
     fieldValue: { type: 'SIGNATURE', value: SIGNER_NAME },
   });
-  const previousMailId = await latestMailId(recipient.email);
+  const seenMails = await mailIdsTo(recipient.email);
 
   await trpcMutation('document.accessAuth.request2FAEmail', { token: recipient.token });
 
-  const code = await readEmailCode(recipient.email, previousMailId);
+  const code = await readEmailCode(recipient.email, seenMails);
 
   await trpcMutation('recipient.completeDocumentWithToken', {
     token: recipient.token,
@@ -209,10 +212,10 @@ const main = async () => {
 
   step('aguardando selagem');
 
-  const deadline = Date.now() + SEAL_TIMEOUT_MS;
+  const deadline = performance.now() + SEAL_TIMEOUT_MS;
   let status = '';
 
-  while (Date.now() < deadline) {
+  while (performance.now() < deadline) {
     status = (await api('GET', `/envelope/${created.id}`)).status;
 
     if (status === 'COMPLETED') {

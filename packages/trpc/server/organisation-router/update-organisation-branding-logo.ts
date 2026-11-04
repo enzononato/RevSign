@@ -3,6 +3,7 @@ import { ORGANISATION_MEMBER_ROLE_PERMISSIONS_MAP } from '@documenso/lib/constan
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
 import { buildBrandingLogoData } from '@documenso/lib/server-only/branding/store-branding-logo';
 import { getOrganisationClaim } from '@documenso/lib/server-only/organisation/get-organisation-claims';
+import { assertRevalleAdmin } from '@documenso/lib/server-only/revalle/locked-settings'; // REVALLE:
 import { buildOrganisationWhereQuery } from '@documenso/lib/utils/organisations';
 import { prisma } from '@documenso/prisma';
 
@@ -25,6 +26,9 @@ export const updateOrganisationBrandingLogoRoute = authenticatedProcedure
         organisationId,
       },
     });
+
+    // REVALLE: a marca saiu da tela (Fase 7, spec §6); o logo, que tem rota própria, fecha junto com `settings.update`.
+    await assertRevalleAdmin(user.id);
 
     const organisation = await prisma.organisation.findFirst({
       where: buildOrganisationWhereQuery({

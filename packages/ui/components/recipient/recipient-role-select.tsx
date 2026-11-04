@@ -7,8 +7,6 @@ import type { SelectProps } from '@radix-ui/react-select';
 import { InfoIcon } from 'lucide-react';
 import { forwardRef } from 'react';
 
-import { cn } from '../../lib/utils';
-
 export type RecipientRoleSelectProps = SelectProps & {
   hideAssistantRole?: boolean;
   hideCCerRole?: boolean;
@@ -112,36 +110,7 @@ export const RecipientRoleSelect = forwardRef<HTMLButtonElement, RecipientRoleSe
           </SelectItem>
         )}
 
-        {!hideAssistantRole && (
-          <SelectItem
-            value={RecipientRole.ASSISTANT}
-            disabled={!isAssistantEnabled}
-            className={cn(!isAssistantEnabled && 'cursor-not-allowed opacity-50 data-[disabled]:pointer-events-auto')}
-          >
-            <div className="flex items-center">
-              <div className="flex w-[150px] items-center">
-                <span className="mr-2">{ROLE_ICONS[RecipientRole.ASSISTANT]}</span>
-                <Trans>Can prepare</Trans>
-              </div>
-              <Tooltip>
-                <TooltipTrigger>
-                  <InfoIcon className="h-4 w-4" />
-                </TooltipTrigger>
-                <TooltipContent className="z-9999 max-w-md p-4 text-foreground">
-                  <p>
-                    {isAssistantEnabled ? (
-                      <Trans>
-                        The recipient can prepare the document for later signers by pre-filling suggest values.
-                      </Trans>
-                    ) : (
-                      <Trans>Assistant role is only available when the document is in sequential signing mode.</Trans>
-                    )}
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          </SelectItem>
-        )}
+        {/* REVALLE: o papel Assistente ("Pode preparar") saiu do seletor (Fase 7, spec §6); o servidor continua aceitando. */}
       </SelectContent>
     </Select>
   ),

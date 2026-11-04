@@ -1,7 +1,7 @@
 import { getSession } from '@documenso/auth/server/lib/utils/get-session';
 import { useCurrentOrganisation } from '@documenso/lib/client-only/providers/organisation';
 import { buildOrganisationWhereQuery } from '@documenso/lib/utils/organisations';
-import { formatAnalyticsPath, formatTemplatesPath } from '@documenso/lib/utils/teams';
+import { formatAnalyticsPath } from '@documenso/lib/utils/teams'; // REVALLE: sem formatTemplatesPath
 import { prisma } from '@documenso/prisma';
 import { trpc } from '@documenso/trpc/react';
 import { msg } from '@lingui/core/macro';
@@ -141,11 +141,8 @@ export default function OrganisationAnalyticsPage({ loaderData }: Route.Componen
 
         <AnalyticsTemplateUsageCard
           query={templateUsageQuery}
-          getTemplateHref={(template) =>
-            template.team !== null && template.envelopeId !== null
-              ? `${formatTemplatesPath(template.team.url)}/${template.envelopeId}`
-              : null
-          }
+          // REVALLE: a página de Modelos saiu da tela (Fase 7, spec §6): o título fica sem link.
+          getTemplateHref={() => null}
           renderTemplateMeta={(template) => template.team?.name}
         />
 

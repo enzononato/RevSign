@@ -1,6 +1,7 @@
 import { ORGANISATION_MEMBER_ROLE_PERMISSIONS_MAP } from '@documenso/lib/constants/organisations';
 import { TEAM_MEMBER_ROLE_PERMISSIONS_MAP } from '@documenso/lib/constants/teams';
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
+import { assertRevalleSettingsAccess } from '@documenso/lib/server-only/revalle/locked-settings'; // REVALLE:
 import { normalizeBrandingColors } from '@documenso/lib/utils/normalize-branding-colors';
 import { buildOrganisationWhereQuery } from '@documenso/lib/utils/organisations';
 import { type SanitizeBrandingCssWarning, sanitizeBrandingCss } from '@documenso/lib/utils/sanitize-branding-css';
@@ -23,6 +24,9 @@ export const updateTeamSettingsRoute = authenticatedProcedure
         teamId,
       },
     });
+
+    // REVALLE: marca, e-mail, documento, certificado e IA só o admin do sistema grava; lembretes seguem abertos.
+    await assertRevalleSettingsAccess({ userId: user.id, data });
 
     const {
       // Document related settings.

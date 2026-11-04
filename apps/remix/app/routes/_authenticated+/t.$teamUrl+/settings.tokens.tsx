@@ -16,6 +16,13 @@ import TokenDeleteDialog from '~/components/dialogs/token-delete-dialog';
 import { SettingsHeader } from '~/components/general/settings-header';
 import { useOptionalCurrentTeam } from '~/providers/team';
 import { appMetaTags } from '~/utils/meta';
+import { redirectTeamPageUnlessAdmin } from '~/utils/revalle-hidden-routes'; // REVALLE:
+import type { Route } from './+types/settings.tokens'; // REVALLE:
+
+// REVALLE: só o administrador do sistema abre esta página (Fase 7, spec §6); os outros caem nos documentos.
+export async function loader(args: Route.LoaderArgs) {
+  return await redirectTeamPageUnlessAdmin(args);
+}
 
 export function meta() {
   return appMetaTags(msg`API Tokens`);

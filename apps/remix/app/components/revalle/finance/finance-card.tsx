@@ -6,7 +6,11 @@ import {
   CHANGE_REASON_MIN,
   isValidChangeReason,
 } from '@documenso/lib/revalle/finance/account-change';
-import { financeStatusLabel, invoiceViewPath } from '@documenso/lib/revalle/finance/finance-status';
+import {
+  financeStatusLabel,
+  invoiceViewPath,
+  isNewVersionDraftRow,
+} from '@documenso/lib/revalle/finance/finance-status';
 import { trpc } from '@documenso/trpc/react';
 import type { TGetFinanceCardResponse } from '@documenso/trpc/server/revalle-router/finance/get.types';
 import { Button } from '@documenso/ui/primitives/button';
@@ -45,7 +49,7 @@ const actionsFor = (card: Card) => {
   return {
     approve: isPendingApproval && card.account !== null,
     // NF marcada depois do envio, ainda sem conta: ninguém viu conta ao assinar, então define e aprova de uma vez.
-    defineApprove: isPendingApproval && card.account === null && !card.deferred,
+    defineApprove: isPendingApproval && card.account === null,
     change:
       live &&
       ((sent && card.financeStatus === 'PENDING_APPROVAL' && card.account !== null) ||
@@ -53,9 +57,8 @@ const actionsFor = (card: Card) => {
         (card.envelopeStatus === 'COMPLETED' && card.financeStatus === 'LEGACY') ||
         // Versão substituída cuja nova versão foi apagada (ou a troca morreu no meio): troca de novo.
         (sent && card.canRetakeChange)),
-    define: card.envelopeStatus === 'DRAFT' && card.financeStatus === 'AWAITING_ACCOUNT',
-    // Conta já aprovada (troca de conta ou "Definir conta e enviar") e o envio não saiu: manda de novo, mesma conta.
-    resend: card.envelopeStatus === 'DRAFT' && card.financeStatus === 'APPROVED' && card.account !== null,
+    // Nova versão cujo envio não saiu: manda de novo, mesma conta.
+    resend: card.envelopeStatus === 'DRAFT' && isNewVersionDraftRow(card),
   };
 };
 
@@ -68,8 +71,8 @@ export type FinanceCardProps = {
 /**
  * Cartão "Financeiro" na página da NF, só para quem é do Financeiro: a conta atual, quem escolheu, a sugestão da IA e o
  * estado, com as ações "Aprovar conta", "Definir e aprovar" (NF enviada sem conta), "Trocar conta" (lista + motivo; todos
- * assinam de novo uma nova versão), "Definir conta e enviar" (NF retida) e "Enviar de novo" (conta aprovada cujo envio
- * falhou). Toda ação que grava ou envia pede confirmação.
+ * assinam de novo uma nova versão) e "Enviar de novo" (nova versão cujo envio falhou). Toda ação que grava ou envia pede
+ * confirmação.
  */
 export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
   const { t } = useLingui();
@@ -90,17 +93,17 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
 
   const { data: accountsData } = trpc.revalle.invoice.findAccounts.useQuery(undefined, {
     ...DO_NOT_INVALIDATE_QUERY_ON_MUTATION,
-    enabled: Boolean(actions?.change || actions?.define || actions?.defineApprove),
+    enabled: Boolean(actions?.change || actions?.defineApprove),
   });
 
   const approve = trpc.revalle.finance.approve.useMutation();
   const change = trpc.revalle.finance.changeAccount.useMutation();
-  const define = trpc.revalle.finance.defineAccount.useMutation();
-  const isBusy = approve.isPending || change.isPending || define.isPending;
+  const resend = trpc.revalle.finance.resendVersion.useMutation();
+  const isBusy = approve.isPending || change.isPending || resend.isPending;
 
-  const [dialog, setDialog] = useState<
-    'approve' | 'define-approve' | 'change' | 'change-confirm' | 'define' | 'resend' | null
-  >(null);
+  const [dialog, setDialog] = useState<'approve' | 'define-approve' | 'change' | 'change-confirm' | 'resend' | null>(
+    null,
+  );
   const [newCode, setNewCode] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const [definedCode, setDefinedCode] = useState<string | null>(null);
@@ -184,16 +187,12 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
     }
   };
 
-  const onDefine = async (code: string, isResend: boolean) => {
+  const onResend = async () => {
     try {
-      const { sent } = await define.mutateAsync({ envelopeId, code });
+      const { sent } = await resend.mutateAsync({ envelopeId });
 
       toast({
-        title: sent
-          ? isResend
-            ? t`Enviado de novo para assinatura.`
-            : t`Conta definida. O documento foi enviado para assinatura.`
-          : t`Este documento já tinha sido enviado.`,
+        title: sent ? t`Enviado de novo para assinatura.` : t`Este documento já tinha sido enviado.`,
         duration: 7500,
       });
       setDialog(null);
@@ -244,15 +243,16 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
             <Trans>Conta contábil</Trans>
           </dt>
           <dd className="break-words" data-testid="finance-card-account">
-            {card.deferred ? (
-              card.financeStatus === 'LEGACY' ? (
-                <Trans>A definir pela contabilidade</Trans>
-              ) : (
-                <Trans>A definir pelo Financeiro</Trans>
-              )
-            ) : (
-              (account ?? '-')
-            )}
+            {account ?? '-'}
+          </dd>
+        </div>
+
+        <div>
+          <dt className="text-muted-foreground">
+            <Trans>Centro de custo</Trans>
+          </dt>
+          <dd className="break-words" data-testid="finance-card-cost-center">
+            {card.costCenterLabel ?? '-'}
           </dd>
         </div>
 
@@ -302,7 +302,11 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
         {card.financeStatus === 'SUPERSEDED' && card.supersedeReason && (
           <div>
             <dt className="text-muted-foreground">
-              <Trans>Motivo da troca</Trans>
+              {card.supersedeKind === 'COST_CENTER' ? (
+                <Trans>Motivo da correção</Trans>
+              ) : (
+                <Trans>Motivo da troca</Trans>
+              )}
             </dt>
             <dd className="break-words">{card.supersedeReason}</dd>
           </div>
@@ -323,53 +327,27 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
         </Button>
       )}
 
-      {actions.define && (
-        <div className="flex flex-col gap-2" data-testid="finance-card-define">
-          <p className="text-muted-foreground">
-            <Trans>
-              O remetente deixou a conta para o Financeiro. Escolha a conta: o documento é enviado na hora, com a conta
-              já aprovada.
-            </Trans>
-          </p>
-          <AccountCombobox
-            accounts={accountsData?.accounts ?? []}
-            value={definedCode}
-            disabled={isBusy}
-            onSelect={setDefinedCode}
-          />
-          {definedAccount && (
-            <p className="break-words">
-              <Trans>
-                Conta escolhida: {definedAccount.code} – {definedAccount.name}
-              </Trans>
-            </p>
-          )}
-          <Button
-            type="button"
-            className="h-11 w-full whitespace-normal sm:w-auto sm:self-start"
-            disabled={!definedCode || isBusy}
-            loading={define.isPending}
-            onClick={() => setDialog('define')}
-          >
-            <Trans>Definir conta e enviar</Trans>
-          </Button>
-        </div>
-      )}
-
-      {actions.resend && card.account && (
+      {actions.resend && (
         <div className="flex flex-col gap-2" data-testid="finance-card-resend">
           <p className="text-muted-foreground">
-            <Trans>
-              A conta já está aprovada, mas o documento ainda não foi enviado. Se o envio falhou, corrija o problema e
-              envie de novo (mesma conta).
-            </Trans>
+            {card.financeStatus === 'APPROVED' ? (
+              <Trans>
+                A conta já está aprovada, mas o documento ainda não foi enviado. Se o envio falhou, corrija o problema e
+                envie de novo (mesma conta).
+              </Trans>
+            ) : (
+              <Trans>
+                A nova versão ainda não foi enviada. Se o envio falhou, corrija o problema e envie de novo (mesma conta
+                e mesmo centro).
+              </Trans>
+            )}
           </p>
           <Button
             type="button"
             variant="outline"
             className="h-11 w-full whitespace-normal sm:w-auto sm:self-start"
             disabled={isBusy}
-            loading={define.isPending}
+            loading={resend.isPending}
             onClick={() => setDialog('resend')}
           >
             <Trans>Enviar de novo</Trans>
@@ -484,26 +462,9 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
       />
 
       <ConfirmDialog
-        open={dialog === 'define'}
-        isBusy={isBusy}
-        isLoading={define.isPending}
-        testId="finance-define-dialog"
-        title={<Trans>Definir a conta e enviar?</Trans>}
-        description={
-          <Trans>
-            Conta: {definedLabel}. O documento é enviado agora, em nome do remetente, para todos os destinatários
-            assinarem.
-          </Trans>
-        }
-        confirmLabel={<Trans>Definir conta e enviar</Trans>}
-        onCancel={() => setDialog(null)}
-        onConfirm={() => definedCode && void onDefine(definedCode, false)}
-      />
-
-      <ConfirmDialog
         open={dialog === 'resend'}
         isBusy={isBusy}
-        isLoading={define.isPending}
+        isLoading={resend.isPending}
         testId="finance-resend-dialog"
         title={<Trans>Enviar de novo?</Trans>}
         description={
@@ -514,7 +475,7 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
         }
         confirmLabel={<Trans>Enviar de novo</Trans>}
         onCancel={() => setDialog(null)}
-        onConfirm={() => card.account && void onDefine(card.account.code, true)}
+        onConfirm={() => void onResend()}
       />
 
       <Dialog
@@ -636,7 +597,7 @@ type ConfirmDialogProps = {
   onConfirm: () => void;
 };
 
-const ConfirmDialog = ({
+export const ConfirmDialog = ({
   open,
   isBusy,
   isLoading,

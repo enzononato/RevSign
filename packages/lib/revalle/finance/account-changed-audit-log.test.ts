@@ -35,11 +35,42 @@ describe('REVALLE_FINANCE_ACCOUNT_CHANGED audit text', () => {
     );
   });
 
-  it('describes the new version, and an old NF left for Finance', () => {
+  it('describes the new version, and an old NF that had no account', () => {
     expect(
       formatDocumentAuditLogAction(i18n, auditLog({ isNewVersion: true, fromCode: null, fromName: null })).description,
     ).toBe(
-      'Nova versão criada pelo Financeiro com a conta contábil 3.1.01 – Serviços de terceiros (antes a definir pelo Financeiro). Motivo: Conta de serviço, não de material.',
+      'Nova versão criada pelo Financeiro com a conta contábil 3.1.01 – Serviços de terceiros (antes sem conta). Motivo: Conta de serviço, não de material.',
+    );
+  });
+});
+
+describe('REVALLE_COST_CENTER audit text', () => {
+  const costCenterLog = (type: string, data: Record<string, unknown>) =>
+    ({ ...auditLog({}), type, data }) as unknown as TDocumentAuditLog;
+  const changed = { fromCode: '101', toCode: '201', reason: 'Era do armazém.', otherEnvelopeId: 'envelope_other' };
+
+  it('describes the validation with the center', () => {
+    expect(
+      formatDocumentAuditLogAction(i18n, costCenterLog('REVALLE_COST_CENTER_VALIDATED', { code: '101' })).description,
+    ).toBe('Centro de custo validado pela Contabilidade: 101 – Puxada');
+  });
+
+  it('describes the correction in both versions', () => {
+    expect(
+      formatDocumentAuditLogAction(
+        i18n,
+        costCenterLog('REVALLE_COST_CENTER_CHANGED', { ...changed, isNewVersion: false }),
+      ).description,
+    ).toBe(
+      'Centro de custo corrigido pela Contabilidade de 101 – Puxada para 201 – Armazém: substituído por uma nova versão. Motivo: Era do armazém.',
+    );
+    expect(
+      formatDocumentAuditLogAction(
+        i18n,
+        costCenterLog('REVALLE_COST_CENTER_CHANGED', { ...changed, isNewVersion: true }),
+      ).description,
+    ).toBe(
+      'Nova versão criada pela Contabilidade com o centro de custo 201 – Armazém (antes 101 – Puxada). Motivo: Era do armazém.',
     );
   });
 });

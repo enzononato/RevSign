@@ -19,6 +19,13 @@ import {
 import { SettingsHeader } from '~/components/general/settings-header';
 import { BrandingUpsell } from '~/components/general/settings-upsell/branding-upsell';
 import { useCurrentTeam } from '~/providers/team';
+import { redirectHiddenTeamPage } from '~/utils/revalle-hidden-routes'; // REVALLE:
+import type { Route } from './+types/settings.branding'; // REVALLE:
+
+// REVALLE: página escondida (Fase 7, spec §6); quem abre o endereço direto cai numa página que existe.
+export function loader(args: Route.LoaderArgs) {
+  return redirectHiddenTeamPage(args);
+}
 
 export default function TeamsSettingsPage() {
   const team = useCurrentTeam();

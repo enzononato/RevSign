@@ -3,6 +3,7 @@ import { DateTime } from 'luxon';
 
 import { EMAIL_VERIFICATION_STATE, USER_SIGNUP_VERIFICATION_TOKEN_IDENTIFIER } from '../../constants/email';
 import { jobsClient } from '../../jobs/client';
+import { linkSignupIdentityOnVerify } from '../revalle/signup/identity';
 import { getMostRecentEmailVerificationToken } from './get-most-recent-email-verification-token';
 
 export type VerifyEmailProps = {
@@ -58,6 +59,9 @@ export const verifyEmail = async ({ token }: VerifyEmailProps) => {
   }
 
   if (verificationToken.completed) {
+    // REVALLE: confirmação repetida também tenta o vínculo (idempotente): cobre a linha pendente que sobrou
+    await linkSignupIdentityOnVerify(verificationToken.user);
+
     return {
       state: EMAIL_VERIFICATION_STATE.ALREADY_VERIFIED,
       userId: null,
@@ -97,6 +101,9 @@ export const verifyEmail = async ({ token }: VerifyEmailProps) => {
   if (!updatedUser) {
     throw new Error('Something went wrong while verifying your email. Please try again.');
   }
+
+  // REVALLE: e-mail confirmado, o CPF do cadastro vira o vínculo e-mail ↔ CPF (nunca lança)
+  await linkSignupIdentityOnVerify(updatedUser);
 
   return {
     state: EMAIL_VERIFICATION_STATE.VERIFIED,

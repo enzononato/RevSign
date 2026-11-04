@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { groupRecipientsBySigningOrder } from '../utils/recipient-groups';
 import { formatRevalleDateTime } from './date-format';
+import { costCenterLabel } from './invoice/cost-centers';
 
 // REVALLE: linhas da prova congelada de cada destinatário no certificado de assinatura (Fase 4).
 
@@ -49,6 +50,8 @@ export type RevalleCertificateProof = {
   verificationCode: string;
   /** Fase 6: { code, name } da conta da NF vista ao assinar; nula em documento comum e nas provas anteriores. */
   invoiceAccount?: unknown;
+  /** Fase 7: { code, name } do centro de custo da NF visto ao assinar; nulo em NF sem centro e nas provas anteriores. */
+  invoiceCostCenter?: unknown;
 };
 
 const EMPTY = '—';
@@ -72,6 +75,7 @@ const ZIpLocation = z.object({
 });
 
 const ZInvoiceAccount = z.object({ code: z.string().min(1), name: z.string() });
+const ZInvoiceCostCenter = z.object({ code: z.string().min(1), name: z.string() });
 
 const ZDeviceLocation = z.object({
   status: z.string(),
@@ -215,6 +219,13 @@ export const buildRevalleCertificateRows = (
     rows.push({ label: 'Conta contábil vista ao assinar', value: invoiceAccount.data.code });
   }
 
+  // Conta e centro são congelados cada um pelo que a página mostrou: o centro sai mesmo sem a linha da conta.
+  const invoiceCostCenter = ZInvoiceCostCenter.safeParse(proof.invoiceCostCenter);
+
+  if (invoiceCostCenter.success) {
+    rows.push({ label: 'Centro de custo visto ao assinar', value: invoiceCostCenter.data.code });
+  }
+
   rows.push({ label: 'Código de verificação', value: proof.verificationCode });
 
   return rows;
@@ -239,3 +250,10 @@ export const buildRevalleInvoiceCertificateLine = ({
 
   return `Conta contábil: ${account} · aprovada pelo Financeiro (${approverName}) em ${formatRevalleDateTime(approvedAt, { withZoneLabel: true })}`;
 };
+
+/**
+ * Linha do certificado no nível do documento para qualquer NF com centro de custo (Fase 7), com ou sem aprovação do
+ * Financeiro. Só diz qual é o centro: a validação da Contabilidade pode acontecer depois da selagem e não entra aqui.
+ */
+export const buildRevalleInvoiceCostCenterCertificateLine = (code: string) =>
+  `Centro de custo: ${costCenterLabel(code)}`;

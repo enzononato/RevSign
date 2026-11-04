@@ -13,6 +13,7 @@ import { useMemo } from 'react';
 import { Link } from 'react-router';
 
 import { BrandingLogo } from '~/components/general/branding-logo';
+import { InvoicesNavBadge } from '~/components/revalle/invoice/invoices-nav-badge'; // REVALLE:
 import { useOptionalCurrentTeam } from '~/providers/team';
 
 export type AppNavMobileProps = {
@@ -70,10 +71,7 @@ export const AppNavMobile = ({ isMenuOpen, onMenuOpenChange }: AppNavMobileProps
         href: `/t/${teamUrl}/documents`,
         text: t`Documents`,
       },
-      {
-        href: `/t/${teamUrl}/templates`,
-        text: t`Templates`,
-      },
+      // REVALLE: Modelos saem do menu (Fase 7, spec §6).
       {
         href: '/inbox',
         text: t`Inbox`,
@@ -106,6 +104,7 @@ export const AppNavMobile = ({ isMenuOpen, onMenuOpenChange }: AppNavMobileProps
               onClick={() => handleMenuItemClick()}
             >
               {text}
+              {href === '/notas-fiscais' && <InvoicesNavBadge />}
               {href === '/inbox' && unreadCountData && unreadCountData.count > 0 && (
                 <span className="flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary px-1.5 font-semibold text-primary-foreground text-xs">
                   {unreadCountData.count > 99 ? '99+' : unreadCountData.count}

@@ -21,6 +21,7 @@ import { SettingsHeader } from '~/components/general/settings-header';
 import { SettingsPublicProfileTemplatesTable } from '~/components/tables/settings-public-profile-templates-table';
 import { useCurrentTeam } from '~/providers/team';
 import { appMetaTags } from '~/utils/meta';
+import { redirectHiddenTeamPage } from '~/utils/revalle-hidden-routes'; // REVALLE:
 
 import type { Route } from './+types/settings.public-profile';
 
@@ -34,6 +35,9 @@ export function meta() {
 
 // Todo: This can be optimized.
 export async function loader({ request, params }: Route.LoaderArgs) {
+  // REVALLE: Perfil público sai da tela para todos (Fase 7, spec §6).
+  redirectHiddenTeamPage({ params });
+
   const session = await getSession(request);
 
   const team = await getTeamByUrl({

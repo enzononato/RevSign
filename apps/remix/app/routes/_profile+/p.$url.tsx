@@ -27,7 +27,14 @@ const BADGE_DATA = {
   },
 };
 
+// REVALLE: Perfil público sai (Fase 7, spec §6): nenhum endereço /p/... responde, nem com o perfil ligado no banco.
+const IS_PUBLIC_PROFILE_HIDDEN = true;
+
 export async function loader({ params }: Route.LoaderArgs) {
+  if (IS_PUBLIC_PROFILE_HIDDEN) {
+    throw new Response('Not Found', { status: 404 });
+  }
+
   const { url: profileUrl } = params;
 
   if (!profileUrl) {

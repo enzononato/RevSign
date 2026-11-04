@@ -10,14 +10,18 @@ export const ZAdminListFinanceUsersResponseSchema = z.object({
       id: z.number(),
       name: z.string().nullable(),
       email: z.string(),
-      isFinance: z.boolean(),
+      isFinanceMember: z.boolean(),
+      isAccountingMember: z.boolean(),
     }),
   ),
+  /** Membros ativos do Financeiro (o nome vem da Fase 6; a Contabilidade tem `accountingMemberCount`). */
   memberCount: z.number(),
-  /** NFs retidas ("Deixar para o Financeiro") esperando a conta. */
-  awaitingAccountCount: z.number(),
+  /** Membros ativos da Contabilidade. */
+  accountingMemberCount: z.number(),
   /** NFs assinadas por todos esperando a aprovação do Financeiro. */
   awaitingApprovalCount: z.number(),
+  /** NFs com o centro de custo aguardando a validação da Contabilidade (o mesmo número do contador do menu). */
+  accountingPendingCount: z.number(),
 });
 
 export type TAdminListFinanceUsersResponse = z.infer<typeof ZAdminListFinanceUsersResponseSchema>;

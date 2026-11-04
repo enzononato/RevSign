@@ -19,12 +19,15 @@ export const ZInvoiceListRowSchema = z.object({
   deleted: z.boolean(),
   account: z.object({ code: z.string(), name: z.string().nullable() }).nullable(),
   accountKind: z.enum(['PAYABLE', 'RECEIVABLE']).nullable(),
-  deferred: z.boolean(),
   suggestion: z.object({ code: z.string(), confidence: z.string() }).nullable(),
   acceptedSuggestion: z.boolean().nullable(),
   financeStatus: z.enum(FINANCE_STATUSES).nullable(),
   version: z.number(),
   approvedBy: z.string().nullable(),
+  costCenterCode: z.string().nullable(),
+  costCenterLabel: z.string().nullable(),
+  costCenterValidatedAt: z.date().nullable(),
+  costCenterValidatedBy: z.string().nullable(),
   link: z.string().nullable(),
 });
 

@@ -13,6 +13,7 @@ import { useEffect } from 'react';
 import { isRouteErrorResponse, Link, Outlet, redirect, type ShouldRevalidateFunctionArgs } from 'react-router';
 
 import { GenericErrorLayout } from '~/components/general/generic-error-layout';
+import { redirectHiddenTeamPage } from '~/utils/revalle-hidden-routes'; // REVALLE:
 
 import type { Route } from './+types/settings._layout';
 
@@ -26,6 +27,9 @@ export const shouldRevalidate = ({ currentParams, nextParams }: ShouldRevalidate
  * File: apps/remix/app/routes/_authenticated+/t.$teamUrl+/documents.$id._layout.tsx
  */
 export async function loader({ request, params }: Route.LoaderArgs) {
+  // REVALLE: Modelos saem da tela (Fase 7, spec §6); este layout cobre /templates/:id e tudo abaixo dele.
+  redirectHiddenTeamPage({ params });
+
   const { id } = params;
 
   const templateId = Number(id);

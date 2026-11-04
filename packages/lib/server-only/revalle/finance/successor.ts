@@ -3,15 +3,16 @@ import type { RevalleInvoiceClassification } from '@prisma/client';
 import { DocumentStatus, RevalleFinanceStatus } from '@prisma/client';
 
 /**
- * Uma troca que morreu no meio (queda do processo entre marcar a versão antiga e ligar a nova) deixa a antiga
- * `SUPERSEDED` sem sucessora. Passado esse prazo, outra troca a retoma; antes dele, 409 "em andamento".
+ * Uma troca de conta ou correção do centro que morreu no meio (queda do processo entre marcar a versão antiga e ligar a
+ * nova) deixa a antiga `SUPERSEDED` sem sucessora. Passado esse prazo, outro pedido a retoma, de qualquer um dos tipos;
+ * antes dele, 409 "em andamento".
  */
 export const FINANCE_CHANGE_LEASE_MS = 5 * 60 * 1000;
 
 /**
- * Marca `SUPERSEDED` que outra troca pode retomar: sem sucessora há mais que o prazo (troca que morreu no meio), ou com
- * uma sucessora que não existe mais (a nova versão foi apagada). O cartão do Financeiro usa a mesma regra para oferecer
- * "Trocar conta" de novo.
+ * Marca `SUPERSEDED` que outro pedido pode retomar: sem sucessora há mais que o prazo (troca que morreu no meio), ou com
+ * uma sucessora que não existe mais (a nova versão foi apagada). Os cartões do Financeiro e da Contabilidade usam a mesma
+ * regra para oferecer "Trocar conta" e "Corrigir centro de custo" de novo.
  */
 export const isStaleChangeClaim = async (
   row: Pick<RevalleInvoiceClassification, 'financeStatus' | 'supersededAt' | 'supersededByEnvelopeId'>,
@@ -31,6 +32,23 @@ export const isStaleChangeClaim = async (
   });
 
   return successor === null;
+};
+
+/**
+ * O que criou uma nova versão: o tipo gravado na marca da versão anterior. Numa correção do centro, `approvedAt` é a
+ * aprovação copiada; só na troca de conta ele também é a reserva do envio (`define-and-send.ts`). `null`: sem anterior.
+ */
+export const findNewVersionKind = async (previousEnvelopeId: string | null) => {
+  if (!previousEnvelopeId) {
+    return null;
+  }
+
+  const previous = await prisma.revalleInvoiceClassification.findUnique({
+    where: { envelopeId: previousEnvelopeId },
+    select: { supersedeKind: true },
+  });
+
+  return previous?.supersedeKind ?? null;
 };
 
 /**

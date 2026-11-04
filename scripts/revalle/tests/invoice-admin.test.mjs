@@ -1,6 +1,6 @@
-// Fase 5, Task 2: tela de admin "Contas contábeis" (importar CSV com prévia, lista, prompt, e-mail da contabilidade,
-// estado da IA). Rotas de admin: REVSIGN_ADMIN_EMAIL / REVSIGN_ADMIN_PASSWORD (papel ADMIN). Recusa ao usuário comum:
-// REVSIGN_USER_EMAIL / REVSIGN_USER_PASSWORD. Os testes apagam e recriam a lista de contas da stack local.
+// Fase 5, Task 2: tela de admin "Contas contábeis" (importar CSV com prévia, lista, prompt, estado da IA). Rotas de
+// admin: REVSIGN_ADMIN_EMAIL / REVSIGN_ADMIN_PASSWORD (papel ADMIN). Recusa ao usuário comum: REVSIGN_USER_EMAIL /
+// REVSIGN_USER_PASSWORD. Os testes apagam e recriam a lista de contas da stack local.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { before, test } from 'node:test';
@@ -150,33 +150,28 @@ test(
   },
 );
 
-test('configurações: prompt e e-mail salvos aparecem; e-mail inválido é recusado', sessionOpts(admin), async () => {
-  const prompt = `Prefira contas a pagar. ${Date.now()}`;
+test(
+  'configurações: o prompt salvo aparece com quem salvou; prompt grande demais é recusado',
+  sessionOpts(admin),
+  async () => {
+    const prompt = `Prefira contas a pagar. ${Date.now()}`;
 
-  const saved = await asAdmin('mutation', 'adminUpdateSettings', {
-    prompt,
-    accountingEmail: 'contabil@revalle.com.br',
-  });
+    const saved = await asAdmin('mutation', 'adminUpdateSettings', { prompt });
 
-  assert.equal(saved.status, 200, saved.text);
+    assert.equal(saved.status, 200, saved.text);
 
-  const settings = data(await asAdmin('query', 'adminGetSettings', {}));
+    const settings = data(await asAdmin('query', 'adminGetSettings', {}));
 
-  assert.equal(settings.prompt, prompt);
-  assert.equal(settings.accountingEmail, 'contabil@revalle.com.br');
-  assert.equal(settings.updatedBy.email, admin.email);
-  assert.ok(settings.updatedAt);
+    assert.equal(settings.prompt, prompt);
+    assert.equal(settings.updatedBy.email, admin.email);
+    assert.ok(settings.updatedAt);
 
-  const invalid = await asAdmin('mutation', 'adminUpdateSettings', { prompt, accountingEmail: 'contabil@' });
+    const tooLong = await asAdmin('mutation', 'adminUpdateSettings', { prompt: 'x'.repeat(10_001) });
 
-  assert.equal(invalid.status, 400, invalid.text);
-  assert.equal(data(await asAdmin('query', 'adminGetSettings', {})).accountingEmail, 'contabil@revalle.com.br');
-
-  const cleared = await asAdmin('mutation', 'adminUpdateSettings', { prompt, accountingEmail: '' });
-
-  assert.equal(cleared.status, 200, cleared.text);
-  assert.equal(data(await asAdmin('query', 'adminGetSettings', {})).accountingEmail, null);
-});
+    assert.equal(tooLong.status, 400, tooLong.text);
+    assert.equal(data(await asAdmin('query', 'adminGetSettings', {})).prompt, prompt);
+  },
+);
 
 test('estado da IA segue as variáveis do app (sem GEMINI_API_KEY = NO_KEY)', sessionOpts(admin), async () => {
   const isDisabled = containerEnv('NEXT_PRIVATE_REVALLE_INVOICE_AI').trim().toLowerCase() === 'disabled';
@@ -196,7 +191,7 @@ test('usuário comum e visitante não usam as rotas de admin', sessionOpts(user)
     ['mutation', 'adminImportAccounts', { csv: `${HEADER}\n${VALID[0]}` }],
     ['query', 'adminFindAccounts', {}],
     ['query', 'adminGetSettings', {}],
-    ['mutation', 'adminUpdateSettings', { prompt: 'invasão', accountingEmail: '' }],
+    ['mutation', 'adminUpdateSettings', { prompt: 'invasão' }],
   ];
 
   for (const [kind, name, input] of calls) {

@@ -6,7 +6,6 @@ import {
 import { useCurrentEnvelopeEditor } from '@documenso/lib/client-only/providers/envelope-editor-provider';
 import { useCurrentOrganisation } from '@documenso/lib/client-only/providers/organisation';
 import { useOptionalSession } from '@documenso/lib/client-only/providers/session';
-import type { TDetectedRecipientSchema } from '@documenso/lib/server-only/ai/envelope/detect-recipients/schema';
 import { ZRecipientAuthOptionsSchema } from '@documenso/lib/types/document-auth';
 import { nanoid } from '@documenso/lib/universal/id';
 import { normalizeGroupedSigningOrders } from '@documenso/lib/utils/recipient-groups';
@@ -20,19 +19,12 @@ import { SigningOrderConfirmation } from '@documenso/ui/primitives/document-flow
 import { Form, FormControl, FormField, FormItem, FormLabel } from '@documenso/ui/primitives/form/form';
 import { FormErrorMessage } from '@documenso/ui/primitives/form/form-error-message';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@documenso/ui/primitives/tooltip';
-import { useToast } from '@documenso/ui/primitives/use-toast';
-import { plural } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { DocumentSigningOrder, RecipientRole, SendStatus } from '@prisma/client';
-import { HelpCircleIcon, PlusIcon, SparklesIcon } from 'lucide-react';
+import { HelpCircleIcon, PlusIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFieldArray, useWatch } from 'react-hook-form';
-import { useRevalidator, useSearchParams } from 'react-router';
 import { isDeepEqual } from 'remeda';
-
-import { AiFeaturesEnableDialog } from '~/components/dialogs/ai-features-enable-dialog';
-import { AiRecipientDetectionDialog } from '~/components/dialogs/ai-recipient-detection-dialog';
-import { useCurrentTeam } from '~/providers/team';
 
 import { RecipientStepList } from './recipient-step-list';
 
@@ -41,59 +33,12 @@ export const EnvelopeEditorRecipientForm = () => {
     useCurrentEnvelopeEditor();
 
   const organisation = useCurrentOrganisation();
-  const team = useCurrentTeam();
-
-  const { toast } = useToast();
   const { remaining } = useLimits();
   const { sessionData } = useOptionalSession();
 
   const user = sessionData?.user;
 
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [isAiEnableDialogOpen, setIsAiEnableDialogOpen] = useState(false);
-
-  // AI recipient detection dialog state
-  const [isAiDialogOpen, setIsAiDialogOpen] = useState(() => searchParams.get('ai') === 'true');
-  const { revalidate } = useRevalidator();
-
-  const onAiDialogOpenChange = (open: boolean) => {
-    if (open && !team.preferences.aiFeaturesEnabled) {
-      setIsAiEnableDialogOpen(true);
-      setIsAiDialogOpen(false);
-      return;
-    }
-
-    setIsAiDialogOpen(open);
-
-    if (!open && searchParams.get('ai') === 'true') {
-      setSearchParams(
-        (prev) => {
-          const newParams = new URLSearchParams(prev);
-
-          newParams.delete('ai');
-
-          return newParams;
-        },
-        { replace: true },
-      );
-    }
-  };
-
-  const onDetectRecipientsClick = () => {
-    if (!team.preferences.aiFeaturesEnabled) {
-      setIsAiEnableDialogOpen(true);
-      return;
-    }
-
-    setIsAiDialogOpen(true);
-  };
-
-  const onAiFeaturesEnabled = () => {
-    void revalidate().then(() => {
-      setIsAiEnableDialogOpen(false);
-      setIsAiDialogOpen(true);
-    });
-  };
+  // REVALLE: a detecção de destinatários por IA saiu do editor (Fase 7, spec §6).
 
   const isFirstRender = useRef(true);
   const { recipients } = envelope;
@@ -191,59 +136,6 @@ export const EnvelopeEditorRecipientForm = () => {
       role: RecipientRole.SIGNER,
       actionAuth: [],
       signingOrder: undefined,
-    });
-  };
-
-  const onAiDetectionComplete = (detectedRecipients: TDetectedRecipientSchema[]) => {
-    const currentSigners = form.getValues('signers');
-
-    // If the only signer is the default empty signer lets just replace it with the detected recipients
-    if (currentSigners.length === 1 && !currentSigners[0].name && !currentSigners[0].email) {
-      updateEditorSigners(
-        form,
-        detectedRecipients.map((recipient, index) => ({
-          formId: nanoid(12),
-          name: recipient.name,
-          email: recipient.email,
-          role: recipient.role,
-          actionAuth: [],
-          signingOrder: index + 1,
-        })),
-      );
-
-      return;
-    }
-
-    for (const recipient of detectedRecipients) {
-      const emailExists = currentSigners.some((s) => s.email.toLowerCase() === recipient.email.toLowerCase());
-
-      const nameExists = currentSigners.some((s) => s.name.toLowerCase() === recipient.name.toLowerCase());
-
-      if ((emailExists && recipient.email) || (nameExists && recipient.name)) {
-        continue;
-      }
-
-      currentSigners.push({
-        formId: nanoid(12),
-        name: recipient.name,
-        email: recipient.email,
-        role: recipient.role,
-        actionAuth: [],
-        signingOrder: undefined,
-      });
-    }
-
-    updateEditorSigners(form, normalizeSigningOrders(currentSigners));
-
-    toast({
-      title: plural(detectedRecipients.length, {
-        one: `Recipient added`,
-        other: `Recipients added`,
-      }),
-      description: plural(detectedRecipients.length, {
-        one: `# recipient have been added from AI detection.`,
-        other: `# recipients have been added from AI detection.`,
-      }),
     });
   };
 
@@ -387,30 +279,6 @@ export const EnvelopeEditorRecipientForm = () => {
         </div>
 
         <div className="flex flex-row items-center space-x-2">
-          {editorConfig.recipients?.allowAIDetection && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  type="button"
-                  size="sm"
-                  disabled={isSubmitting}
-                  onClick={onDetectRecipientsClick}
-                >
-                  <SparklesIcon className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-
-              <TooltipContent>
-                {team.preferences.aiFeaturesEnabled ? (
-                  <Trans>Detect recipients with AI</Trans>
-                ) : (
-                  <Trans>Enable AI detection</Trans>
-                )}
-              </TooltipContent>
-            </Tooltip>
-          )}
-
           {(!isEmbedded || hasCurrentEditorInfo) && (
             <Button
               variant="outline"
@@ -591,22 +459,6 @@ export const EnvelopeEditorRecipientForm = () => {
           open={showSigningOrderConfirmation}
           onOpenChange={setShowSigningOrderConfirmation}
           onConfirm={handleSigningOrderDisable}
-        />
-
-        {editorConfig.recipients?.allowAIDetection && (
-          <AiRecipientDetectionDialog
-            open={isAiDialogOpen}
-            onOpenChange={onAiDialogOpenChange}
-            onComplete={onAiDetectionComplete}
-            envelopeId={envelope.id}
-            teamId={envelope.teamId}
-          />
-        )}
-
-        <AiFeaturesEnableDialog
-          open={isAiEnableDialogOpen}
-          onOpenChange={setIsAiEnableDialogOpen}
-          onEnabled={onAiFeaturesEnabled}
         />
       </CardContent>
     </Card>

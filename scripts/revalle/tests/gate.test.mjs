@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { beforeEach, test } from 'node:test';
 
-import { api, createEnvelope, db, distribute, latestMail, trpc } from './helpers.mjs';
+import { api, createEnvelope, db, distribute, mailIdsTo, trpc, waitNewMail } from './helpers.mjs';
 
 const TERM_VERSION = '1';
 const ADMIN_EMAIL = 'teste1@revalle.com.br';
@@ -52,6 +52,13 @@ const call = async (procedure, input) => {
 
   return { ...res, state: res.body?.result?.data?.json };
 };
+
+// Aviso de link bloqueado deste destinatário. Lança se não chegar.
+const waitLockNotice = (to, seen, recipientEmail) =>
+  waitNewMail(to, seen, {
+    matches: (mail) => /Link de assinatura bloqueado/.test(mail.Subject) && mail.HTML.includes(recipientEmail),
+    what: `Aviso de link bloqueado de ${recipientEmail}`,
+  });
 
 const acceptTerm = (token) => call('acceptTerm', { token, termVersion: TERM_VERSION });
 const verify = (token, cpf, birthDate) => call('verifyIdentity', { token, cpf, birthDate });
@@ -177,6 +184,8 @@ test('same-error: CPF fora da base e data errada têm a mesma resposta e consome
 
 test('lockout: 5 falhas bloqueiam, avisam dono e admin e persistem', async () => {
   const r = await newRecipient();
+  const notified = ['admin@hml.local', ADMIN_EMAIL];
+  const seen = await Promise.all(notified.map(mailIdsTo));
 
   await acceptTerm(r.token);
 
@@ -195,14 +204,9 @@ test('lockout: 5 falhas bloqueiam, avisam dono e admin e persistem', async () =>
   assert.equal((await verify(r.token, MARIA.cpf, MARIA.birthDate)).state.status, 'LOCKED');
   assert.equal((await acceptTerm(r.token)).state.status, 'LOCKED');
 
-  await sleep(1500);
+  for (const [index, to] of notified.entries()) {
+    const mail = await waitLockNotice(to, seen[index], r.email);
 
-  for (const to of ['admin@hml.local', ADMIN_EMAIL]) {
-    const mail = await latestMail(to);
-
-    assert.ok(mail, `sem e-mail para ${to}`);
-    assert.match(mail.Subject, /Link de assinatura bloqueado/);
-    assert.ok(mail.HTML.includes(r.email));
     assert.ok(!mail.HTML.includes(MARIA.cpfDigits) && !mail.Text.includes(MARIA.cpfDigits));
   }
 });
@@ -328,6 +332,7 @@ test('confirmar (sim ou não) em portão bloqueado continua bloqueado', async ()
 test('conflito na confirmação: o CPF foi confirmado por outro e-mail antes', async () => {
   const a = await newRecipient();
   const b = await newRecipient();
+  const seen = await mailIdsTo(ADMIN_EMAIL);
 
   for (const r of [a, b]) {
     await acceptTerm(r.token);
@@ -343,8 +348,7 @@ test('conflito na confirmação: o CPF foi confirmado por outro e-mail antes', a
   assert.equal(db(`select count(*) from "RevalleEmailLink" where cpf = '${BEATRIZ.cpf}'`), '1');
   assert.equal(db(`select count(*) from "RevalleEmailLink" where email = '${a.email}'`), '0');
 
-  await sleep(1500);
-  assert.match((await latestMail(ADMIN_EMAIL))?.Subject ?? '', /Link de assinatura bloqueado/);
+  await waitLockNotice(ADMIN_EMAIL, seen, a.email);
 });
 
 test('conflito na confirmação: e-mail já vinculado a outro CPF', async () => {
@@ -470,8 +474,10 @@ test('audit: eventos REVALLE_* têm IP e nenhum dado traz CPF completo nem data 
   await call('confirmIdentity', { token: r.token, isMe: true });
 
   const rows = db(
-    `select type || '|' || coalesce("ipAddress", '') || '|' || data::text from "DocumentAuditLog" where "envelopeId" = '${r.envelopeId}' and type like 'REVALLE_%' order by "createdAt"`,
+    `select type || '|' || coalesce("ipAddress", '') || '|' || data::text from "DocumentAuditLog" where "envelopeId" = '${r.envelopeId}' and type like 'REVALLE_%' order by xmin::text::bigint`,
   ).split('\n');
+  // A ordem vem do xmin (a transação que gravou a linha), que só cresce: `createdAt` segue o relógio da máquina, que
+  // pode voltar entre um evento e outro.
   const types = rows.map((row) => row.split('|')[0]);
 
   assert.deepEqual(types, ['REVALLE_TERM_ACCEPTED', 'REVALLE_IDENTITY_FAILED', 'REVALLE_IDENTITY_CONFIRMED']);
@@ -483,7 +489,10 @@ test('audit: eventos REVALLE_* têm IP e nenhum dado traz CPF completo nem data 
     assert.ok(!/1990|07\/03|01\/01\/2001|2001-01-01/.test(row.split('|').slice(2).join('|')), row);
   }
 
-  assert.match(rows[2], /\*\*\*\.447\.05|\*\*\*\.533\.447-\*\*/);
+  assert.match(
+    rows.find((row) => row.startsWith('REVALLE_IDENTITY_CONFIRMED|')),
+    /\*\*\*\.447\.05|\*\*\*\.533\.447-\*\*/,
+  );
 });
 
 test('o estado não grava a data de nascimento digitada', async () => {
@@ -492,7 +501,12 @@ test('o estado não grava a data de nascimento digitada', async () => {
   await acceptTerm(r.token);
   await verify(r.token, MARIA.cpf, MARIA.birthDate);
 
-  const row = db(`select to_json(g)::text from "RevalleRecipientGate" g where "recipientId" = ${r.recipientId}`);
+  const row = JSON.parse(
+    db(`select to_json(g)::text from "RevalleRecipientGate" g where "recipientId" = ${r.recipientId}`),
+  );
+  // Fora os campos cujos dígitos não vêm do que foi digitado: ids, o e-mail do teste e as datas do sistema.
+  const typed = JSON.stringify(Object.entries(row).filter(([key]) => !/^(id|recipientId|email|\w+At)$/.test(key)));
 
-  assert.ok(!/1990|07\/03/.test(row), row);
+  assert.notEqual(row.identityStatus, 'PENDING', 'a conferência não chegou a gravar o estado');
+  assert.ok(!/1990|07\/03/.test(typed), typed);
 });

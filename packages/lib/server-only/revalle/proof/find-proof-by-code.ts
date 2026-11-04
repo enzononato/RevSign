@@ -4,9 +4,11 @@ import {
   type RecipientRole,
   RevalleFinanceStatus,
   RevalleInvoiceStatus,
+  type RevalleSupersedeKind,
   SigningStatus,
 } from '@prisma/client';
 
+import { REVALLE_COST_CENTERS } from '../../../revalle/invoice/cost-centers';
 import { VERIFICATION_CODE_ALPHABET, VERIFICATION_CODE_REGEX } from './verification-code';
 
 /**
@@ -38,14 +40,21 @@ export type RevalleProofLookup = {
   signers: { nome: string; cpfMasked: string | null; signedAt: Date; role: RecipientRole }[];
   /**
    * Fase 6, só em NF que passou pelo Financeiro: a conta desta versão, a aprovação (nome de quem aprovou, nunca o
-   * e-mail) e, se a conta foi trocada, quando esta versão foi substituída. Nada da nova versão (nem códigos, nem id).
+   * e-mail) e, se a conta foi trocada ou o centro corrigido, quando e por quê esta versão foi substituída. Nada da nova
+   * versão (nem códigos, nem id).
    */
   invoice: {
     account: { code: string; name: string } | null;
     approval: { approverName: string | null; approvedAt: Date } | null;
     isAwaitingApproval: boolean;
     supersededAt: Date | null;
+    supersedeKind: RevalleSupersedeKind | null;
   } | null;
+  /**
+   * Fase 7, em qualquer NF com centro de custo (também a concluída como `LEGACY`, sem passar pelo Financeiro): o centro
+   * desta versão. Não afirma validação da Contabilidade.
+   */
+  costCenter: { code: string; name: string } | null;
 };
 
 const FINANCE_STATUSES_SHOWN: RevalleFinanceStatus[] = [
@@ -102,12 +111,13 @@ export const findRevalleProofByCode = async (code: string): Promise<RevalleProof
                   isInvoice: true,
                   financeStatus: true,
                   choiceCode: true,
-                  choiceDefer: true,
                   approvedById: true,
                   approvedAt: true,
                   approvedAccountName: true,
                   approvedByName: true,
                   supersededAt: true,
+                  supersedeKind: true,
+                  costCenterCode: true,
                 },
               },
             },
@@ -174,23 +184,38 @@ export const findRevalleProofByCode = async (code: string): Promise<RevalleProof
     finalSha256: items.length === 1 ? items[0].finalSha256 : null,
     items,
     signers,
-    invoice: await loadInvoiceSummary(invoiceRow),
+    invoice: await loadInvoiceSummary(invoiceRow, { rejected }),
+    costCenter: toCostCenter(invoiceRow),
   };
+};
+
+const toCostCenter = (row: Pick<InvoiceRow, 'isInvoice' | 'costCenterCode'> | null | undefined) => {
+  if (!row || row.isInvoice !== RevalleInvoiceStatus.YES) {
+    return null;
+  }
+
+  const center = REVALLE_COST_CENTERS.find((item) => item.code === row.costCenterCode);
+
+  return center ? { code: center.code, name: center.name } : null;
 };
 
 type InvoiceRow = {
   isInvoice: RevalleInvoiceStatus;
   financeStatus: RevalleFinanceStatus | null;
   choiceCode: string | null;
-  choiceDefer: boolean;
   approvedById: number | null;
   approvedAt: Date | null;
   approvedAccountName: string | null;
   approvedByName: string | null;
   supersededAt: Date | null;
+  supersedeKind: RevalleSupersedeKind | null;
+  costCenterCode: string | null;
 };
 
-const loadInvoiceSummary = async (row: InvoiceRow | null | undefined): Promise<RevalleProofLookup['invoice']> => {
+const loadInvoiceSummary = async (
+  row: InvoiceRow | null | undefined,
+  { rejected }: { rejected: boolean },
+): Promise<RevalleProofLookup['invoice']> => {
   if (!row || row.isInvoice !== RevalleInvoiceStatus.YES || !row.financeStatus) {
     return null;
   }
@@ -199,7 +224,7 @@ const loadInvoiceSummary = async (row: InvoiceRow | null | undefined): Promise<R
     return null;
   }
 
-  const code = !row.choiceDefer && row.choiceCode ? row.choiceCode : null;
+  const code = row.choiceCode;
   const isApproved =
     row.approvedAt !== null && row.approvedById !== null && row.financeStatus !== RevalleFinanceStatus.PENDING_APPROVAL;
 
@@ -221,7 +246,9 @@ const loadInvoiceSummary = async (row: InvoiceRow | null | undefined): Promise<R
       isApproved && row.approvedAt
         ? { approverName: row.approvedByName ?? (approver?.name?.trim() || null), approvedAt: row.approvedAt }
         : null,
-    isAwaitingApproval: row.financeStatus === RevalleFinanceStatus.PENDING_APPROVAL,
+    // NF recusada não aguarda mais ninguém: a página pública diria "Aguardando aprovação" de uma nota que acabou.
+    isAwaitingApproval: row.financeStatus === RevalleFinanceStatus.PENDING_APPROVAL && !rejected,
     supersededAt: row.financeStatus === RevalleFinanceStatus.SUPERSEDED ? row.supersededAt : null,
+    supersedeKind: row.financeStatus === RevalleFinanceStatus.SUPERSEDED ? row.supersedeKind : null,
   };
 };

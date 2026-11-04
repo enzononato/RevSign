@@ -113,10 +113,11 @@ test('original e final são diferentes e o original não muda na selagem', () =>
   assert.equal(original, afterSend.split('|')[0]);
 });
 
-// Histórico das versões seladas (uma linha por selagem), da mais antiga para a mais nova.
+// Histórico das versões seladas (uma linha por selagem), da mais antiga para a mais nova. A ordem vem do xmin (a transação
+// que gravou a linha), que só cresce: `sealedAt` segue o relógio da máquina, que pode voltar entre as duas selagens.
 const sealedHistory = () =>
   db(
-    `select h.sha256 || '|' || to_char(h."sealedAt", 'YYYY-MM-DD"T"HH24:MI:SS.MS') from "RevalleSealedHash" h join "RevalleDocumentHash" d on d.id = h."documentHashId" where d."envelopeItemId" = '${itemId}' order by h."sealedAt"`,
+    `select h.sha256 || '|' || to_char(h."sealedAt", 'YYYY-MM-DD"T"HH24:MI:SS.MS') from "RevalleSealedHash" h join "RevalleDocumentHash" d on d.id = h."documentHashId" where d."envelopeItemId" = '${itemId}' order by h.xmin::text::bigint`,
   )
     .split('\n')
     .filter(Boolean)

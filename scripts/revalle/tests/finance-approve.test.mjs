@@ -1,31 +1,31 @@
 // Fase 6, Task 3: a selagem da nota fiscal espera a aprovação do Financeiro.
 //   - NF `PENDING_APPROVAL` com 2 signatários: os dois assinam e o documento continua PENDING (nenhum job de selagem),
-//     e os membros do Financeiro recebem UM e-mail "Nota fiscal aguardando aprovação do Financeiro: {título}";
+//     e ninguém recebe e-mail de fluxo (desde a Fase 7 não há "Nota fiscal aguardando aprovação do Financeiro");
 //   - a varredura de selagem (`internal.seal-document-sweep`, disparada como o cron do app dispara: linha em
 //     "BackgroundJob" + POST assinado em /api/jobs) não sela a NF retida, e sela uma NF `LEGACY` no mesmo estado;
 //   - a reselagem pelo admin de uma NF retida chega ao job de selagem, que sai sem selar e sem falhar (defesa em
 //     profundidade: qualquer caminho que dispare o job fica retido);
-//   - `revalle.finance.approve`: 401 sem sessão, 403 fora do Financeiro, 400 numa NF aguardando a conta; pelo Financeiro
-//     grava `APPROVED` e quem/quando, registra o evento (também no log em PDF), sela e a contabilidade recebe 1 e-mail;
+//   - `revalle.finance.approve`: 401 sem sessão, 403 fora do Financeiro, 400 numa NF ainda em rascunho; pelo Financeiro
+//     grava `APPROVED` e quem/quando, registra o evento (também no log em PDF) e sela, sem e-mail para a contabilidade;
 //     a 2ª chamada devolve `{ approved: false }` sem nada a mais;
 //   - aprovar antes de todos assinarem: o último a assinar sela direto;
 //   - disparo duplicado numa NF já concluída não carimba de novo, mas o retry do MESMO job (falha depois de selar)
 //     termina os passos seguintes (e-mail de conclusão); aprovação simultânea = 1 evento e 1 selagem;
 //   - a varredura conta a aprovação como atividade: aprovada há 20 minutos (assinaturas há 7 horas) é selada, há 5
-//     minutos ainda não; versão substituída (`SUPERSEDED`, no banco) nunca é selada e não pede aprovação;
+//     minutos ainda não; versão substituída (`SUPERSEDED`, no banco) nunca é selada;
 //   - os outros dois pontos de disparo também retêm: o admin remove o último pendente, e a NF só com CC (o atalho de
 //     selagem do envio) sai e fica PENDING; nos dois, a aprovação sela;
 //   - NF `LEGACY` e documento comum concluem sem retenção; NF recusada fica REJECTED sem retenção.
 //
 // Sessões: REVSIGN_USER_* (admin@hml.local, dono do REVSIGN_API_TOKEN, fora do Financeiro) e REVSIGN_ADMIN_* (rsadmin,
-// ADMIN, marcado como Financeiro aqui). O e-mail da contabilidade anterior é restaurado no final. Ver revalle/docs/testes.md.
+// ADMIN, marcado como Financeiro aqui). Ver revalle/docs/testes.md.
 
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { after, before, test } from 'node:test';
+import { before, test } from 'node:test';
 import { PDFDocument, rgb, StandardFonts } from '@cantoo/pdf-lib';
 
 import {
@@ -33,6 +33,7 @@ import {
   api,
   assertNoPaidGeminiCalls,
   BASE_URL,
+  chooseInvoice,
   completeWithCode,
   createEnvelope,
   db,
@@ -44,6 +45,8 @@ import {
   signIn,
   trpc,
   trpcAs,
+  workflowJobs,
+  workflowMails,
 } from './helpers.mjs';
 
 // Para antes de criar qualquer NF se o app puder chamar o Gemini de verdade (pago). Ver helpers.mjs.
@@ -55,8 +58,6 @@ const admin = { email: process.env.REVSIGN_ADMIN_EMAIL, password: process.env.RE
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const MAILPIT = 'http://localhost:8025/api/v1';
 const MARIA = { cpf: '39053344705', birthDate: '07/03/1990' };
-const ACCOUNTING = `contabilidade-f6-${RUN}@revalle.com.br`;
-const APPROVAL_SUBJECT = (title) => `Nota fiscal aguardando aprovação do Financeiro: ${title}`;
 
 const ACCOUNTS_CSV = [
   'numero;nome;descricao;tipo',
@@ -70,7 +71,6 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 let userCookie;
 let adminCookie;
 let adminId;
-let previousEmail = '';
 
 const data = (res) => res.body?.result?.data?.json;
 const approve = (envelopeId, cookie = adminCookie) =>
@@ -103,7 +103,7 @@ const mailsTo = async (to) =>
     .messages ?? [];
 
 const waitMails = async (to, filter, timeoutMs = 30_000) => {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = performance.now() + timeoutMs;
 
   do {
     const found = (await mailsTo(to)).filter(filter);
@@ -113,14 +113,10 @@ const waitMails = async (to, filter, timeoutMs = 30_000) => {
     }
 
     await sleep(500);
-  } while (Date.now() < deadline);
+  } while (performance.now() < deadline);
 
   return [];
 };
-
-const approvalMails = async (doc) =>
-  (await mailsTo(admin.email)).filter((m) => m.Subject === APPROVAL_SUBJECT(doc.title));
-const accountingMails = async (doc) => (await mailsTo(ACCOUNTING)).filter((m) => m.Subject.includes(doc.title));
 
 const waitStatus = async (envelopeId, wanted, attempts = 45) => {
   for (let i = 0; i < attempts && status(envelopeId) !== wanted; i += 1) {
@@ -128,21 +124,6 @@ const waitStatus = async (envelopeId, wanted, attempts = 45) => {
   }
 
   return status(envelopeId);
-};
-
-const settings = async (accountingEmail) => {
-  const current = await trpcAs(adminCookie, 'query', 'revalle.invoice.adminGetSettings', undefined);
-
-  assert.equal(current.status, 200, current.text);
-
-  const res = await trpcAs(adminCookie, 'mutation', 'revalle.invoice.adminUpdateSettings', {
-    prompt: data(current).prompt,
-    accountingEmail,
-  });
-
-  assert.equal(res.status, 200, res.text);
-
-  return data(current).accountingEmail ?? '';
 };
 
 // DANFE fictício; `variant` muda o arquivo (outra SHA-256, sem cache da sugestão).
@@ -191,10 +172,7 @@ const sendDocument = async (label, { signers = 2, choice = { code: '2.1.03' }, p
   assert.equal(created.status, 200, created.text);
 
   if (choice) {
-    const chosen = await trpcAs(userCookie, 'mutation', 'revalle.invoice.setChoice', {
-      envelopeId: created.id,
-      choice,
-    });
+    const chosen = await chooseInvoice({ cookie: userCookie, envelopeId: created.id, code: choice.code });
 
     assert.equal(chosen.status, 200, chosen.text);
   }
@@ -328,20 +306,12 @@ before(async () => {
 
   assert.equal(imported.status, 200, imported.text);
   db(`delete from "RateLimit" where action like 'revalle.invoice%'`);
-
-  previousEmail = await settings(ACCOUNTING);
-});
-
-after(async () => {
-  if (adminCookie) {
-    await settings(previousEmail);
-  }
 });
 
 let held;
 
 sessionTest(
-  'NF aguardando aprovação: os 2 assinam, o documento continua PENDING (sem selagem) e o Financeiro recebe 1 e-mail',
+  'NF aguardando aprovação: os 2 assinam, o documento continua PENDING (sem selagem) e ninguém recebe e-mail de fluxo',
   async () => {
     held = await newInvoice('retida');
 
@@ -350,27 +320,13 @@ sessionTest(
     await sign(held, 0);
     await sign(held, 1);
 
-    const mails = await waitMails(admin.email, (m) => m.Subject === APPROVAL_SUBJECT(held.title));
-
-    assert.equal(mails.length, 1, 'o e-mail de aprovação ao Financeiro não chegou (ou chegou mais de um)');
-
-    const body = await fetchIdempotent(`${MAILPIT}/message/${mails[0].ID}`, {}, (res) => res.json());
-
-    assert.ok(body.Text.includes(held.title), body.Text);
-    assert.ok(body.Text.includes('/notas-fiscais'), body.Text);
-
-    await sleep(4000);
+    await sleep(6000);
     assert.equal(status(held.id), 'PENDING');
     assert.equal(financeStatus(held.id), 'PENDING_APPROVAL');
     assert.deepEqual(sealJobs(held), [], 'a conclusão do último signatário disparou a selagem');
     assert.equal(auditCount(held.id, 'DOCUMENT_COMPLETED'), 0);
-    assert.equal(
-      db(
-        `select "approvalRequestedAt" is not null from "RevalleInvoiceClassification" where "envelopeId" = '${held.id}'`,
-      ),
-      't',
-    );
-    assert.equal((await accountingMails(held)).length, 0);
+    assert.deepEqual(await workflowMails(held), [], 'saiu e-mail de fluxo da NF retida');
+    assert.equal(workflowJobs(held.id), 0, 'um job de e-mail de fluxo foi disparado');
   },
 );
 
@@ -407,7 +363,8 @@ sessionTest(
 
     assert.equal(status(held.id), 'PENDING');
     assert.deepEqual(sealJobs(held), [], 'a varredura disparou a selagem da NF retida');
-    assert.equal((await approvalMails(held)).length, 1, 'o e-mail de aprovação saiu de novo');
+    assert.deepEqual(await workflowMails(held), [], 'a varredura mandou e-mail de fluxo');
+    assert.equal(workflowJobs(held.id), 0);
   },
 );
 
@@ -429,11 +386,11 @@ sessionTest(
     assert.equal(status(held.id), 'PENDING');
     assert.equal(itemData(held.id), before, 'o PDF foi selado');
     assert.equal(auditCount(held.id, 'DOCUMENT_COMPLETED'), 0);
-    assert.equal((await approvalMails(held)).length, 1);
+    assert.deepEqual(await workflowMails(held), []);
   },
 );
 
-sessionTest('approve: 401 sem sessão, 403 fora do Financeiro e 400 numa NF aguardando a conta', async () => {
+sessionTest('approve: 401 sem sessão, 403 fora do Financeiro e 400 numa NF ainda em rascunho', async () => {
   assert.ok(held, 'depende do primeiro caso');
 
   const anonymous = await trpc('revalle.finance.approve', { envelopeId: held.id });
@@ -446,13 +403,13 @@ sessionTest('approve: 401 sem sessão, 403 fora do Financeiro e 400 numa NF agua
   assert.equal(financeStatus(held.id), 'PENDING_APPROVAL');
   assert.equal(auditCount(held.id, 'REVALLE_FINANCE_APPROVED'), 0);
 
-  // "Deixar para o Financeiro": a conta é definida (defineAccount), não aprovada.
-  const pdf = await danfe('deixar');
+  // Rascunho (ainda não enviado), mesmo com conta escolhida: não há o que aprovar.
+  const pdf = await danfe('rascunho');
   const created = await retryCreateOnStaleSocket(() =>
     createEnvelope({
-      recipients: [{ email: `f6-aprova-deixar-${RUN}@revalle.com.br` }],
+      recipients: [{ email: `f6-aprova-rascunho-${RUN}@revalle.com.br` }],
       pdf,
-      title: `[TESTE NF] financeiro aprovação deixar ${RUN}`,
+      title: `[TESTE NF] financeiro aprovação rascunho ${RUN}`,
     }),
   );
 
@@ -461,26 +418,22 @@ sessionTest('approve: 401 sem sessão, 403 fora do Financeiro e 400 numa NF agua
     (
       await trpcAs(userCookie, 'mutation', 'revalle.invoice.setChoice', {
         envelopeId: created.id,
-        choice: { defer: true },
+        choice: { code: '2.1.03' },
       })
     ).status,
     200,
   );
 
-  const sent = await api('POST', '/envelope/distribute', { envelopeId: created.id });
-
-  assert.equal(sent.status, 409, sent.text);
-  assert.equal(financeStatus(created.id), 'AWAITING_ACCOUNT');
-
   const notPending = await approve(created.id);
 
   assert.equal(notPending.status, 400, notPending.text);
-  assert.equal(financeStatus(created.id), 'AWAITING_ACCOUNT');
+  assert.equal(financeStatus(created.id), '-');
   assert.equal(status(created.id), 'DRAFT');
+  assert.equal(auditCount(created.id, 'REVALLE_FINANCE_APPROVED'), 0);
 });
 
 sessionTest(
-  'approve pelo Financeiro: APPROVED, evento no log (também no PDF), selada, 1 e-mail à contabilidade; 2ª chamada não faz nada',
+  'approve pelo Financeiro: APPROVED, evento no log (também no PDF), selada, sem e-mail de fluxo; 2ª chamada não faz nada',
   async () => {
     assert.ok(held, 'depende do primeiro caso');
 
@@ -498,11 +451,6 @@ sessionTest(
     assert.equal(auditCount(held.id, 'REVALLE_FINANCE_APPROVED'), 1);
     assert.equal(await waitStatus(held.id, 'COMPLETED'), 'COMPLETED');
 
-    const mails = await waitMails(ACCOUNTING, (m) => m.Subject.includes(held.title));
-
-    assert.equal(mails.length, 1);
-    assert.equal(mails[0].Subject, `Nota fiscal assinada: ${held.title} · Conta 2.1.03 – Fornecedores`);
-
     // A aprovação fica no log de auditoria anexado ao PDF selado.
     const dir = mkdtempSync(path.join(tmp, 'selado-'));
 
@@ -519,7 +467,8 @@ sessionTest(
     assert.deepEqual(data(again), { approved: false });
     assert.equal(auditCount(held.id, 'REVALLE_FINANCE_APPROVED'), 1);
     await sleep(4000);
-    assert.equal((await accountingMails(held)).length, 1);
+    assert.deepEqual(await workflowMails(held), [], 'a aprovação mandou e-mail de fluxo');
+    assert.equal(workflowJobs(held.id), 0);
     assert.equal(auditCount(held.id, 'DOCUMENT_COMPLETED'), 1);
   },
 );
@@ -570,9 +519,9 @@ sessionTest(
 
     assert.equal(retried, 'COMPLETED');
 
-    const deadline = Date.now() + 30_000;
+    const deadline = performance.now() + 30_000;
 
-    while ((await completedMails()) < 2 && Date.now() < deadline) {
+    while ((await completedMails()) < 2 && performance.now() < deadline) {
       await sleep(500);
     }
 
@@ -644,57 +593,47 @@ sessionTest(
   },
 );
 
-sessionTest(
-  'versão substituída (SUPERSEDED) não concluída: nunca é selada (varredura e reselagem) e não pede aprovação',
-  async () => {
-    const doc = await newInvoice('substituida');
+sessionTest('versão substituída (SUPERSEDED) não concluída: nunca é selada (varredura e reselagem)', async () => {
+  const doc = await newInvoice('substituida');
 
-    // Desde a Task 4 o portão recusa qualquer ação de quem assina numa versão substituída: os dois assinam antes (NF
-    // retida, 1 pedido de aprovação) e ela vira SUPERSEDED no banco depois. A troca de verdade, com a última assinatura
-    // recusada, está em finance-change.test.mjs.
-    await sign(doc, 0);
-    await sign(doc, 1);
-    await sleep(3000);
-    assert.equal(status(doc.id), 'PENDING');
-    assert.deepEqual(sealJobs(doc), [], 'a conclusão disparou a selagem da NF retida');
-    assert.equal((await waitMails(admin.email, (m) => m.Subject === APPROVAL_SUBJECT(doc.title))).length, 1);
+  // Desde a Task 4 o portão recusa qualquer ação de quem assina numa versão substituída: os dois assinam antes (NF
+  // retida) e ela vira SUPERSEDED no banco depois. A troca de verdade, com a última assinatura
+  // recusada, está em finance-change.test.mjs.
+  await sign(doc, 0);
+  await sign(doc, 1);
+  await sleep(3000);
+  assert.equal(status(doc.id), 'PENDING');
+  assert.deepEqual(sealJobs(doc), [], 'a conclusão disparou a selagem da NF retida');
 
-    db(
-      `update "RevalleInvoiceClassification" set "financeStatus" = 'SUPERSEDED', "approvalRequestedAt" = null where "envelopeId" = '${doc.id}'`,
-    );
-    db(`update "Recipient" set "signedAt" = now() - interval '20 minutes' where "envelopeId" = '${doc.id}'`);
+  db(`update "RevalleInvoiceClassification" set "financeStatus" = 'SUPERSEDED' where "envelopeId" = '${doc.id}'`);
+  db(`update "Recipient" set "signedAt" = now() - interval '20 minutes' where "envelopeId" = '${doc.id}'`);
 
-    const swept = await runJobLikeTheApp({
-      jobId: 'internal.seal-document-sweep',
-      name: 'Seal Document Sweep',
-      version: '1.0.0',
-      payload: {},
-    });
+  const swept = await runJobLikeTheApp({
+    jobId: 'internal.seal-document-sweep',
+    name: 'Seal Document Sweep',
+    version: '1.0.0',
+    payload: {},
+  });
 
-    assert.equal(swept, 'COMPLETED');
-    await sleep(2000);
-    assert.deepEqual(sealJobs(doc), [], 'a varredura disparou a selagem');
+  assert.equal(swept, 'COMPLETED');
+  await sleep(2000);
+  assert.deepEqual(sealJobs(doc), [], 'a varredura disparou a selagem');
 
-    const before = itemData(doc.id);
-    const resealed = await trpcAs(adminCookie, 'mutation', 'admin.document.reseal', { id: doc.id });
+  const before = itemData(doc.id);
+  const resealed = await trpcAs(adminCookie, 'mutation', 'admin.document.reseal', { id: doc.id });
 
-    assert.ok(resealed.ok, resealed.text);
+  assert.ok(resealed.ok, resealed.text);
 
-    for (let i = 0; i < 30 && sealJobs(doc).at(-1) !== 'COMPLETED'; i += 1) {
-      await sleep(1000);
-    }
+  for (let i = 0; i < 30 && sealJobs(doc).at(-1) !== 'COMPLETED'; i += 1) {
+    await sleep(1000);
+  }
 
-    assert.deepEqual(sealJobs(doc), ['COMPLETED'], 'o job de selagem falhou ou não rodou');
-    assert.equal(status(doc.id), 'PENDING');
-    assert.equal(itemData(doc.id), before, 'o PDF foi selado');
-    assert.equal(auditCount(doc.id, 'DOCUMENT_COMPLETED'), 0);
-    assert.equal((await approvalMails(doc)).length, 1, 'versão substituída pediu aprovação');
-    assert.equal(
-      db(`select "approvalRequestedAt" is null from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`),
-      't',
-    );
-  },
-);
+  assert.deepEqual(sealJobs(doc), ['COMPLETED'], 'o job de selagem falhou ou não rodou');
+  assert.equal(status(doc.id), 'PENDING');
+  assert.equal(itemData(doc.id), before, 'o PDF foi selado');
+  assert.equal(auditCount(doc.id, 'DOCUMENT_COMPLETED'), 0);
+  assert.deepEqual(await workflowMails(doc), [], 'versão substituída mandou e-mail de fluxo');
+});
 
 sessionTest('aprovar antes de todos assinarem: quando o último assina, o documento é selado direto', async () => {
   const doc = await newInvoice('antes');
@@ -711,8 +650,8 @@ sessionTest('aprovar antes de todos assinarem: quando o último assina, o docume
 
   await sign(doc, 1);
   assert.equal(await waitStatus(doc.id, 'COMPLETED'), 'COMPLETED');
-  assert.equal((await waitMails(ACCOUNTING, (m) => m.Subject.includes(doc.title))).length, 1);
-  assert.equal((await approvalMails(doc)).length, 0, 'NF já aprovada não pede aprovação');
+  await sleep(3000);
+  assert.deepEqual(await workflowMails(doc), [], 'NF já aprovada mandou e-mail de fluxo');
 });
 
 sessionTest(
@@ -741,15 +680,7 @@ sessionTest(
     );
 
     assert.equal(created.status, 200, created.text);
-    assert.equal(
-      (
-        await trpcAs(userCookie, 'mutation', 'revalle.invoice.setChoice', {
-          envelopeId: created.id,
-          choice: { code: '2.1.03' },
-        })
-      ).status,
-      200,
-    );
+    assert.equal((await chooseInvoice({ cookie: userCookie, envelopeId: created.id })).status, 200);
 
     const ccOnly = {
       id: created.id,
@@ -760,15 +691,12 @@ sessionTest(
 
     assert.equal(sent.status, 200, sent.text);
 
+    await sleep(6000);
+
     for (const doc of [removed, ccOnly]) {
-      assert.equal(
-        (await waitMails(admin.email, (m) => m.Subject === APPROVAL_SUBJECT(doc.title))).length,
-        1,
-        `${doc.title}: o e-mail de aprovação não chegou`,
-      );
-      await sleep(2000);
       assert.equal(status(doc.id), 'PENDING', doc.title);
       assert.deepEqual(sealJobs(doc), [], `${doc.title}: selagem disparada`);
+      assert.deepEqual(await workflowMails(doc), [], `${doc.title}: saiu e-mail de fluxo`);
     }
 
     for (const doc of [removed, ccOnly]) {
@@ -792,10 +720,10 @@ sessionTest('NF LEGACY e documento comum concluem sem retenção', async () => {
 
   assert.equal(await waitStatus(legacy.id, 'COMPLETED'), 'COMPLETED');
   assert.equal(await waitStatus(common.id, 'COMPLETED'), 'COMPLETED');
-  assert.equal((await waitMails(ACCOUNTING, (m) => m.Subject.includes(legacy.title))).length, 1);
-  assert.equal((await approvalMails(legacy)).length, 0);
+  await sleep(3000);
+  assert.deepEqual(await workflowMails(legacy), []);
   assert.ok(['', '-'].includes(financeStatus(common.id)), financeStatus(common.id));
-  assert.equal((await accountingMails(common)).length, 0);
+  assert.deepEqual(await workflowMails(common), []);
 });
 
 sessionTest('um signatário recusa: o documento fica REJECTED sem retenção', async () => {
@@ -812,8 +740,7 @@ sessionTest('um signatário recusa: o documento fica REJECTED sem retenção', a
   assert.equal(rejected.status, 200, rejected.text);
   assert.equal(await waitStatus(doc.id, 'REJECTED'), 'REJECTED');
   assert.equal(financeStatus(doc.id), 'PENDING_APPROVAL');
-  assert.equal((await approvalMails(doc)).length, 0);
-  assert.equal((await accountingMails(doc)).length, 0);
+  assert.deepEqual(await workflowMails(doc), []);
 });
 
 sessionTest('versão substituída com recusa: é selada como recusada (a recusa vale também para ela)', async () => {
@@ -830,7 +757,7 @@ sessionTest('versão substituída com recusa: é selada como recusada (a recusa 
 
   assert.ok(resealed.ok, resealed.text);
   assert.equal(await waitStatus(doc.id, 'REJECTED'), 'REJECTED');
-  assert.equal((await approvalMails(doc)).length, 0);
+  assert.deepEqual(await workflowMails(doc), []);
 });
 
 const sweep = () =>
@@ -840,13 +767,9 @@ const sweep = () =>
     version: '1.0.0',
     payload: {},
   });
-const approvalRequested = (envelopeId) =>
-  db(
-    `select "approvalRequestedAt" is not null from "RevalleInvoiceClassification" where "envelopeId" = '${envelopeId}'`,
-  );
 
 sessionTest(
-  'última assinatura sem ninguém no Financeiro: o admin vê o alerta; marcado um membro, a varredura pede a aprovação 1 vez',
+  'última assinatura sem ninguém no Financeiro: o admin vê o alerta; marcado um membro, nenhum e-mail sai e a NF segue retida',
   async () => {
     const members = db(`select "userId" || ',' || coalesce("addedById"::text, 'null') from "RevalleFinanceMember"`)
       .split('\n')
@@ -860,18 +783,12 @@ sessionTest(
       await sleep(3000);
       assert.equal(status(doc.id), 'PENDING');
       assert.equal(financeStatus(doc.id), 'PENDING_APPROVAL');
-      assert.equal(approvalRequested(doc.id), 'f');
 
       const listed = await trpcAs(adminCookie, 'query', 'revalle.finance.adminListUsers', { query: admin.email });
 
       assert.equal(listed.status, 200, listed.text);
       assert.equal(data(listed).memberCount, 0);
       assert.ok(data(listed).awaitingApprovalCount >= 1, `sem a NF assinada no alerta: ${listed.text}`);
-
-      // Sem membros, a varredura nem pede (não há a quem).
-      assert.equal(await sweep(), 'COMPLETED');
-      await sleep(2000);
-      assert.equal(approvalRequested(doc.id), 'f');
     } finally {
       for (const member of members) {
         const [userId, addedById] = member.split(',');
@@ -882,29 +799,20 @@ sessionTest(
       }
     }
 
-    assert.equal((await approvalMails(doc)).length, 0);
-
-    // Com o membro de volta, a varredura de verdade pede a aprovação (em lotes: repete se outras NFs vêm antes).
-    for (let i = 0; i < 5 && approvalRequested(doc.id) !== 't'; i += 1) {
-      assert.equal(await sweep(), 'COMPLETED');
-
-      for (let j = 0; j < 10 && approvalRequested(doc.id) !== 't'; j += 1) {
-        await sleep(1000);
-      }
-    }
-
-    assert.equal(
-      (await waitMails(admin.email, (m) => m.Subject === APPROVAL_SUBJECT(doc.title))).length,
-      1,
-      'o pedido de aprovação não saiu depois de marcar o membro',
-    );
-
-    // Outra varredura não repete o pedido, e a NF continua retida (a varredura não sela).
+    // Com o membro de volta, a varredura não pede aprovação a ninguém (não há mais esse e-mail) e não sela a NF retida.
+    db(`update "Recipient" set "signedAt" = now() - interval '20 minutes' where "envelopeId" = '${doc.id}'`);
     assert.equal(await sweep(), 'COMPLETED');
     await sleep(3000);
-    assert.equal((await approvalMails(doc)).length, 1, 'o pedido de aprovação saiu de novo');
+    assert.deepEqual(await workflowMails(doc), [], 'o Financeiro recebeu e-mail de fluxo');
+    assert.equal(workflowJobs(doc.id), 0);
     assert.equal(status(doc.id), 'PENDING');
     assert.deepEqual(sealJobs(doc), [], 'a varredura disparou a selagem da NF retida');
+
+    // A aprovação do membro é o que sela.
+    const res = await approve(doc.id);
+
+    assert.equal(res.status, 200, res.text);
+    assert.equal(await waitStatus(doc.id, 'COMPLETED'), 'COMPLETED');
   },
 );
 
@@ -985,6 +893,6 @@ sessionTest(
     assert.equal(status(doc.id), 'COMPLETED');
     assert.equal(financeStatus(doc.id), 'PENDING_APPROVAL');
     await sleep(2000);
-    assert.equal((await accountingMails(doc)).length, 0, 'a reselagem mandou a NF não aprovada para a contabilidade');
+    assert.deepEqual(await workflowMails(doc), [], 'a reselagem mandou e-mail de fluxo da NF não aprovada');
   },
 );

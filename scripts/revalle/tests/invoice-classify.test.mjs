@@ -100,10 +100,10 @@ const containerEnv = (name) =>
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const waitSettled = async (envelopeId, timeoutMs = 15_000) => {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = performance.now() + timeoutMs;
   let state = await getState(envelopeId);
 
-  while (state.suggestionStatus === 'PENDING' && Date.now() < deadline) {
+  while (state.suggestionStatus === 'PENDING' && performance.now() < deadline) {
     await sleep(400);
     state = await getState(envelopeId);
   }

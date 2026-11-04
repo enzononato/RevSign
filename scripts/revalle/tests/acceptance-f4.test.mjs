@@ -464,6 +464,9 @@ before(async () => {
     signer.proof = json(
       `select row_to_json(p) from "RevalleSignatureProof" p where p."recipientId" = ${signer.recipient.id}`,
     );
+    signer.proofXmin = db(
+      `select p.xmin::text from "RevalleSignatureProof" p where p."recipientId" = ${signer.recipient.id}`,
+    );
     signer.gate = json(
       `select row_to_json(g) from (select "identityStatus", "termVersion", "termAcceptedAt" from "RevalleRecipientGate" where "recipientId" = ${signer.recipient.id}) g`,
     );
@@ -593,10 +596,11 @@ test('ordem sequencial: o 3º não assina antes do 2º (página manda esperar, c
     assert.equal(signer.page.status, 200, `página de ${signer.key} na vez dele`);
   }
 
-  // A ordem real das assinaturas: 1 < 2 < 3.
-  const signedAt = fx.signers.map((signer) => new Date(`${signer.proof.signedAt}Z`).getTime());
+  // A ordem real das assinaturas: 1 < 2 < 3. Pelo xmin da prova (a transação que gravou a linha), que só cresce:
+  // `signedAt` segue o relógio da máquina, que pode voltar entre uma assinatura e outra.
+  const order = fx.signers.map((signer) => BigInt(signer.proofXmin));
 
-  assert.ok(signedAt[0] < signedAt[1] && signedAt[1] < signedAt[2], 'assinaturas fora de ordem');
+  assert.ok(order[0] < order[1] && order[1] < order[2], 'assinaturas fora de ordem');
   assert.equal(fx.status, 'COMPLETED');
 });
 

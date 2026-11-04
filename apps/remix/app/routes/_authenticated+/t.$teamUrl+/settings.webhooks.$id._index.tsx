@@ -31,7 +31,7 @@ import { SettingsHeader } from '~/components/general/settings-header';
 import { WebhookLogsSheet } from '~/components/general/webhook-logs-sheet';
 import { useCurrentTeam } from '~/providers/team';
 import { appMetaTags } from '~/utils/meta';
-
+import { redirectTeamPageUnlessAdmin } from '~/utils/revalle-hidden-routes'; // REVALLE:
 import type { Route } from './+types/settings.webhooks.$id._index';
 
 const WebhookSearchParamsSchema = ZUrlSearchParamsSchema.extend({
@@ -41,6 +41,11 @@ const WebhookSearchParamsSchema = ZUrlSearchParamsSchema.extend({
     z.array(z.nativeEnum(WebhookTriggerEvents)).optional(),
   ),
 });
+
+// REVALLE: só o administrador do sistema abre esta página (Fase 7, spec §6); os outros caem nos documentos.
+export async function loader(args: Route.LoaderArgs) {
+  return await redirectTeamPageUnlessAdmin(args);
+}
 
 export function meta() {
   return appMetaTags(msg`Webhooks`);

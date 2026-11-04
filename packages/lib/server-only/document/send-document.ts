@@ -47,9 +47,6 @@ import { insertFormValuesInPdf } from '../pdf/insert-form-values-in-pdf';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { computeOriginalHashes, saveOriginalHashes } from '../revalle/document-hashes'; // REVALLE:
 import {
-  assertHeldInvoiceSendable,
-  holdInvoiceForFinance,
-  invoiceHeldForFinanceError,
   markInvoiceAwaitingApproval,
   notifyInvoiceAccountChangeOnSend,
   stampReleasedApproval,
@@ -58,6 +55,9 @@ import { holdSealForFinance } from '../revalle/finance/seal-hold'; // REVALLE:
 import { assertInvoiceChoiceBeforeSend } from '../revalle/invoice/choice'; // REVALLE:
 import { assertUserNotDisabledById } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
+
+// REVALLE: dois envios do mesmo rascunho ao mesmo tempo: quem perdeu não manda convite nem aviso.
+export const DOCUMENT_ALREADY_SENT_CODE = 'DOCUMENT_ALREADY_SENT';
 
 export type SendDocumentOptions = {
   id: EnvelopeIdOptions;
@@ -139,19 +139,10 @@ export const sendDocument = async ({ id, userId, teamId, sendEmail, requestMetad
     throw new Error('Can not send completed document');
   }
 
-  // REVALLE: nota fiscal só sai com a conta contábil escolhida (ou deixada para o Financeiro). Só no primeiro
-  // envio: reenviar um documento já enviado nunca é bloqueado. Antes da injeção de formValues (que troca o PDF).
-  // "Deixar para o Financeiro" (Fase 6): o envio fica RETIDO (rascunho, sem convites) até o Financeiro definir a conta,
-  // e a resposta é o erro 409 INVOICE_HELD_FOR_FINANCE (nada foi distribuído; a tela mostra como sucesso).
+  // REVALLE: nota fiscal só sai com a conta contábil escolhida. Só no primeiro envio: reenviar um documento já enviado
+  // nunca é bloqueado. Antes da injeção de formValues (que troca o PDF).
   const revalleInvoiceSend =
     envelope.status === DocumentStatus.DRAFT ? await assertInvoiceChoiceBeforeSend(envelope.id) : 'NONE';
-
-  if (revalleInvoiceSend === 'HOLD') {
-    assertHeldInvoiceSendable({ recipients: envelope.recipients, fields: envelope.fields });
-    await holdInvoiceForFinance(envelope.id);
-
-    throw invoiceHeldForFinanceError();
-  }
 
   const legacyDocumentId = mapSecondaryIdToDocumentId(envelope.secondaryId);
 
@@ -317,6 +308,23 @@ export const sendDocument = async ({ id, userId, teamId, sendEmail, requestMetad
   }
 
   const updatedEnvelope = await prisma.$transaction(async (tx) => {
+    // REVALLE: só um envio sai do rascunho (o `UPDATE` espera o outro terminar e relê o status). Os convites, o aviso e os
+    // eventos vêm depois daqui: o outro pedido desfaz tudo e não manda nada de novo.
+    if (envelope.status === DocumentStatus.DRAFT) {
+      const { count } = await tx.envelope.updateMany({
+        where: { id: envelope.id, status: DocumentStatus.DRAFT },
+        data: { status: DocumentStatus.PENDING },
+      });
+
+      if (count === 0) {
+        throw new AppError(DOCUMENT_ALREADY_SENT_CODE, {
+          message: 'Este documento já foi enviado.',
+          userMessage: 'Este documento já foi enviado.',
+          statusCode: 409,
+        });
+      }
+    }
+
     // REVALLE: grava os hashes originais junto com o envio.
     await saveOriginalHashes(originalHashes, tx);
 

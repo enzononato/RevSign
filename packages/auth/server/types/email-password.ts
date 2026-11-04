@@ -38,6 +38,9 @@ export const ZSignUpSchema = z.object({
   password: ZPasswordSchema,
   signature: z.string().nullish(),
   captchaToken: z.string().trim().optional(),
+  // REVALLE: CPF e data de nascimento (dd/mm/aaaa) do cadastro, conferidos na base de colaboradores (Fase 7)
+  revalleCpf: z.string().trim().max(20).nullish(),
+  revalleBirthDate: z.string().trim().max(10).nullish(),
 });
 
 export type TSignUpSchema = z.infer<typeof ZSignUpSchema>;
