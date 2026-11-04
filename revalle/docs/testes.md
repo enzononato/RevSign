@@ -16,7 +16,7 @@ Os testes rodam contra a stack local do RevSign (`revalle/deploy/compose.hml.yml
 REVSIGN_API_TOKEN=api_... node --test --test-concurrency=1 scripts/revalle/tests/*.test.mjs
 ```
 
-- `--test-concurrency=1`: todos os testes leem o código de 6 dígitos na MESMA caixa de entrada do Mailpit. Em paralelo, um teste leria o código do outro e falharia ao acaso.
+- `--test-concurrency=1`: os testes dividem o mesmo banco, a mesma caixa do Mailpit e estados globais da stack (a lista de contas, os limites de tentativa, os vínculos dos CPFs fictícios). Em paralelo, um mexeria no estado do outro.
 - `*.test.mjs` explícito: no Node 24, passar um diretório (`node --test scripts/revalle/tests/`) não funciona.
 - Para um arquivo só: `REVSIGN_API_TOKEN=api_... node --test --test-concurrency=1 scripts/revalle/tests/gate.test.mjs`.
 
@@ -51,7 +51,7 @@ Pulados aparecem como `skipped` no resumo. "Tudo verde" de verdade é: `fail 0`.
 
 `finance-admin.test.mjs` (Fase 6) usa as sessões de `REVSIGN_ADMIN_*` (rotas `revalle.finance.admin*`) e de `REVSIGN_USER_*` (dono do `REVSIGN_API_TOKEN`, usuário comum: recebe 403 nas rotas de admin e nunca é do Financeiro). Na preparação, **marca a conta de `REVSIGN_ADMIN_*` como do Financeiro** (ela fica marcada: é o membro do Financeiro dos testes da Fase 6) e importa a mesma lista de contas do `invoice-send.test.mjs`. O membro sem envolvimento na NF é uma conta nova a cada execução (`f6-membro-…@revalle.com.br`, cadastro e confirmação pelo Mailpit). O caso da migração confere as NFs (`isInvoice = YES`) criadas antes de `20261101100000_revalle_finance`; num banco sem NF anterior, ele aparece como pulado. Um caso da Fase 7 confere que a migração `20261104100000_revalle_remove_defer` foi aplicada (sem as colunas `choiceDefer` e `accountRequestedAt`, sem `AWAITING_ACCOUNT` no tipo e nenhuma linha retida).
 
-`accounting-admin.test.mjs` (Fase 7) confere o perfil Contabilidade (tabela `RevalleAccountingMember`, `revalle.accounting.me` e `adminSetMember`, que recebe `{ userId, isMember }`). Usa as sessões de `REVSIGN_ADMIN_*` (rsadmin, que ele deixa marcado como Financeiro, como o `finance-admin`) e de `REVSIGN_USER_*` (dono do `REVSIGN_API_TOKEN`), e uma conta nova a cada execução (`f7-contab-…@revalle.com.br`, cadastro e confirmação pelo Mailpit). Casos: usuário comum e quem só é da Contabilidade recebem 403 ao marcar (nada muda) e sem sessão é 401; o admin marca e desmarca, `me()` e a lista mudam na hora, a lista de `revalle.finance.adminListUsers` traz `isFinanceMember` e `isAccountingMember` e `accountingMemberCount` (conferido contra o banco), marcar um perfil não marca o outro, a mesma pessoa tem os dois e quem tem algum perfil vem primeiro; marcado, vê na lista, na página (200), no PDF (200) e na planilha uma NF em que não está envolvido, não vê o rascunho comum de outra pessoa nem na lista, nem na página, nem no PDF (nem como Financeiro), e leva 403 em `revalle.finance.approve`, `changeAccount` e `get`; desmarcado, perde tudo na hora (página 404); marcados quem envia e quem assina, a NF sai, é assinada e fica `PENDING_APPROVAL`; `/admin/revalle-financeiro` redireciona para `/admin/revalle-perfis` (só o admin passa). As marcas do usuário comum e da conta nova são desfeitas no fim.
+`accounting-admin.test.mjs` (Fase 7) confere o perfil Contabilidade (tabela `RevalleAccountingMember`, `revalle.accounting.me` e `adminSetMember`, que recebe `{ userId, isMember }`). Usa as sessões de `REVSIGN_ADMIN_*` (rsadmin, que ele deixa marcado como Financeiro, como o `finance-admin`) e de `REVSIGN_USER_*` (dono do `REVSIGN_API_TOKEN`), e uma conta nova a cada execução (`f7-contab-…@revalle.com.br`, cadastro e confirmação pelo Mailpit). Casos: usuário comum e quem só é da Contabilidade recebem 403 ao marcar (nada muda) e sem sessão é 401; o admin marca e desmarca, `me()` e a lista mudam na hora, a lista de `revalle.finance.adminListUsers` traz `isFinanceMember` e `isAccountingMember` e `accountingMemberCount` (conferido contra o banco), marcar um perfil não marca o outro, a mesma pessoa tem os dois e quem tem algum perfil vem primeiro; marcado, vê na lista, na página (200), no PDF (200) e na planilha uma NF em que não está envolvido, não vê o rascunho comum de outra pessoa nem na lista, nem na página, nem no PDF (nem como Financeiro), e leva 403 em `revalle.finance.approve`, `changeAccount` e `get`; desmarcado, perde tudo na hora (página 404); marcados quem envia e quem assina, a NF sai, é assinada e fica `PENDING_APPROVAL`; `/admin/revalle-financeiro` redireciona para `/admin/revalle-perfis` (só o admin passa). As marcas do usuário comum e da conta nova são desfeitas no fim. Efeitos que ficam na stack: o teste **substitui a lista de contas contábeis** pela dele e **apaga os limites** `revalle.invoice*` da tabela `RateLimit`.
 
 `accounting-change.test.mjs` (Fase 7) confere a validação e a correção do centro de custo pela Contabilidade e o motor único de nova versão (`createInvoiceNewVersion`): `revalle.accounting.validate`, `changeCostCenter`, `defineCostCenter` e `get` respondem 403 a quem não é do perfil, **inclusive ao admin não marcado**; validar grava quem e quando, repetir responde `{ validated: false }`, e versão substituída, NF sem centro, rascunho e documento recusado dão 400; a validação não segura a conclusão; a correção sem aprovação cria a v2 `PENDING_APPROVAL` com o centro novo e validada por quem corrigiu, bloqueia o link antigo (409 `REVALLE_DOCUMENT_SUPERSEDED`), manda o convite e o aviso com a frase e o motivo a todos, a prova de cada versão guarda o centro visto e o `/verificar` diz "(centro de custo corrigido)"; com a NF aprovada, a v2 sai `APPROVED` com a aprovação copiada e conclui sem nova aprovação; com a NF concluída, a antiga continua concluída e "Substituída"; a corrida com `finance.changeAccount` (três rodadas) termina com uma sucessora só e o perdedor com 400 ou 409 e mensagem clara, e a corrida com `finance.approve` (três rodadas) deixa o perdedor com "A situação desta nota mudou" e a v2 com a situação que valia; a troca de conta mantém o centro e a validação, e a correção depois dela copia a aprovação da troca; `defineCostCenter` numa NF marcada depois do envio grava e valida sem nova versão; a correção de uma NF sem conta sai assim mesmo, e nos dois casos quem assina vê "Nota fiscal · Centro de custo: {código} – {nome}" e a prova guarda o centro (no corrigido, também o certificado, `pdftotext`, com a conta definida depois que a página abriu fora da prova); a NF `LEGACY` pendente dá 400 e, concluída e corrigida, a nova versão sai aguardando o Financeiro; o envio atrasado não tira a marca de substituída (**força no banco** `SUPERSEDED` num rascunho de nova versão, o estado que esse envio encontraria, em vez de depender de tempo). Nas falhas: **muda no banco o e-mail do destinatário para `@example.com`** para o envio da v2 falhar (`FINANCE_NEW_VERSION_NOT_SENT`, rascunho travado para o dono, `resendVersion` pelo Financeiro ou pela Contabilidade, sem mexer na aprovação copiada, clique duplo envia uma vez; o dono também envia); **zera por instantes a cota de documentos** para a criação da v2 falhar (a marca é desfeita); simula no banco uma correção que morreu no meio (409, ou "A situação desta nota mudou" para o outro perfil, e retomada depois de 5 minutos com a situação certa). Também confere que o rascunho da nova versão abre e aparece para o Financeiro e a Contabilidade (`APPROVED` e `PENDING_APPROVAL`) e que o rascunho comum fica escondido, na página, na lista e nos dois cartões (`revalle.accounting.get` e `revalle.finance.get`), mesmo com o estado **forçado no banco**; que trocar o arquivo do rascunho da v2 (apaga um dos dois PDFs pela API) tira a isenção do envio e a validação; e que `setCostCenter` e `setChoice` recusam a versão substituída. O código por e-mail é calculado no container, porque o aviso e o convite chegam junto. Usa `REVSIGN_USER_*`, `REVSIGN_ADMIN_*` (Financeiro, nunca Contabilidade) e três contas novas a cada execução (a Contabilidade, um membro só do Financeiro e um terceiro, com cadastro + confirmação pelo Mailpit).
 
@@ -72,6 +72,26 @@ Poppler: `helpers.poppler` roda `pdftotext`, `pdfinfo` etc. na imagem local `rev
 Os testes usam `docker exec revsign-hml-database-1 psql` (nome fixo do container), o Mailpit em `http://localhost:8025` e, para simular código vencido, `docker exec revsign-hml-documenso-1 node` (o código é calculado dentro do container; a chave não sai de lá).
 
 Conexões ociosas: o app fecha conexões keep-alive paradas. Depois de uma espera longa (selagem, reselagem), o próximo pedido pode cair numa conexão já fechada (`EPIPE`, `ECONNRESET` ou `UND_ERR_SOCKET` "other side closed"). Os ajudantes (`helpers.mjs`) repetem **uma vez** os pedidos que podem ser repetidos sem efeito colateral (GET: API, downloads, Mailpit, consultas tRPC) com `fetchIdempotent`/`retryOnStaleSocket`. Pedidos POST não são repetidos, com uma exceção: a criação de documento nos testes de carimbo, selagem e aceite (`retryCreateOnStaleSocket`), nos mesmos três erros. Risco aceito: um `UND_ERR_SOCKET` pode chegar depois de o servidor já ter criado o documento; aí a repetição cria outro e o primeiro fica como envelope de teste órfão (inofensivo na stack local descartável; o teste segue com o segundo). Não dá para restringir a repetição a `EPIPE`/`ECONNRESET`: o erro que aparece na prática nessa criação é justamente o `UND_ERR_SOCKET` do socket ocioso.
+
+## Relógio da máquina (WSL2)
+
+No WSL2 o relógio pode **saltar** enquanto a suíte roda. Na máquina de desenvolvimento, em 04/11/2026, a cada 32 s ele voltava de 9 a 12 s e adiantava de novo, quase sempre em menos de 1 s (em 2 de 68 ciclos, depois de 15 s). A hora do Windows estava 11,7 s atrasada: o `systemd-timesyncd` acerta o relógio pelo NTP, e algo o devolve à hora do Windows (provavelmente a sincronização do Hyper-V). App, banco, Mailpit e testes dividem esse relógio.
+
+Para conferir: `timedatectl timesync-status` (linha `Offset`) e `dmesg | grep "Time jumped backwards"`. Para tentar acabar com os saltos: acerte a hora do Windows (**Configurações → Hora e idioma → Data e hora → Sincronizar agora**) ou desligue o `systemd-timesyncd` no WSL (`sudo systemctl disable --now systemd-timesyncd`). Uma VPS com NTP normal não tem essa disputa.
+
+Antes de 04/11/2026, os saltos derrubavam testes de vez em quando, e os sintomas pareciam outra coisa:
+
+- `TWO_FACTOR_AUTH_FAILED` (HTTP 401) com o código certo: o código vale do período de 30 s atual para trás, nunca para a frente, e o relógio voltou entre gerar e conferir. Dá para ver no banco: no `DocumentAuditLog` do envelope, `DOCUMENT_ACCESS_AUTH_2FA_REQUESTED` com data **anterior** ao evento de antes.
+- `accessAuthOptions.token Required` ("o código não chegou"): o e-mail tinha chegado, mas o Mailpit ordena pela data de chegada, e o convite anterior ficou no topo da lista.
+
+Regras para escrever teste, para a suíte seguir verde com o relógio saltando:
+
+- **Código por e-mail:** use `completeWithCode` ou `requestEmailCode` com `completeWithSentCode` (`helpers.mjs`). Eles identificam o e-mail pelo ID (o que não estava na caixa antes do pedido) e leem o código da linha em que ele fica sozinho. Se o e-mail não vier em 60 s, o teste falha dizendo isso. Se o código for recusado, só repetem depois de provar, com a chave do app, que ele é o do período atual ou o do próximo. Outro código recusado volta para o teste como veio. Código calculado: `computeEmailCode` usa o período anterior, que nunca fica no futuro.
+- **"O e-mail que chegou agora":** guarde `mailIdsTo(endereço)` antes da ação e use `waitNewMail`. `latestMail` só serve para endereço novo, com um e-mail só.
+- **Prazo de espera:** `performance.now()`, nunca `Date.now()`. Um salto para a frente encurtaria o prazo.
+- **Ordem no banco:** não compare datas de eventos próximos. Para "qual veio primeiro" numa linha que só é inserida, use `xmin::text::bigint`. Se a ordem é do produto (a lista por data de envio), recue a data da linha no próprio teste, como no `acceptance-f5`.
+- **Log do app:** `appLogs()` com `slice` do tamanho anterior, em vez de `docker logs --since`, que deixa de fora as linhas com data anterior ao ponto pedido.
+- **Navegador:** `runBrowserScript` é assíncrono de propósito. Um `spawnSync` longo trava o processo do teste, o `fetch` não vê o app fechar a conexão ociosa e o POST seguinte falha com `other side closed`.
 
 ## Servidor falso do Gemini (Fase 5)
 
@@ -157,7 +177,7 @@ Antes da primeira vez:
    sed -n '/aceite-f4:inicio/,/aceite-f4:fim/p' revalle/colaboradores/dev-seed.sql \
      | docker exec -i revsign-hml-colaboradores-db-1 psql -U postgres -d colaboradores -v ON_ERROR_STOP=1
    ```
-2. **Token de API do remetente.** Entre no site com a conta de e-mail da empresa que será o remetente (em homologação, a de `REVSIGN_ADMIN_EMAIL`), abra **Configurações → API** e crie um token para o time pessoal. Guarde-o fora do repositório. Nunca crie token por SQL.
+2. **Token de API do remetente.** Entre no site com a conta de e-mail da empresa que será o remetente (em homologação, a de `REVSIGN_ADMIN_EMAIL`, que é ADMIN), abra **Configurações do time → Tokens de API** e crie um token para o time pessoal. Desde a Fase 7, só o ADMIN cria token: para uma conta comum, siga o item 4 de "O que precisa estar de pé". Guarde-o fora do repositório. Nunca crie token por SQL.
 
 Rodar (só o aceite; a suíte inteira o inclui quando as variáveis estão definidas):
 
@@ -219,6 +239,48 @@ node --test --test-concurrency=1 scripts/revalle/tests/acceptance-f6.test.mjs
 - Importa 2 contas próprias (`7.6.01`, `7.6.02`). O membro novo é desmarcado no fim.
 - Rode com e sem o `compose.test.yml`: o aceite não depende da sugestão da IA.
 
+## Aceite da Fase 7
+
+`scripts/revalle/tests/acceptance-f7.test.mjs` é o aceite do centro de custo, do perfil Contabilidade e do fluxo sem e-mail, de ponta a ponta, com e-mails reais no Mailpit:
+
+1. o admin marca como Financeiro e como Contabilidade duas **contas novas**, criadas com CPF e data de nascimento (`createConfirmedAccount`, que usa `signupColaborador`);
+2. o remetente, outra conta nova, sobe um DANFE fictício e recebe a sugestão (sem IA, escolhe na lista). Só com a conta o envio é recusado (`INVOICE_ACCOUNT_REQUIRED`, ainda rascunho); com a conta e o centro 101, a NF sai para dois signatários, e o contador do Financeiro e o da Contabilidade sobem;
+3. a Contabilidade valida: só a fila dela desce, e repetir não faz nada;
+4. os signatários (o próprio remetente, que não informa o CPF de novo, e uma pessoa de fora) veem "Nota fiscal · Conta contábil: … · Centro de custo: 101 – Puxada" e assinam; a NF fica retida, sem selagem; no navegador, o **View** do remetente na lista de documentos abre a página do documento;
+5. o Financeiro aprova: `COMPLETED`, certificado com a conta aprovada, o centro e as 2 linhas "visto ao assinar", sem citar quem validou; a página da NF tem **Baixar PDF**, e a Contabilidade baixa o PDF selado (a mesma SHA-256 da API);
+6. outra NF: com um signatário já assinado, a Contabilidade corrige de 101 para 201 com motivo. A v2 sai aguardando o Financeiro e validada por ela; o link antigo mostra a mensagem do portão e recusa a assinatura; os dois recebem o aviso com a frase exata e o convite;
+7. os dois assinam a v2, o Financeiro aprova, e o certificado sai com 201, sem o 101 como visto ao assinar; a v1 nunca conclui;
+8. a caixa do Financeiro e a da Contabilidade só têm a confirmação da conta; nenhum e-mail nem job de fluxo saiu, e a configuração não tem mais o e-mail da contabilidade.
+
+```sh
+REVSIGN_API_TOKEN=api_... REVSIGN_ADMIN_EMAIL=... REVSIGN_ADMIN_PASSWORD=... \
+node --test --test-concurrency=1 scripts/revalle/tests/acceptance-f7.test.mjs
+```
+
+- Efeitos que ficam na stack: **substitui a lista de contas contábeis** pela dele (uma conta, `7.7.01`) e deixa as NFs fictícias. As marcas de perfil são desfeitas no fim.
+- **Cuidado com token de usuário comum:** desde a Fase 7, `apiToken.create` responde 403 a quem não é ADMIN. Conta comum que precisa de token (como o remetente daqui e o do `acceptance-f5`) é promovida a ADMIN só para essa chamada, no banco, e volta a usuário comum no `finally`; o token continua valendo. Não deixe a conta promovida: os testes de limpeza da tela contam com ela comum. Teste que quiser provar a recusa usa a conta sem promover (`ui-cleanup`).
+- Sem a imagem do Playwright no Docker, a parte do **View** é pulada com um aviso no resultado do passo 4.
+- Rode com e sem o `compose.test.yml`: sem IA, o passo 2 confere a escolha na lista.
+
+## Conferência de tela da Fase 7
+
+`scripts/revalle/ui-check-f7.mjs` abre as telas novas num navegador de verdade (`tests/browser/ui-check-f7.browser.mjs`, na imagem do Playwright, como o `mobile-check`), em **390 px e 1280 px**:
+
+- diálogo de envio de uma NF fictícia: o seletor com os 5 centros, sem "Deixar para o Financeiro", e **Enviar** desabilitado até escolher os dois. Em 390 px escolhe o centro primeiro, em 1280 px a conta primeiro, para ver cada metade da regra. O bloco tem de caber na tela; a página do editor não entra na conta, porque o editor do upstream não é feito para celular;
+- contador no menu da Contabilidade (no celular, com o menu aberto), com o número certo;
+- cartão **Contabilidade** da NF enviada: centro, "Aguardando validação", **Validar centro de custo**, **Corrigir centro de custo** e o diálogo da correção com o aviso (aberto e cancelado);
+- cadastro com **CPF** e **Data de nascimento**;
+- sem rolagem horizontal em **Notas fiscais**, na página da NF e no cadastro.
+
+```sh
+REVSIGN_API_TOKEN=api_... REVSIGN_USER_EMAIL=... REVSIGN_USER_PASSWORD=... REVSIGN_ADMIN_EMAIL=... REVSIGN_ADMIN_PASSWORD=... \
+node scripts/revalle/ui-check-f7.mjs /tmp/prints-f7
+```
+
+- Os prints (`390-01-envio-sem-escolha.png` … `1280-07-cadastro.png`) ficam na pasta indicada (padrão `/tmp/revsign-ui-check-f7/`).
+- "Tudo verde" é a última linha `ui-check-f7: tudo verde` e código de saída 0.
+- A lista de contas precisa ter conta ativa (rode a suíte antes ou importe em Admin → Contas contábeis). Efeitos que ficam na stack: dois rascunhos e uma NF enviada, fictícios, e uma conta nova, já sem o perfil. Pela tela, nada é enviado.
+
 ## Teste de fumaça (smoke)
 
 Cria um documento, envia, passa pelo portão, assina, espera a selagem e baixa o PDF original e o final.
@@ -269,7 +331,7 @@ REVSIGN_API_TOKEN=api_... node scripts/revalle/mobile-check.mjs /tmp/prints-celu
 
 - O navegador roda na imagem Docker `mcr.microsoft.com/playwright:v1.56.1-noble` (o WSL não abre o Chromium), com `--network host` e o repositório montado só para leitura; o script usa o pacote `playwright` do `node_modules` do repo (mesma versão da imagem). Na primeira vez o `docker pull` baixa ~2 GB. Outra imagem: `MOBILE_CHECK_IMAGE`.
 - Com a sessão do remetente (`REVSIGN_USER_*`), a NF enviada com conta também é aberta por quem assina (portão com a Maria fictícia) e o bloco "Nota fiscal · Conta contábil" tem de aparecer na primeira tela (`00j-nf-conta-ao-assinar.png`, Fase 6).
-- Fase 6, com `REVSIGN_ADMIN_EMAIL`/`REVSIGN_ADMIN_PASSWORD` também (o rsadmin, marcado como Financeiro pelo script): a **página da NF** dessa NF enviada, inteira e com a prévia do PDF (`00k-nf-financeiro.png`), o cartão "Financeiro" (`00k2-nf-cartao-financeiro.png`), a confirmação de "Aprovar conta" (`00l-nf-aprovar-confirmar.png`), "Trocar conta" com a lista, o motivo e o contador (`00m-nf-trocar-conta.png`) e a confirmação "Todos vão assinar de novo uma nova versão." (`00m2-nf-trocar-confirmar.png`), o cartão da nova versão parada em rascunho com "Enviar de novo" e a confirmação (`00n-nf-enviar-de-novo.png`, `00n2-nf-enviar-de-novo-confirmar.png`; a troca de conta que a cria precisa de uma 2ª conta ativa na lista) e a página **Notas fiscais** do Financeiro, que tem de abrir em "Aguardando o Financeiro" (`00o-notas-fiscais-financeiro.png`). Os diálogos são abertos e cancelados: nada é aprovado nem trocado.
+- Fase 6, com `REVSIGN_ADMIN_EMAIL`/`REVSIGN_ADMIN_PASSWORD` também (o rsadmin, marcado como Financeiro pelo script): a **página da NF** dessa NF enviada, inteira e com a prévia do PDF (`00k-nf-financeiro.png`), o cartão "Financeiro" (`00k2-nf-cartao-financeiro.png`), a confirmação de "Aprovar conta" (`00l-nf-aprovar-confirmar.png`), "Trocar conta" com a lista, o motivo e o contador (`00m-nf-trocar-conta.png`) e a confirmação "Todos vão assinar de novo uma nova versão." (`00m2-nf-trocar-confirmar.png`), o cartão da nova versão parada em rascunho com "Enviar de novo" e a confirmação (`00n-nf-enviar-de-novo.png`, `00n2-nf-enviar-de-novo-confirmar.png`; a troca de conta que a cria precisa de uma 2ª conta ativa na lista) e a página **Notas fiscais** do Financeiro, que tem de abrir em "Aguardando o Financeiro" (`00o-notas-fiscais-financeiro.png`). Os diálogos são abertos e cancelados: pela tela, nada é aprovado nem trocado. Mas a preparação **faz uma troca de conta de verdade** numa NF fictícia só dela (com o destinatário de fora dos domínios, posto no banco), para criar a nova versão parada em rascunho, e ela fica na stack.
 - Os prints (`01-termo.png` … `15-concluido.png`) e o `report.json` ficam na pasta indicada (padrão `/tmp/revsign-mobile-check/`). Se o fluxo quebrar no meio, sai `erro.png`.
 - "Tudo verde" é a última linha `mobile-check: tudo verde` e código de saída 0.
 - O vínculo do CPF do Fernando fictício é solto antes e depois (como no `branding.test.mjs`); o e-mail do signatário é novo a cada execução.

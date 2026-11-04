@@ -474,7 +474,7 @@ before(async () => {
   // As duas saem com segundos de diferença, e o relógio da máquina pode voltar entre elas: a data do envio da NFS-e
   // recua para a ordem esperada não depender disso.
   db(
-    `update "DocumentAuditLog" set "createdAt" = "createdAt" - interval '5 minutes' where "envelopeId" = '${fx.nfse.id}' and type = 'DOCUMENT_SENT'`,
+    `update "DocumentAuditLog" set "createdAt" = "createdAt" - interval '1 minute' where "envelopeId" = '${fx.nfse.id}' and type = 'DOCUMENT_SENT'`,
   );
 
   fx.ready = true;

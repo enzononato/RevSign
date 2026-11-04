@@ -150,7 +150,7 @@ O aceite automatizado é o teste `scripts/revalle/tests/acceptance-f4.test.mjs`.
 Pré-requisitos e variáveis: `testes.md`, seção "Aceite da Fase 4". Em resumo:
 
 1. Stack local no ar com a imagem atual e os colaboradores fictícios do aceite carregados.
-2. Token de API do remetente, criado na tela **Configurações → API** entrando com a conta do remetente.
+2. Token de API do remetente. Desde a Fase 7, só o ADMIN cria token: em homologação o remetente é o rsadmin, que é ADMIN e cria o token em **Configurações do time → Tokens de API**. Para uma conta comum, veja `testes.md`, seção "O que precisa estar de pé", item 4.
 3. Rodar a suíte inteira (o aceite faz parte dela), o smoke e o `verify-signed-pdf.sh`.
 
 Resultado esperado: `fail 0`. Confira também que o aceite não aparece como `skipped`; sem o token do remetente ele é pulado.

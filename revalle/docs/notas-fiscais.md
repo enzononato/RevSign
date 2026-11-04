@@ -321,6 +321,17 @@ o número delas (o mesmo do contador da Contabilidade no menu).
 - Ela continua enviando e assinando como qualquer colaborador.
 - O administrador só age aqui se também estiver marcado como Contabilidade: sem a marca, as ações respondem **403**.
 
+**Passo a passo da Contabilidade, sem e-mail.** O RevSign não manda e-mail para a Contabilidade. O aviso é o contador:
+
+1. Entre no RevSign. O número ao lado de **Notas fiscais**, no menu, diz quantas notas esperam você (atualiza a cada minuto).
+2. Abra **Notas fiscais**. A página abre em **Aguardando a Contabilidade**.
+3. Clique no título da nota. Confira o PDF na página da NF e o centro de custo no cartão **Contabilidade**.
+4. Centro certo: clique em **Validar centro de custo** e confirme. A nota sai da sua fila.
+5. Centro errado: clique em **Corrigir centro de custo**, escolha o centro certo e escreva o motivo. Todos assinam de novo
+   a nova versão: eles recebem o aviso e o convite por e-mail, você não.
+6. Para lançar a nota: com ela concluída, clique em **Baixar PDF** na página da NF, ou exporte a planilha em **Notas
+   fiscais** (não lance as linhas com `financeiro` = `Substituída`).
+
 **Cartão Contabilidade.** Só para quem é do perfil. Mostra o centro de custo e a situação: **Aguardando validação**,
 **Validado por {nome} em {data}** ou **Sem centro de custo**.
 

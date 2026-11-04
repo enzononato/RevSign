@@ -57,7 +57,7 @@ export const isWaitingForFinanceApproval = async (envelopeId: string): Promise<b
   return row !== null;
 };
 
-/** NFs assinadas por todos esperando a aprovação: o admin vê o número na tela Admin → Financeiro. */
+/** NFs assinadas por todos esperando a aprovação: o admin vê o número na tela Admin → Perfis. */
 export const countInvoicesAwaitingApproval = async () =>
   await prisma.revalleInvoiceClassification.count({ where: signedAwaitingApprovalWhere });
 

@@ -166,7 +166,7 @@ Quem faz: quem administra o banco de RH (TI), com Enzo.
    - Se a senha tiver caracteres especiais (`@`, `:`, `/`, `#`, `%`), troque-os pelo código com `%` (por exemplo `@` vira `%40`). Para evitar o trabalho, use uma senha só com letras e números.
    - `<host>`: se o Postgres de RH roda na mesma VPS pelo EasyPanel, use o nome interno do serviço, no formato `<projeto>_<serviço-postgres>` (o mesmo padrão do passo 2 do `deploy.md`). Esse nome só funciona de dentro da VPS. Se o banco de RH fica em outro servidor, use o endereço dele e libere o IP da VPS no firewall.
 2. No EasyPanel, abra o serviço `revsign` e a aba **Environment**.
-3. Crie (ou troque) a linha `COLABORADORES_DATABASE_URL=<a URL do item 1>`.
+3. Crie (ou troque) a linha `COLABORADORES_DATABASE_URL=<a URL do item 1>`. A mesma base vale para a assinatura e, desde a Fase 7, para o cadastro: sem ela no ar, ninguém cria conta (seção "Cadastro: só colaborador cria conta").
 4. Confira que NÃO existe a linha `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK=disabled`. Sem a variável, vale `required`.
 5. Clique em **Save**.
 6. Clique em **Restart** (ou **Deploy**) e espere ficar verde.
