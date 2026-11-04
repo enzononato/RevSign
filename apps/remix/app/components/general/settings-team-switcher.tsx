@@ -1,6 +1,7 @@
 import { useSession } from '@documenso/lib/client-only/providers/session';
 import { EXTENDED_TEAM_MEMBER_ROLE_MAP } from '@documenso/lib/constants/teams-translations';
 import { formatAvatarUrl } from '@documenso/lib/utils/avatars';
+import { isAdmin } from '@documenso/lib/utils/is-admin'; // REVALLE:
 import { getSettingsNavGroups } from '@documenso/lib/utils/settings-nav';
 import { computeSwitcherContinuityPath } from '@documenso/lib/utils/settings-switcher';
 import { canExecuteTeamAction } from '@documenso/lib/utils/teams';
@@ -23,7 +24,7 @@ export type SettingsTeamSwitcherProps = {
 
 export const SettingsTeamSwitcher = ({ currentOrgUrl, currentTeamUrl }: SettingsTeamSwitcherProps) => {
   const { t } = useLingui();
-  const { organisations } = useSession();
+  const { organisations, user } = useSession(); // REVALLE: user (isAdmin)
   const { pathname } = useLocation();
 
   const navigate = useNavigate();
@@ -66,6 +67,7 @@ export const SettingsTeamSwitcher = ({ currentOrgUrl, currentTeamUrl }: Settings
       },
       team: { url: destinationTeam.url, currentTeamRole: destinationTeam.currentTeamRole },
       hasManageableBillingOrgs: false,
+      isAdmin: isAdmin(user), // REVALLE:
     }).team;
 
     if (!destinationGroup) {

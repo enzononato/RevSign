@@ -9,6 +9,13 @@ import {
   type TCertificatePreferencesFormSchema,
 } from '~/components/forms/certificate-preferences-form';
 import { SettingsHeader } from '~/components/general/settings-header';
+import { redirectHiddenOrganisationPage } from '~/utils/revalle-hidden-routes'; // REVALLE:
+import type { Route } from './+types/o.$orgUrl.settings.certificates'; // REVALLE:
+
+// REVALLE: página escondida (Fase 7, spec §6); quem abre o endereço direto cai numa página que existe.
+export function loader(args: Route.LoaderArgs) {
+  return redirectHiddenOrganisationPage(args);
+}
 
 export default function OrganisationSettingsCertificatesPage() {
   const organisation = useCurrentOrganisation();

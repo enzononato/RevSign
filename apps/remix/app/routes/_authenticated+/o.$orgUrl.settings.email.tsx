@@ -8,6 +8,13 @@ import { useLingui } from '@lingui/react/macro';
 import { EmailPreferencesForm, type TEmailPreferencesFormSchema } from '~/components/forms/email-preferences-form';
 import { SettingsHeader } from '~/components/general/settings-header';
 import { appMetaTags } from '~/utils/meta';
+import { redirectHiddenOrganisationPage } from '~/utils/revalle-hidden-routes'; // REVALLE:
+import type { Route } from './+types/o.$orgUrl.settings.email'; // REVALLE:
+
+// REVALLE: página escondida (Fase 7, spec §6); quem abre o endereço direto cai numa página que existe.
+export function loader(args: Route.LoaderArgs) {
+  return redirectHiddenOrganisationPage(args);
+}
 
 export function meta() {
   return appMetaTags(msg`Email Preferences`);

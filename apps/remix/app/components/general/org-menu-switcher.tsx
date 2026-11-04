@@ -14,7 +14,6 @@ import {
 import { extractInitials } from '@documenso/lib/utils/recipient-formatter';
 import { canExecuteTeamAction, formatAnalyticsPath } from '@documenso/lib/utils/teams';
 import { AnimateGenericFadeInOut } from '@documenso/ui/components/animate/animate-generic-fade-in-out';
-import { LanguageSwitcherDialog } from '@documenso/ui/components/common/language-switcher-dialog';
 import { cn } from '@documenso/ui/lib/utils';
 import { AvatarWithText } from '@documenso/ui/primitives/avatar';
 import { Button } from '@documenso/ui/primitives/button';
@@ -41,7 +40,6 @@ export const OrgMenuSwitcher = () => {
   const { pathname } = useLocation();
 
   const [isOpen, setIsOpen] = useState(false);
-  const [languageSwitcherOpen, setLanguageSwitcherOpen] = useState(false);
   const [hoveredOrgId, setHoveredOrgId] = useState<string | null>(null);
 
   const isUserAdmin = isAdmin(user);
@@ -318,26 +316,7 @@ export const OrgMenuSwitcher = () => {
                 </DropdownMenuItem>
               )}
 
-              <DropdownMenuItem
-                className="px-4 py-2 text-muted-foreground"
-                onClick={() => setLanguageSwitcherOpen(true)}
-              >
-                <Trans>Language</Trans>
-              </DropdownMenuItem>
-
-              {currentOrganisation && (
-                <DropdownMenuItem className="px-4 py-2 text-muted-foreground" asChild>
-                  <Link
-                    to={{
-                      pathname: `/o/${currentOrganisation.url}/support`,
-                      search: currentTeam ? `?team=${currentTeam.id}` : '',
-                    }}
-                  >
-                    <Trans>Support</Trans>
-                  </Link>
-                </DropdownMenuItem>
-              )}
-
+              {/* REVALLE: Idioma e Suporte saem do menu da conta (Fase 7, spec §6). */}
               <DropdownMenuItem
                 className="hover:!text-muted-foreground px-4 py-2 text-muted-foreground"
                 onSelect={async () => authClient.signOut()}
@@ -348,8 +327,6 @@ export const OrgMenuSwitcher = () => {
           </div>
         </div>
       </DropdownMenuContent>
-
-      <LanguageSwitcherDialog open={languageSwitcherOpen} setOpen={setLanguageSwitcherOpen} />
     </DropdownMenu>
   );
 };

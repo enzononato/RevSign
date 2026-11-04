@@ -2,6 +2,7 @@ import { useSession } from '@documenso/lib/client-only/providers/session';
 import { IS_BILLING_ENABLED } from '@documenso/lib/constants/app';
 import { type INTERNAL_CLAIM_ID, internalClaims } from '@documenso/lib/types/subscription';
 import { formatAvatarUrl } from '@documenso/lib/utils/avatars';
+import { isAdmin } from '@documenso/lib/utils/is-admin'; // REVALLE:
 import { canExecuteOrganisationAction } from '@documenso/lib/utils/organisations';
 import { getSettingsNavGroups } from '@documenso/lib/utils/settings-nav';
 import { computeSwitcherContinuityPath } from '@documenso/lib/utils/settings-switcher';
@@ -24,7 +25,7 @@ export type SettingsOrgSwitcherProps = {
 
 export const SettingsOrgSwitcher = ({ currentOrgUrl }: SettingsOrgSwitcherProps) => {
   const { t } = useLingui();
-  const { organisations } = useSession();
+  const { organisations, user } = useSession(); // REVALLE: user (isAdmin)
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
@@ -79,6 +80,7 @@ export const SettingsOrgSwitcher = ({ currentOrgUrl }: SettingsOrgSwitcherProps)
       },
       team: manageableTeam ? { url: manageableTeam.url, currentTeamRole: manageableTeam.currentTeamRole } : null,
       hasManageableBillingOrgs,
+      isAdmin: isAdmin(user), // REVALLE:
     });
 
     // The list also contains organisations the user can only reach through a team they

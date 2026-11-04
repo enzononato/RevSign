@@ -16,6 +16,13 @@ import { FolderUpdateDialog } from '~/components/dialogs/folder-update-dialog';
 import { FolderCard } from '~/components/general/folder/folder-card';
 import { useCurrentTeam } from '~/providers/team';
 import { appMetaTags } from '~/utils/meta';
+import { redirectHiddenTeamPage } from '~/utils/revalle-hidden-routes'; // REVALLE:
+import type { Route } from './+types/templates.folders._index'; // REVALLE:
+
+// REVALLE: página escondida (Fase 7, spec §6); quem abre o endereço direto cai numa página que existe.
+export function loader(args: Route.LoaderArgs) {
+  return redirectHiddenTeamPage(args);
+}
 
 export function meta() {
   return appMetaTags(msg`Templates`);

@@ -2,11 +2,7 @@ import { useDebouncedValue } from '@documenso/lib/client-only/hooks/use-debounce
 import { useSession } from '@documenso/lib/client-only/providers/session';
 import { formatPath } from '@documenso/lib/constants/app';
 import { SUPPORTED_LANGUAGES } from '@documenso/lib/constants/i18n';
-import {
-  DOCUMENTS_PAGE_SHORTCUT,
-  SETTINGS_PAGE_SHORTCUT,
-  TEMPLATES_PAGE_SHORTCUT,
-} from '@documenso/lib/constants/keyboard-shortcuts';
+import { DOCUMENTS_PAGE_SHORTCUT, SETTINGS_PAGE_SHORTCUT } from '@documenso/lib/constants/keyboard-shortcuts';
 import { DO_NOT_INVALIDATE_QUERY_ON_MUTATION, SKIP_QUERY_BATCH_META } from '@documenso/lib/constants/trpc';
 import { dynamicActivate } from '@documenso/lib/utils/i18n';
 import { trpc as trpcReact } from '@documenso/trpc/react';
@@ -27,8 +23,6 @@ import {
   FileTextIcon,
   GlobeIcon,
   KeyRoundIcon,
-  LanguagesIcon,
-  LayoutTemplateIcon,
   LoaderIcon,
   MonitorIcon,
   MoonIcon,
@@ -120,22 +114,7 @@ export const AppCommandMenu = ({ open, onOpenChange }: AppCommandMenuProps) => {
     },
   );
 
-  const {
-    data: searchTemplatesData,
-    isFetching: isFetchingTemplates,
-    isError: isTemplatesSearchError,
-  } = trpcReact.template.search.useQuery(
-    {
-      query: debouncedSearch,
-    },
-    {
-      enabled: isPromptOpen && activePage === null && hasValidSearch,
-      placeholderData: keepPreviousData,
-      retry: false,
-      ...SKIP_QUERY_BATCH_META,
-      ...DO_NOT_INVALIDATE_QUERY_ON_MUTATION,
-    },
-  );
+  // REVALLE: a busca de modelos saiu junto com a página de Modelos (Fase 7, spec §6); a API continua.
 
   const {
     isUserAdmin,
@@ -272,18 +251,6 @@ export const AppCommandMenu = ({ open, onOpenChange }: AppCommandMenuProps) => {
         ]
       : [];
 
-    const templatePageLinks: PromptItem[] = teamUrl
-      ? [
-          {
-            id: 'templates-all',
-            label: msg`All templates`,
-            path: `/t/${teamUrl}/templates`,
-            icon: LayoutTemplateIcon,
-            shortcut: TEMPLATES_PAGE_SHORTCUT.replace('+', ''),
-          },
-        ]
-      : [];
-
     const settingsLinks: PromptItem[] = [
       {
         id: 'settings-main',
@@ -294,12 +261,7 @@ export const AppCommandMenu = ({ open, onOpenChange }: AppCommandMenuProps) => {
       },
       { id: 'settings-profile', label: msg`Profile`, path: '/settings/profile', icon: UserIcon },
       { id: 'settings-password', label: msg`Password`, path: '/settings/security', icon: KeyRoundIcon },
-      {
-        id: 'settings-language',
-        label: msg`Change language`,
-        icon: LanguagesIcon,
-        onAction: () => goToPage('language'),
-      },
+      // REVALLE: "Change language" saiu (Idioma não é mais opção da tela, Fase 7).
       { id: 'settings-theme', label: msg`Change theme`, icon: PaletteIcon, onAction: () => goToPage('theme') },
     ];
 
@@ -313,19 +275,7 @@ export const AppCommandMenu = ({ open, onOpenChange }: AppCommandMenuProps) => {
           }))
         : [];
 
-    const personalTemplateItems: PromptItem[] =
-      hasValidSearch && searchTemplatesData
-        ? searchTemplatesData.map((template) => ({
-            id: `personal-template-${template.path}`,
-            label: template.title,
-            path: template.path,
-            icon: LayoutTemplateIcon,
-          }))
-        : [];
-
     const documentItems = [...filterBySearch(documentPageLinks), ...personalDocumentItems];
-
-    const templateItems = [...filterBySearch(templatePageLinks), ...personalTemplateItems];
 
     const settingsItems = filterBySearch(settingsLinks);
 
@@ -341,15 +291,6 @@ export const AppCommandMenu = ({ open, onOpenChange }: AppCommandMenuProps) => {
         isGlobal: false,
       },
       {
-        id: 'templates',
-        label: msg`Templates`,
-        items: templateItems,
-        count: templateItems.length,
-        chipCount: personalTemplateItems.length > 0 ? personalTemplateItems.length : null,
-        isCapped: personalTemplateItems.length >= PERSONAL_SEARCH_RESULTS_CAP,
-        isGlobal: false,
-      },
-      {
         id: 'settings',
         label: msg`Settings`,
         items: settingsItems,
@@ -361,15 +302,7 @@ export const AppCommandMenu = ({ open, onOpenChange }: AppCommandMenuProps) => {
     ];
 
     return allCategories.filter((category) => category.items.length > 0);
-  }, [
-    teamUrl,
-    hasValidSearch,
-    searchDocumentsData,
-    searchTemplatesData,
-    adminSearchCategories,
-    filterBySearch,
-    goToPage,
-  ]);
+  }, [teamUrl, hasValidSearch, searchDocumentsData, adminSearchCategories, filterBySearch, goToPage]);
 
   const effectiveChip = categories.some((category) => category.id === activeChip && category.chipCount !== null)
     ? activeChip
@@ -384,9 +317,9 @@ export const AppCommandMenu = ({ open, onOpenChange }: AppCommandMenuProps) => {
   const totalAllCount = categories.reduce((total, category) => total + category.count, 0);
   const isAllCountCapped = categories.some((category) => category.isCapped);
 
-  const isAnySearchFetching = isFetchingDocuments || isFetchingTemplates || isFetchingAdminSearch;
+  const isAnySearchFetching = isFetchingDocuments || isFetchingAdminSearch;
 
-  const hasSearchError = isDocumentsSearchError || isTemplatesSearchError || isAdminSearchError;
+  const hasSearchError = isDocumentsSearchError || isAdminSearchError;
 
   const formatChipCount = (count: number, isCapped: boolean) => (isCapped ? `≥${count}` : `${count}`);
 
@@ -396,16 +329,10 @@ export const AppCommandMenu = ({ open, onOpenChange }: AppCommandMenuProps) => {
       push(`/t/${teamUrl}/documents?status=ALL`);
     }
   }, [push, teamUrl]);
-  const goToTemplates = useCallback(() => {
-    if (teamUrl) {
-      push(`/t/${teamUrl}/templates`);
-    }
-  }, [push, teamUrl]);
 
   useHotkeys(['ctrl+k', 'meta+k'], toggleOpen, { preventDefault: true });
   useHotkeys(SETTINGS_PAGE_SHORTCUT, goToSettings);
   useHotkeys(DOCUMENTS_PAGE_SHORTCUT, goToDocuments);
-  useHotkeys(TEMPLATES_PAGE_SHORTCUT, goToTemplates);
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
     // Escape goes to the previous page, or closes the prompt at the root.
@@ -597,11 +524,7 @@ export const AppCommandMenu = ({ open, onOpenChange }: AppCommandMenuProps) => {
             <span className="ml-auto text-muted-foreground text-xs">
               {hasValidSearch ? (
                 isVisibleCountCapped ? (
-                  <Plural
-                    value={totalVisibleCount}
-                    one="≥# result"
-                    other="≥# results"
-                  />
+                  <Plural value={totalVisibleCount} one="≥# result" other="≥# results" />
                 ) : (
                   <Plural value={totalVisibleCount} one="# result" other="# results" />
                 )

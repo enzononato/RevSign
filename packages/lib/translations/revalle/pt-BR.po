@@ -207,36 +207,6 @@ msgstr "Usuário criado e e-mail de boas-vindas enviado"
 msgid "We encountered an error while creating the user. Please try again later."
 msgstr "Ocorreu um erro ao criar o usuário. Tente novamente mais tarde."
 
-msgid "AI features are disabled for your team. Please ask your team owner or organisation owner to enable them."
-msgstr "Os recursos de IA estão desativados para sua equipe. Peça ao proprietário da equipe ou da organização para ativá-los."
-
-msgid "Enable AI features"
-msgstr "Ativar recursos de IA"
-
-msgid "Turn on AI detection to automatically find recipients and fields in your documents. AI providers do not retain your data for training."
-msgstr "Ative a detecção por IA para encontrar destinatários e campos nos seus documentos automaticamente. Os provedores de IA não guardam seus dados para treinamento."
-
-msgid "We couldn't enable AI features right now. Please try again."
-msgstr "Não foi possível ativar os recursos de IA agora. Tente novamente."
-
-msgid "You're an admin. You can enable AI features for this team right away. Everyone on the team will see AI detection once enabled."
-msgstr "Você é administrador. Pode ativar os recursos de IA para esta equipe agora mesmo. Todos da equipe verão a detecção por IA depois de ativada."
-
-msgid "Your document content will be sent securely to our AI provider solely for detection and will not be stored or used for training."
-msgstr "O conteúdo do seu documento será enviado com segurança ao nosso provedor de IA apenas para a detecção e não será armazenado nem usado para treinamento."
-
-msgid "{0, plural, one {Page {1} of {2} - # field found} other {Page {3} of {4} - # fields found}}"
-msgstr "{0, plural, one {Página {1} de {2} - # campo encontrado} other {Página {3} de {4} - # campos encontrados}}"
-
-msgid "{0, plural, one {We found # field in your document.} other {We found # fields in your document.}}"
-msgstr "{0, plural, one {Encontramos # campo no seu documento.} other {Encontramos # campos no seu documento.}}"
-
-msgid "{0, plural, one {Page {1} of {2} - # recipient found} other {Page {3} of {4} - # recipients found}}"
-msgstr "{0, plural, one {Página {1} de {2} - # destinatário encontrado} other {Página {3} de {4} - # destinatários encontrados}}"
-
-msgid "{0, plural, one {We found # recipient in your document.} other {We found # recipients in your document.}}"
-msgstr "{0, plural, one {Encontramos # destinatário no seu documento.} other {Encontramos # destinatários no seu documento.}}"
-
 msgid "The next recipient to sign this document will be <0>{0}</0> (<1>{1}</1>)."
 msgstr "O próximo destinatário a assinar este documento será <0>{0}</0> (<1>{1}</1>)."
 
@@ -1450,9 +1420,6 @@ msgstr "Ver modelos"
 msgid "{0, plural, one {# use} other {# uses}}"
 msgstr "{0, plural, one {# uso} other {# usos}}"
 
-msgid "Change language"
-msgstr "Alterar idioma"
-
 msgid "Change theme"
 msgstr "Alterar tema"
 
@@ -1831,17 +1798,8 @@ msgstr "Os destinatários não podem usar este modelo de link direto porque os s
 msgid "Add recipients to your document"
 msgstr "Adicione destinatários ao seu documento"
 
-msgid "Enable AI detection"
-msgstr "Ativar detecção por IA"
-
 msgid "This envelope cannot have more than {recipientCountLimit} recipients. Please contact support if you need more."
 msgstr "Este documento não pode ter mais de {recipientCountLimit} destinatários. Entre em contato com o suporte se precisar de mais."
-
-msgid "{0, plural, one {# recipient have been added from AI detection.} other {# recipients have been added from AI detection.}}"
-msgstr "{0, plural, one {# destinatário foi adicionado pela detecção por IA.} other {# destinatários foram adicionados pela detecção por IA.}}"
-
-msgid "{0, plural, one {Recipient added} other {Recipients added}}"
-msgstr "{0, plural, one {Destinatário adicionado} other {Destinatários adicionados}}"
 
 msgid "Configure notification settings for the document."
 msgstr "Defina as configurações de notificação do documento."
@@ -3861,9 +3819,6 @@ msgstr "Ocorreu um erro ao remover este arquivo do documento. Tente novamente ma
 
 msgid "We encountered an unknown error while attempting to update the envelope. Please try again later."
 msgstr "Ocorreu um erro ao atualizar o documento. Tente novamente mais tarde."
-
-msgid "You can only detect fields in draft envelopes"
-msgstr "Só é possível detectar campos em documentos em rascunho"
 
 msgid "You have successfully removed this envelope item."
 msgstr "Arquivo removido do documento."

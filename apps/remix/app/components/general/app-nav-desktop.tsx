@@ -53,10 +53,7 @@ export const AppNavDesktop = ({ className, setIsCommandMenuOpen, ...props }: App
         href: `/t/${teamUrl}/documents`,
         label: msg`Documents`,
       },
-      {
-        href: `/t/${teamUrl}/templates`,
-        label: msg`Templates`,
-      },
+      // REVALLE: Modelos saem do menu (Fase 7, spec §6).
       invoicesLink, // REVALLE:
     ];
   }, [currentTeam, organisations]);

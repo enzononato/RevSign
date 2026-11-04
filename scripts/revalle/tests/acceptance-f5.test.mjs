@@ -391,11 +391,21 @@ before(async () => {
       `select t.id from "Team" t join "Organisation" o on o.id = t."organisationId" join "User" u on u.id = o."ownerUserId" where u.email = '${fx.sender.email}' limit 1`,
     ),
   );
-  const token = await trpcAs(fx.sender.cookie, 'mutation', 'apiToken.create', {
-    teamId,
-    tokenName: `aceite-f5-${RUN}`,
-    expirationDate: null,
-  });
+  // Fase 7 (Task 9): só o ADMIN cria token de API. O remetente comum é promovido só para esta chamada e volta a
+  // usuário comum no `finally`; o token criado continua valendo sem o papel.
+  db(`update "User" set roles = array['USER','ADMIN']::"Role"[] where email = '${fx.sender.email}'`);
+
+  let token;
+
+  try {
+    token = await trpcAs(fx.sender.cookie, 'mutation', 'apiToken.create', {
+      teamId,
+      tokenName: `aceite-f5-${RUN}`,
+      expirationDate: null,
+    });
+  } finally {
+    db(`update "User" set roles = array['USER']::"Role"[] where email = '${fx.sender.email}'`);
+  }
 
   assert.equal(token.status, 200, token.text);
   fx.senderToken = data(token).token;

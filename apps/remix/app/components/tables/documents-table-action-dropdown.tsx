@@ -22,7 +22,6 @@ import {
   Download,
   Edit,
   EyeIcon,
-  FileOutputIcon,
   FolderInput,
   History,
   MoreHorizontal,
@@ -37,7 +36,6 @@ import { EnvelopeCancelDialog } from '~/components/dialogs/envelope-cancel-dialo
 import { EnvelopeDeleteDialog } from '~/components/dialogs/envelope-delete-dialog';
 import { EnvelopeDuplicateDialog } from '~/components/dialogs/envelope-duplicate-dialog';
 import { EnvelopeRedistributeDialog } from '~/components/dialogs/envelope-redistribute-dialog';
-import { EnvelopeSaveAsTemplateDialog } from '~/components/dialogs/envelope-save-as-template-dialog';
 import { DocumentRecipientLinkCopyDialog } from '~/components/general/document/document-recipient-link-copy-dialog';
 import { useCurrentTeam } from '~/providers/team';
 
@@ -57,7 +55,6 @@ export const DocumentsTableActionDropdown = ({ row, onMoveDocument }: DocumentsT
   const trpcUtils = trpcReact.useUtils();
 
   const [isRenameDialogOpen, setRenameDialogOpen] = useState(false);
-  const [isSaveAsTemplateDialogOpen, setSaveAsTemplateDialogOpen] = useState(false);
 
   const recipient = findRecipientByEmail({
     recipients: row.recipients,
@@ -176,10 +173,7 @@ export const DocumentsTableActionDropdown = ({ row, onMoveDocument }: DocumentsT
           }
         />
 
-        <DropdownMenuItem onClick={() => setSaveAsTemplateDialogOpen(true)}>
-          <FileOutputIcon className="mr-2 h-4 w-4" />
-          <Trans>Save as Template</Trans>
-        </DropdownMenuItem>
+        {/* REVALLE: "Salvar como modelo" saiu (Modelos saem da tela, Fase 7, spec §6). */}
 
         {onMoveDocument && canManageDocument && (
           <DropdownMenuItem onClick={onMoveDocument} onSelect={(e) => e.preventDefault()}>
@@ -262,12 +256,6 @@ export const DocumentsTableActionDropdown = ({ row, onMoveDocument }: DocumentsT
 
         {/* REVALLE: sem "Share Signing Card" (link público e cartão para X/Twitter): documento interno não vai para rede social */}
       </DropdownMenuContent>
-
-      <EnvelopeSaveAsTemplateDialog
-        envelopeId={row.envelopeId}
-        open={isSaveAsTemplateDialogOpen}
-        onOpenChange={setSaveAsTemplateDialogOpen}
-      />
 
       <EnvelopeRenameDialog
         id={row.envelopeId}

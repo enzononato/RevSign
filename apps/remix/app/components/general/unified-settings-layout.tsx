@@ -1,5 +1,6 @@
 import { useOptionalCurrentOrganisation } from '@documenso/lib/client-only/providers/organisation';
 import { useSession } from '@documenso/lib/client-only/providers/session';
+import { isAdmin } from '@documenso/lib/utils/is-admin'; // REVALLE:
 import { canExecuteOrganisationAction } from '@documenso/lib/utils/organisations';
 import { getSettingsNavGroups, type SettingsNavGroup, type SettingsNavItem } from '@documenso/lib/utils/settings-nav';
 import { canExecuteTeamAction } from '@documenso/lib/utils/teams';
@@ -68,7 +69,7 @@ const findActiveCrumbs = (group: SettingsNavGroup | null, pathname: string): Mes
 
 export const UnifiedSettingsLayout = ({ activeScope, preferredTeamUrl = null }: UnifiedSettingsLayoutProps) => {
   const { _ } = useLingui();
-  const { organisations } = useSession();
+  const { organisations, user } = useSession(); // REVALLE: user (isAdmin)
   const { pathname } = useLocation();
 
   const currentOrganisation = useOptionalCurrentOrganisation();
@@ -125,6 +126,7 @@ export const UnifiedSettingsLayout = ({ activeScope, preferredTeamUrl = null }: 
     hasManageableBillingOrgs: organisations.some((org) =>
       canExecuteOrganisationAction('MANAGE_BILLING', org.currentOrganisationRole),
     ),
+    isAdmin: isAdmin(user), // REVALLE:
   });
 
   const canManageOrg =

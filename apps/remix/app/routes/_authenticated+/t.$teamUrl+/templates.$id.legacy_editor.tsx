@@ -12,11 +12,15 @@ import { LegacyFieldWarningPopover } from '~/components/general/legacy-field-war
 import { TemplateDirectLinkBadge } from '~/components/general/template/template-direct-link-badge';
 import { TemplateEditForm } from '~/components/general/template/template-edit-form';
 import { TemplateType } from '~/components/general/template/template-type';
+import { redirectHiddenTeamPage } from '~/utils/revalle-hidden-routes'; // REVALLE:
 import { superLoaderJson, useSuperLoaderData } from '~/utils/super-json-loader';
 
 import type { Route } from './+types/templates.$id.edit';
 
 export async function loader({ params, request }: Route.LoaderArgs) {
+  // REVALLE: Modelos saem da tela (Fase 7, spec §6).
+  redirectHiddenTeamPage({ params });
+
   const { id, teamUrl } = params;
 
   if (!id || !teamUrl) {

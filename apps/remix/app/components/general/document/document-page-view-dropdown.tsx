@@ -13,17 +13,7 @@ import {
 } from '@documenso/ui/primitives/dropdown-menu';
 import { Trans } from '@lingui/react/macro';
 import { DocumentStatus, EnvelopeType } from '@prisma/client';
-import {
-  Copy,
-  Download,
-  Edit,
-  FileOutputIcon,
-  History,
-  MoreHorizontal,
-  Pencil,
-  ScrollTextIcon,
-  Trash2,
-} from 'lucide-react';
+import { Copy, Download, Edit, History, MoreHorizontal, Pencil, ScrollTextIcon, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 
@@ -32,7 +22,6 @@ import { EnvelopeDownloadDialog } from '~/components/dialogs/envelope-download-d
 import { EnvelopeDuplicateDialog } from '~/components/dialogs/envelope-duplicate-dialog';
 import { EnvelopeRedistributeDialog } from '~/components/dialogs/envelope-redistribute-dialog';
 import { EnvelopeRenameDialog } from '~/components/dialogs/envelope-rename-dialog';
-import { EnvelopeSaveAsTemplateDialog } from '~/components/dialogs/envelope-save-as-template-dialog';
 import { DocumentRecipientLinkCopyDialog } from '~/components/general/document/document-recipient-link-copy-dialog';
 import { useCurrentTeam } from '~/providers/team';
 
@@ -49,7 +38,6 @@ export const DocumentPageViewDropdown = ({ envelope }: DocumentPageViewDropdownP
   const trpcUtils = trpcReact.useUtils();
 
   const [isRenameDialogOpen, setRenameDialogOpen] = useState(false);
-  const [isSaveAsTemplateDialogOpen, setSaveAsTemplateDialogOpen] = useState(false);
 
   const recipient = envelope.recipients.find((recipient) => recipient.email === user.email);
 
@@ -127,10 +115,7 @@ export const DocumentPageViewDropdown = ({ envelope }: DocumentPageViewDropdownP
           }
         />
 
-        <DropdownMenuItem onClick={() => setSaveAsTemplateDialogOpen(true)}>
-          <FileOutputIcon className="mr-2 h-4 w-4" />
-          <Trans>Save as Template</Trans>
-        </DropdownMenuItem>
+        {/* REVALLE: "Salvar como modelo" saiu (Modelos saem da tela, Fase 7, spec §6). */}
 
         <EnvelopeDeleteDialog
           id={envelope.id}
@@ -184,12 +169,6 @@ export const DocumentPageViewDropdown = ({ envelope }: DocumentPageViewDropdownP
 
         {/* REVALLE: sem "Share Signing Card" (link público e cartão para X/Twitter): documento interno não vai para rede social */}
       </DropdownMenuContent>
-
-      <EnvelopeSaveAsTemplateDialog
-        envelopeId={envelope.id}
-        open={isSaveAsTemplateDialogOpen}
-        onOpenChange={setSaveAsTemplateDialogOpen}
-      />
 
       <EnvelopeRenameDialog
         id={envelope.id}

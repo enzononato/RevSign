@@ -20,6 +20,13 @@ import { SettingsHeader } from '~/components/general/settings-header';
 import { BrandingUpsell } from '~/components/general/settings-upsell/branding-upsell';
 import { useOptionalCurrentTeam } from '~/providers/team';
 import { appMetaTags } from '~/utils/meta';
+import { redirectHiddenOrganisationPage } from '~/utils/revalle-hidden-routes'; // REVALLE:
+import type { Route } from './+types/o.$orgUrl.settings.branding'; // REVALLE:
+
+// REVALLE: página escondida (Fase 7, spec §6); quem abre o endereço direto cai numa página que existe.
+export function loader(args: Route.LoaderArgs) {
+  return redirectHiddenOrganisationPage(args);
+}
 
 export function meta() {
   return appMetaTags(msg`Branding Preferences`);

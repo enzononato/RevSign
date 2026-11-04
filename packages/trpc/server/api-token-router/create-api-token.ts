@@ -1,5 +1,6 @@
 import { captureServerEvent } from '@documenso/lib/server-only/analytics/capture-server-event';
 import { createApiToken } from '@documenso/lib/server-only/public-api/create-api-token';
+import { assertRevalleAdmin } from '@documenso/lib/server-only/revalle/locked-settings'; // REVALLE:
 import { fireAndForget } from '@documenso/lib/universal/fire-and-forget';
 import { prisma } from '@documenso/prisma';
 
@@ -17,6 +18,9 @@ export const createApiTokenRoute = authenticatedProcedure
         teamId,
       },
     });
+
+    // REVALLE: só o admin do sistema cria token de API (Fase 7, spec §6); os tokens que já existem continuam valendo.
+    await assertRevalleAdmin(ctx.user.id);
 
     const createdToken = await createApiToken({
       userId: ctx.user.id,

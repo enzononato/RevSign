@@ -71,10 +71,7 @@ export const AppNavMobile = ({ isMenuOpen, onMenuOpenChange }: AppNavMobileProps
         href: `/t/${teamUrl}/documents`,
         text: t`Documents`,
       },
-      {
-        href: `/t/${teamUrl}/templates`,
-        text: t`Templates`,
-      },
+      // REVALLE: Modelos saem do menu (Fase 7, spec §6).
       {
         href: '/inbox',
         text: t`Inbox`,

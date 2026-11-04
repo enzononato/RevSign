@@ -1,4 +1,5 @@
 import { captureServerEvent } from '@documenso/lib/server-only/analytics/capture-server-event';
+import { assertRevalleAdmin } from '@documenso/lib/server-only/revalle/locked-settings'; // REVALLE:
 import { createWebhook } from '@documenso/lib/server-only/webhooks/create-webhook';
 import { deleteWebhookById } from '@documenso/lib/server-only/webhooks/delete-webhook-by-id';
 import { editWebhook } from '@documenso/lib/server-only/webhooks/edit-webhook';
@@ -54,6 +55,9 @@ export const webhookRouter = router({
   createWebhook: authenticatedProcedure.input(ZCreateWebhookRequestSchema).mutation(async ({ input, ctx }) => {
     const { enabled, eventTriggers, secret, webhookUrl } = input;
 
+    // REVALLE: só o admin do sistema cria webhook (Fase 7, spec §6); apagar continua com o dono.
+    await assertRevalleAdmin(ctx.user.id);
+
     const webhook = await createWebhook({
       enabled,
       secret,
@@ -107,6 +111,9 @@ export const webhookRouter = router({
         id,
       },
     });
+
+    // REVALLE: só o admin do sistema edita webhook (Fase 7, spec §6).
+    await assertRevalleAdmin(ctx.user.id);
 
     return await editWebhook({
       id,

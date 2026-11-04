@@ -2,14 +2,13 @@ import type { MessageDescriptor } from '@lingui/core';
 import { msg } from '@lingui/core/macro';
 import type { OrganisationMemberRole, TeamMemberRole } from '@prisma/client';
 import {
+  BellIcon, // REVALLE:
   BracesIcon,
   Building2Icon,
   CreditCardIcon,
-  Globe2Icon,
   GroupIcon,
   LockIcon,
   MailboxIcon,
-  Settings2Icon,
   SettingsIcon,
   ShieldCheckIcon,
   UserIcon,
@@ -55,6 +54,8 @@ export type GetSettingsNavGroupsArgs = {
     currentTeamRole: TeamMemberRole;
   } | null;
   hasManageableBillingOrgs: boolean;
+  /** REVALLE: administrador do sistema (`isAdmin(user)`); só ele vê Tokens de API e Webhooks. */
+  isAdmin: boolean;
 };
 
 /**
@@ -71,6 +72,7 @@ export const getSettingsNavGroups = ({
   organisation,
   team,
   hasManageableBillingOrgs,
+  isAdmin,
 }: GetSettingsNavGroupsArgs): SettingsNavGroups => {
   const isBillingEnabled = IS_BILLING_ENABLED();
   const isDocumensoCloud = IS_DOCUMENSO_CLOUD();
@@ -90,42 +92,12 @@ export const getSettingsNavGroups = ({
             label: msg`General`,
             icon: Building2Icon,
           },
+          // REVALLE: Marca, E-mail, preferências de documento e Certificados saem (Fase 7, spec §6); só Lembretes ficou.
           {
-            key: 'preferences',
-            path: `/o/${organisation.url}/settings/document`,
-            label: msg`Preferences`,
-            icon: Settings2Icon,
-            isSubNavParent: true,
-          },
-          {
-            key: 'preferences-document',
-            path: `/o/${organisation.url}/settings/document`,
-            label: msg`General`,
-            isSubNav: true,
-          },
-          {
-            key: 'preferences-branding',
-            path: `/o/${organisation.url}/settings/branding`,
-            label: msg`Branding`,
-            isSubNav: true,
-          },
-          {
-            key: 'preferences-email',
-            path: `/o/${organisation.url}/settings/email`,
-            label: msg`Email`,
-            isSubNav: true,
-          },
-          {
-            key: 'preferences-reminders',
+            key: 'reminders',
             path: `/o/${organisation.url}/settings/reminders`,
             label: msg`Reminders`,
-            isSubNav: true,
-          },
-          {
-            key: 'preferences-certificates',
-            path: `/o/${organisation.url}/settings/certificates`,
-            label: msg`Certificates`,
-            isSubNav: true,
+            icon: BellIcon,
           },
           ...((isBillingEnabled && organisation.organisationClaim.flags.emailDomains) || isDocumensoCloud
             ? [
@@ -190,42 +162,12 @@ export const getSettingsNavGroups = ({
               label: msg`General`,
               icon: SettingsIcon,
             },
+            // REVALLE: Marca, E-mail, preferências de documento e Certificados saem (Fase 7, spec §6); só Lembretes ficou.
             {
-              key: 'preferences',
-              path: `/t/${team.url}/settings/document`,
-              label: msg`Preferences`,
-              icon: Settings2Icon,
-              isSubNavParent: true,
-            },
-            {
-              key: 'preferences-document',
-              path: `/t/${team.url}/settings/document`,
-              label: msg`General`,
-              isSubNav: true,
-            },
-            {
-              key: 'preferences-branding',
-              path: `/t/${team.url}/settings/branding`,
-              label: msg`Branding`,
-              isSubNav: true,
-            },
-            {
-              key: 'preferences-email',
-              path: `/t/${team.url}/settings/email`,
-              label: msg`Email`,
-              isSubNav: true,
-            },
-            {
-              key: 'preferences-reminders',
+              key: 'reminders',
               path: `/t/${team.url}/settings/reminders`,
               label: msg`Reminders`,
-              isSubNav: true,
-            },
-            {
-              key: 'preferences-certificates',
-              path: `/t/${team.url}/settings/certificates`,
-              label: msg`Certificates`,
-              isSubNav: true,
+              icon: BellIcon,
             },
             {
               key: 'members',
@@ -239,24 +181,23 @@ export const getSettingsNavGroups = ({
               label: msg`Groups`,
               icon: GroupIcon,
             },
-            {
-              key: 'public-profile',
-              path: `/t/${team.url}/settings/public-profile`,
-              label: msg`Public Profile`,
-              icon: Globe2Icon,
-            },
-            {
-              key: 'tokens',
-              path: `/t/${team.url}/settings/tokens`,
-              label: msg`API Tokens`,
-              icon: BracesIcon,
-            },
-            {
-              key: 'webhooks',
-              path: `/t/${team.url}/settings/webhooks`,
-              label: msg`Webhooks`,
-              icon: WebhookIcon,
-            },
+            // REVALLE: Perfil público sai; Tokens de API e Webhooks só para o administrador do sistema.
+            ...(isAdmin
+              ? [
+                  {
+                    key: 'tokens',
+                    path: `/t/${team.url}/settings/tokens`,
+                    label: msg`API Tokens`,
+                    icon: BracesIcon,
+                  },
+                  {
+                    key: 'webhooks',
+                    path: `/t/${team.url}/settings/webhooks`,
+                    label: msg`Webhooks`,
+                    icon: WebhookIcon,
+                  },
+                ]
+              : []),
           ],
         }
       : null;
