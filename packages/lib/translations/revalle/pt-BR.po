@@ -4613,9 +4613,6 @@ msgstr "Não foi possível carregar os usuários. Tente de novo."
 msgid "Nenhum usuário encontrado."
 msgstr "Nenhum usuário encontrado."
 
-msgid "Quem é do Financeiro vê todas as notas fiscais e aprova a conta contábil de cada uma. Marque quem faz parte; a mudança vale na hora."
-msgstr "Quem é do Financeiro vê todas as notas fiscais e aprova a conta contábil de cada uma. Marque quem faz parte; a mudança vale na hora."
-
 msgid "Todas as notas fiscais enviadas para assinatura (você é do Financeiro)."
 msgstr "Todas as notas fiscais enviadas para assinatura (você é do Financeiro)."
 
@@ -4936,3 +4933,31 @@ msgstr "O documento foi criado como rascunho, mas é uma nota fiscal: abra o ras
 
 msgid "Nota fiscal · Conta contábil: {label} · Centro de custo: {centerLabel}"
 msgstr "Nota fiscal · Conta contábil: {label} · Centro de custo: {centerLabel}"
+
+# REVALLE: Fase 7, Task 5: tela Admin → Perfis (Financeiro e Contabilidade) e cabeçalho da página "Notas fiscais" (msgids já em pt-BR).
+msgid "Perfis"
+msgstr "Perfis"
+
+msgid "Contabilidade"
+msgstr "Contabilidade"
+
+msgid "Contabilidade: {0}"
+msgstr "Contabilidade: {0}"
+
+msgid "{name} agora é da Contabilidade."
+msgstr "{name} agora é da Contabilidade."
+
+msgid "{name} saiu da Contabilidade."
+msgstr "{name} saiu da Contabilidade."
+
+msgid "Toda conta é de colaborador: envia e assina. Marque quem também é do Financeiro (aprova a conta contábil de cada nota fiscal) ou da Contabilidade (valida e corrige o centro de custo). Os dois perfis veem todas as notas fiscais, e a mesma pessoa pode ter os dois. A mudança vale na hora."
+msgstr "Toda conta é de colaborador: envia e assina. Marque quem também é do Financeiro (aprova a conta contábil de cada nota fiscal) ou da Contabilidade (valida e corrige o centro de custo). Os dois perfis veem todas as notas fiscais, e a mesma pessoa pode ter os dois. A mudança vale na hora."
+
+msgid "Ninguém está marcado como Contabilidade: marque alguém abaixo. Sem ela, ninguém valida nem corrige o centro de custo das notas fiscais."
+msgstr "Ninguém está marcado como Contabilidade: marque alguém abaixo. Sem ela, ninguém valida nem corrige o centro de custo das notas fiscais."
+
+msgid "Todas as notas fiscais enviadas para assinatura (você é do Financeiro e da Contabilidade)."
+msgstr "Todas as notas fiscais enviadas para assinatura (você é do Financeiro e da Contabilidade)."
+
+msgid "Todas as notas fiscais enviadas para assinatura (você é da Contabilidade)."
+msgstr "Todas as notas fiscais enviadas para assinatura (você é da Contabilidade)."

@@ -11,12 +11,12 @@ import {
   Building2Icon,
   Calculator, // REVALLE:
   FileStack,
-  LandmarkIcon, // REVALLE:
   LineChartIcon,
   MailIcon,
   Settings,
   ShieldCheck, // REVALLE:
   Trophy,
+  UserCogIcon, // REVALLE:
   Users,
   Wallet2,
 } from 'lucide-react';
@@ -228,15 +228,12 @@ export default function AdminLayout({ loaderData }: Route.ComponentProps) {
           {/* REVALLE: */}
           <Button
             variant="ghost"
-            className={cn(
-              'justify-start md:w-full',
-              pathname?.startsWith('/admin/revalle-financeiro') && 'bg-secondary',
-            )}
+            className={cn('justify-start md:w-full', pathname?.startsWith('/admin/revalle-perfis') && 'bg-secondary')}
             asChild
           >
-            <Link to="/admin/revalle-financeiro">
-              <LandmarkIcon className="mr-2 h-5 w-5" />
-              Financeiro
+            <Link to="/admin/revalle-perfis">
+              <UserCogIcon className="mr-2 h-5 w-5" />
+              Perfis
             </Link>
           </Button>
         </div>

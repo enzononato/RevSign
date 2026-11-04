@@ -59,6 +59,10 @@ export default function InvoicesPage() {
   const { data: financeProfile, isPending: isLoadingProfile } = trpc.revalle.finance.me.useQuery();
   const isFinance = financeProfile?.isFinance === true;
 
+  // Fase 7: a Contabilidade também vê todas as NFs (o servidor decide); aqui só o texto do cabeçalho.
+  const { data: accountingProfile } = trpc.revalle.accounting.me.useQuery();
+  const isAccounting = accountingProfile?.isMember === true;
+
   const filters = useMemo(() => {
     const effective = { ...urlFilters };
 
@@ -148,8 +152,12 @@ export default function InvoicesPage() {
         <p className="mt-1 text-muted-foreground">
           {isAdmin(user) ? (
             <Trans>Todas as notas fiscais enviadas para assinatura (você é administrador).</Trans>
-          ) : financeProfile?.isFinance ? (
+          ) : isFinance && isAccounting ? (
+            <Trans>Todas as notas fiscais enviadas para assinatura (você é do Financeiro e da Contabilidade).</Trans>
+          ) : isFinance ? (
             <Trans>Todas as notas fiscais enviadas para assinatura (você é do Financeiro).</Trans>
+          ) : isAccounting ? (
+            <Trans>Todas as notas fiscais enviadas para assinatura (você é da Contabilidade).</Trans>
           ) : (
             <Trans>As notas fiscais que você enviou ou que chegaram para você assinar.</Trans>
           )}

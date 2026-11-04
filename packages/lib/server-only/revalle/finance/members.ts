@@ -3,10 +3,17 @@ import { Prisma } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 
-/** Linhas da tela Admin → Financeiro (quem é membro vem antes; o resto é achado pela busca). */
-export const FINANCE_USERS_LIMIT = 100;
+/** Linhas da tela Admin → Perfis (quem tem algum perfil vem antes; o resto é achado pela busca). */
+export const PROFILE_USERS_LIMIT = 100;
 
-export type FinanceUserRow = { id: number; name: string | null; email: string; isFinance: boolean };
+/** Uma pessoa por linha, com a marca de cada perfil (a mesma pessoa pode ter os dois). */
+export type ProfileUserRow = {
+  id: number;
+  name: string | null;
+  email: string;
+  isFinanceMember: boolean;
+  isAccountingMember: boolean;
+};
 
 /**
  * Perfil Financeiro (Fase 6): tabela própria `RevalleFinanceMember`, marcada pelo admin. Lido do banco a cada pedido,
@@ -48,11 +55,14 @@ export const setFinanceMember = async ({
   await prisma.revalleFinanceMember.deleteMany({ where: { userId } });
 };
 
-/** Usuários para a tela do admin, com busca por nome ou e-mail (sem diferenciar maiúsculas). Membros primeiro. */
-export const findFinanceUsers = async ({ query }: { query?: string }): Promise<FinanceUserRow[]> => {
+/**
+ * Usuários para a tela Admin → Perfis, com busca por nome ou e-mail (sem diferenciar maiúsculas). Quem é do Financeiro
+ * ou da Contabilidade vem primeiro.
+ */
+export const findProfileUsers = async ({ query }: { query?: string }): Promise<ProfileUserRow[]> => {
   const text = query?.trim();
 
-  const where: Prisma.UserWhereInput = text
+  const search: Prisma.UserWhereInput = text
     ? {
         OR: [
           { name: { contains: text, mode: Prisma.QueryMode.insensitive } },
@@ -61,28 +71,37 @@ export const findFinanceUsers = async ({ query }: { query?: string }): Promise<F
       }
     : {};
 
-  const select = { id: true, name: true, email: true } satisfies Prisma.UserSelect;
+  const select = {
+    id: true,
+    name: true,
+    email: true,
+    revalleFinanceMember: { select: { userId: true } },
+    revalleAccountingMember: { select: { userId: true } },
+  } satisfies Prisma.UserSelect;
   const orderBy: Prisma.UserOrderByWithRelationInput[] = [{ name: 'asc' }, { email: 'asc' }];
 
   const members = await prisma.user.findMany({
-    where: { ...where, revalleFinanceMember: { isNot: null } },
+    where: {
+      AND: [search, { OR: [{ revalleFinanceMember: { isNot: null } }, { revalleAccountingMember: { isNot: null } }] }],
+    },
     orderBy,
-    take: FINANCE_USERS_LIMIT,
+    take: PROFILE_USERS_LIMIT,
     select,
   });
 
   const others =
-    members.length < FINANCE_USERS_LIMIT
+    members.length < PROFILE_USERS_LIMIT
       ? await prisma.user.findMany({
-          where: { ...where, revalleFinanceMember: { is: null } },
+          where: { AND: [search, { revalleFinanceMember: { is: null } }, { revalleAccountingMember: { is: null } }] },
           orderBy,
-          take: FINANCE_USERS_LIMIT - members.length,
+          take: PROFILE_USERS_LIMIT - members.length,
           select,
         })
       : [];
 
-  return [
-    ...members.map((user) => ({ ...user, isFinance: true })),
-    ...others.map((user) => ({ ...user, isFinance: false })),
-  ];
+  return [...members, ...others].map(({ revalleFinanceMember, revalleAccountingMember, ...user }) => ({
+    ...user,
+    isFinanceMember: revalleFinanceMember !== null,
+    isAccountingMember: revalleAccountingMember !== null,
+  }));
 };

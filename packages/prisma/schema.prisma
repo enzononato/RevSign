@@ -74,7 +74,8 @@ model User {
   passkeys           Passkey[]
   avatarImage        AvatarImage?           @relation(fields: [avatarImageId], references: [id], onDelete: SetNull)
 
-  revalleFinanceMember RevalleFinanceMember? // REVALLE: back-relation (perfil Financeiro)
+  revalleFinanceMember    RevalleFinanceMember? // REVALLE: back-relation (perfil Financeiro)
+  revalleAccountingMember RevalleAccountingMember? // REVALLE: back-relation (perfil Contabilidade)
 
   @@index([email])
 }
@@ -1510,8 +1511,18 @@ enum RevalleFinanceStatus {
   LEGACY
 }
 
-/// REVALLE: quem é do perfil Financeiro (marcado pelo admin em Admin → Financeiro), sem mudar o enum `Role` do upstream.
+/// REVALLE: quem é do perfil Financeiro (marcado pelo admin em Admin → Perfis), sem mudar o enum `Role` do upstream.
 model RevalleFinanceMember {
+  userId    Int      @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Admin que marcou (sem FK, como choiceById).
+  addedById Int?
+  createdAt DateTime @default(now())
+}
+
+/// REVALLE: quem é do perfil Contabilidade (Fase 7, marcado pelo admin em Admin → Perfis), igual ao Financeiro: tabela
+/// própria, sem mudar o enum `Role` do upstream. A pessoa pode ter os dois perfis.
+model RevalleAccountingMember {
   userId    Int      @id
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Admin que marcou (sem FK, como choiceById).

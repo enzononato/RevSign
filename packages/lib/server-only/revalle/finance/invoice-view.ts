@@ -11,14 +11,18 @@ import {
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { normalizeEmail } from '../../../revalle/email-domain';
 import { isAdmin as isAdminUser } from '../../../utils/is-admin';
+import { isAccountingMember } from '../accounting/members';
 import { isFinanceMember } from './members';
 import { findVisibleSuccessor } from './successor';
 
 /**
- * Página da NF só de leitura (Fase 6): `/notas-fiscais/:envelopeId`, para quem é do Financeiro e para quem está na NF.
+ * Página da NF só de leitura (Fase 6): `/notas-fiscais/:envelopeId`, para quem é do Financeiro (e, desde a Fase 7, da
+ * Contabilidade) e para quem está na NF.
  *
  * Quem abre:
- * - o Financeiro e o admin: qualquer NF (inclusive o rascunho retido e a versão substituída escondida);
+ * - o admin: qualquer NF (inclusive a versão substituída escondida e o rascunho);
+ * - o Financeiro e a Contabilidade: qualquer NF enviada, a versão substituída escondida e o rascunho da nova versão que
+ *   está com o Financeiro (conta aprovada, envio parado); o rascunho comum de outra pessoa, não;
  * - o dono: as dele;
  * - quem é destinatário (pelo e-mail): a NF já enviada; o rascunho de uma nova versão também (o aviso da troca leva a
  *   ele e o envio pode ter falhado).
@@ -26,7 +30,7 @@ import { findVisibleSuccessor } from './successor';
  * Destinatário que escondeu o documento da própria lista: 404, como na lista.
  * Qualquer outro caso, ou um documento que não é NF: 404, sem revelar que existe.
  */
-export type InvoiceViewer = { isAdmin: boolean; isFinance: boolean; isOwner: boolean };
+export type InvoiceViewer = { isAdmin: boolean; isFinance: boolean; isAccounting: boolean; isOwner: boolean };
 
 const notFound = () => new AppError(AppErrorCode.NOT_FOUND, { message: 'Nota fiscal não encontrada.' });
 
@@ -73,7 +77,7 @@ const loadEnvelope = async (envelopeId: string) =>
 
 type LoadedEnvelope = NonNullable<Awaited<ReturnType<typeof loadEnvelope>>>;
 
-/** Quem pode abrir (ou `null` = 404). Admin e Financeiro lidos do banco a cada pedido. */
+/** Quem pode abrir (ou `null` = 404). Admin, Financeiro e Contabilidade lidos do banco a cada pedido. */
 const resolveViewer = async (envelope: LoadedEnvelope, userId: number): Promise<InvoiceViewer | null> => {
   const invoice = envelope.revalleInvoice;
 
@@ -88,9 +92,9 @@ const resolveViewer = async (envelope: LoadedEnvelope, userId: number): Promise<
   }
 
   const isAdmin = isAdminUser(user);
-  const isFinance = await isFinanceMember(userId);
+  const [isFinance, isAccounting] = await Promise.all([isFinanceMember(userId), isAccountingMember(userId)]);
   const isOwner = envelope.userId === userId;
-  const viewer = { isAdmin, isFinance, isOwner };
+  const viewer = { isAdmin, isFinance, isAccounting, isOwner };
 
   if (isAdmin) {
     return viewer;
@@ -103,7 +107,13 @@ const resolveViewer = async (envelope: LoadedEnvelope, userId: number): Promise<
     return null;
   }
 
-  if (isFinance || isOwner) {
+  // A Contabilidade lê o mesmo que o Financeiro (as ações são só do Financeiro). O rascunho de outra pessoa não: só o
+  // da nova versão que está com o Financeiro (conta aprovada), como na lista. Outro rascunho é trabalho do dono.
+  const readsAll =
+    (isFinance || isAccounting) &&
+    (envelope.status !== DocumentStatus.DRAFT || invoice.financeStatus === RevalleFinanceStatus.APPROVED);
+
+  if (readsAll || isOwner) {
     return viewer;
   }
 

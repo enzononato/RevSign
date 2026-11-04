@@ -13,7 +13,7 @@ import type { Route } from './+types/notas-fiscais.csv';
 const text = (body: string, status: number) =>
   new Response(body, { status, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
 
-/** Planilha da página "Notas fiscais" (mesmos filtros da URL e mesma visibilidade). */
+/** Planilha da página "Notas fiscais" (mesmos filtros da URL e mesma visibilidade: o Financeiro e a Contabilidade veem todas). */
 export async function loader({ request }: Route.LoaderArgs) {
   const { user } = await getOptionalSession(request);
 

@@ -21,12 +21,13 @@ import {
   type TInvoiceFilters,
 } from '../../../revalle/invoice/invoice-filters';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
+import { isAccountingMember } from '../accounting/members';
 import { isFinanceMember } from '../finance/members';
 
 export type InvoiceViewer = { userId: number; isAdmin: boolean };
 
-/** Quem vê a lista, com a marca do Financeiro lida do banco uma vez por pedido. */
-type ResolvedViewer = InvoiceViewer & { isFinance: boolean };
+/** Quem vê a lista, com as marcas do Financeiro e da Contabilidade lidas do banco uma vez por pedido. */
+type ResolvedViewer = InvoiceViewer & { isFinance: boolean; isAccounting: boolean };
 
 export type InvoiceListRow = {
   id: string;
@@ -48,8 +49,8 @@ export type InvoiceListRow = {
   version: number;
   approvedBy: string | null;
   /**
-   * Caminho do documento para quem vê: o Financeiro e quem assina abrem a página da NF (só leitura); o dono abre no
-   * time e o admin no painel.
+   * Caminho do documento para quem vê: o Financeiro, a Contabilidade e quem assina abrem a página da NF (só leitura);
+   * o dono abre no time e o admin no painel.
    */
   link: string | null;
 };
@@ -95,24 +96,26 @@ const financeFilterWhere = (filter: FinanceFilter | undefined): Prisma.EnvelopeW
 /**
  * Visibilidade igual à do documento no RevSign (só organizações pessoais): o dono, quem é destinatário pelo e-mail (sem
  * ter escondido o documento) e o admin, que vê todas. Fase 6: quem é do Financeiro também vê todas (conferido no banco
- * a cada pedido: desmarcado, deixa de ver na hora). NF excluída pelo remetente some para o dono, para os destinatários
- * e para o Financeiro, mas o admin continua vendo (a contabilidade pode já ter lançado).
+ * a cada pedido: desmarcado, deixa de ver na hora); Fase 7: a Contabilidade também. NF excluída pelo remetente some
+ * para o dono, para os destinatários, para o Financeiro e para a Contabilidade, mas o admin continua vendo (a
+ * contabilidade pode já ter lançado).
  *
  * Fase 6, além das NFs enviadas:
- * - o rascunho que está com o Financeiro (nova versão aprovada e ainda não enviada), para o Financeiro e o dono (quem
- *   assina ainda não recebeu nada);
- * - a versão pendente substituída pelo Financeiro (escondida pelo upstream), para o dono, os destinatários e o
- *   Financeiro.
+ * - o rascunho que está com o Financeiro (nova versão aprovada e ainda não enviada), para o Financeiro, a Contabilidade e
+ *   o dono (quem assina ainda não recebeu nada);
+ * - a versão pendente substituída pelo Financeiro (escondida pelo upstream), para o dono, os destinatários, o
+ *   Financeiro e a Contabilidade.
  */
 const buildInvoiceWhere = async ({
   userId,
   isAdmin,
   isFinance,
+  isAccounting,
   filters,
 }: ResolvedViewer & { filters: TInvoiceFilters }) => {
   const conditions: Prisma.EnvelopeWhereInput[] = [];
 
-  if (!isAdmin && !isFinance) {
+  if (!isAdmin && !isFinance && !isAccounting) {
     const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
     const isRecipient = { email: { equals: user.email, mode: Prisma.QueryMode.insensitive } };
 
@@ -253,15 +256,16 @@ const toRows = async (envelopes: SelectedEnvelope[], viewer: ResolvedViewer): Pr
       financeStatus === RevalleFinanceStatus.SUPERSEDED && envelope.status !== DocumentStatus.COMPLETED;
     const deleted = envelope.deletedAt !== null && !hiddenSuperseded;
 
-    // Financeiro: sempre a página da NF (é lá que ficam as ações dele). Dono: a página do documento no time, enquanto
-    // ela existir. Admin: o painel. Os demais (quem assina): a página da NF.
-    const link = viewer.isFinance
-      ? invoiceViewPath(envelope.id)
-      : envelope.userId === viewer.userId && envelope.deletedAt === null
-        ? `/t/${envelope.team.url}/documents/${envelope.id}`
-        : viewer.isAdmin
-          ? `/admin/documents/${envelope.id}`
-          : invoiceViewPath(envelope.id);
+    // Financeiro e Contabilidade: sempre a página da NF (é lá que ficam as ações deles). Dono: a página do documento no
+    // time, enquanto ela existir. Admin: o painel. Os demais (quem assina): a página da NF.
+    const link =
+      viewer.isFinance || viewer.isAccounting
+        ? invoiceViewPath(envelope.id)
+        : envelope.userId === viewer.userId && envelope.deletedAt === null
+          ? `/t/${envelope.team.url}/documents/${envelope.id}`
+          : viewer.isAdmin
+            ? `/admin/documents/${envelope.id}`
+            : invoiceViewPath(envelope.id);
 
     return {
       id: envelope.id,
@@ -321,11 +325,11 @@ const findRowsInOrder = async (ids: string[], viewer: ResolvedViewer) => {
   return await toRows(envelopes, viewer);
 };
 
-const resolveViewer = async ({ userId, isAdmin }: InvoiceViewer): Promise<ResolvedViewer> => ({
-  userId,
-  isAdmin,
-  isFinance: await isFinanceMember(userId),
-});
+const resolveViewer = async ({ userId, isAdmin }: InvoiceViewer): Promise<ResolvedViewer> => {
+  const [isFinance, isAccounting] = await Promise.all([isFinanceMember(userId), isAccountingMember(userId)]);
+
+  return { userId, isAdmin, isFinance, isAccounting };
+};
 
 export const findInvoices = async ({ userId, isAdmin, filters, page = 1, perPage = 20 }: FindInvoicesOptions) => {
   const viewer = await resolveViewer({ userId, isAdmin });

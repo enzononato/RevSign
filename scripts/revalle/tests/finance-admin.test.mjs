@@ -254,14 +254,24 @@ sessionTest('o admin marca e desmarca um usuário; a lista e me() mostram a muda
 
   const [before] = await listUsers(outsider.email);
 
-  assert.deepEqual(before, { id: outsider.id, name: `Financeiro F6 membro`, email: outsider.email, isFinance: false });
+  assert.deepEqual(before, {
+    id: outsider.id,
+    name: `Financeiro F6 membro`,
+    email: outsider.email,
+    isFinanceMember: false,
+    isAccountingMember: false,
+  });
 
   const marked = await setMember(adminCookie, outsider.id, true);
 
   assert.equal(marked.status, 200, marked.text);
   assert.equal(await isFinance(outsider.cookie), true);
   assert.equal(db(`select "addedById" from "RevalleFinanceMember" where "userId" = ${outsider.id}`), String(adminId));
-  assert.equal((await listUsers(outsider.email))[0].isFinance, true);
+  // Marcar o Financeiro não marca a Contabilidade (são perfis separados).
+  const afterMark = (await listUsers(outsider.email))[0];
+
+  assert.equal(afterMark.isFinanceMember, true);
+  assert.equal(afterMark.isAccountingMember, false);
 
   // Marcar de novo não duplica nem dá erro.
   assert.equal((await setMember(adminCookie, outsider.id, true)).status, 200);
@@ -272,17 +282,20 @@ sessionTest('o admin marca e desmarca um usuário; a lista e me() mostram a muda
 
   // Sem busca, quem é do Financeiro aparece primeiro.
   const all = await listUsers();
-  const firstOther = all.findIndex((row) => !row.isFinance);
+  const firstOther = all.findIndex((row) => !row.isFinanceMember && !row.isAccountingMember);
 
-  assert.ok(all.some((row) => row.id === adminId && row.isFinance));
-  assert.ok(firstOther === -1 || all.slice(firstOther).every((row) => !row.isFinance), 'membros primeiro');
+  assert.ok(all.some((row) => row.id === adminId && row.isFinanceMember));
+  assert.ok(
+    firstOther === -1 || all.slice(firstOther).every((row) => !row.isFinanceMember && !row.isAccountingMember),
+    'membros primeiro',
+  );
 
   const unmarked = await setMember(adminCookie, outsider.id, false);
 
   assert.equal(unmarked.status, 200, unmarked.text);
   assert.equal(await isFinance(outsider.cookie), false);
   assert.equal(memberRows(outsider.id), '0');
-  assert.equal((await listUsers(outsider.email))[0].isFinance, false);
+  assert.equal((await listUsers(outsider.email))[0].isFinanceMember, false);
 
   // Desmarcar quem não é membro também não dá erro.
   assert.equal((await setMember(adminCookie, outsider.id, false)).status, 200);

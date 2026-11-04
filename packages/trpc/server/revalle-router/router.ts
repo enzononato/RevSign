@@ -1,5 +1,6 @@
 import { router } from '../trpc';
 import { acceptTermRoute } from './accept-term';
+import { accountingRouter } from './accounting/router';
 import { adminDeleteLinkRoute } from './admin-delete-link';
 import { adminFindGatesRoute } from './admin-find-gates';
 import { adminUnlockGateRoute } from './admin-unlock-gate';
@@ -23,4 +24,5 @@ export const revalleRouter = router({
   }),
   invoice: invoiceRouter,
   finance: financeRouter,
+  accounting: accountingRouter,
 });

@@ -24,8 +24,9 @@ export function meta() {
 }
 
 /**
- * Página da NF só de leitura (Fase 6): para quem é do Financeiro (com o cartão "Financeiro") e para quem está na NF.
- * Quem não é do Financeiro nem está na NF recebe 404, sem saber que ela existe.
+ * Página da NF só de leitura (Fase 6): para quem é do Financeiro (com o cartão "Financeiro"), para a Contabilidade (Fase
+ * 7, a mesma leitura, sem as ações do Financeiro) e para quem está na NF. Quem não é de nenhum dos perfis nem está na NF
+ * recebe 404, sem saber que ela existe.
  */
 export async function loader({ request, params }: Route.LoaderArgs) {
   const { user } = await getSession(request);

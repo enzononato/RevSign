@@ -155,15 +155,16 @@ colocar uma delas no fluxo, use **Marcar como nota fiscal** (item 5).
 ## 5. Página "Notas fiscais" e planilha
 
 No menu do site, **Notas fiscais**. Cada pessoa vê as NFs já enviadas em que está envolvida: as que enviou e as que
-chegaram para ela assinar. O **administrador** e quem é do **Financeiro** veem todas.
+chegaram para ela assinar. O **administrador**, quem é do **Financeiro** e quem é da **Contabilidade** veem todas.
 
 Desde a Fase 6 também aparecem:
 
 - o **rascunho que está com o Financeiro** (a nova versão de uma troca de conta, com a conta já aprovada e o envio que
-  ainda não saiu), para o Financeiro e para quem enviou. A coluna de envio diz "não enviada". Outros rascunhos
-  continuam fora;
-- a **versão substituída** (o Financeiro trocou a conta), para quem enviou, quem assina e o Financeiro, mesmo que o
-  documento tenha sumido das listas comuns do RevSign.
+  ainda não saiu), para o Financeiro, a Contabilidade e quem enviou. A coluna de envio diz "não enviada". Outros
+  rascunhos continuam fora: o rascunho comum de outra pessoa não aparece nem abre pelo endereço, para o Financeiro e
+  para a Contabilidade;
+- a **versão substituída** (o Financeiro trocou a conta), para quem enviou, quem assina, o Financeiro e a Contabilidade,
+  mesmo que o documento tenha sumido das listas comuns do RevSign.
 
 **NF excluída pelo remetente:** some para quem enviou e para quem assinou, mas o administrador continua vendo (a
 contabilidade pode já ter lançado a nota). Na tela ela aparece com a marca **excluído pelo remetente**; na planilha, a
@@ -177,7 +178,7 @@ antes da Fase 6), "Sugestão aceita?" (Sim, Não ou "sem sugestão", quando não
 Fase 6) e **Versão** (v1, v2…).
 
 O título abre o documento: quem enviou vai para a página do documento; o admin, para o painel do admin; quem é do
-Financeiro e quem assina, para a **página da NF** (só leitura, seção 9).
+Financeiro, a Contabilidade e quem assina, para a **página da NF** (só leitura, seção 9).
 
 Filtros: período de envio (dias no horário de Brasília), status, **Situação no Financeiro** e número da conta. Para quem
 é do Financeiro, a página abre em **Aguardando o Financeiro** (NFs esperando a aprovação); escolha **Todas** para ver
@@ -202,7 +203,7 @@ O arquivo abre direto no Excel (separador `;`, UTF-8 com BOM). Colunas:
 | `sugestao_ia` | Número da conta que a IA sugeriu (vazio se não houve sugestão) |
 | `confianca` | Confiança da IA: `alta`, `media` ou `baixa` (vazio sem sugestão) |
 | `aceitou_sugestao` | `sim`, `não`, ou vazio quando não havia sugestão |
-| `link` | Endereço do documento no RevSign para quem exportou (dono: página do documento; admin: painel do admin; Financeiro e quem assina: página da NF) |
+| `link` | Endereço do documento no RevSign para quem exportou (dono: página do documento; admin: painel do admin; Financeiro, Contabilidade e quem assina: página da NF) |
 | `financeiro` | Situação no Financeiro, como na tela (ex.: `Aguardando aprovação`, `Aprovada`, `Substituída`) |
 | `aprovado_por` | Quem do Financeiro aprovou (ou definiu) a conta; vazio se ainda não foi aprovada |
 
@@ -262,10 +263,10 @@ Toda nota fiscal passa pelo **Financeiro** antes de ser concluída: alguém do F
 
 ### Quem é do Financeiro
 
-O administrador marca em **Admin → Financeiro**: busque a pessoa pelo nome ou e-mail e marque a caixa **Financeiro**
-(vale na hora; desmarcar tira o acesso na hora). Não há e-mail para o Financeiro: as notas aguardando aprovação ficam em
-**Notas fiscais**, no filtro **Aguardando o Financeiro**. Se não houver ninguém marcado e houver NF esperando, a tela do
-admin mostra um alerta.
+O administrador marca em **Admin → Perfis** (na Fase 6 a tela se chamava Admin → Financeiro; o endereço antigo leva
+para a nova): busque a pessoa pelo nome ou e-mail e ligue **Financeiro** (vale na hora; desligar tira o acesso na
+hora). Não há e-mail para o Financeiro: as notas aguardando aprovação ficam em **Notas fiscais**, no filtro
+**Aguardando o Financeiro**. Se não houver ninguém marcado e houver NF esperando, a tela do admin mostra um alerta.
 
 ### O que o Financeiro vê
 
@@ -276,8 +277,26 @@ admin mostra um alerta.
   - quem escolheu a conta e quando;
   - a sugestão da IA (com a confiança e o motivo);
   - quem aprovou, quando já foi aprovada.
-- Quem não é do Financeiro também abre a página da NF em que está envolvido (enviou ou assina), sem o cartão. Quem não
-  é do Financeiro e não está na NF recebe "Nota fiscal não encontrada".
+- Quem não é do Financeiro nem da Contabilidade também abre a página da NF em que está envolvido (enviou ou assina),
+  sem o cartão. Quem não é de nenhum dos dois perfis e não está na NF recebe "Nota fiscal não encontrada".
+
+### Contabilidade (Fase 7)
+
+Terceiro perfil, ao lado do Financeiro. Todo mundo é **colaborador** (envia e assina); **Financeiro** e
+**Contabilidade** são colaborador mais as funções próprias. O administrador liga **Contabilidade** na mesma tela, **Admin
+→ Perfis**: uma linha por pessoa e um interruptor por perfil. A mesma pessoa pode ter os dois, e cada interruptor vale na
+hora. Se ninguém estiver na Contabilidade, a tela do admin mostra um aviso.
+
+- A Contabilidade vê **todas** as NFs, como o Financeiro: na lista **Notas fiscais**, na **página da NF**, no PDF e na
+  planilha. Desligada, perde tudo na hora (a página da NF volta a dar "Nota fiscal não encontrada"). Ela não vê o
+  rascunho comum de outra pessoa, como o Financeiro.
+- Ela **não aprova nem troca a conta**: essas ações (`revalle.finance.approve`, `changeAccount`, `resendVersion`) são só
+  do Financeiro e respondem **403** à Contabilidade. Na página da NF ela vê a conta como quem não é do Financeiro, sem
+  o cartão.
+- Ela continua enviando e assinando como qualquer colaborador.
+- Pela API: `revalle.accounting.me` devolve `{ isMember }`; `revalle.accounting.adminSetMember({ userId, isMember })` é só
+  do administrador (sem sessão **401**, usuário comum **403**). `revalle.finance.adminListUsers` devolve, por pessoa,
+  `isFinanceMember` e `isAccountingMember`.
 
 ### Aprovar
 
