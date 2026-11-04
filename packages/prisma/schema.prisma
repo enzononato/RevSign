@@ -1356,13 +1356,13 @@ model RevalleRecipientGate {
 
 /// REVALLE: SHA-256 do PDF original (no envio) e do PDF selado, por item do envelope.
 model RevalleDocumentHash {
-  id             String       @id @default(cuid())
-  envelopeItemId String       @unique
-  envelopeItem   EnvelopeItem @relation(fields: [envelopeItemId], references: [id], onDelete: Cascade)
+  id             String              @id @default(cuid())
+  envelopeItemId String              @unique
+  envelopeItem   EnvelopeItem        @relation(fields: [envelopeItemId], references: [id], onDelete: Cascade)
   originalSha256 String
   /// Versão selada mais recente; o histórico completo fica em `sealedVersions`.
   finalSha256    String?
-  sentAt         DateTime     @default(now())
+  sentAt         DateTime            @default(now())
   sealedAt       DateTime?
   sealedVersions RevalleSealedHash[]
 }
@@ -1454,45 +1454,51 @@ enum RevalleSuggestionStatus {
 /// Fase 6, a aprovação do Financeiro e as versões. A conta aprovada entra no certificado e no /verificar, e a conta vista
 /// por quem assina fica na prova de cada assinatura (`RevalleSignatureProof.invoiceAccount`).
 model RevalleInvoiceClassification {
-  envelopeId             String                   @id
-  envelope               Envelope                 @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
-  isInvoice              RevalleInvoiceStatus
-  detectedBy             RevalleInvoiceDetectedBy
+  envelopeId                String                   @id
+  envelope                  Envelope                 @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
+  isInvoice                 RevalleInvoiceStatus
+  detectedBy                RevalleInvoiceDetectedBy
   /// Quem trocou a marcação "é nota fiscal" pela última vez e quando (sem FK, como choiceById).
-  flagChangedById        Int?
-  flagChangedAt          DateTime?
-  signals                String[]
-  fileSha256             String?
-  suggestionStatus       RevalleSuggestionStatus  @default(SKIPPED)
-  suggestion             Json?
-  suggestionAttempts     Int                      @default(0)
-  choiceCode             String?
-  choiceById             Int?
-  choiceAt               DateTime?
-  acceptedSuggestion     Boolean?
+  flagChangedById           Int?
+  flagChangedAt             DateTime?
+  signals                   String[]
+  fileSha256                String?
+  suggestionStatus          RevalleSuggestionStatus  @default(SKIPPED)
+  suggestion                Json?
+  suggestionAttempts        Int                      @default(0)
+  choiceCode                String?
+  choiceById                Int?
+  choiceAt                  DateTime?
+  acceptedSuggestion        Boolean?
   /// Fase 7: centro de custo (lista fixa no código, `cost-centers.ts`), escolhido pela pessoa, com quem e quando (sem FK).
-  costCenterCode         String?
-  costCenterById         Int?
-  costCenterAt           DateTime?
+  costCenterCode            String?
+  costCenterById            Int?
+  costCenterAt              DateTime?
+  /// Fase 7: a Contabilidade validou o centro: quando, quem (sem FK) e o nome congelado. Não segura a conclusão.
+  costCenterValidatedAt     DateTime?
+  costCenterValidatedById   Int?
+  costCenterValidatedByName String?
   /// Fase 6: aprovação do Financeiro. Nulo = não é NF (ou NF ainda em rascunho); `LEGACY` = NF de antes da Fase 6.
-  financeStatus          RevalleFinanceStatus?
+  financeStatus             RevalleFinanceStatus?
   /// Quem do Financeiro aprovou (ou definiu) a conta e quando (sem FK, como choiceById).
-  approvedById           Int?
-  approvedAt             DateTime?
+  approvedById              Int?
+  approvedAt                DateTime?
   /// Nome da conta aprovada, congelado na aprovação (a lista pode ser reimportada com outro nome). Nulo = usa o atual.
-  approvedAccountName    String?
+  approvedAccountName       String?
   /// Nome de quem aprovou (ou definiu), congelado no mesmo momento. Nulo = usa o nome atual.
-  approvedByName         String?
-  /// Versão substituída por outra com a conta trocada pelo Financeiro: quando, quem, o motivo e a nova versão.
-  supersededAt           DateTime?
-  supersededById         Int?
-  supersedeReason        String?
-  supersededByEnvelopeId String?
+  approvedByName            String?
+  /// Versão substituída por outra (conta trocada pelo Financeiro ou centro corrigido pela Contabilidade): quando, quem,
+  /// o motivo, o que mudou e a nova versão.
+  supersededAt              DateTime?
+  supersededById            Int?
+  supersedeReason           String?
+  supersedeKind             RevalleSupersedeKind?
+  supersededByEnvelopeId    String?
   /// Versão anterior (esta é a v2, v3…). Sem FK: a ligação fica também no log de auditoria das duas versões.
-  previousEnvelopeId     String?
-  version                Int                      @default(1)
-  createdAt              DateTime                 @default(now())
-  updatedAt              DateTime                 @updatedAt
+  previousEnvelopeId        String?
+  version                   Int                      @default(1)
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
 }
 
 /// REVALLE: sugestão da IA por SHA-256 do arquivo (o mesmo arquivo nunca é enviado ao Gemini duas vezes).
@@ -1509,6 +1515,12 @@ enum RevalleFinanceStatus {
   APPROVED
   SUPERSEDED
   LEGACY
+}
+
+/// REVALLE: o que mudou numa versão substituída (Fase 7).
+enum RevalleSupersedeKind {
+  ACCOUNT
+  COST_CENTER
 }
 
 /// REVALLE: quem é do perfil Financeiro (marcado pelo admin em Admin → Perfis), sem mudar o enum `Role` do upstream.

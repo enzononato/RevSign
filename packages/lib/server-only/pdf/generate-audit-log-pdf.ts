@@ -63,9 +63,11 @@ const getAuditLogs = async (envelopeId: string) => {
   const auditLogs = await prisma.documentAuditLog.findMany({
     where: {
       envelopeId,
-      // REVALLE: a conta contábil e o centro de custo da NF ficam fora do PDF (selado ou baixado); aparecem só no
-      // histórico da tela.
-      type: { notIn: ['REVALLE_INVOICE_ACCOUNT_SET', 'REVALLE_INVOICE_COST_CENTER_SET'] },
+      // REVALLE: a conta contábil, o centro de custo e a validação da NF ficam fora do PDF (selado ou baixado); aparecem
+      // só no histórico da tela.
+      type: {
+        notIn: ['REVALLE_INVOICE_ACCOUNT_SET', 'REVALLE_INVOICE_COST_CENTER_SET', 'REVALLE_COST_CENTER_VALIDATED'],
+      },
     },
     orderBy: {
       createdAt: 'desc',

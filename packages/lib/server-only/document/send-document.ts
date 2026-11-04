@@ -56,6 +56,9 @@ import { assertInvoiceChoiceBeforeSend } from '../revalle/invoice/choice'; // RE
 import { assertUserNotDisabledById } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
 
+// REVALLE: dois envios do mesmo rascunho ao mesmo tempo: quem perdeu não manda convite nem aviso.
+export const DOCUMENT_ALREADY_SENT_CODE = 'DOCUMENT_ALREADY_SENT';
+
 export type SendDocumentOptions = {
   id: EnvelopeIdOptions;
   userId: number;
@@ -305,6 +308,23 @@ export const sendDocument = async ({ id, userId, teamId, sendEmail, requestMetad
   }
 
   const updatedEnvelope = await prisma.$transaction(async (tx) => {
+    // REVALLE: só um envio sai do rascunho (o `UPDATE` espera o outro terminar e relê o status). Os convites, o aviso e os
+    // eventos vêm depois daqui: o outro pedido desfaz tudo e não manda nada de novo.
+    if (envelope.status === DocumentStatus.DRAFT) {
+      const { count } = await tx.envelope.updateMany({
+        where: { id: envelope.id, status: DocumentStatus.DRAFT },
+        data: { status: DocumentStatus.PENDING },
+      });
+
+      if (count === 0) {
+        throw new AppError(DOCUMENT_ALREADY_SENT_CODE, {
+          message: 'Este documento já foi enviado.',
+          userMessage: 'Este documento já foi enviado.',
+          statusCode: 409,
+        });
+      }
+    }
+
     // REVALLE: grava os hashes originais junto com o envio.
     await saveOriginalHashes(originalHashes, tx);
 

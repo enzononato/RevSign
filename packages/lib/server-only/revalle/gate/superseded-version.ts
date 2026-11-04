@@ -3,8 +3,7 @@ import { DocumentStatus, RevalleFinanceStatus, RevalleInvoiceStatus } from '@pri
 
 import { AppError } from '../../../errors/app-error';
 
-export const SUPERSEDED_VERSION_MESSAGE =
-  'Este documento foi substituído por uma nova versão (conta contábil alterada).';
+export const SUPERSEDED_VERSION_MESSAGE = 'Este documento foi substituído por uma nova versão.';
 
 export const REVALLE_DOCUMENT_SUPERSEDED_CODE = 'REVALLE_DOCUMENT_SUPERSEDED';
 
@@ -16,7 +15,7 @@ export const supersededVersionError = () =>
   });
 
 /**
- * Versão de NF substituída pelo Financeiro (conta trocada) e ainda não concluída: ninguém age mais nela, nem com a
+ * Versão de NF substituída (conta trocada ou centro corrigido) e ainda não concluída: ninguém age mais nela, nem com a
  * página aberta (assinar campo, pedir o código, concluir, recusar, passar pelo portão, abrir). Uma versão já concluída
  * continua concluída e visível como antes.
  */

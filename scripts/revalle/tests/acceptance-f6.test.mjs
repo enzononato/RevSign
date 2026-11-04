@@ -82,7 +82,7 @@ const AWAITING_SUBJECT_PREFIX = 'Nota fiscal aguardando o Financeiro:';
 const NOTICE_SUBJECT = (title) => `Conta contábil da nota fiscal alterada pelo Financeiro: ${title}`;
 const NOTICE = (title) =>
   `A conta contábil da nota fiscal ${title} foi alterada pelo Financeiro de ${OLD.code} – ${OLD.name} para ${NEW.code} – ${NEW.name}. Motivo: ${REASON}`;
-const GATE_MESSAGE = 'Este documento foi substituído por uma nova versão (conta contábil alterada).';
+const GATE_MESSAGE = 'Este documento foi substituído por uma nova versão.';
 const DOCUMENT_LINE = (account, approver, at) =>
   `Conta contábil: ${account.code} – ${account.name} · aprovada pelo Financeiro (${approver}) em ${at} (horário de Brasília)`;
 const SIGNER_ROW = (code) => `Conta contábil vista ao assinar: ${code}`;

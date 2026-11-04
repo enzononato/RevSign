@@ -7,7 +7,8 @@ import { logger } from '../../../utils/logger';
 
 /**
  * Primeiro envio de uma NF com conta: aguardando a aprovação do Financeiro. Vale também sobre `LEGACY` (rascunho de
- * antes da Fase 6 nunca pula o Financeiro). `APPROVED` fica: é a nova versão de uma troca de conta, já aprovada.
+ * antes da Fase 6 nunca pula o Financeiro). `APPROVED` fica: é uma nova versão já aprovada, pela troca de conta ou com a
+ * aprovação copiada pela correção do centro.
  */
 export const markInvoiceAwaitingApproval = async (envelopeId: string) => {
   await prisma.revalleInvoiceClassification.updateMany({
@@ -45,9 +46,9 @@ export const stampReleasedApproval = async (envelopeId: string, tx: Prisma.Trans
 };
 
 /**
- * Primeiro envio da nova versão criada por uma troca de conta (pela troca, pelo "Enviar de novo" do Financeiro ou pelo
- * remetente depois de corrigir o rascunho): o aviso da troca sai agora, com o link de assinatura da nova versão. Antes
- * do envio não há convite nem link para dar. Falhar o aviso não desfaz o envio.
+ * Primeiro envio de uma nova versão, de uma troca de conta ou de uma correção do centro (pelo próprio pedido, pelo
+ * "Enviar de novo" ou pelo remetente depois de corrigir o rascunho): o aviso sai agora, com o link de assinatura da nova
+ * versão. Antes do envio não há convite nem link para dar. Falhar o aviso não desfaz o envio.
  */
 export const notifyInvoiceAccountChangeOnSend = async (envelopeId: string) => {
   try {
@@ -66,7 +67,7 @@ export const notifyInvoiceAccountChangeOnSend = async (envelopeId: string) => {
     });
   } catch (error) {
     logger.warn({
-      msg: 'revalle finance: falha ao disparar o aviso da troca de conta',
+      msg: 'revalle finance: falha ao disparar o aviso da nova versão',
       envelopeId,
       error: String(error),
     });

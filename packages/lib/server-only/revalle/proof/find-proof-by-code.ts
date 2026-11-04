@@ -4,6 +4,7 @@ import {
   type RecipientRole,
   RevalleFinanceStatus,
   RevalleInvoiceStatus,
+  type RevalleSupersedeKind,
   SigningStatus,
 } from '@prisma/client';
 
@@ -39,13 +40,15 @@ export type RevalleProofLookup = {
   signers: { nome: string; cpfMasked: string | null; signedAt: Date; role: RecipientRole }[];
   /**
    * Fase 6, só em NF que passou pelo Financeiro: a conta desta versão, a aprovação (nome de quem aprovou, nunca o
-   * e-mail) e, se a conta foi trocada, quando esta versão foi substituída. Nada da nova versão (nem códigos, nem id).
+   * e-mail) e, se a conta foi trocada ou o centro corrigido, quando e por quê esta versão foi substituída. Nada da nova
+   * versão (nem códigos, nem id).
    */
   invoice: {
     account: { code: string; name: string } | null;
     approval: { approverName: string | null; approvedAt: Date } | null;
     isAwaitingApproval: boolean;
     supersededAt: Date | null;
+    supersedeKind: RevalleSupersedeKind | null;
   } | null;
   /**
    * Fase 7, em qualquer NF com centro de custo (também a concluída como `LEGACY`, sem passar pelo Financeiro): o centro
@@ -113,6 +116,7 @@ export const findRevalleProofByCode = async (code: string): Promise<RevalleProof
                   approvedAccountName: true,
                   approvedByName: true,
                   supersededAt: true,
+                  supersedeKind: true,
                   costCenterCode: true,
                 },
               },
@@ -204,6 +208,7 @@ type InvoiceRow = {
   approvedAccountName: string | null;
   approvedByName: string | null;
   supersededAt: Date | null;
+  supersedeKind: RevalleSupersedeKind | null;
   costCenterCode: string | null;
 };
 
@@ -240,5 +245,6 @@ const loadInvoiceSummary = async (row: InvoiceRow | null | undefined): Promise<R
         : null,
     isAwaitingApproval: row.financeStatus === RevalleFinanceStatus.PENDING_APPROVAL,
     supersededAt: row.financeStatus === RevalleFinanceStatus.SUPERSEDED ? row.supersededAt : null,
+    supersedeKind: row.financeStatus === RevalleFinanceStatus.SUPERSEDED ? row.supersedeKind : null,
   };
 };

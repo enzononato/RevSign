@@ -1,11 +1,13 @@
 import { prisma } from '@documenso/prisma';
 import type { RevalleInvoiceClassification } from '@prisma/client';
-import { DocumentStatus, RevalleFinanceStatus, RevalleInvoiceStatus } from '@prisma/client';
+import { DocumentStatus, RevalleFinanceStatus, RevalleInvoiceStatus, RevalleSupersedeKind } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
+import { isNewVersionDraftRow } from '../../../revalle/finance/finance-status';
 import type { ApiRequestMetadata } from '../../../universal/extract-request-metadata';
 import { logger } from '../../../utils/logger';
-import { sendDocument } from '../../document/send-document';
+import { DOCUMENT_ALREADY_SENT_CODE, sendDocument } from '../../document/send-document';
+import { findNewVersionKind } from './successor';
 
 export type ResendInvoiceVersionResult = { sent: boolean };
 
@@ -63,11 +65,11 @@ const restoreApprovalDate = async (envelopeId: string) => {
 };
 
 /**
- * "Enviar de novo": a nova versão de uma troca de conta (`previousEnvelopeId`) que ficou em rascunho porque o envio
- * dela falhou. Quem é do Financeiro a envia em nome do dono (`sendDocument` com o usuário e o time dele), com a mesma
- * conta que a troca definiu: a conta não é parâmetro. O membro já foi conferido pela rota.
+ * "Enviar de novo": a nova versão (`previousEnvelopeId`, `APPROVED` ou `PENDING_APPROVAL`) que ficou em rascunho porque o
+ * envio dela falhou. Quem é do Financeiro ou da Contabilidade a envia em nome do dono (`sendDocument` com o usuário e o
+ * time dele), com a mesma conta e o mesmo centro: nada disso é parâmetro. O perfil já foi conferido pela rota.
  *
- * Seguro contra queda e contra clique duplo:
+ * Nova versão de uma troca de conta, seguro contra queda e contra clique duplo:
  * - a reserva (`approvedAt`) é gravada condicionada ao estado lido, então só um pedido vence;
  * - com o documento em rascunho, uma reserva com menos de 5 minutos é um envio em andamento (409); a solta (`approvedAt`
  *   nulo, o envio falhou) ou a vencida (o envio caiu) é retomada e envia;
@@ -76,6 +78,10 @@ const restoreApprovalDate = async (envelopeId: string) => {
  *   prazo), sem convite e sem mudar a conta;
  * - o dono trocou o arquivo no meio (antes da reserva ou durante o envio): a NF voltou a ser rascunho dele, e quem é do
  *   Financeiro recebe "O remetente trocou o arquivo".
+ *
+ * Nova versão de uma correção do centro: `approvedAt` é a aprovação copiada da versão anterior (ou nulo, se ela ainda
+ * aguarda o Financeiro) e não pode servir de reserva. Não há reserva: de dois envios ao mesmo tempo, `sendDocument` só
+ * deixa um passar do rascunho, e quem perdeu recebe `{ sent: false }`. A queda no meio não deixa nada para retomar.
  */
 export const resendInvoiceVersion = async ({
   envelopeId,
@@ -97,18 +103,26 @@ export const resendInvoiceVersion = async ({
     throw new AppError(AppErrorCode.NOT_FOUND, { message: 'Nota fiscal não encontrada.' });
   }
 
-  const isApprovedVersion = row.previousEnvelopeId !== null && row.financeStatus === RevalleFinanceStatus.APPROVED;
+  const isNewVersion = isNewVersionDraftRow(row);
 
   if (envelope.status !== DocumentStatus.DRAFT) {
-    if (isApprovedVersion) {
+    if (isNewVersion) {
       return { sent: false };
     }
 
     throw notAVersionError();
   }
 
-  if (!isApprovedVersion) {
+  if (!isNewVersion) {
     throw notAVersionError();
+  }
+
+  // Sem reserva: `PENDING_APPROVAL` (só a correção do centro chega aqui assim) ou a aprovação copiada pela correção.
+  if (
+    row.financeStatus !== RevalleFinanceStatus.APPROVED ||
+    (await findNewVersionKind(row.previousEnvelopeId)) === RevalleSupersedeKind.COST_CENTER
+  ) {
+    return await sendCopiedVersion({ envelopeId, envelope, row, user, requestMetadata });
   }
 
   const now = new Date();
@@ -182,4 +196,53 @@ export const resendInvoiceVersion = async ({
   await restoreApprovalDate(envelopeId);
 
   return { sent: true };
+};
+
+/** O envio de uma nova versão cuja situação veio da anterior: nada na classificação é gravado aqui, nem em caso de erro. */
+const sendCopiedVersion = async ({
+  envelopeId,
+  envelope,
+  row,
+  user,
+  requestMetadata,
+}: {
+  envelopeId: string;
+  envelope: { userId: number; teamId: number };
+  row: RevalleInvoiceClassification;
+  user: { id: number };
+  requestMetadata: ApiRequestMetadata;
+}): Promise<ResendInvoiceVersionResult> => {
+  try {
+    await sendDocument({
+      id: { type: 'envelopeId', id: envelopeId },
+      userId: envelope.userId,
+      teamId: envelope.teamId,
+      requestMetadata,
+    });
+
+    return { sent: true };
+  } catch (error) {
+    if (AppError.parseError(error).code === DOCUMENT_ALREADY_SENT_CODE) {
+      return { sent: false };
+    }
+
+    const current = await prisma.envelope.findUnique({ where: { id: envelopeId }, select: { status: true } });
+
+    if (current?.status === DocumentStatus.DRAFT) {
+      if (hasFileChanged(row, await prisma.revalleInvoiceClassification.findUnique({ where: { envelopeId } }))) {
+        throw fileChangedError();
+      }
+
+      throw error;
+    }
+
+    logger.warn({
+      msg: 'revalle finance: erro depois do reenvio da nova versão',
+      envelopeId,
+      userId: user.id,
+      error: String(error),
+    });
+
+    return { sent: true };
+  }
 };

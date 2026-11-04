@@ -762,6 +762,24 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
 
       return { anonymous: text, you: text, user: text };
     })
+    // REVALLE:
+    .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_COST_CENTER_VALIDATED }, ({ data }) => {
+      const center = costCenterLabel(data.code);
+      const text = msg`Centro de custo validado pela Contabilidade: ${center}`;
+
+      return { anonymous: text, you: text, user: text };
+    })
+    // REVALLE:
+    .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_COST_CENTER_CHANGED }, ({ data }) => {
+      const from = costCenterLabel(data.fromCode);
+      const to = costCenterLabel(data.toCode);
+      const reason = data.reason;
+      const text = data.isNewVersion
+        ? msg`Nova versão criada pela Contabilidade com o centro de custo ${to} (antes ${from}). Motivo: ${reason}`
+        : msg`Centro de custo corrigido pela Contabilidade de ${from} para ${to}: substituído por uma nova versão. Motivo: ${reason}`;
+
+      return { anonymous: text, you: text, user: text };
+    })
     .exhaustive();
 
   let selectedDescription = description.anonymous;

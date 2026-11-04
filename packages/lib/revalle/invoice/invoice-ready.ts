@@ -7,10 +7,12 @@ export type InvoiceReadyInput = {
   /** Nenhuma conta ativa na lista: nenhuma nota fiscal sai, haja ou não uma escolha antiga. */
   hasNoAccounts: boolean;
   /**
-   * `false` na nova versão de uma troca de conta com o envio parado (reserva solta): o centro de custo só é exigido no
-   * primeiro envio da NF, e uma NF enviada sem centro continua podendo ser enviada de novo nessa versão.
+   * `false` na nova versão com o envio parado: o centro de custo só é exigido no primeiro envio da NF, e uma NF enviada
+   * sem centro continua podendo ser enviada de novo nessa versão.
    */
   requiresCostCenter?: boolean;
+  /** `false` na nova versão de uma correção do centro numa NF marcada depois do envio, que ainda não tem conta. */
+  requiresChoice?: boolean;
   state: { isInvoice: 'YES' | 'NO' | 'UNKNOWN'; choice: unknown; costCenter: unknown } | undefined;
 };
 
@@ -24,6 +26,7 @@ export const isInvoiceReady = ({
   isHeld,
   hasNoAccounts,
   requiresCostCenter = true,
+  requiresChoice = true,
   state,
 }: InvoiceReadyInput) => {
   if (!isClassified || isHeld || hasNoAccounts) {
@@ -38,5 +41,8 @@ export const isInvoiceReady = ({
     return false;
   }
 
-  return state.isInvoice !== 'YES' || (state.choice !== null && (!requiresCostCenter || state.costCenter !== null));
+  return (
+    state.isInvoice !== 'YES' ||
+    ((!requiresChoice || state.choice !== null) && (!requiresCostCenter || state.costCenter !== null))
+  );
 };

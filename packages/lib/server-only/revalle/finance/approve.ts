@@ -57,7 +57,17 @@ export const approveInvoiceAccount = async ({
 
   const row = envelope?.revalleInvoice;
 
-  if (!envelope || envelope.deletedAt || !row || row.isInvoice !== RevalleInvoiceStatus.YES) {
+  if (!envelope || !row || row.isInvoice !== RevalleInvoiceStatus.YES) {
+    throw new AppError(AppErrorCode.NOT_FOUND, { message: 'Nota fiscal não encontrada.' });
+  }
+
+  // Antes da exclusão: a versão pendente substituída fica escondida como excluída, e quem clicou com a página aberta
+  // precisa saber que a nota mudou, não que ela sumiu.
+  if (row.financeStatus === RevalleFinanceStatus.SUPERSEDED) {
+    throw invalid(STATE_CHANGED_MESSAGE);
+  }
+
+  if (envelope.deletedAt) {
     throw new AppError(AppErrorCode.NOT_FOUND, { message: 'Nota fiscal não encontrada.' });
   }
 
@@ -139,7 +149,9 @@ export const approveInvoiceAccount = async ({
       return { approved: false };
     }
 
-    throw invalid(NOT_PENDING_MESSAGE);
+    throw invalid(
+      latest?.financeStatus === RevalleFinanceStatus.SUPERSEDED ? STATE_CHANGED_MESSAGE : NOT_PENDING_MESSAGE,
+    );
   }
 
   await releaseHeldSeal({ envelopeId, secondaryId: envelope.secondaryId, requestMetadata });

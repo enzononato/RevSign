@@ -34,6 +34,17 @@ export const financeStatusLabel = (financeStatus: FinanceStatus | null, envelope
 };
 
 /**
+ * Rascunho de uma nova versão (a classificação veio da versão anterior e o envio ainda não saiu): é o que fica com o
+ * Financeiro e a Contabilidade, que o abrem e o enviam de novo, e o dono não troca nem conta nem centro. O arquivo
+ * trocado zera a situação e o rascunho volta a ser comum. A lista filtra pelo mesmo `NEW_VERSION_DRAFT_STATUSES`.
+ */
+export const NEW_VERSION_DRAFT_STATUSES = ['APPROVED', 'PENDING_APPROVAL'] as const satisfies FinanceStatus[];
+
+export const isNewVersionDraftRow = (row: { previousEnvelopeId: string | null; financeStatus: FinanceStatus | null }) =>
+  row.previousEnvelopeId !== null &&
+  NEW_VERSION_DRAFT_STATUSES.some((financeStatus) => financeStatus === row.financeStatus);
+
+/**
  * Filtro "Situação no Financeiro" da página e da planilha (parâmetro `financeiro` da URL). `pendentes` = "Aguardando o
  * Financeiro" (aprovar a conta), o padrão da página para quem é do Financeiro; `todas` desliga esse padrão.
  */

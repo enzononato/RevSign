@@ -1,5 +1,5 @@
 import { prisma } from '@documenso/prisma';
-import { RevalleInvoiceStatus } from '@prisma/client';
+import { RevalleFinanceStatus, RevalleInvoiceStatus } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { isCostCenterCode } from '../../../revalle/invoice/cost-centers';
@@ -26,9 +26,17 @@ export const INVOICE_DRAFT_CREATED_MESSAGE =
 /** Depois do envio, o centro já escolhido só muda pela Contabilidade; por esta rota ninguém o troca. */
 const INVOICE_COST_CENTER_AFTER_SEND_MESSAGE = 'Depois do envio, quem corrige o centro de custo é a Contabilidade.';
 
-/** Nova versão de uma troca de conta com o envio nas mãos do Financeiro: o centro vem da versão anterior. */
+/** Nova versão com o envio parado: o centro só muda por uma nova correção da Contabilidade, depois do envio. */
 const INVOICE_COST_CENTER_LOCKED_MESSAGE =
-  'Esta nova versão está com o Financeiro: o centro de custo é o da versão anterior.';
+  'Esta nova versão já tem o centro de custo definido: depois do envio, quem corrige é a Contabilidade.';
+
+const INVOICE_SUPERSEDED_MESSAGE = 'Esta versão da nota fiscal já foi substituída: a nova versão é que vale.';
+
+const supersededError = () =>
+  new AppError(AppErrorCode.FORBIDDEN, {
+    message: INVOICE_SUPERSEDED_MESSAGE,
+    userMessage: INVOICE_SUPERSEDED_MESSAGE,
+  });
 
 export type InvoiceChoice = { code: string };
 
@@ -44,9 +52,10 @@ const invoiceChoiceRequiredError = () =>
  * (cliente da API que envia logo depois de criar): só a detecção, sem esperar a IA. NF sem escolha → recusa.
  * Devolve o que o envio faz com a NF (Fase 6): `APPROVAL` = NF com conta (sai e aguarda a aprovação); `NONE` = não é NF.
  *
- * Fase 7: o primeiro envio da NF exige a conta (ainda ativa na lista) E o centro de custo. A nova versão de uma troca
- * de conta (`previousEnvelopeId`) herda o que a anterior tinha: uma NF que foi enviada sem centro continua podendo ser
- * enviada de novo nela, e a conta é a que o Financeiro acabou de escolher.
+ * Fase 7: o primeiro envio da NF exige a conta (ainda ativa na lista) E o centro de custo. A nova versão
+ * (`previousEnvelopeId`) herda o que a anterior tinha: uma NF que foi enviada sem centro ou sem conta continua podendo ser
+ * enviada de novo nela, e o que o Financeiro ou a Contabilidade acabou de escolher vale. Se o arquivo do rascunho foi
+ * trocado, a situação é zerada e a isenção acaba: é um primeiro envio como outro qualquer.
  */
 export const assertInvoiceChoiceBeforeSend = async (envelopeId: string): Promise<'APPROVAL' | 'NONE'> => {
   const state = await classifyEnvelope(envelopeId, {}, { startSuggestion: false });
@@ -55,17 +64,17 @@ export const assertInvoiceChoiceBeforeSend = async (envelopeId: string): Promise
     return 'NONE';
   }
 
-  if (!state.choice) {
-    throw invoiceChoiceRequiredError();
-  }
-
   const row = await prisma.revalleInvoiceClassification.findUnique({
     where: { envelopeId },
-    select: { previousEnvelopeId: true },
+    select: { previousEnvelopeId: true, financeStatus: true },
   });
 
-  if (row?.previousEnvelopeId) {
+  if (row?.previousEnvelopeId && row.financeStatus !== null) {
     return 'APPROVAL';
+  }
+
+  if (!state.choice) {
+    throw invoiceChoiceRequiredError();
   }
 
   const account = await prisma.revalleAccountingAccount.findUnique({
@@ -104,10 +113,14 @@ export const setInvoiceChoice = async ({
   const isDraft = await isEnvelopeDraft(envelopeId);
   const current = await prisma.revalleInvoiceClassification.findUnique({
     where: { envelopeId },
-    select: { financeStatus: true, choiceCode: true },
+    select: { financeStatus: true, choiceCode: true, previousEnvelopeId: true },
   });
 
-  if (isDraft && isDraftFinanceStatusLocked(current?.financeStatus)) {
+  if (current?.financeStatus === RevalleFinanceStatus.SUPERSEDED) {
+    throw supersededError();
+  }
+
+  if (isDraft && isDraftFinanceStatusLocked(current)) {
     throw financeDecidesError();
   }
 
@@ -198,9 +211,10 @@ export const setInvoiceChoice = async ({
 /**
  * Grava o centro de custo da NF (só da lista fixa), com quem e quando, e registra no log de auditoria (de → para).
  * Espelha `setInvoiceChoice`: a mesma escolha de novo não grava nada e a gravação é condicionada ao que foi lido.
- * - Rascunho: quem acessa o documento escolhe e troca à vontade (salvo a nova versão que está com o Financeiro).
+ * - Rascunho: quem acessa o documento escolhe e troca à vontade (salvo a nova versão com o envio parado).
  * - Depois do envio: só a PRIMEIRA escolha, pelo dono ou pelo admin, sem nova versão (ninguém viu centro ao assinar).
  *   Quem corrige um centro já escolhido é a Contabilidade (403 aqui).
+ * - Versão substituída: nunca (403); a nova versão é que vale.
  */
 export const setInvoiceCostCenter = async ({
   envelopeId,
@@ -220,10 +234,14 @@ export const setInvoiceCostCenter = async ({
   const isDraft = await isEnvelopeDraft(envelopeId);
   const current = await prisma.revalleInvoiceClassification.findUnique({
     where: { envelopeId },
-    select: { financeStatus: true, costCenterCode: true },
+    select: { financeStatus: true, costCenterCode: true, previousEnvelopeId: true },
   });
 
-  if (isDraft && isDraftFinanceStatusLocked(current?.financeStatus)) {
+  if (current?.financeStatus === RevalleFinanceStatus.SUPERSEDED) {
+    throw supersededError();
+  }
+
+  if (isDraft && isDraftFinanceStatusLocked(current)) {
     throw new AppError(AppErrorCode.FORBIDDEN, {
       message: INVOICE_COST_CENTER_LOCKED_MESSAGE,
       userMessage: INVOICE_COST_CENTER_LOCKED_MESSAGE,

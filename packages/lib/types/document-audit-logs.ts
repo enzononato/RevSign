@@ -77,6 +77,8 @@ export const ZDocumentAuditLogTypeSchema = z.enum([
   'REVALLE_FINANCE_ACCOUNT_DEFINED', // REVALLE: o Financeiro definiu a conta da NF marcada depois do envio (já aprovada)
   'REVALLE_FINANCE_APPROVED', // REVALLE: o Financeiro aprovou a conta da NF (libera a selagem)
   'REVALLE_FINANCE_ACCOUNT_CHANGED', // REVALLE: o Financeiro trocou a conta: versão substituída e nova versão
+  'REVALLE_COST_CENTER_VALIDATED', // REVALLE: a Contabilidade validou o centro de custo (fora do PDF selado)
+  'REVALLE_COST_CENTER_CHANGED', // REVALLE: a Contabilidade corrigiu o centro: versão substituída e nova versão
 ]);
 
 export const ZDocumentAuditLogEmailTypeSchema = z.enum([
@@ -938,6 +940,26 @@ export const ZDocumentAuditLogEventRevalleFinanceAccountChangedSchema = z.object
   }),
 });
 
+// REVALLE: a Contabilidade validou o centro de custo. Fica fora do PDF: pode acontecer depois da selagem, e o certificado
+// não afirma validação.
+export const ZDocumentAuditLogEventRevalleCostCenterValidatedSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_COST_CENTER_VALIDATED),
+  data: z.object({ code: z.string() }),
+});
+
+// REVALLE: a Contabilidade corrigiu o centro (com o motivo): fica nas duas versões, com o id da outra. `isNewVersion`: este
+// evento está na versão nova (senão, na substituída).
+export const ZDocumentAuditLogEventRevalleCostCenterChangedSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_COST_CENTER_CHANGED),
+  data: z.object({
+    fromCode: z.string(),
+    toCode: z.string(),
+    reason: z.string(),
+    otherEnvelopeId: z.string(),
+    isNewVersion: z.boolean(),
+  }),
+});
+
 export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
   z.union([
     ZDocumentAuditLogEventEnvelopeItemCreatedSchema,
@@ -994,6 +1016,8 @@ export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
     ZDocumentAuditLogEventRevalleFinanceAccountDefinedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleFinanceApprovedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleFinanceAccountChangedSchema, // REVALLE:
+    ZDocumentAuditLogEventRevalleCostCenterValidatedSchema, // REVALLE:
+    ZDocumentAuditLogEventRevalleCostCenterChangedSchema, // REVALLE:
   ]),
 );
 

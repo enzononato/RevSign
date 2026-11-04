@@ -37,6 +37,15 @@ describe('o bloco da nota fiscal libera o envio', () => {
     ).toBe(false);
   });
 
+  it('nova versão de uma NF que ainda não tem conta libera sem ela, só quando a correção do centro pede', () => {
+    const withoutAccount = { isInvoice: 'YES', choice: null, costCenter } as const;
+
+    expect(isInvoiceReady(ready({ state: withoutAccount, requiresChoice: false, requiresCostCenter: false }))).toBe(
+      true,
+    );
+    expect(isInvoiceReady(ready({ state: withoutAccount, requiresCostCenter: false }))).toBe(false);
+  });
+
   it('documento comum libera sem nada; escaneado só depois da resposta; nova versão com o Financeiro bloqueia', () => {
     expect(isInvoiceReady(ready({ state: { isInvoice: 'NO', choice: null, costCenter: null } }))).toBe(true);
     expect(isInvoiceReady(ready({ state: { isInvoice: 'UNKNOWN', choice: null, costCenter: null } }))).toBe(false);

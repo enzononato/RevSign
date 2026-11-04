@@ -4,10 +4,12 @@ import {
   type RevalleFinanceStatus,
   RevalleInvoiceStatus,
   RevalleSuggestionStatus,
+  type RevalleSupersedeKind,
   SigningStatus,
 } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
+import { costCenterLabel } from '../../../revalle/invoice/cost-centers';
 import { findVisibleSuccessor, isStaleChangeClaim } from './successor';
 
 export type FinanceCard = {
@@ -16,6 +18,8 @@ export type FinanceCard = {
   financeStatus: RevalleFinanceStatus | null;
   /** Conta atual (nome atual da lista; a conta já aprovada mostra o nome congelado na aprovação). */
   account: { code: string; name: string | null } | null;
+  /** Centro de custo ("101 – Puxada"), em leitura: quem corrige é a Contabilidade. */
+  costCenterLabel: string | null;
   /** Quem escolheu a conta (nome, ou e-mail sem nome) e quando. */
   choiceBy: string | null;
   choiceAt: Date | null;
@@ -27,13 +31,14 @@ export type FinanceCard = {
   /** A nova versão, só quando ela existe e abre na página da NF (o link não leva a um 404). */
   supersededByEnvelopeId: string | null;
   supersedeReason: string | null;
+  supersedeKind: RevalleSupersedeKind | null;
   /** Versão substituída cuja nova versão não existe mais (ou a troca morreu no meio): "Trocar conta" de novo. */
   canRetakeChange: boolean;
   /** Alguém recusou: a NF não aguarda mais nada do Financeiro. */
   rejected: boolean;
 };
 
-const userLabel = async (userId: number | null) => {
+export const userLabel = async (userId: number | null) => {
   if (!userId) {
     return null;
   }
@@ -111,6 +116,7 @@ export const getFinanceCard = async (envelopeId: string): Promise<FinanceCard> =
     envelopeStatus: envelope.status,
     financeStatus: row.financeStatus,
     account: code ? { code, name: (row.approvedAt && row.approvedAccountName) || names.get(code) || null } : null,
+    costCenterLabel: row.costCenterCode ? costCenterLabel(row.costCenterCode) : null,
     choiceBy,
     choiceAt: row.choiceAt,
     suggestion: suggestion ? { ...suggestion, name: names.get(suggestion.code) ?? null } : null,
@@ -120,6 +126,7 @@ export const getFinanceCard = async (envelopeId: string): Promise<FinanceCard> =
     previousEnvelopeId: row.previousEnvelopeId,
     supersededByEnvelopeId: successor?.id ?? null,
     supersedeReason: row.supersedeReason,
+    supersedeKind: row.supersedeKind,
     canRetakeChange,
     rejected: envelope.recipients.length > 0,
   };

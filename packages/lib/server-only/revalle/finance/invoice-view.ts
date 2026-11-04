@@ -5,11 +5,14 @@ import {
   type RecipientRole,
   RevalleFinanceStatus,
   RevalleInvoiceStatus,
+  type RevalleSupersedeKind,
   type SigningStatus,
 } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { normalizeEmail } from '../../../revalle/email-domain';
+import { isNewVersionDraftRow } from '../../../revalle/finance/finance-status';
+import { costCenterLabel } from '../../../revalle/invoice/cost-centers';
 import { isAdmin as isAdminUser } from '../../../utils/is-admin';
 import { isAccountingMember } from '../accounting/members';
 import { isFinanceMember } from './members';
@@ -21,8 +24,8 @@ import { findVisibleSuccessor } from './successor';
  *
  * Quem abre:
  * - o admin: qualquer NF (inclusive a versão substituída escondida e o rascunho);
- * - o Financeiro e a Contabilidade: qualquer NF enviada, a versão substituída escondida e o rascunho da nova versão que
- *   está com o Financeiro (conta aprovada, envio parado); o rascunho comum de outra pessoa, não;
+ * - o Financeiro e a Contabilidade: qualquer NF enviada, a versão substituída escondida e o rascunho de uma nova versão
+ *   (envio parado, `isNewVersionDraftRow`); o rascunho comum de outra pessoa, não;
  * - o dono: as dele;
  * - quem é destinatário (pelo e-mail): a NF já enviada; o rascunho de uma nova versão também (o aviso da troca leva a
  *   ele e o envio pode ter falhado).
@@ -65,11 +68,13 @@ const loadEnvelope = async (envelopeId: string) =>
           isInvoice: true,
           financeStatus: true,
           choiceCode: true,
+          costCenterCode: true,
           version: true,
           previousEnvelopeId: true,
           supersededByEnvelopeId: true,
           supersededAt: true,
           supersedeReason: true,
+          supersedeKind: true,
         },
       },
     },
@@ -107,11 +112,10 @@ const resolveViewer = async (envelope: LoadedEnvelope, userId: number): Promise<
     return null;
   }
 
-  // A Contabilidade lê o mesmo que o Financeiro (as ações são só do Financeiro). O rascunho de outra pessoa não: só o
-  // da nova versão que está com o Financeiro (conta aprovada), como na lista. Outro rascunho é trabalho do dono.
+  // A Contabilidade lê o mesmo que o Financeiro. O rascunho de outra pessoa não: só o de uma nova versão, como na lista.
+  // Outro rascunho é trabalho do dono.
   const readsAll =
-    (isFinance || isAccounting) &&
-    (envelope.status !== DocumentStatus.DRAFT || invoice.financeStatus === RevalleFinanceStatus.APPROVED);
+    (isFinance || isAccounting) && (envelope.status !== DocumentStatus.DRAFT || isNewVersionDraftRow(invoice));
 
   if (readsAll || isOwner) {
     return viewer;
@@ -148,11 +152,14 @@ export type InvoiceView = {
   finance: {
     status: RevalleFinanceStatus | null;
     account: { code: string; name: string | null } | null;
+    /** Centro de custo ("101 – Puxada"), para quem só está vendo. */
+    costCenterLabel: string | null;
     version: number;
     previous: { id: string; title: string } | null;
     next: { id: string; title: string } | null;
     supersededAt: Date | null;
     supersedeReason: string | null;
+    supersedeKind: RevalleSupersedeKind | null;
   };
   viewer: InvoiceViewer;
   /** Página completa do documento para quem tem: o dono (no time) e o admin (no painel). */
@@ -221,11 +228,13 @@ export const getInvoiceView = async ({
     finance: {
       status: invoice.financeStatus,
       account: code ? { code, name: account?.name ?? null } : null,
+      costCenterLabel: invoice.costCenterCode ? costCenterLabel(invoice.costCenterCode) : null,
       version: invoice.version,
       previous,
       next,
       supersededAt: invoice.supersededAt,
       supersedeReason: invoice.supersedeReason,
+      supersedeKind: invoice.supersedeKind,
     },
     viewer,
     documentPath,

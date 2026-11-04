@@ -2,7 +2,7 @@
 //   - NF com conta: é enviada normalmente e fica `PENDING_APPROVAL` (inclusive o rascunho que a migração marcou como
 //     `LEGACY`: rascunho nunca pula o Financeiro);
 //   - NF sem conta: o envio é recusado (`INVOICE_ACCOUNT_REQUIRED`); nada é retido e o Financeiro não recebe aviso;
-//   - `revalle.finance.resendVersion` ("Enviar de novo"): só membro do Financeiro (403), só para a nova versão de uma
+//   - `revalle.finance.resendVersion` ("Enviar de novo"): fora do Financeiro e da Contabilidade, 403; só para a nova versão de uma
 //     troca de conta que ficou em rascunho (400 numa NF comum); envia em nome do dono com a MESMA conta (a conta não é
 //     parâmetro), convite no Mailpit, sem evento de definição de conta, e não reenvia na 2ª chamada; envio em andamento
 //     (reserva de 5 minutos) = 409; reserva vencida é retomada; recusado pelo envio de verdade solta a reserva, sem convite;

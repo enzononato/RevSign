@@ -4636,8 +4636,8 @@ msgstr "Escolha a conta contábil. Depois, quem aprova ou troca é o Financeiro.
 msgid "Conta contábil aprovada pelo Financeiro: {account}"
 msgstr "Conta contábil aprovada pelo Financeiro: {account}"
 
-msgid "Este documento foi substituído por uma nova versão (conta contábil alterada)."
-msgstr "Este documento foi substituído por uma nova versão (conta contábil alterada)."
+msgid "Este documento foi substituído por uma nova versão."
+msgstr "Este documento foi substituído por uma nova versão."
 
 msgid "O convite da nova versão chega por e-mail."
 msgstr "O convite da nova versão chega por e-mail."
@@ -4961,3 +4961,103 @@ msgstr "Todas as notas fiscais enviadas para assinatura (você é do Financeiro 
 
 msgid "Todas as notas fiscais enviadas para assinatura (você é da Contabilidade)."
 msgstr "Todas as notas fiscais enviadas para assinatura (você é da Contabilidade)."
+
+# REVALLE: Fase 7, Task 6: a Contabilidade valida e corrige o centro de custo; nova versão (msgids já em pt-BR).
+msgid "Centro de custo da nota fiscal corrigido pela Contabilidade: {documentName}"
+msgstr "Centro de custo da nota fiscal corrigido pela Contabilidade: {documentName}"
+
+msgid "O centro de custo de uma nota fiscal foi corrigido"
+msgstr "O centro de custo de uma nota fiscal foi corrigido"
+
+msgid "Centro de custo validado pela Contabilidade: {center}"
+msgstr "Centro de custo validado pela Contabilidade: {center}"
+
+msgid "Nova versão criada pela Contabilidade com o centro de custo {to} (antes {from}). Motivo: {reason}"
+msgstr "Nova versão criada pela Contabilidade com o centro de custo {to} (antes {from}). Motivo: {reason}"
+
+msgid "Centro de custo corrigido pela Contabilidade de {from} para {to}: substituído por uma nova versão. Motivo: {reason}"
+msgstr "Centro de custo corrigido pela Contabilidade de {from} para {to}: substituído por uma nova versão. Motivo: {reason}"
+
+msgid "Esta versão foi substituída (centro de custo corrigido pela Contabilidade)."
+msgstr "Esta versão foi substituída (centro de custo corrigido pela Contabilidade)."
+
+msgid "Substituída: a Contabilidade corrigiu o centro de custo e criou uma nova versão, que todos assinam de novo."
+msgstr "Substituída: a Contabilidade corrigiu o centro de custo e criou uma nova versão, que todos assinam de novo."
+
+msgid "O envio anterior falhou: corrija o rascunho e envie."
+msgstr "O envio anterior falhou: corrija o rascunho e envie."
+
+msgid "Motivo da correção"
+msgstr "Motivo da correção"
+
+msgid "A nova versão ainda não foi enviada. Se o envio falhou, corrija o problema e envie de novo (mesma conta e mesmo centro)."
+msgstr "A nova versão ainda não foi enviada. Se o envio falhou, corrija o problema e envie de novo (mesma conta e mesmo centro)."
+
+msgid "Não foi possível carregar a Contabilidade. Tente de novo."
+msgstr "Não foi possível carregar a Contabilidade. Tente de novo."
+
+msgid "Centro de custo corrigido, mas a nova versão não foi enviada"
+msgstr "Centro de custo corrigido, mas a nova versão não foi enviada"
+
+msgid "Centro de custo validado."
+msgstr "Centro de custo validado."
+
+msgid "Este centro de custo já estava validado."
+msgstr "Este centro de custo já estava validado."
+
+msgid "Centro de custo definido e validado."
+msgstr "Centro de custo definido e validado."
+
+msgid "Centro de custo corrigido. A nova versão foi enviada para todos assinarem de novo."
+msgstr "Centro de custo corrigido. A nova versão foi enviada para todos assinarem de novo."
+
+msgid "Sem centro de custo"
+msgstr "Sem centro de custo"
+
+msgid "Validado por {validatedBy} em {validatedAt}"
+msgstr "Validado por {validatedBy} em {validatedAt}"
+
+msgid "Aguardando validação"
+msgstr "Aguardando validação"
+
+msgid "A nova versão não existe mais: corrija o centro de custo de novo."
+msgstr "A nova versão não existe mais: corrija o centro de custo de novo."
+
+msgid "Esta nota fiscal foi enviada sem centro de custo. Escolha o centro: ele fica validado na hora, sem nova versão (ninguém viu centro ao assinar)."
+msgstr "Esta nota fiscal foi enviada sem centro de custo. Escolha o centro: ele fica validado na hora, sem nova versão (ninguém viu centro ao assinar)."
+
+msgid "Definir centro de custo"
+msgstr "Definir centro de custo"
+
+msgid "Validar centro de custo"
+msgstr "Validar centro de custo"
+
+msgid "Corrigir centro de custo"
+msgstr "Corrigir centro de custo"
+
+msgid "Validar o centro de custo?"
+msgstr "Validar o centro de custo?"
+
+msgid "Centro de custo: {center}. A validação fica registrada com o seu nome e a data, e não muda o que foi assinado."
+msgstr "Centro de custo: {center}. A validação fica registrada com o seu nome e a data, e não muda o que foi assinado."
+
+msgid "Definir o centro de custo?"
+msgstr "Definir o centro de custo?"
+
+msgid "Centro de custo: {defined}. Ele fica validado na hora, sem nova versão."
+msgstr "Centro de custo: {defined}. Ele fica validado na hora, sem nova versão."
+
+msgid "O documento é enviado agora, em nome do remetente, para todos os destinatários assinarem."
+msgstr "O documento é enviado agora, em nome do remetente, para todos os destinatários assinarem."
+
+msgid "Centro de custo atual: {center}. Escolha o centro certo e escreva o motivo."
+msgstr "Centro de custo atual: {center}. Escolha o centro certo e escreva o motivo."
+
+msgid "Escolha um centro de custo diferente do atual."
+msgstr "Escolha um centro de custo diferente do atual."
+
+msgid "Todos vão precisar assinar de novo."
+msgstr "Todos vão precisar assinar de novo."
+
+msgid "De {center} para {chosen}."
+msgstr "De {center} para {chosen}."

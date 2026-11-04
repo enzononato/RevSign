@@ -10,6 +10,7 @@ export const ZGetFinanceCardResponseSchema = z.object({
   envelopeStatus: z.enum(['DRAFT', 'PENDING', 'COMPLETED', 'REJECTED', 'CANCELLED']),
   financeStatus: z.enum(FINANCE_STATUSES).nullable(),
   account: z.object({ code: z.string(), name: z.string().nullable() }).nullable(),
+  costCenterLabel: z.string().nullable(),
   choiceBy: z.string().nullable(),
   choiceAt: z.date().nullable(),
   suggestion: z
@@ -21,6 +22,7 @@ export const ZGetFinanceCardResponseSchema = z.object({
   previousEnvelopeId: z.string().nullable(),
   supersededByEnvelopeId: z.string().nullable(),
   supersedeReason: z.string().nullable(),
+  supersedeKind: z.enum(['ACCOUNT', 'COST_CENTER']).nullable(),
   canRetakeChange: z.boolean(),
   rejected: z.boolean(),
 });

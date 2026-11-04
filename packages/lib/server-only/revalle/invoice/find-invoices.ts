@@ -9,7 +9,12 @@ import {
 } from '@prisma/client';
 
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../../constants/app';
-import { type FinanceFilter, financeStatusLabel, invoiceViewPath } from '../../../revalle/finance/finance-status';
+import {
+  type FinanceFilter,
+  financeStatusLabel,
+  invoiceViewPath,
+  NEW_VERSION_DRAFT_STATUSES,
+} from '../../../revalle/finance/finance-status';
 import { buildInvoiceExportCsv, type InvoiceExportRow } from '../../../revalle/invoice/export-csv';
 import {
   INVOICE_DELETED_LABEL,
@@ -101,10 +106,10 @@ const financeFilterWhere = (filter: FinanceFilter | undefined): Prisma.EnvelopeW
  * contabilidade pode já ter lançado).
  *
  * Fase 6, além das NFs enviadas:
- * - o rascunho que está com o Financeiro (nova versão aprovada e ainda não enviada), para o Financeiro, a Contabilidade e
- *   o dono (quem assina ainda não recebeu nada);
- * - a versão pendente substituída pelo Financeiro (escondida pelo upstream), para o dono, os destinatários, o
- *   Financeiro e a Contabilidade.
+ * - o rascunho de uma nova versão, com o envio parado (`isNewVersionDraftRow`), para o Financeiro, a Contabilidade e o dono
+ *   (quem assina ainda não recebeu nada); o rascunho comum nunca aparece;
+ * - a versão pendente substituída (escondida pelo upstream), para o dono, os destinatários, o Financeiro e a
+ *   Contabilidade.
  */
 const buildInvoiceWhere = async ({
   userId,
@@ -141,7 +146,13 @@ const buildInvoiceWhere = async ({
       : {
           OR: [
             { status: { in: [...INVOICE_LIST_STATUSES] } },
-            { status: DocumentStatus.DRAFT, revalleInvoice: { financeStatus: RevalleFinanceStatus.APPROVED } },
+            {
+              status: DocumentStatus.DRAFT,
+              revalleInvoice: {
+                previousEnvelopeId: { not: null },
+                financeStatus: { in: [...NEW_VERSION_DRAFT_STATUSES] },
+              },
+            },
           ],
         },
   );

@@ -126,7 +126,7 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
         : null,
       isAwaitingApproval: result.invoice.isAwaitingApproval,
       supersededLabel: result.invoice.supersededAt
-        ? `Substituído por uma nova versão em ${formatRevalleDateTime(result.invoice.supersededAt)} (conta contábil alterada)`
+        ? `Substituído por uma nova versão em ${formatRevalleDateTime(result.invoice.supersededAt)} (${result.invoice.supersedeKind === 'COST_CENTER' ? 'centro de custo corrigido' : 'conta contábil alterada'})`
         : null,
     },
     costCenterLabel: result.costCenter ? `Centro de custo: ${costCenterLabel(result.costCenter.code)}` : null,

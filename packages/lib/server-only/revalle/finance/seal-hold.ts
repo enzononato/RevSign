@@ -62,7 +62,7 @@ export const countInvoicesAwaitingApproval = async () =>
   await prisma.revalleInvoiceClassification.count({ where: signedAwaitingApprovalWhere });
 
 /**
- * Versão substituída pelo Financeiro (conta trocada) e ainda não concluída: nunca é selada, nem depois (a nova versão é
+ * Versão substituída (conta trocada ou centro corrigido) e ainda não concluída: nunca é selada, nem depois (a nova versão é
  * que segue). Diferente da retenção: não há aprovação a pedir. Uma versão já concluída continua concluída, e a
  * reselagem dela pelo admin segue normal; recusada também sela (como na varredura).
  */
@@ -85,8 +85,8 @@ export const isSupersededUnsealed = async (envelopeId: string): Promise<boolean>
 
 /**
  * Na transação final da selagem: trava a linha da NF (`FOR UPDATE`) e confere de novo se ela foi substituída. A troca
- * de conta grava `SUPERSEDED` nessa mesma linha, então as duas ficam em ordem: se a troca venceu, a selagem não conclui;
- * se a selagem venceu, a troca encontra a versão concluída (que continua concluída e visível).
+ * de conta e a correção do centro gravam `SUPERSEDED` nessa mesma linha, então ficam em ordem: se a troca venceu, a
+ * selagem não conclui; se a selagem venceu, a troca encontra a versão concluída (que continua concluída e visível).
  */
 export const lockSupersededInvoiceForSealing = async (tx: Prisma.TransactionClient, envelopeId: string) => {
   const rows = await tx.$queryRaw<{ financeStatus: string | null }[]>`
