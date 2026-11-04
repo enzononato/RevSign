@@ -104,7 +104,6 @@ const loadInvoiceLine = async (envelopeId: string): Promise<string | null> => {
       isInvoice: true,
       financeStatus: true,
       choiceCode: true,
-      choiceDefer: true,
       approvedById: true,
       approvedAt: true,
       approvedAccountName: true,
@@ -120,7 +119,6 @@ const loadInvoiceLine = async (envelopeId: string): Promise<string | null> => {
     !row ||
     row.isInvoice !== RevalleInvoiceStatus.YES ||
     !isApproved ||
-    row.choiceDefer ||
     !row.choiceCode ||
     !row.approvedAt ||
     row.approvedById === null

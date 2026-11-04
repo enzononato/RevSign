@@ -6,8 +6,7 @@ Guia para o Enzo e para a TI. Explica como configurar a sugestão de conta cont�
 ## Como funciona, em uma frase
 
 Quando alguém envia uma nota fiscal (NF) para assinatura, o RevSign percebe que é uma NF, pede ao Gemini (Google) uma
-sugestão de conta contábil e obriga o remetente a escolher a conta (ou "Deixar para o Financeiro") antes de
-enviar. Quando todos assinam, a contabilidade recebe o PDF assinado por e-mail.
+sugestão de conta contábil e obriga o remetente a escolher a conta antes de enviar. Quando todos assinam, a contabilidade recebe o PDF assinado por e-mail.
 
 - Desde a Fase 6, a conta **faz parte do que é assinado**: quem assina vê "Nota fiscal · Conta contábil: {código} – {nome}",
   ela fica na prova de cada signatário e no certificado (com a aprovação do Financeiro). Ver `prova.md`. O carimbo não
@@ -91,13 +90,11 @@ o mesmo PDF for enviado de novo, a sugestão vem do cache, sem nova chamada. Por
 
 1. Ele sobe o PDF e clica em **Enviar documento**. Se for NF, o diálogo mostra o bloco **Nota fiscal · Conta contábil**.
 2. Enquanto a IA pensa, aparece "Buscando sugestão…" (até uns 20 segundos). Depois, a sugestão com o motivo e o
-   botão **Usar sugestão**. Ele também pode buscar outra conta na lista (por número ou nome) ou escolher **Deixar para
-   o Financeiro**.
+   botão **Usar sugestão**. Ele também pode buscar outra conta na lista (por número ou nome). Sem a sugestão (IA fora do
+   ar, por exemplo), ele escolhe na lista do mesmo jeito. Se a lista de contas estiver vazia, o bloco diz "Nenhuma
+   conta contábil cadastrada. Fale com o administrador." e nenhuma NF pode ser enviada.
 3. O botão **Enviar** só libera depois da escolha. Com uma conta, o documento sai e a NF fica aguardando a aprovação do
-   Financeiro. Com **Deixar para o Financeiro**, o envio fica **retido**: o documento continua rascunho, nenhum convite
-   sai, a tela avisa "Enviado para o Financeiro definir a conta. Os convites saem depois disso." e os membros do
-   Financeiro recebem o e-mail "Nota fiscal aguardando o Financeiro: {título}". Quando alguém do Financeiro define a
-   conta, o RevSign envia o documento em nome do dono (a conta já conta como aprovada).
+   Financeiro.
 4. Se o RevSign não tiver certeza (PDF escaneado, sem texto), pergunta "Este documento é uma nota fiscal?" e o botão
    **Enviar** fica bloqueado até a resposta ("Responda para enviar"). Com "Sim", o PDF vai para a IA e a conta é
    escolhida como numa NF comum; com "Não", o documento segue como um documento comum. Se o RevSign errou e não é NF,
@@ -124,8 +121,8 @@ o mesmo PDF for enviado de novo, a sugestão vem do cache, sem nova chamada. Por
    ainda não concluída nunca é selada. Se a selagem disparada pela aprovação se perder, a varredura automática a refaz
    (de 15 minutos a 6 horas depois da aprovação). A aprovação fica no log de auditoria do documento (também no PDF).
    Pela API: `revalle.finance.approve({ envelopeId })`, só para membros do Financeiro; repetir não faz nada.
-7. No menu, **Notas fiscais** lista as NFs que ele enviou ou que chegaram para ele assinar (inclusive a NF retida para
-   o Financeiro e as versões substituídas).
+7. No menu, **Notas fiscais** lista as NFs que ele enviou ou que chegaram para ele assinar (inclusive as versões
+   substituídas).
 
 **NF enviada pela API ou por modelo:** o documento é criado, mas o envio é recusado (`INVOICE_ACCOUNT_REQUIRED`) até a
 conta ser escolhida na tela. O documento fica como rascunho: abra-o no site, escolha a conta e envie. Documento na versão antiga
@@ -147,9 +144,9 @@ chegaram para ela assinar. O **administrador** e quem é do **Financeiro** veem 
 
 Desde a Fase 6 também aparecem:
 
-- o **rascunho que está com o Financeiro** (o remetente escolheu "Deixar para o Financeiro", ou a conta já foi aprovada
-  e o envio ainda não saiu), para o Financeiro e para quem enviou. A coluna de envio diz "não enviada". Outros
-  rascunhos continuam fora;
+- o **rascunho que está com o Financeiro** (a nova versão de uma troca de conta, com a conta já aprovada e o envio que
+  ainda não saiu), para o Financeiro e para quem enviou. A coluna de envio diz "não enviada". Outros rascunhos
+  continuam fora;
 - a **versão substituída** (o Financeiro trocou a conta), para quem enviou, quem assina e o Financeiro, mesmo que o
   documento tenha sumido das listas comuns do RevSign.
 
@@ -159,18 +156,17 @@ coluna `status` diz `excluído pelo remetente`.
 
 A lista vem da mais recente para a mais antiga pela **data de envio**.
 
-Colunas: título, remetente, data de envio, status, conta (número · nome, "A definir pelo Financeiro" no rascunho que
-espera o Financeiro, ou "A definir pela contabilidade" na NF de antes da Fase 6 deixada para a contabilidade), "Sugestão
-aceita?" (Sim, Não ou "sem sugestão", quando não havia sugestão na hora da escolha), **Situação no Financeiro**
-(Aguardando a conta, Aguardando aprovação, Aprovada, Substituída ou "Antiga, sem aprovação", para NF de antes da Fase
-6) e **Versão** (v1, v2…).
+Colunas: título, remetente, data de envio, status, conta (número · nome; um traço quando a NF não tem conta, como a de
+antes da Fase 6), "Sugestão aceita?" (Sim, Não ou "sem sugestão", quando não havia sugestão na hora da escolha),
+**Situação no Financeiro** (Aguardando aprovação, Aprovada, Substituída ou "Antiga, sem aprovação", para NF de antes da
+Fase 6) e **Versão** (v1, v2…).
 
 O título abre o documento: quem enviou vai para a página do documento; o admin, para o painel do admin; quem é do
 Financeiro e quem assina, para a **página da NF** (só leitura, seção 9).
 
-Filtros: período de envio (dias no horário de Brasília), status, **Situação no Financeiro**, número da conta e "Só as
-deixadas para o Financeiro". Para quem é do Financeiro, a página abre em **Aguardando o Financeiro** (NFs esperando a
-conta ou a aprovação); escolha **Todas** para ver o resto. O endereço `/notas-fiscais?financeiro=pendentes` abre direto
+Filtros: período de envio (dias no horário de Brasília), status, **Situação no Financeiro** e número da conta. Para quem
+é do Financeiro, a página abre em **Aguardando o Financeiro** (NFs esperando a aprovação); escolha **Todas** para ver
+o resto. O endereço `/notas-fiscais?financeiro=pendentes` abre direto
 nesse filtro. Se a data inicial for depois da final, a tela avisa "A data inicial é depois da data final." e nada é
 listado nem exportado.
 
@@ -185,8 +181,8 @@ O arquivo abre direto no Excel (separador `;`, UTF-8 com BOM). Colunas:
 | `enviado_em` | Data e hora do envio (Brasília, `dd/mm/aaaa hh:mm`) |
 | `concluido_em` | Data e hora em que todos assinaram (vazio se ainda não concluiu) |
 | `status` | Pendente, Concluído, Recusado, Cancelado, ou `excluído pelo remetente` (só na planilha do admin) |
-| `conta` | Número da conta; `a definir pela contabilidade` (NF de antes da Fase 6 deixada para a contabilidade) ou `a definir pelo Financeiro` (rascunho esperando o Financeiro) |
-| `nome_conta` | Nome da conta (vazio quando ficou para a contabilidade) |
+| `conta` | Número da conta; vazio quando a NF não tem conta (NF de antes da Fase 6) |
+| `nome_conta` | Nome da conta (vazio quando a NF não tem conta) |
 | `tipo` | `pagar`, `receber` ou vazio |
 | `sugestao_ia` | Número da conta que a IA sugeriu (vazio se não houve sugestão) |
 | `confianca` | Confiança da IA: `alta`, `media` ou `baixa` (vazio sem sugestão) |
@@ -307,21 +303,20 @@ escreva o **motivo** (de 10 a 500 caracteres; o contador mostra quantos já fora
 - Se outra pessoa do Financeiro aprovou ou trocou a conta no mesmo instante, a tela avisa "A situação desta nota mudou.
   Atualize a página e tente de novo."; a conta e o motivo digitados continuam no diálogo.
 
-### "Deixar para o Financeiro"
+### Enviar de novo
 
-Quando o remetente escolhe **Deixar para o Financeiro**, nada é enviado: o documento fica como rascunho e o Financeiro
-recebe o e-mail. Na página da NF, o cartão mostra a lista de contas e o botão **Definir conta e enviar** (pede
-confirmação): a conta já conta como aprovada e o RevSign envia o documento em nome do dono. Se aparecer "Envio em
-andamento. Aguarde um instante.", outra pessoa do Financeiro acabou de enviar: espere e atualize (um envio que parou no
-meio pode ser retomado depois de 5 minutos). Se aparecer "O remetente trocou o arquivo; a nota voltou para ele.", o
-remetente substituiu o PDF do rascunho enquanto isso: a NF voltou a ser um rascunho dele, que escolhe a conta (ou deixa
-para o Financeiro) de novo.
+Quando a troca de conta criou a nova versão mas o envio dela falhou, a nova versão fica como rascunho com a conta já
+aprovada, e o cartão mostra o botão **Enviar de novo** (pede confirmação): o RevSign envia o documento em nome do dono,
+com a mesma conta da troca. Só a nova versão de uma troca tem esse botão; uma NF comum em rascunho é do remetente. Se
+aparecer "Envio em andamento. Aguarde um instante.", outra pessoa do Financeiro acabou de enviar: espere e atualize (um
+envio que parou no meio pode ser retomado depois de 5 minutos). Se aparecer "O remetente trocou o arquivo; a nota voltou
+para ele.", o remetente substituiu o PDF do rascunho enquanto isso: a NF voltou a ser um rascunho dele, que escolhe a
+conta de novo.
 
 ### E-mails do Financeiro
 
 | E-mail | Quando sai | Para quem | Botão |
 |---|---|---|---|
-| "Nota fiscal aguardando o Financeiro: {título}" | O remetente deixou a conta para o Financeiro | Todos os membros | **Abrir a nota fiscal** (página da NF) |
 | "Nota fiscal aguardando aprovação do Financeiro: {título}" | Todos assinaram e falta a aprovação | Todos os membros | **Abrir a nota fiscal** (página da NF) |
 | "Conta contábil da nota fiscal alterada pelo Financeiro: {título}" | A nova versão de uma troca de conta foi enviada | O remetente e quem assina, das duas versões | **Assinar a nova versão** (quem assina), **Abrir a nova versão** (remetente) ou **Verificar um documento** (os demais) |
 
@@ -334,12 +329,12 @@ aprovação assim que houver alguém no Financeiro.
 O e-mail "Nota fiscal assinada: …" (seção 3) diz quem escolheu a conta:
 
 - o remetente escolheu: "A conta foi escolhida pelo remetente." (ou "…sugerida pela IA e aceita pelo remetente.");
-- o Financeiro definiu ("Definir conta e enviar" ou "Definir e aprovar"): "Conta definida pelo Financeiro ({nome})";
+- o Financeiro definiu ("Definir e aprovar"): "Conta definida pelo Financeiro ({nome})";
 - nova versão de uma troca: "Conta alterada pelo Financeiro ({nome}) — motivo: {motivo}".
 
 Quando a versão anterior **já tinha ido para a contabilidade** (a troca foi feita depois da conclusão), o e-mail da nova
 versão traz também "Substitui o envio da versão anterior: {título da versão anterior}": lance a nova e desconsidere a
-anterior. NF de antes da Fase 6 sem conta chega com "Conta: a definir pela contabilidade".
+anterior. NF de antes da Fase 6 sem conta chega sem a linha da conta.
 
 ### Documentos não selados (admin)
 

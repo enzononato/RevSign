@@ -30,12 +30,12 @@ export type InvoiceState = {
   } | null;
   /** Código curto quando `suggestionStatus` é FAILED (nunca texto da NF nem do provedor). */
   failureReason: InvoiceFailureReason | null;
-  choice: { code: string | 'DEFER'; name?: string } | null;
+  choice: { code: string; name?: string } | null;
   /** Fase 6: estado no Financeiro (nulo = não é NF, ou NF em rascunho que ainda não foi enviada). */
-  financeStatus: 'AWAITING_ACCOUNT' | 'PENDING_APPROVAL' | 'APPROVED' | 'SUPERSEDED' | 'LEGACY' | null;
+  financeStatus: 'PENDING_APPROVAL' | 'APPROVED' | 'SUPERSEDED' | 'LEGACY' | null;
   /**
-   * `APPROVED` sem reserva de envio (`approvedAt` nulo): o envio feito pelo Financeiro (troca de conta, "Definir conta e
-   * enviar") falhou. A conta continua travada, mas o rascunho pode ser enviado por quem tem acesso a ele.
+   * `APPROVED` sem reserva de envio (`approvedAt` nulo): o envio da nova versão de uma troca de conta falhou. A conta
+   * continua travada, mas o rascunho pode ser enviado por quem tem acesso a ele.
    */
   isFinanceSendReleased: boolean;
   /**
@@ -96,11 +96,9 @@ export const toInvoiceState = async (row: RevalleInvoiceClassification): Promise
       }
     : null;
 
-  const choice: InvoiceState['choice'] = row.choiceDefer
-    ? { code: 'DEFER' }
-    : row.choiceCode
-      ? { code: row.choiceCode, name: accounts.get(row.choiceCode)?.name }
-      : null;
+  const choice: InvoiceState['choice'] = row.choiceCode
+    ? { code: row.choiceCode, name: accounts.get(row.choiceCode)?.name }
+    : null;
 
   return {
     isInvoice: row.isInvoice,
@@ -141,18 +139,16 @@ const expireStalePending = async (row: RevalleInvoiceClassification) => {
 };
 
 /**
- * Escolha da conta zerada: ela vale para um conjunto de arquivos (trocou o arquivo, escolhe de novo). Rascunho retido
- * para o Financeiro ("Deixar para o Financeiro") cujo arquivo muda volta a ser um rascunho comum: a retenção era para
- * outro arquivo. O remetente escolhe de novo; se deixar outra vez para o Financeiro, o envio retém e avisa de novo.
+ * Escolha da conta zerada: ela vale para um conjunto de arquivos (trocou o arquivo, escolhe de novo). A nova versão de
+ * uma troca de conta (rascunho `APPROVED`) cujo arquivo muda volta a ser um rascunho comum do remetente: a aprovação
+ * era para outro arquivo.
  */
 const CLEARED_CHOICE = {
   choiceCode: null,
-  choiceDefer: false,
   choiceById: null,
   choiceAt: null,
   acceptedSuggestion: null,
   financeStatus: null,
-  accountRequestedAt: null,
 };
 
 /** Documento já enviado que nunca foi classificado (ex.: enviado antes desta versão): não é tratado como NF. */
@@ -169,10 +165,7 @@ const unclassifiedState = (): InvoiceState => ({
   aiAvailable: getRevalleInvoiceAiConfig().status === 'CONFIGURED',
 });
 
-/**
- * Fase 6: depois do envio (inclusive o envio retido para o Financeiro, que mantém o rascunho), o remetente não troca
- * mais a conta nem a marcação de NF; quem troca é o Financeiro.
- */
+/** Fase 6: depois do envio, o remetente não troca mais a conta nem a marcação de NF; quem troca é o Financeiro. */
 export const INVOICE_FINANCE_DECIDES_MESSAGE = 'Depois do envio, quem troca a conta é o Financeiro.';
 
 export const financeDecidesError = () =>
@@ -182,11 +175,11 @@ export const financeDecidesError = () =>
   });
 
 /**
- * Rascunho nas mãos do Financeiro: retido esperando a conta (`AWAITING_ACCOUNT`) ou com a conta definida e o envio em
- * andamento (`APPROVED` ainda em rascunho; ver `define-and-send.ts`).
+ * Rascunho nas mãos do Financeiro: a nova versão de uma troca de conta, com a conta aprovada e o envio em andamento ou
+ * parado (`APPROVED` ainda em rascunho; ver `define-and-send.ts`).
  */
 export const isDraftFinanceStatusLocked = (financeStatus: RevalleFinanceStatus | null | undefined) =>
-  financeStatus === RevalleFinanceStatus.AWAITING_ACCOUNT || financeStatus === RevalleFinanceStatus.APPROVED;
+  financeStatus === RevalleFinanceStatus.APPROVED;
 
 export const isHeldForFinance = async (envelopeId: string) => {
   const row = await prisma.revalleInvoiceClassification.findUnique({
@@ -253,7 +246,7 @@ export const classifyEnvelope = async (
     // dele (inclusive uma sugestão já em andamento).
     if (row) {
       const previous = row;
-      const hadChoice = previous.choiceCode !== null || previous.choiceDefer;
+      const hadChoice = previous.choiceCode !== null;
       const user =
         hadChoice && requester.userId !== undefined
           ? await prisma.user.findUnique({
@@ -276,9 +269,7 @@ export const classifyEnvelope = async (
               envelopeId,
               data: {
                 fromCode: previous.choiceCode,
-                fromDefer: previous.choiceDefer,
                 toCode: null,
-                toDefer: false,
                 reason: 'FILES_CHANGED',
               },
               user,

@@ -14,7 +14,7 @@ export type RevalleInvoiceAccountingTemplateProps = {
   senderEmail: string;
   /** Já formatada em horário de Brasília, com "(horário de Brasília)". */
   completedAt: string;
-  /** "2.1.03 – Fornecedores", ou null quando ficou para a contabilidade (NF de antes da Fase 6). */
+  /** "2.1.03 – Fornecedores", ou null quando a NF (de antes da Fase 6) não tem conta. */
   account: string | null;
   /** Quem escolheu a conta: o remetente (com ou sem a IA) ou o Financeiro (definida, ou alterada numa troca). */
   origin: 'SUGGESTION_ACCEPTED' | 'CHOSEN' | 'FINANCE_DEFINED' | 'FINANCE_CHANGED' | null;
@@ -75,13 +75,11 @@ export const RevalleInvoiceAccountingTemplate = ({
                 <Trans>Concluído em {completedAt}</Trans>
               </Text>
 
-              <Text className="my-1 text-center text-base text-foreground">
-                {account ? (
+              {account && (
+                <Text className="my-1 text-center text-base text-foreground">
                   <Trans>Conta contábil: {account}</Trans>
-                ) : (
-                  <Trans>Conta: a definir pela contabilidade</Trans>
-                )}
-              </Text>
+                </Text>
+              )}
 
               {origin === 'SUGGESTION_ACCEPTED' && (
                 <Text className="my-1 text-center text-base text-muted-foreground">

@@ -109,15 +109,16 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
   // antes da classificação nova (os arquivos podem ter mudado). Sem estado (erro na consulta), o envio segue: o
   // servidor confere de qualquer forma. Escaneado (UNKNOWN) só libera com "Sim" (e a conta) ou "Não": uma NF tirada
   // no celular não pode sair do fluxo da contabilidade com um toque em "Enviar". O servidor não exige a resposta (API).
-  // Retida para o Financeiro ("Deixar para o Financeiro" já enviado; ou com a conta definida e o envio do Financeiro
-  // em andamento): quem envia agora é o Financeiro. Conta aprovada cujo envio pelo Financeiro falhou (reserva solta):
-  // a conta fica travada, mas o rascunho pode sair por aqui.
+  // Nova versão de uma troca de conta com o envio do Financeiro em andamento: quem envia agora é o Financeiro. Conta
+  // aprovada cujo envio pelo Financeiro falhou (reserva solta): a conta fica travada, mas o rascunho pode sair por aqui.
+  // Sem nenhuma conta ativa na lista, nenhuma nota fiscal sai.
   const isReleased = isInvoice && state?.financeStatus === 'APPROVED' && state.isFinanceSendReleased;
-  const isHeld =
-    isInvoice && !isReleased && (state?.financeStatus === 'AWAITING_ACCOUNT' || state?.financeStatus === 'APPROVED');
+  const isHeld = isInvoice && !isReleased && state?.financeStatus === 'APPROVED';
+  const hasNoAccounts = isInvoice && accountsData !== undefined && accountsData.accounts.length === 0;
   const isReady =
     isClassified &&
     !isHeld &&
+    !hasNoAccounts &&
     (isError || (state !== undefined && state.isInvoice !== 'UNKNOWN' && (!isInvoice || state.choice !== null)));
 
   useEffect(() => {
@@ -127,7 +128,7 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
   const showError = () =>
     toast({ title: t`Não foi possível salvar. Tente de novo.`, variant: 'destructive', duration: 5000 });
 
-  const onChoose = async (choice: { code: string } | { defer: true }) => {
+  const onChoose = async (choice: { code: string }) => {
     try {
       store(await setChoice({ envelopeId, choice }));
       setIsChanging(false);
@@ -252,10 +253,10 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
           <Trans>Nota fiscal · Conta contábil</Trans>
         </h3>
         <p className="text-sm">
-          <Trans>Aguardando o Financeiro definir a conta</Trans>
+          {state.choice?.name ? `${state.choice.code} – ${state.choice.name}` : state.choice?.code}
         </p>
         <p className="text-muted-foreground text-sm">
-          <Trans>Os convites saem depois que o Financeiro definir a conta.</Trans>
+          <Trans>O Financeiro está enviando esta nova versão. Os convites saem em instantes.</Trans>
         </p>
       </section>
     );
@@ -331,13 +332,9 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
       {choice && !isChanging ? (
         <div className="flex flex-wrap items-center justify-between gap-x-2 text-sm">
           <p className="min-w-0 break-words">
-            {choiceCode === 'DEFER' ? (
-              <Trans>Escolha: deixar para o Financeiro</Trans>
-            ) : (
-              <Trans>
-                Conta escolhida: {choiceCode} · {choiceName}
-              </Trans>
-            )}
+            <Trans>
+              Conta escolhida: {choiceCode} · {choiceName}
+            </Trans>
           </p>
           <Button
             type="button"
@@ -349,30 +346,22 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
             <Trans>Trocar</Trans>
           </Button>
         </div>
+      ) : hasNoAccounts ? (
+        <p className="text-amber-700 text-sm dark:text-amber-400">
+          <Trans>Nenhuma conta contábil cadastrada. Fale com o administrador.</Trans>
+        </p>
       ) : (
-        <>
-          <AccountCombobox
-            accounts={accountsData?.accounts ?? []}
-            value={choiceCode ?? null}
-            disabled={isBusy}
-            onSelect={(code) => void onChoose({ code })}
-          />
-
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 w-full whitespace-normal"
-            disabled={isBusy}
-            onClick={() => void onChoose({ defer: true })}
-          >
-            <Trans>Deixar para o Financeiro</Trans>
-          </Button>
-        </>
+        <AccountCombobox
+          accounts={accountsData?.accounts ?? []}
+          value={choiceCode ?? null}
+          disabled={isBusy}
+          onSelect={(code) => void onChoose({ code })}
+        />
       )}
 
-      {!choice && (
+      {!choice && !hasNoAccounts && (
         <p className="text-amber-700 text-sm dark:text-amber-400">
-          <Trans>Escolha a conta contábil ou deixe para o Financeiro.</Trans>
+          <Trans>Escolha a conta contábil.</Trans>
         </p>
       )}
     </section>

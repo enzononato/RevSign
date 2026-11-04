@@ -15,8 +15,6 @@ import type { TRevalleSendFinanceAccountChangedEmailJobDefinition } from './reva
 export const buildAccountChangedSubject = (title: string) =>
   `Conta contábil da nota fiscal alterada pelo Financeiro: ${title}`;
 
-const DEFER_LABEL = 'a definir pelo Financeiro';
-
 type NoticeAction = 'SIGN' | 'VIEW' | 'VERIFY';
 
 /**
@@ -46,7 +44,6 @@ export const run = async ({
       select: {
         financeStatus: true,
         choiceCode: true,
-        choiceDefer: true,
         supersedeReason: true,
         supersededByEnvelopeId: true,
       },
@@ -90,10 +87,9 @@ export const run = async ({
 
   const notice = buildAccountChangeNotice({
     title: previous.title,
-    from:
-      previousRow.choiceCode && !previousRow.choiceDefer
-        ? formatInvoiceAccount(previousRow.choiceCode, names.get(previousRow.choiceCode))
-        : DEFER_LABEL,
+    from: previousRow.choiceCode
+      ? formatInvoiceAccount(previousRow.choiceCode, names.get(previousRow.choiceCode))
+      : null,
     to: formatInvoiceAccount(nextCode, names.get(nextCode)),
     reason: previousRow.supersedeReason,
   });

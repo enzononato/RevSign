@@ -2,8 +2,8 @@
 // ponta, na ordem do plano:
 //   1. o admin importa 4 contas e define o prompt e o e-mail da contabilidade;
 //   2. um remetente da empresa (conta nova, criada pelo teste) sobe um DANFE fictício; a sugestão sai e ele aceita;
-//   3. segundo documento: NFS-e sem conta (Fase 6: "Deixar para o Financeiro" retém o envio, então a NFS-e é uma NF
-//      de antes da Fase 6, deixada para a contabilidade, simulada no banco logo depois do envio);
+//   3. segundo documento: NFS-e sem conta (sem "Deixar para o Financeiro" desde a Fase 7, a NFS-e é uma NF de antes
+//      da Fase 6, sem conta, simulada no banco logo depois do envio);
 //   4. terceiro documento: contrato comum;
 //   5. dois signatários assinam cada NF (portão + código por e-mail); as NFs são concluídas (Fase 6: o DANFE fica
 //      retido depois das duas assinaturas e o Financeiro, o admin marcado aqui, aprova pela rota; a NFS-e é de antes
@@ -434,7 +434,7 @@ before(async () => {
   }
 
   // 3. NFS-e sem sugestão (o servidor falso responde erro), enviada com uma conta e convertida depois do envio numa NF
-  //    de antes da Fase 6 deixada para a contabilidade (`LEGACY`, sem conta).
+  //    de antes da Fase 6 (`LEGACY`, sem conta).
   fx.nfse = await create({
     label: 'NFS-e',
     pdf: await nfsePdf(),
@@ -464,7 +464,7 @@ before(async () => {
   await signAll(fx.nfse, {
     afterSend: (id) =>
       db(
-        `update "RevalleInvoiceClassification" set "choiceCode" = null, "choiceDefer" = true, "acceptedSuggestion" = null, "financeStatus" = 'LEGACY' where "envelopeId" = '${id}'`,
+        `update "RevalleInvoiceClassification" set "choiceCode" = null, "acceptedSuggestion" = null, "financeStatus" = 'LEGACY' where "envelopeId" = '${id}'`,
       ),
   });
   // Fase 6: o DANFE fica retido depois das duas assinaturas e o Financeiro aprova pela rota.
@@ -512,11 +512,11 @@ testStep(
     assert.equal(danfe.senderName, fx.sender.name);
     assert.ok(danfe.sentAt && danfe.completedAt, JSON.stringify(danfe));
     assert.deepEqual(danfe.account, { code: '4.1.07', name: 'Fornecedores Aceite Cinco' });
-    assert.equal(danfe.deferred, false);
+    assert.equal(danfe.deferred, undefined, 'a linha da lista ainda fala em "deixada"');
     assert.equal(danfe.acceptedSuggestion, fakeUp ? true : null);
     assert.match(danfe.link, new RegExp(`^/t/[^/]+/documents/${fx.danfe.id}$`));
     assert.equal(nfse.account, null);
-    assert.equal(nfse.deferred, true);
+    assert.equal(nfse.deferred, undefined);
     assert.equal(nfse.acceptedSuggestion, null);
 
     const outsider = await find(fx.outsider.cookie);
@@ -547,7 +547,7 @@ testStep(
     const today = brasiliaDay();
     const tomorrow = brasiliaDay(new Date(Date.now() + 24 * 3600 * 1000));
 
-    assert.deepEqual(await ids({ deferred: true }), [fx.nfse.id]);
+    assert.deepEqual(await ids({ finance: 'antigas' }), [fx.nfse.id]);
     assert.deepEqual(await ids({ accountCode: '4.1.07' }), [fx.danfe.id]);
     assert.deepEqual(await ids({ accountCode: '4.2.19' }), []);
     assert.equal((await ids({ status: 'COMPLETED' })).length, 2);
@@ -618,7 +618,7 @@ testStep('7. planilha: BOM, cabeçalho exato, 2 linhas com as contas certas, fil
 
   const nfse = cells(fx.nfse.id);
 
-  assert.equal(nfse.conta, 'a definir pela contabilidade');
+  assert.equal(nfse.conta, '');
   assert.equal(nfse.nome_conta, '');
   assert.equal(nfse.tipo, '');
   assert.equal(nfse.sugestao_ia, '');
@@ -626,11 +626,11 @@ testStep('7. planilha: BOM, cabeçalho exato, 2 linhas com as contas certas, fil
   assert.equal(nfse.aceitou_sugestao, '');
 
   // A planilha segue os filtros da tela.
-  const deferred = await csv(fx.sender.cookie, '?deixadas=1');
+  const legacy = await csv(fx.sender.cookie, '?financeiro=antigas');
 
-  assert.equal(deferred.status, 200);
+  assert.equal(legacy.status, 200);
   assert.deepEqual(
-    deferred.text
+    legacy.text
       .slice(1)
       .split('\r\n')
       .filter(Boolean)
@@ -683,7 +683,7 @@ testStep('8. a contabilidade recebeu 2 e-mails (um por NF)', async () => {
     subjects,
     [
       `Nota fiscal assinada: ${fx.danfe.title} · Conta 4.1.07 – Fornecedores Aceite Cinco`,
-      `Nota fiscal assinada: ${fx.nfse.title} · Conta: a definir pela contabilidade`,
+      `Nota fiscal assinada: ${fx.nfse.title}`,
     ].sort(),
   );
 
@@ -753,7 +753,7 @@ testStep(
       assert.ok(!danfe.includes(account.name), `DANFE: o PDF tem o nome ${account.name}`);
     }
 
-    // NFS-e de antes da Fase 6, deixada para a contabilidade: ninguém viu conta ao assinar, nada de conta no PDF.
+    // NFS-e de antes da Fase 6, sem conta: ninguém viu conta ao assinar, nada de conta no PDF.
     const nfse = await sealedText(fx.nfse);
 
     for (const account of ACCOUNTS) {
@@ -782,17 +782,17 @@ testStep(
     assert.ok(!(await csv(fx.sender.cookie)).text.includes(fx.nfse.id));
 
     // Admin: continua vendo, com a marca (e o link da página da NF, por ser do Financeiro nos testes).
-    const row = (await find(adminCookie, { deferred: true })).data.find((r) => r.id === fx.nfse.id);
+    const row = (await find(adminCookie, { finance: 'antigas' })).data.find((r) => r.id === fx.nfse.id);
 
     assert.ok(row, 'o admin não vê a NF excluída');
     assert.equal(row.deleted, true);
     assert.equal(row.link, `/notas-fiscais/${fx.nfse.id}`);
     assert.equal(
-      (await find(adminCookie, { deferred: true })).data.find((r) => r.id === fx.danfe.id),
+      (await find(adminCookie, { finance: 'antigas' })).data.find((r) => r.id === fx.danfe.id),
       undefined,
     );
 
-    const exported = await csv(adminCookie, '?deixadas=1');
+    const exported = await csv(adminCookie, '?financeiro=antigas');
     const line = exported.text
       .slice(1)
       .split('\r\n')

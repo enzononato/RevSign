@@ -19,7 +19,7 @@ export const nextVersionTitle = (title: string, version: number) =>
 
 /**
  * Texto exato do aviso da troca (e-mail para o remetente e os destinatários das duas versões). O ponto final do modelo
- * não é dobrado quando o motivo já termina com pontuação.
+ * não é dobrado quando o motivo já termina com pontuação. `from` nulo: a versão trocada não tinha conta.
  */
 export const buildAccountChangeNotice = ({
   title,
@@ -28,12 +28,13 @@ export const buildAccountChangeNotice = ({
   reason,
 }: {
   title: string;
-  from: string;
+  from: string | null;
   to: string;
   reason: string;
 }) => {
   const text = reason.trim();
   const ending = /[.!?…]$/.test(text) ? '' : '.';
+  const change = from ? `alterada pelo Financeiro de ${from} para ${to}` : `definida pelo Financeiro: ${to}`;
 
-  return `A conta contábil da nota fiscal ${title} foi alterada pelo Financeiro de ${from} para ${to}. Motivo: ${text}${ending}`;
+  return `A conta contábil da nota fiscal ${title} foi ${change}. Motivo: ${text}${ending}`;
 };

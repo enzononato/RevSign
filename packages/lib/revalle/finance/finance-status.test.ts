@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { FINANCE_FILTER_LABELS, financeStatusLabel } from './finance-status';
+import { FINANCE_FILTER_LABELS, FINANCE_FILTERS, FINANCE_STATUSES, financeStatusLabel } from './finance-status';
 
 describe('financeStatusLabel', () => {
   it('mostra a situação de cada estado', () => {
-    expect(financeStatusLabel('AWAITING_ACCOUNT', 'DRAFT')).toBe('Aguardando a conta');
     expect(financeStatusLabel('PENDING_APPROVAL', 'PENDING')).toBe('Aguardando aprovação');
     expect(financeStatusLabel('PENDING_APPROVAL', 'COMPLETED')).toBe('Aguardando aprovação');
     expect(financeStatusLabel('APPROVED', 'COMPLETED')).toBe('Aprovada');
@@ -20,5 +19,16 @@ describe('financeStatusLabel', () => {
 
   it('o filtro padrão do Financeiro se chama "Aguardando o Financeiro"', () => {
     expect(FINANCE_FILTER_LABELS.pendentes).toBe('Aguardando o Financeiro');
+  });
+});
+
+describe('"Deixar para o Financeiro" saiu', () => {
+  it('não existe mais o estado AWAITING_ACCOUNT', () => {
+    expect(FINANCE_STATUSES).not.toContain('AWAITING_ACCOUNT');
+  });
+
+  it('não existe mais o filtro aguardando-conta', () => {
+    expect(FINANCE_FILTERS).not.toContain('aguardando-conta');
+    expect(Object.keys(FINANCE_FILTER_LABELS)).not.toContain('aguardando-conta');
   });
 });

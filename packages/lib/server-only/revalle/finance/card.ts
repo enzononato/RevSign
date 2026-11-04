@@ -16,7 +16,6 @@ export type FinanceCard = {
   financeStatus: RevalleFinanceStatus | null;
   /** Conta atual (nome atual da lista; a conta já aprovada mostra o nome congelado na aprovação). */
   account: { code: string; name: string | null } | null;
-  deferred: boolean;
   /** Quem escolheu a conta (nome, ou e-mail sem nome) e quando. */
   choiceBy: string | null;
   choiceAt: Date | null;
@@ -86,7 +85,7 @@ export const getFinanceCard = async (envelopeId: string): Promise<FinanceCard> =
   }
 
   const suggestion = readSuggestion(row.suggestionStatus, row.suggestion);
-  const code = row.choiceDefer ? null : row.choiceCode;
+  const code = row.choiceCode;
   const codes = [code, suggestion?.code].filter((value): value is string => Boolean(value));
   const names = new Map(
     codes.length > 0
@@ -112,7 +111,6 @@ export const getFinanceCard = async (envelopeId: string): Promise<FinanceCard> =
     envelopeStatus: envelope.status,
     financeStatus: row.financeStatus,
     account: code ? { code, name: (row.approvedAt && row.approvedAccountName) || names.get(code) || null } : null,
-    deferred: row.choiceDefer,
     choiceBy,
     choiceAt: row.choiceAt,
     suggestion: suggestion ? { ...suggestion, name: names.get(suggestion.code) ?? null } : null,

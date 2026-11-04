@@ -715,7 +715,7 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
     })
     // REVALLE:
     .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_ACCOUNT_SET }, ({ data }) => {
-      const label = (code: string | null, defer: boolean) =>
+      const label = (code: string | null, defer?: boolean) =>
         defer ? i18n._(msg`deixar para o Financeiro`) : (code ?? '');
       const from = label(data.fromCode, data.fromDefer);
       const to = label(data.toCode, data.toDefer);
@@ -744,9 +744,7 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
     })
     // REVALLE:
     .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_FINANCE_ACCOUNT_CHANGED }, ({ data }) => {
-      const from = data.fromCode
-        ? formatInvoiceAccount(data.fromCode, data.fromName)
-        : i18n._(msg`a definir pelo Financeiro`);
+      const from = data.fromCode ? formatInvoiceAccount(data.fromCode, data.fromName) : i18n._(msg`sem conta`);
       const to = formatInvoiceAccount(data.toCode, data.toName);
       const reason = data.reason;
       const text = data.isNewVersion

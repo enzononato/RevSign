@@ -18,15 +18,13 @@ import {
   toInvoiceState,
 } from './classify';
 
-export const INVOICE_ACCOUNT_REQUIRED_MESSAGE = 'Escolha a conta contábil ou deixe para o Financeiro.';
-
-const AFTER_SEND_DEFER_MESSAGE = 'O documento já foi enviado: escolha a conta contábil (o Financeiro aprova ou troca).';
+export const INVOICE_ACCOUNT_REQUIRED_MESSAGE = 'Escolha a conta contábil.';
 
 /** Modelo e envio em lote: o documento é criado, mas o envio da nota fiscal espera a conta. */
 export const INVOICE_DRAFT_CREATED_MESSAGE =
   'O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e envie.';
 
-export type InvoiceChoice = { code: string } | { defer: true };
+export type InvoiceChoice = { code: string };
 
 // A escolha já foi gravada: uma falha ao disparar o e-mail não pode virar erro para quem escolheu. Repetir a mesma
 // escolha chama de novo (a reserva do job garante um e-mail só).
@@ -45,10 +43,9 @@ const notifyAccountingIfCompleted = async (envelopeId: string) => {
 /**
  * Conferência do envio (`sendDocument`), só no primeiro envio (rascunho). Classifica na hora se ainda não foi
  * (cliente da API que envia logo depois de criar): só a detecção, sem esperar a IA. NF sem escolha → recusa.
- * Devolve o que o envio faz com a NF (Fase 6): `HOLD` = "Deixar para o Financeiro" (o envio fica retido até o
- * Financeiro definir a conta); `APPROVAL` = NF com conta (sai e aguarda a aprovação); `NONE` = não é NF.
+ * Devolve o que o envio faz com a NF (Fase 6): `APPROVAL` = NF com conta (sai e aguarda a aprovação); `NONE` = não é NF.
  */
-export const assertInvoiceChoiceBeforeSend = async (envelopeId: string): Promise<'HOLD' | 'APPROVAL' | 'NONE'> => {
+export const assertInvoiceChoiceBeforeSend = async (envelopeId: string): Promise<'APPROVAL' | 'NONE'> => {
   const state = await classifyEnvelope(envelopeId, {}, { startSuggestion: false });
 
   if (state.isInvoice !== 'YES') {
@@ -63,20 +60,18 @@ export const assertInvoiceChoiceBeforeSend = async (envelopeId: string): Promise
     });
   }
 
-  return state.choice.code === 'DEFER' ? 'HOLD' : 'APPROVAL';
+  return 'APPROVAL';
 };
 
-const sameChoice = (state: InvoiceState, choice: InvoiceChoice) =>
-  'defer' in choice ? state.choice?.code === 'DEFER' : state.choice?.code === choice.code;
+const sameChoice = (state: InvoiceState, choice: InvoiceChoice) => state.choice?.code === choice.code;
 
 /**
- * Grava a conta escolhida (só conta ativa) ou "Deixar para o Financeiro", com quem e quando, e registra no log de
- * auditoria (de → para). `acceptedSuggestion`: se havia sugestão, se a escolha é a conta sugerida; sem sugestão,
- * vazio. A mesma escolha de novo não grava nada.
+ * Grava a conta escolhida (só conta ativa), com quem e quando, e registra no log de auditoria (de → para).
+ * `acceptedSuggestion`: se havia sugestão, se a escolha é a conta sugerida; sem sugestão, vazio. A mesma escolha de
+ * novo não grava nada.
  * - Rascunho: quem acessa o documento escolhe e troca à vontade.
- * - Depois do envio (Fase 6), inclusive o envio retido para o Financeiro: quem troca a conta é o Financeiro (403).
- *   A única escolha que ainda vale é a PRIMEIRA conta de um documento marcado como NF depois do envio (sem escolha),
- *   feita pelo dono ou pelo admin; "deixar para o Financeiro" não cabe mais (o documento já saiu). Documento
+ * - Depois do envio (Fase 6): quem troca a conta é o Financeiro (403). A única escolha que ainda vale é a PRIMEIRA
+ *   conta de um documento marcado como NF depois do envio (sem escolha), feita pelo dono ou pelo admin. Documento
  *   concluído que ainda não avisou a contabilidade: essa escolha dispara o e-mail (uma vez só).
  */
 export const setInvoiceChoice = async ({
@@ -93,14 +88,14 @@ export const setInvoiceChoice = async ({
   const isDraft = await isEnvelopeDraft(envelopeId);
   const current = await prisma.revalleInvoiceClassification.findUnique({
     where: { envelopeId },
-    select: { financeStatus: true, choiceCode: true, choiceDefer: true },
+    select: { financeStatus: true, choiceCode: true },
   });
 
   if (isDraft && isDraftFinanceStatusLocked(current?.financeStatus)) {
     throw financeDecidesError();
   }
 
-  if (!isDraft && current && (current.choiceCode || current.choiceDefer)) {
+  if (!isDraft && current?.choiceCode) {
     throw financeDecidesError();
   }
 
@@ -114,10 +109,6 @@ export const setInvoiceChoice = async ({
       throw new AppError(AppErrorCode.FORBIDDEN, {
         message: 'Depois do envio, só o dono do documento ou o administrador escolhe a conta.',
       });
-    }
-
-    if ('defer' in choice) {
-      throw new AppError(AppErrorCode.INVALID_REQUEST, { message: AFTER_SEND_DEFER_MESSAGE });
     }
   }
 
@@ -134,15 +125,13 @@ export const setInvoiceChoice = async ({
     throw new AppError(AppErrorCode.INVALID_REQUEST, { message: 'O documento não está marcado como nota fiscal.' });
   }
 
-  if ('code' in choice) {
-    const account = await prisma.revalleAccountingAccount.findUnique({
-      where: { code: choice.code },
-      select: { active: true },
-    });
+  const account = await prisma.revalleAccountingAccount.findUnique({
+    where: { code: choice.code },
+    select: { active: true },
+  });
 
-    if (!account?.active) {
-      throw new AppError(AppErrorCode.INVALID_REQUEST, { message: 'Conta contábil inativa ou inexistente.' });
-    }
+  if (!account?.active) {
+    throw new AppError(AppErrorCode.INVALID_REQUEST, { message: 'Conta contábil inativa ou inexistente.' });
   }
 
   if (sameChoice(state, choice)) {
@@ -153,8 +142,7 @@ export const setInvoiceChoice = async ({
     return state;
   }
 
-  const toCode = 'code' in choice ? choice.code : null;
-  const toDefer = 'defer' in choice;
+  const toCode = choice.code;
 
   await prisma.$transaction(async (tx) => {
     // Condicionada ao que foi lido: se os arquivos mudaram (ou outra escolha entrou) no meio, nada é gravado.
@@ -164,13 +152,11 @@ export const setInvoiceChoice = async ({
         isInvoice: RevalleInvoiceStatus.YES,
         fileSha256: row.fileSha256,
         choiceCode: row.choiceCode,
-        choiceDefer: row.choiceDefer,
-        // Um envio (ou a retenção para o Financeiro) no meio também invalida a escolha lida.
+        // Um envio no meio também invalida a escolha lida.
         financeStatus: row.financeStatus,
       },
       data: {
         choiceCode: toCode,
-        choiceDefer: toDefer,
         choiceById: user.id,
         choiceAt: new Date(),
         acceptedSuggestion: state.suggestion ? toCode === state.suggestion.accountCode : null,
@@ -187,7 +173,7 @@ export const setInvoiceChoice = async ({
       data: createDocumentAuditLogData({
         type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_ACCOUNT_SET,
         envelopeId,
-        data: { fromCode: row.choiceCode, fromDefer: row.choiceDefer, toCode, toDefer },
+        data: { fromCode: row.choiceCode, toCode },
         user,
         requestMetadata,
       }),

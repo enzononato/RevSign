@@ -1,7 +1,7 @@
-// Fase 5, Task 4: nota fiscal só é enviada com a conta contábil escolhida (ou "Deixar para o Financeiro").
-// O servidor confere no envio (sendDocument: tela, API v1 e v2) e a escolha vai para o log de auditoria. Fase 6: depois
-// do envio quem troca a conta é o Financeiro (403 para o dono e o admin nesta rota), e "Deixar para o Financeiro"
-// retém o envio (o caso completo está em finance-send.test.mjs). Documento comum (assets/example.pdf) não muda em nada.
+// Fase 5, Task 4: nota fiscal só é enviada com a conta contábil escolhida. O servidor confere no envio (sendDocument:
+// tela, API v1 e v2) e a escolha vai para o log de auditoria. Fase 6: depois do envio quem troca a conta é o Financeiro
+// (403 para o dono e o admin nesta rota). Fase 7: "Deixar para o Financeiro" não existe mais (a rota recusa `defer`).
+// Documento comum (assets/example.pdf) não muda em nada.
 //
 // Sessões: REVSIGN_USER_* (dono do REVSIGN_API_TOKEN) e REVSIGN_ADMIN_* (importa a lista de contas e troca a conta
 // como admin). Com o servidor falso do Gemini (compose.test.yml), também confere `acceptedSuggestion` contra a
@@ -37,7 +37,7 @@ const admin = { email: process.env.REVSIGN_ADMIN_EMAIL, password: process.env.RE
 
 const CHAVE = '29241012345678000195550010000123451123456784';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-const REQUIRED_MESSAGE = 'Escolha a conta contábil ou deixe para o Financeiro.';
+const REQUIRED_MESSAGE = 'Escolha a conta contábil.';
 const AFTER_SEND_MESSAGE = 'Depois do envio, quem troca a conta é o Financeiro.';
 
 const ACCOUNTS_CSV = [
@@ -60,6 +60,7 @@ const data = (res) => res.body?.result?.data?.json;
 const invoice = (kind, name, input, cookie = userCookie) => trpcAs(cookie, kind, `revalle.invoice.${name}`, input);
 const setChoice = (envelopeId, choice, cookie = userCookie) =>
   invoice('mutation', 'setChoice', { envelopeId, choice }, cookie);
+const getState = async (envelopeId) => data(await invoice('query', 'get', { envelopeId }));
 const distribute = (envelopeId) => api('POST', '/envelope/distribute', { envelopeId });
 const status = (envelopeId) => db(`select status from "Envelope" where id = '${envelopeId}'`);
 const row = (envelopeId, columns) =>
@@ -273,30 +274,24 @@ sessionTest('NF enviada pela API v2 sem passar pela tela: recusada (detecção n
   assert.equal(status(env.id), 'DRAFT');
 });
 
-sessionTest('"Deixar para o Financeiro": o log de auditoria registra a escolha; o envio fica retido', async () => {
-  const env = await newEnvelope(await danfe('deixar'), 'deixar para o Financeiro');
+sessionTest(
+  'não existe mais "deixar para o Financeiro": { defer: true } é recusado pela rota e nada muda',
+  async () => {
+    const env = await newEnvelope(await danfe('deixar'), 'sem deixar para o Financeiro');
 
-  const res = await setChoice(env.id, { defer: true });
+    for (const choice of [{ defer: true }, { code: '2.1.03', defer: true }]) {
+      const res = await invoice('mutation', 'setChoice', { envelopeId: env.id, choice });
 
-  assert.equal(res.status, 200, res.text);
-  assert.deepEqual(data(res).choice, { code: 'DEFER' });
-  assert.equal(
-    row(env.id, `"choiceDefer" || ';' || coalesce("choiceCode", '-') || ';' || "choiceById"`),
-    `true;-;${userId}`,
-  );
+      assert.equal(res.status, 400, res.text);
+    }
 
-  const held = await distribute(env.id);
-
-  assert.equal(held.status, 409, held.text);
-  assert.ok(held.text.includes('INVOICE_HELD_FOR_FINANCE'), held.text);
-  assert.equal(status(env.id), 'DRAFT');
-
-  const events = JSON.parse(accountEvents(env.id));
-
-  assert.equal(events.length, 1);
-  assert.deepEqual(events[0].data, { fromCode: null, fromDefer: false, toCode: null, toDefer: true });
-  assert.equal(String(events[0].userId), userId);
-});
+    assert.equal((await getState(env.id)).choice, null);
+    assert.equal(row(env.id, `coalesce("choiceCode", '-') || ';' || coalesce("choiceById"::text, '-')`), '-;-');
+    assert.equal(JSON.parse(accountEvents(env.id)).length, 0);
+    assertRefused(await distribute(env.id));
+    assert.equal(status(env.id), 'DRAFT');
+  },
+);
 
 sessionTest('conta ativa: envia, e "aceitou a sugestão" confere com a sugestão da IA', async () => {
   const env = await newEnvelope(await danfe('conta-ativa'), 'conta ativa');
@@ -319,10 +314,6 @@ sessionTest('conta ativa: envia, e "aceitou a sugestão" confere com a sugestão
 
     assert.equal(other.status, 200, other.text);
     assert.equal(row(env.id, `"acceptedSuggestion"`), 'f');
-
-    // "Deixar para o Financeiro" com sugestão na tela: não aceitou a sugestão.
-    assert.equal((await setChoice(env.id, { defer: true })).status, 200);
-    assert.equal(row(env.id, `"acceptedSuggestion" || ';' || "choiceDefer"`), 'false;true');
   }
 
   const chosen = await setChoice(env.id, { code: '2.1.03' });
@@ -336,11 +327,12 @@ sessionTest('conta ativa: envia, e "aceitou a sugestão" confere com a sugestão
 
   assert.equal(sent.status, 200, sent.text);
   sentId = env.id;
-  // Eventos seguidos podem ter o mesmo `createdAt` (ordem empatada): confere a presença, não a posição.
-  assert.ok(
-    JSON.parse(accountEvents(env.id)).some((event) => event.data.toCode === '2.1.03'),
-    accountEvents(env.id),
-  );
+  // Eventos seguidos podem ter o mesmo `createdAt` (ordem empatada): confere a presença, não a posição. O evento novo
+  // só leva de/para a conta (sem os campos de "deixar").
+  const chosenEvent = JSON.parse(accountEvents(env.id)).find((event) => event.data.toCode === '2.1.03');
+
+  assert.deepEqual(chosenEvent?.data, { fromCode: fakeUp ? '3.1.01' : null, toCode: '2.1.03' });
+  assert.equal(String(chosenEvent.userId), userId);
   assert.equal(row(env.id, `"choiceCode"`), '2.1.03');
 
   // Depois do envio a classificação fica congelada: "Sugerir de novo" é recusado e não conta tentativa.
@@ -364,7 +356,7 @@ sessionTest('conta inativa ou inexistente: 400, e nada muda', async () => {
   const malformed = await invoice('mutation', 'setChoice', { envelopeId: env.id, choice: { defer: false } });
 
   assert.equal(malformed.status, 400, malformed.text);
-  assert.equal(row(env.id, `coalesce("choiceCode", '-') || ';' || "choiceDefer"`), '-;false');
+  assert.equal(row(env.id, `coalesce("choiceCode", '-')`), '-');
   assert.equal(JSON.parse(accountEvents(env.id)).length, 0);
   assertRefused(await distribute(env.id));
 });
@@ -378,7 +370,7 @@ sessionTest('assets/example.pdf: envia sem nada (documento comum não muda)', as
   assert.equal(row(env.id, `"isInvoice"`), 'NO');
 
   // Escolher conta num documento que não é NF não faz sentido.
-  const res = await setChoice(env.id, { defer: true });
+  const res = await setChoice(env.id, { code: '2.1.03' });
 
   assert.equal(res.status, 400, res.text);
 });
@@ -392,7 +384,7 @@ sessionTest('depois do envio, nem o dono nem o admin trocam a conta (quem troca 
     [userCookie, { code: '3.1.01' }],
     [userCookie, { code: '2.1.03' }],
     [adminCookie, { code: '3.1.01' }],
-    [adminCookie, { defer: true }],
+    [adminCookie, { code: '2.1.03' }],
   ]) {
     const res = await setChoice(sentId, choice, cookie);
 
@@ -400,7 +392,7 @@ sessionTest('depois do envio, nem o dono nem o admin trocam a conta (quem troca 
     assert.ok(res.text.includes(AFTER_SEND_MESSAGE), res.text);
   }
 
-  assert.equal(row(sentId, `"choiceCode" || ';' || "choiceDefer"`), '2.1.03;false');
+  assert.equal(row(sentId, `"choiceCode"`), '2.1.03');
   assert.equal(JSON.parse(accountEvents(sentId)).length, eventsBefore);
 
   // A conta fica fora do log em PDF (o mesmo gerador anexa o log ao PDF selado); o histórico da tela mostra.
@@ -423,16 +415,14 @@ sessionTest('depois do envio, nem o dono nem o admin trocam a conta (quem troca 
   await api('GET', `/envelope/${sentId}`);
 
   assert.match(text, /enviou|sent/i);
-  assert.ok(!/Conta contábil|3\.1\.01|2\.1\.03|deixar para o Financeiro/.test(text), text);
+  assert.ok(!/Conta contábil|3\.1\.01|2\.1\.03/.test(text), text);
 });
 
 sessionTest('reenvio de um documento já enviado não é bloqueado', async () => {
   assert.ok(sentId, 'depende do caso "conta ativa"');
 
   // Simula uma NF enviada sem escolha (ex.: antes desta versão): o reenvio aos destinatários continua livre.
-  db(
-    `update "RevalleInvoiceClassification" set "choiceCode" = null, "choiceDefer" = false where "envelopeId" = '${sentId}'`,
-  );
+  db(`update "RevalleInvoiceClassification" set "choiceCode" = null where "envelopeId" = '${sentId}'`);
 
   const recipientIds = db(`select id from "Recipient" where "envelopeId" = '${sentId}'`).split('\n').map(Number);
   const res = await api('POST', '/envelope/redistribute', { envelopeId: sentId, recipients: recipientIds });
@@ -462,7 +452,7 @@ sessionTest(
     assert.equal(state.choice, null);
     assert.equal(data(await invoice('mutation', 'classify', { envelopeId: env.id })).isInvoice, 'NO');
     assert.equal(row(env.id, 'count(*)'), '0');
-    assert.equal((await setChoice(env.id, { defer: true })).status, 400);
+    assert.equal((await setChoice(env.id, { code: '2.1.03' })).status, 400);
   },
 );
 
@@ -518,17 +508,17 @@ sessionTest('escolha concorrente com troca de arquivo: a escolha não é gravada
   );
   await sleep(700);
 
-  const res = await setChoice(env.id, { defer: true });
+  const res = await setChoice(env.id, { code: '2.1.03' });
 
   assert.equal(await holderDone, 0);
   assert.equal(res.status, 400, res.text);
   assert.match(res.text, /O documento mudou enquanto a conta era escolhida/);
-  assert.equal(row(env.id, `coalesce("choiceCode", '-') || ';' || "choiceDefer"`), '-;false');
+  assert.equal(row(env.id, `coalesce("choiceCode", '-')`), '-');
   assert.equal(JSON.parse(accountEvents(env.id)).length, 0);
 
   // A próxima classificação vê os arquivos de verdade e a escolha funciona.
   assert.equal(data(await invoice('mutation', 'classify', { envelopeId: env.id })).isInvoice, 'YES');
-  assert.equal((await setChoice(env.id, { defer: true })).status, 200);
+  assert.equal((await setChoice(env.id, { code: '2.1.03' })).status, 200);
 });
 
 // Modelo (TEMPLATE) com o PDF de uma NF, para os fluxos de modelo.
@@ -623,7 +613,7 @@ sessionTest('trocar os arquivos apaga a escolha (ela era de outro arquivo)', asy
   const envelope = await newEnvelopeWithFiles(['assets/example.pdf', await danfe('troca-arquivo')], 'troca de arquivo');
 
   assert.equal(data(await invoice('mutation', 'classify', { envelopeId: envelope.id })).isInvoice, 'YES');
-  assert.equal((await setChoice(envelope.id, { defer: true })).status, 200);
+  assert.equal((await setChoice(envelope.id, { code: '2.1.03' })).status, 200);
 
   const exampleItem = envelope.envelopeItems.find((item) => item.title.startsWith('example'));
 
@@ -644,9 +634,9 @@ sessionTest('trocar os arquivos apaga a escolha (ela era de outro arquivo)', asy
   assert.equal(
     row(
       envelope.id,
-      `coalesce("choiceCode", '-') || ';' || "choiceDefer" || ';' || coalesce("choiceById"::text, '-') || ';' || coalesce("acceptedSuggestion"::text, '-')`,
+      `coalesce("choiceCode", '-') || ';' || coalesce("choiceById"::text, '-') || ';' || coalesce("acceptedSuggestion"::text, '-')`,
     ),
-    '-;false;-;-',
+    '-;-;-',
   );
 
   // A escolha apagada vai para o histórico, com o motivo.
@@ -655,20 +645,14 @@ sessionTest('trocar os arquivos apaga a escolha (ela era de outro arquivo)', asy
   assert.equal(events.length, 2, JSON.stringify(events));
   const cleared = events.find((event) => event.data.reason === 'FILES_CHANGED');
 
-  assert.deepEqual(cleared?.data, {
-    fromCode: null,
-    fromDefer: true,
-    toCode: null,
-    toDefer: false,
-    reason: 'FILES_CHANGED',
-  });
+  assert.deepEqual(cleared?.data, { fromCode: '2.1.03', toCode: null, reason: 'FILES_CHANGED' });
   assert.equal(String(cleared.userId), userId);
   assertRefused(await distribute(envelope.id));
 });
 
 sessionTest('acesso: visitante recebe 401; usuário de outro time recebe 404', async (t) => {
   const env = await newEnvelope(await danfe('acesso'), 'acesso');
-  const anonymous = await setChoice(env.id, { defer: true }, '');
+  const anonymous = await setChoice(env.id, { code: '2.1.03' }, '');
 
   assert.equal(anonymous.status, 401, anonymous.text);
 
@@ -687,7 +671,7 @@ sessionTest('acesso: visitante recebe 401; usuário de outro time recebe 404', a
 
   assert.equal(other.status, 200, other.text);
 
-  const res = await setChoice(other.id, { defer: true });
+  const res = await setChoice(other.id, { code: '2.1.03' });
 
   assert.equal(res.status, 404, res.text);
   assert.equal(row(other.id, 'count(*)'), '0');
@@ -848,8 +832,7 @@ sessionTest(
       `YES;SENDER;${userId};true`,
     );
 
-    // A primeira conta é escolhida em seguida (dono, depois do envio; "deixar para o Financeiro" não cabe mais).
-    assert.equal((await setChoice(env.id, { defer: true })).status, 400);
+    // A primeira conta é escolhida em seguida (dono, depois do envio).
     assert.equal((await setChoice(env.id, { code: '2.1.03' })).status, 200);
 
     // Marcar de novo: nada muda (nem a escolha).

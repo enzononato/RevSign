@@ -52,21 +52,11 @@ describe('buildInvoiceExportCsv', () => {
     expect(csv).toContain('42;"NF; ""teste""\nfim";Maria');
   });
 
-  it('mostra DEFER como a definir pelo Financeiro', () => {
-    const csv = buildInvoiceExportCsv([
-      { ...baseRow, choice: 'DEFER', accountName: null, accountKind: null, acceptedSuggestion: false },
-    ]);
-
-    expect(lines(csv)[1]).toContain(';a definir pelo Financeiro;;;');
-    expect(lines(csv)[1]).not.toContain('DEFER');
-    expect(lines(csv)[1]).toContain(';não;');
-  });
-
-  it('NF de antes da Fase 6 deixada para a contabilidade (Antiga): a definir pela contabilidade', () => {
+  it('NF sem conta deixa a coluna conta vazia, sem texto de "a definir"', () => {
     const csv = buildInvoiceExportCsv([
       {
         ...baseRow,
-        choice: 'DEFER',
+        choice: null,
         accountName: null,
         accountKind: null,
         acceptedSuggestion: null,
@@ -74,8 +64,8 @@ describe('buildInvoiceExportCsv', () => {
       },
     ]);
 
-    expect(lines(csv)[1]).toContain(';a definir pela contabilidade;;;');
-    expect(lines(csv)[1]).not.toContain('Financeiro;');
+    expect(lines(csv)[1]).toContain(';Pendente;;;;2.1.03;alta;;');
+    expect(csv).not.toContain('a definir');
   });
 
   it('neutraliza fórmulas nos textos livres e preserva códigos e links', () => {

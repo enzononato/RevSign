@@ -47,9 +47,6 @@ import { insertFormValuesInPdf } from '../pdf/insert-form-values-in-pdf';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { computeOriginalHashes, saveOriginalHashes } from '../revalle/document-hashes'; // REVALLE:
 import {
-  assertHeldInvoiceSendable,
-  holdInvoiceForFinance,
-  invoiceHeldForFinanceError,
   markInvoiceAwaitingApproval,
   notifyInvoiceAccountChangeOnSend,
   stampReleasedApproval,
@@ -139,19 +136,10 @@ export const sendDocument = async ({ id, userId, teamId, sendEmail, requestMetad
     throw new Error('Can not send completed document');
   }
 
-  // REVALLE: nota fiscal só sai com a conta contábil escolhida (ou deixada para o Financeiro). Só no primeiro
-  // envio: reenviar um documento já enviado nunca é bloqueado. Antes da injeção de formValues (que troca o PDF).
-  // "Deixar para o Financeiro" (Fase 6): o envio fica RETIDO (rascunho, sem convites) até o Financeiro definir a conta,
-  // e a resposta é o erro 409 INVOICE_HELD_FOR_FINANCE (nada foi distribuído; a tela mostra como sucesso).
+  // REVALLE: nota fiscal só sai com a conta contábil escolhida. Só no primeiro envio: reenviar um documento já enviado
+  // nunca é bloqueado. Antes da injeção de formValues (que troca o PDF).
   const revalleInvoiceSend =
     envelope.status === DocumentStatus.DRAFT ? await assertInvoiceChoiceBeforeSend(envelope.id) : 'NONE';
-
-  if (revalleInvoiceSend === 'HOLD') {
-    assertHeldInvoiceSendable({ recipients: envelope.recipients, fields: envelope.fields });
-    await holdInvoiceForFinance(envelope.id);
-
-    throw invoiceHeldForFinanceError();
-  }
 
   const legacyDocumentId = mapSecondaryIdToDocumentId(envelope.secondaryId);
 

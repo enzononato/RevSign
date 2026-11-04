@@ -2,12 +2,11 @@
  * Situação da NF no Financeiro (Fase 6), como a página "Notas fiscais", a página da NF e a planilha mostram. Os mesmos
  * textos nos três lugares (o app é só pt-BR).
  */
-export const FINANCE_STATUSES = ['AWAITING_ACCOUNT', 'PENDING_APPROVAL', 'APPROVED', 'SUPERSEDED', 'LEGACY'] as const;
+export const FINANCE_STATUSES = ['PENDING_APPROVAL', 'APPROVED', 'SUPERSEDED', 'LEGACY'] as const;
 
 export type FinanceStatus = (typeof FINANCE_STATUSES)[number];
 
 export const FINANCE_STATUS_LABELS: Record<FinanceStatus, string> = {
-  AWAITING_ACCOUNT: 'Aguardando a conta',
   PENDING_APPROVAL: 'Aguardando aprovação',
   APPROVED: 'Aprovada',
   SUPERSEDED: 'Substituída',
@@ -27,10 +26,7 @@ export const financeStatusLabel = (financeStatus: FinanceStatus | null, envelope
     return 'Aprovada, ainda não enviada';
   }
 
-  if (
-    (financeStatus === 'PENDING_APPROVAL' || financeStatus === 'AWAITING_ACCOUNT') &&
-    (envelopeStatus === 'REJECTED' || envelopeStatus === 'CANCELLED')
-  ) {
+  if (financeStatus === 'PENDING_APPROVAL' && (envelopeStatus === 'REJECTED' || envelopeStatus === 'CANCELLED')) {
     return 'Sem aprovação (recusada)';
   }
 
@@ -39,11 +35,10 @@ export const financeStatusLabel = (financeStatus: FinanceStatus | null, envelope
 
 /**
  * Filtro "Situação no Financeiro" da página e da planilha (parâmetro `financeiro` da URL). `pendentes` = "Aguardando o
- * Financeiro" (definir a conta ou aprovar), o padrão da página para quem é do Financeiro; `todas` desliga esse padrão.
+ * Financeiro" (aprovar a conta), o padrão da página para quem é do Financeiro; `todas` desliga esse padrão.
  */
 export const FINANCE_FILTERS = [
   'pendentes',
-  'aguardando-conta',
   'aguardando-aprovacao',
   'aprovadas',
   'substituidas',
@@ -55,7 +50,6 @@ export type FinanceFilter = (typeof FINANCE_FILTERS)[number];
 
 export const FINANCE_FILTER_LABELS: Record<FinanceFilter, string> = {
   pendentes: 'Aguardando o Financeiro',
-  'aguardando-conta': 'Aguardando a conta',
   'aguardando-aprovacao': 'Aguardando aprovação',
   aprovadas: 'Aprovadas',
   substituidas: 'Substituídas',

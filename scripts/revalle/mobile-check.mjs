@@ -6,9 +6,9 @@
 // um de texto, abre e fecha os diálogos "Baixar PDF" e "Recusar" do menu de ações (e confere que, depois de cada um, o
 // 1º toque num campo abre o campo), pede o código por e-mail (lido no Mailpit) e conclui.
 // Antes, se houver sessão do remetente (REVSIGN_USER_EMAIL/REVSIGN_USER_PASSWORD, dono do token), confere o envio de
-// uma nota fiscal fictícia no celular: o diálogo de envio com o bloco "Nota fiscal · Conta contábil", a escolha
-// "Deixar para o Financeiro", o envio retido (aviso "Enviado para o Financeiro…" e o bloco só de leitura ao reabrir) e
-// o cartão "Conta contábil" (só leitura, "Aguardando aprovação do Financeiro") de uma NF enviada com conta. Nesses passos a
+// uma nota fiscal fictícia no celular: o diálogo de envio com o bloco "Nota fiscal · Conta contábil", a escolha da conta
+// na lista e o cartão "Conta contábil" (só leitura, "Aguardando aprovação do Financeiro") de uma NF enviada com conta.
+// Nesses passos a
 // conferência vale só para o bloco/cartão: o editor do upstream não é feito para celular (a 360 px a página passa da
 // largura da tela e as abas "E-mail"/"Nenhum" do diálogo têm 32 px). Depois abre a página "Notas fiscais": botões da
 // página com 44 px e nenhuma rolagem horizontal da página inteira (a tabela rola dentro do próprio quadro).
@@ -19,7 +19,7 @@
 // contábil: {código} – {nome}" acima do documento. Com a sessão de um membro do Financeiro (REVSIGN_ADMIN_EMAIL/
 // REVSIGN_ADMIN_PASSWORD, o rsadmin, marcado como Financeiro aqui), a página da NF só de leitura com o cartão
 // "Financeiro" (prévia do PDF, "Aprovar conta" e o diálogo de confirmação, "Trocar conta" com a lista e o motivo), o
-// cartão "Definir conta e enviar" de uma NF retida (com a confirmação) e a página "Notas fiscais" no filtro
+// cartão "Enviar de novo" da nova versão parada em rascunho (com a confirmação) e a página "Notas fiscais" no filtro
 // "Aguardando o Financeiro". Nada é aprovado, trocado nem enviado: os diálogos são abertos e cancelados.
 // Em cada passo tira um print e confere:
 //   - sem rolagem horizontal (document.scrollingElement.scrollWidth <= 360);
@@ -225,7 +225,8 @@ const runHost = async () => {
     await distribute(sentScanned.id);
     senderEnv.SENT_SCANNED_URL = `${BASE_URL}/t/${teamUrl}/documents/${sentScanned.id}`;
 
-    // Fase 6: o Financeiro (rsadmin, marcado aqui) na página da NF enviada (aguardando aprovação) e numa NF retida.
+    // Fase 6: o Financeiro (rsadmin, marcado aqui) na página da NF enviada (aguardando aprovação) e numa nova versão
+    // parada em rascunho (a troca de conta criou a v2, mas o envio dela falhou).
     if (process.env.REVSIGN_ADMIN_EMAIL && process.env.REVSIGN_ADMIN_PASSWORD) {
       const financeCookie = await signIn(process.env.REVSIGN_ADMIN_EMAIL, process.env.REVSIGN_ADMIN_PASSWORD);
       const financeId = Number(db(`select id from "User" where email = '${process.env.REVSIGN_ADMIN_EMAIL}'`));
@@ -238,36 +239,56 @@ const runHost = async () => {
         throw new Error(`marcar o Financeiro: HTTP ${marked.status} ${marked.text}`);
       }
 
-      const held = await createEnvelope({
-        title: `[TESTE NF] Celular retida ${new Date().toISOString()}`,
+      const otherCode = db(
+        `select code from "RevalleAccountingAccount" where active and code <> '${accountCode}' order by code limit 1`,
+      );
+
+      if (!otherCode) {
+        throw new Error('é preciso uma 2ª conta contábil ativa para trocar a conta (importe a lista ou rode a suíte)');
+      }
+
+      const stuck = await createEnvelope({
+        title: `[TESTE NF] Celular nova versão ${new Date().toISOString()}`,
         pdf: await writeInvoiceFixture(outDir),
-        recipients: [{ email: `celular-nf-retida-${Date.now()}@revalle.com.br`, name: 'Teste' }],
+        recipients: [{ email: `celular-nf-nova-versao-${Date.now()}@revalle.com.br`, name: 'Teste' }],
       });
 
-      if (held.status !== 200) {
-        throw new Error(`criar nota retida: HTTP ${held.status} ${held.text}`);
+      if (stuck.status !== 200) {
+        throw new Error(`criar nota para a troca: HTTP ${stuck.status} ${stuck.text}`);
       }
 
-      const deferred = await trpcAs(senderEnv.SENDER_COOKIE, 'mutation', 'revalle.invoice.setChoice', {
-        envelopeId: held.id,
-        choice: { defer: true },
+      const stuckChoice = await trpcAs(senderEnv.SENDER_COOKIE, 'mutation', 'revalle.invoice.setChoice', {
+        envelopeId: stuck.id,
+        choice: { code: accountCode },
       });
 
-      if (deferred.status !== 200) {
-        throw new Error(`deixar a nota para o Financeiro: HTTP ${deferred.status} ${deferred.text}`);
+      if (stuckChoice.status !== 200) {
+        throw new Error(`escolher a conta da nota para a troca: HTTP ${stuckChoice.status} ${stuckChoice.text}`);
       }
 
-      const { api } = await import('./tests/helpers.mjs');
-      const holdSend = await api('POST', '/envelope/distribute', { envelopeId: held.id });
+      await distribute(stuck.id);
 
-      if (holdSend.status !== 409) {
-        throw new Error(`a nota deixada para o Financeiro não ficou retida: HTTP ${holdSend.status}`);
+      // Destinatário de fora dos domínios, posto no banco: a v2 é criada, mas o envio dela é recusado (fica rascunho).
+      db(`update "Recipient" set email = 'celular-fora-${Date.now()}@example.com' where "envelopeId" = '${stuck.id}'`);
+
+      const changed = await trpcAs(financeCookie, 'mutation', 'revalle.finance.changeAccount', {
+        envelopeId: stuck.id,
+        code: otherCode,
+        reason: 'Conta errada: era serviço, não mercadoria.',
+      });
+
+      if (changed.status !== 409) {
+        throw new Error(`a troca de conta deveria deixar a v2 em rascunho: HTTP ${changed.status} ${changed.text}`);
       }
+
+      const stuckVersion = db(
+        `select "supersededByEnvelopeId" from "RevalleInvoiceClassification" where "envelopeId" = '${stuck.id}'`,
+      );
 
       senderEnv.FINANCE_COOKIE = financeCookie;
       senderEnv.FINANCE_NF_URL = `${BASE_URL}/notas-fiscais/${sentNf.id}`;
-      senderEnv.FINANCE_HELD_URL = `${BASE_URL}/notas-fiscais/${held.id}`;
-      console.log(`- Financeiro: página da NF ${sentNf.id} e da NF retida ${held.id}`);
+      senderEnv.FINANCE_HELD_URL = `${BASE_URL}/notas-fiscais/${stuckVersion}`;
+      console.log(`- Financeiro: página da NF ${sentNf.id} e da nova versão parada ${stuckVersion}`);
     } else {
       console.log('- sem REVSIGN_ADMIN_EMAIL/REVSIGN_ADMIN_PASSWORD: passos do Financeiro pulados');
     }
@@ -568,44 +589,10 @@ const runBrowser = async () => {
       await panel.getByText('Buscando sugestão…').waitFor({ state: 'detached', timeout: 40_000 });
       await check('00a-nf-envio', sender, '[data-testid="invoice-account-panel"]');
 
-      await panel.getByRole('button', { name: 'Deixar para o Financeiro' }).click();
-      await panel.getByText('Escolha: deixar para o Financeiro').waitFor();
+      // Escolhe a primeira conta da lista (a sugestão da IA nunca vira escolha sozinha).
+      await panel.locator('ul button').first().click();
+      await panel.getByText(/Conta escolhida:/).waitFor();
       await check('00b-nf-escolhida', sender, '[data-testid="invoice-account-panel"]');
-
-      // Envio retido: o aviso de sucesso e a volta para a lista; o documento continua rascunho.
-      await sender
-        .getByRole('dialog')
-        .getByRole('button', { name: /^(enviar|gerar links)$/i })
-        .click();
-      // O toast também é lido num aviso para leitor de tela (aria-live): o texto exato pega só o toast visível.
-      await sender
-        .getByText('Enviado para o Financeiro definir a conta. Os convites saem depois disso.', { exact: true })
-        .waitFor();
-      await sender.waitForURL(/\/documents\/?(\?.*)?$/, { timeout: 60_000 });
-
-      // Reaberto: o bloco só mostra o estado, sem escolha, e o botão de enviar fica bloqueado.
-      await sender.goto(editorUrl.href, { waitUntil: 'networkidle' });
-      await sender
-        .getByRole('button', { name: /enviar documento/i })
-        .filter({ visible: true })
-        .first()
-        .click();
-      await panel.getByText('Aguardando o Financeiro definir a conta').waitFor();
-
-      if ((await panel.getByRole('button').count()) > 0) {
-        throw new Error('NF retida: o bloco não deveria ter botões');
-      }
-
-      if (
-        !(await sender
-          .getByRole('dialog')
-          .getByRole('button', { name: /^(enviar|gerar links)$/i })
-          .isDisabled())
-      ) {
-        throw new Error('NF retida: o botão de enviar deveria estar bloqueado');
-      }
-
-      await check('00b2-nf-retida', sender, '[data-testid="invoice-account-panel"]');
 
       // NF enviada com conta: o cartão só mostra a conta e o estado no Financeiro.
       await sender.goto(process.env.SENT_INVOICE_URL, { waitUntil: 'networkidle' });
@@ -757,7 +744,7 @@ const runBrowser = async () => {
     }
   }
 
-  // 0c. Fase 6: o Financeiro no celular (página da NF só de leitura, cartão, diálogos, NF retida, lista).
+  // 0c. Fase 6: o Financeiro no celular (página da NF só de leitura, cartão, diálogos, nova versão parada, lista).
   if (process.env.FINANCE_COOKIE && process.env.FINANCE_NF_URL) {
     const financeContext = await browser.newContext({
       viewport: { width: WIDTH, height: HEIGHT },
@@ -831,29 +818,23 @@ const runBrowser = async () => {
       await changeDialog.getByRole('button', { name: 'Cancelar' }).click();
       await changeDialog.waitFor({ state: 'detached' });
 
-      // NF retida ("Deixar para o Financeiro"): o cartão com a lista e "Definir conta e enviar".
+      // Nova versão parada em rascunho: o cartão só oferece "Enviar de novo" (mesma conta), com a confirmação.
       await fin.goto(process.env.FINANCE_HELD_URL, { waitUntil: 'networkidle' });
 
       const heldCard = fin.getByTestId('finance-card');
 
-      await heldCard.getByRole('button', { name: 'Definir conta e enviar' }).waitFor();
+      await heldCard.getByRole('button', { name: 'Enviar de novo' }).waitFor();
       await heldCard.scrollIntoViewIfNeeded();
-      await check('00n-nf-definir-conta', fin, '[data-testid="finance-card"]');
+      await check('00n-nf-enviar-de-novo', fin, '[data-testid="finance-card"]');
 
-      // Escolhida a conta, "Definir conta e enviar" pede confirmação antes de enviar (cancelar não envia nada).
-      const heldOption = heldCard.locator('ul button').first();
+      await heldCard.getByRole('button', { name: 'Enviar de novo' }).click();
 
-      if ((await heldOption.count()) > 0) {
-        await heldOption.click();
-        await heldCard.getByRole('button', { name: 'Definir conta e enviar' }).click();
+      const resendDialog = fin.getByTestId('finance-resend-dialog');
 
-        const defineDialog = fin.getByTestId('finance-define-dialog');
-
-        await defineDialog.getByText('Definir a conta e enviar?').waitFor();
-        await check('00n2-nf-definir-confirmar', fin, '[data-testid="finance-define-dialog"]');
-        await defineDialog.getByRole('button', { name: 'Cancelar' }).click();
-        await defineDialog.waitFor({ state: 'detached' });
-      }
+      await resendDialog.getByText('Enviar de novo?').waitFor();
+      await check('00n2-nf-enviar-de-novo-confirmar', fin, '[data-testid="finance-resend-dialog"]');
+      await resendDialog.getByRole('button', { name: 'Cancelar' }).click();
+      await resendDialog.waitFor({ state: 'detached' });
 
       // Lista: o Financeiro começa em "Aguardando o Financeiro"; a tabela rola dentro do quadro, nunca a página.
       await fin.goto(`${financeUrl.origin}/notas-fiscais`, { waitUntil: 'networkidle' });

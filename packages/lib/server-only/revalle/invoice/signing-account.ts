@@ -8,8 +8,7 @@ export type RevalleInvoiceAccount = { code: string; name: string };
 
 /**
  * A conta contábil que quem assina vê e que fica congelada na prova: a escolha atual da NF, quando ela é uma conta.
- * "Deixar para o Financeiro" nunca chega a quem assina (o envio fica retido até a conta ser definida); documento comum
- * e NF sem conta (de antes da Fase 6) devolvem null.
+ * Documento comum e NF sem conta (de antes da Fase 6) devolvem null.
  */
 export const findSigningInvoiceAccount = async (
   envelopeId: string,
@@ -17,10 +16,10 @@ export const findSigningInvoiceAccount = async (
 ): Promise<RevalleInvoiceAccount | null> => {
   const row = await db.revalleInvoiceClassification.findUnique({
     where: { envelopeId },
-    select: { isInvoice: true, choiceCode: true, choiceDefer: true },
+    select: { isInvoice: true, choiceCode: true },
   });
 
-  if (!row || row.isInvoice !== RevalleInvoiceStatus.YES || row.choiceDefer || !row.choiceCode) {
+  if (!row || row.isInvoice !== RevalleInvoiceStatus.YES || !row.choiceCode) {
     return null;
   }
 

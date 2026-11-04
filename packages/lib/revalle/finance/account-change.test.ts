@@ -35,6 +35,12 @@ describe('buildAccountChangeNotice', () => {
     );
   });
 
+  it('says the account was defined when the replaced version had none', () => {
+    expect(buildAccountChangeNotice({ ...base, from: null, reason: 'Faltava a conta' })).toBe(
+      'A conta contábil da nota fiscal NF 123 foi definida pelo Financeiro: 3.1.01 – Serviços de terceiros. Motivo: Faltava a conta.',
+    );
+  });
+
   it('does not double the final punctuation of the reason', () => {
     expect(buildAccountChangeNotice({ ...base, reason: 'Conta de serviço, não de material.' })).toMatch(
       /Motivo: Conta de serviço, não de material\.$/,

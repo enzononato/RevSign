@@ -61,7 +61,6 @@ const loadEnvelope = async (envelopeId: string) =>
           isInvoice: true,
           financeStatus: true,
           choiceCode: true,
-          choiceDefer: true,
           version: true,
           previousEnvelopeId: true,
           supersededByEnvelopeId: true,
@@ -139,7 +138,6 @@ export type InvoiceView = {
   finance: {
     status: RevalleFinanceStatus | null;
     account: { code: string; name: string | null } | null;
-    deferred: boolean;
     version: number;
     previous: { id: string; title: string } | null;
     next: { id: string; title: string } | null;
@@ -182,7 +180,7 @@ export const getInvoiceView = async ({
     throw notFound();
   }
 
-  const code = invoice.choiceDefer ? null : invoice.choiceCode;
+  const code = invoice.choiceCode;
   const account = code
     ? await prisma.revalleAccountingAccount.findUnique({ where: { code }, select: { name: true } })
     : null;
@@ -213,7 +211,6 @@ export const getInvoiceView = async ({
     finance: {
       status: invoice.financeStatus,
       account: code ? { code, name: account?.name ?? null } : null,
-      deferred: invoice.choiceDefer,
       version: invoice.version,
       previous,
       next,

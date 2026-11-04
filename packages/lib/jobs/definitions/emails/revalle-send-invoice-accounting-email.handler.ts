@@ -15,11 +15,11 @@ import { renderEmailWithI18N } from '../../../utils/render-email-with-i18n';
 import type { JobRunIO } from '../../client/_internal/job';
 import type { TRevalleSendInvoiceAccountingEmailJobDefinition } from './revalle-send-invoice-accounting-email';
 
-// Sem conta, só a NF de antes da Fase 6 deixada para a contabilidade (`LEGACY`): a NF aprovada sempre tem conta.
+// Sem conta, só a NF de antes da Fase 6 (`LEGACY`): a NF aprovada sempre tem conta.
 export const buildInvoiceAccountingSubject = (title: string, account: { code: string; name: string } | null) =>
   account
     ? `Nota fiscal assinada: ${title} · Conta ${account.code} – ${account.name}`
-    : `Nota fiscal assinada: ${title} · Conta: a definir pela contabilidade`;
+    : `Nota fiscal assinada: ${title}`;
 
 // Uma troca de conta encadeia versões (v1 → v2 → v3…); a corrente é curta, o limite só protege de um ciclo no banco.
 const MAX_VERSION_HOPS = 20;
@@ -55,9 +55,8 @@ const findReplacedSend = async (previousEnvelopeId: string | null) => {
 };
 
 /**
- * Quem escolheu a conta: o Financeiro, quando a escolha é de quem aprovou ("Definir conta e enviar", "Definir e
- * aprovar" ou a nova versão de uma troca, que leva o motivo da troca); senão, o remetente (com a IA, se ele aceitou a
- * sugestão). Nome congelado na aprovação; sem nome, "Financeiro" (o e-mail de quem aprovou não vai no corpo).
+ * Quem escolheu a conta: o Financeiro, quando a escolha é de quem aprovou ("Definir e aprovar" ou a nova versão de
+ * uma troca, que leva o motivo da troca); senão, o remetente (com a IA, se ele aceitou a sugestão). Nome congelado na aprovação; sem nome, "Financeiro" (o e-mail de quem aprovou não vai no corpo).
  */
 const describeOrigin = async (classification: RevalleInvoiceClassification) => {
   // Escolha e aprovação no mesmo ato (mesma pessoa, mesmo instante): quem é do Financeiro e enviou a própria NF com
@@ -149,14 +148,13 @@ export const run = async ({
     return;
   }
 
-  // Sem escolha (NF de antes da Fase 6 que chegou ao fim sem conta) segue o texto de "a definir pela contabilidade".
-  const account =
-    !classification.choiceDefer && classification.choiceCode
-      ? await prisma.revalleAccountingAccount.findUnique({
-          where: { code: classification.choiceCode },
-          select: { code: true, name: true },
-        })
-      : null;
+  // Sem escolha (NF de antes da Fase 6 que chegou ao fim sem conta): o e-mail sai sem a linha da conta.
+  const account = classification.choiceCode
+    ? await prisma.revalleAccountingAccount.findUnique({
+        where: { code: classification.choiceCode },
+        select: { code: true, name: true },
+      })
+    : null;
 
   // E-mail interno: não depende de o usuário estar ativo nem das preferências de e-mail do remetente/organização.
   const { branding, emailLanguage, senderEmail, emailTransport } = await getEmailContext({

@@ -10,7 +10,6 @@ export const ZGetFinanceCardResponseSchema = z.object({
   envelopeStatus: z.enum(['DRAFT', 'PENDING', 'COMPLETED', 'REJECTED', 'CANCELLED']),
   financeStatus: z.enum(FINANCE_STATUSES).nullable(),
   account: z.object({ code: z.string(), name: z.string().nullable() }).nullable(),
-  deferred: z.boolean(),
   choiceBy: z.string().nullable(),
   choiceAt: z.date().nullable(),
   suggestion: z

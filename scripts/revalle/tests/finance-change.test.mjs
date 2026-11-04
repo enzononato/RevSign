@@ -17,7 +17,7 @@
 //   - falha ao criar a v2 (cota de documentos da organização zerada no banco): a troca é desfeita, nada fica
 //     `SUPERSEDED` sem sucessora;
 //   - falha ao enviar a v2 (destinatário fora dos domínios, no banco): erro claro, a v2 fica rascunho `APPROVED` com a
-//     reserva solta, nenhum aviso sai (não há link para dar), e `defineAccount` na v2 envia depois de corrigido, e só
+//     reserva solta, nenhum aviso sai (não há link para dar), e `resendVersion` na v2 envia depois de corrigido, e só
 //     então sai o aviso, com o link de assinatura da v2;
 //   - troca que morreu no meio (queda entre marcar a antiga e ligar a nova): 409 dentro do prazo, retomada depois;
 //   - nova versão apagada pelo dono: o cartão do Financeiro na antiga oferece "Trocar conta" de novo (sem o link para a
@@ -338,8 +338,7 @@ const runJobLikeTheApp = async ({ jobId, name, version, payload }) => {
 };
 
 const errorOf = (res) => res.body?.error?.json ?? {};
-const defineAccount = (envelopeId, code) =>
-  trpcAs(adminCookie, 'mutation', 'revalle.finance.defineAccount', { envelopeId, code });
+const resendVersion = (envelopeId) => trpcAs(adminCookie, 'mutation', 'revalle.finance.resendVersion', { envelopeId });
 
 const changed = (res) => {
   assert.equal(res.status, 200, res.text);
@@ -483,9 +482,9 @@ sessionTest(
     assert.equal(await waitStatus(mainV2, 'PENDING', 10), 'PENDING');
     assert.equal(
       one(
-        `select "isInvoice" || '|' || "choiceCode" || '|' || "choiceDefer" || '|' || "financeStatus" || '|' || "approvedById" || '|' || ("approvedAt" is not null) || '|' || version || '|' || "previousEnvelopeId" from "RevalleInvoiceClassification" where "envelopeId" = '${mainV2}'`,
+        `select "isInvoice" || '|' || "choiceCode" || '|' || "financeStatus" || '|' || "approvedById" || '|' || ("approvedAt" is not null) || '|' || version || '|' || "previousEnvelopeId" from "RevalleInvoiceClassification" where "envelopeId" = '${mainV2}'`,
       ),
-      `YES|3.1.01|false|APPROVED|${adminId}|true|2|${main.id}`,
+      `YES|3.1.01|APPROVED|${adminId}|true|2|${main.id}`,
     );
     assert.equal(one(`select "deletedAt" is null from "Envelope" where id = '${mainV2}'`), 't');
     assert.equal(auditCount(mainV2, 'DOCUMENT_SENT'), 1);
@@ -608,7 +607,7 @@ sessionTest('validação: motivo, mesma conta, conta inativa e estados que não 
   await distribute(common.id);
   assert.equal((await change(common.id)).status, 404);
 
-  // Rascunho (com conta), NF retida aguardando a conta, NF LEGACY pendente e versão já substituída: 400.
+  // Rascunho (com conta), nova versão em rascunho (aprovada, envio parado), NF LEGACY pendente e versão já substituída: 400.
   const draft = await retryCreateOnStaleSocket(() =>
     createEnvelope({
       recipients: [{ email: `f6-troca-rascunho-${RUN}@revalle.com.br` }],
@@ -630,9 +629,10 @@ sessionTest('validação: motivo, mesma conta, conta inativa e estados que não 
   assert.equal((await change(draft.id)).status, 400);
 
   db(
-    `update "RevalleInvoiceClassification" set "financeStatus" = 'AWAITING_ACCOUNT', "choiceCode" = null, "choiceDefer" = true where "envelopeId" = '${draft.id}'`,
+    `update "RevalleInvoiceClassification" set "financeStatus" = 'APPROVED', "approvedAt" = null where "envelopeId" = '${draft.id}'`,
   );
   assert.equal((await change(draft.id)).status, 400);
+  assert.equal(status(draft.id), 'DRAFT');
 
   const legacy = await newInvoice('legacy-pendente', { signers: 1 });
 
@@ -834,7 +834,7 @@ const released = (envelopeId) =>
   );
 
 sessionTest(
-  'falha ao enviar a v2: 409 claro; defineAccount só reenvia a mesma conta e uma 2ª falha não apaga a conta; corrigida, envia',
+  'falha ao enviar a v2: 409 claro; resendVersion reenvia a mesma conta e uma 2ª falha não apaga a conta; corrigida, envia',
   async () => {
     const { doc, v2 } = await changeWithFailedSend('envio-falha');
 
@@ -846,16 +846,8 @@ sessionTest(
       'o aviso saiu antes da nova versão ser enviada',
     );
 
-    const other = await defineAccount(v2, '2.1.03');
-
-    assert.equal(other.status, 400, other.text);
-    assert.equal(
-      errorOf(other).message,
-      'Esta versão já tem a conta definida pela troca. Envie-a e, se precisar, use Trocar conta.',
-    );
-
     // 2ª falha (o destinatário continua de fora): a v2 continua aprovada com a conta e a reserva solta.
-    const again = await defineAccount(v2, '3.1.01');
+    const again = await resendVersion(v2);
 
     assert.ok(again.status >= 400 && again.status < 500, again.text);
     assert.equal(status(v2), 'DRAFT');
@@ -863,12 +855,15 @@ sessionTest(
 
     db(`update "Recipient" set email = 'f6-troca-corrigido-${RUN}@revalle.com.br' where "envelopeId" = '${v2}'`);
 
-    const retried = await defineAccount(v2, '3.1.01');
+    const retried = await resendVersion(v2);
 
     assert.equal(retried.status, 200, retried.text);
     assert.deepEqual(data(retried), { sent: true });
     assert.equal(await waitStatus(v2, 'PENDING', 10), 'PENDING');
     assert.equal(released(v2), 'APPROVED|3.1.01|false');
+
+    // Repetir depois de enviada não reenvia.
+    assert.deepEqual(data(await resendVersion(v2)), { sent: false });
 
     // Enviada a v2, o aviso sai (uma vez): o remetente com a página da NF, quem assina com o link da v2.
     const signer = loadVersion(v2).recipients[0];

@@ -1446,7 +1446,7 @@ enum RevalleSuggestionStatus {
   SKIPPED
 }
 
-/// REVALLE: se o documento é nota fiscal, a sugestão da IA, a conta escolhida (`choiceCode` ou `choiceDefer`) e, desde a
+/// REVALLE: se o documento é nota fiscal, a sugestão da IA, a conta escolhida (`choiceCode`) e, desde a
 /// Fase 6, a aprovação do Financeiro e as versões. A conta aprovada entra no certificado e no /verificar, e a conta vista
 /// por quem assina fica na prova de cada assinatura (`RevalleSignatureProof.invoiceAccount`).
 model RevalleInvoiceClassification {
@@ -1463,7 +1463,6 @@ model RevalleInvoiceClassification {
   suggestion             Json?
   suggestionAttempts     Int                      @default(0)
   choiceCode             String?
-  choiceDefer            Boolean                  @default(false)
   choiceById             Int?
   choiceAt               DateTime?
   acceptedSuggestion     Boolean?
@@ -1477,8 +1476,6 @@ model RevalleInvoiceClassification {
   approvedAccountName    String?
   /// Nome de quem aprovou (ou definiu), congelado no mesmo momento. Nulo = usa o nome atual.
   approvedByName         String?
-  /// "Deixar para o Financeiro": quando o e-mail "aguardando o Financeiro" saiu para os membros (um por retenção).
-  accountRequestedAt     DateTime?
   /// Selagem retida (todos assinaram, falta a aprovação): quando o e-mail "aguardando aprovação" saiu (um por retenção).
   approvalRequestedAt    DateTime?
   /// Versão substituída por outra com a conta trocada pelo Financeiro: quando, quem, o motivo e a nova versão.
@@ -1503,7 +1500,6 @@ model RevalleInvoiceSuggestionCache {
 
 /// REVALLE: estado da NF no Financeiro (Fase 6). Os `DocumentStatus` do upstream não mudam.
 enum RevalleFinanceStatus {
-  AWAITING_ACCOUNT
   PENDING_APPROVAL
   APPROVED
   SUPERSEDED

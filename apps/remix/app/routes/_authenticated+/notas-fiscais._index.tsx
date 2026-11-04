@@ -21,7 +21,6 @@ import { isAdmin } from '@documenso/lib/utils/is-admin';
 import { trpc } from '@documenso/trpc/react';
 import type { TFindInvoicesResponse } from '@documenso/trpc/server/revalle-router/invoice/find.types';
 import { Button } from '@documenso/ui/primitives/button';
-import { Checkbox } from '@documenso/ui/primitives/checkbox';
 import { Input } from '@documenso/ui/primitives/input';
 import { Label } from '@documenso/ui/primitives/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@documenso/ui/primitives/table';
@@ -93,7 +92,7 @@ export default function InvoicesPage() {
   const setFilter = <K extends keyof TInvoiceFilters>(key: K, value: TInvoiceFilters[K]) => {
     const next = { ...urlFilters };
 
-    if (value === undefined || value === '' || value === false) {
+    if (value === undefined || value === '') {
       delete next[key];
     } else {
       next[key] = value;
@@ -235,17 +234,8 @@ export default function InvoicesPage() {
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
-        {/* O rótulo inteiro é a área de toque (44 px) da caixa de seleção. */}
-        <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
-          <Checkbox
-            checked={filters.deferred ?? false}
-            onCheckedChange={(checked) => setFilter('deferred', checked === true ? true : undefined)}
-          />
-          <Trans>Só as deixadas para o Financeiro</Trans>
-        </label>
-
-        {hasFilters && (
+      {hasFilters && (
+        <div className="mt-4">
           <Button
             variant="ghost"
             className="h-11"
@@ -256,8 +246,8 @@ export default function InvoicesPage() {
           >
             <Trans>Limpar filtros</Trans>
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
         <p className="text-muted-foreground text-sm">
@@ -371,19 +361,13 @@ export default function InvoicesPage() {
 }
 
 const InvoiceTableRow = ({ row }: { row: InvoiceRow }) => {
-  const account = row.deferred ? (
-    row.financeStatus === 'LEGACY' ? (
-      <Trans>A definir pela contabilidade</Trans>
-    ) : (
-      <Trans>A definir pelo Financeiro</Trans>
-    )
-  ) : row.account ? (
+  const account = row.account ? (
     <span>
       <span className="font-mono">{row.account.code}</span>
       {row.account.name ? ` · ${row.account.name}` : ''}
     </span>
   ) : (
-    '-'
+    '—'
   );
 
   const accepted =

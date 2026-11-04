@@ -35,11 +35,11 @@ describe('REVALLE_FINANCE_ACCOUNT_CHANGED audit text', () => {
     );
   });
 
-  it('describes the new version, and an old NF left for Finance', () => {
+  it('describes the new version, and an old NF that had no account', () => {
     expect(
       formatDocumentAuditLogAction(i18n, auditLog({ isNewVersion: true, fromCode: null, fromName: null })).description,
     ).toBe(
-      'Nova versão criada pelo Financeiro com a conta contábil 3.1.01 – Serviços de terceiros (antes a definir pelo Financeiro). Motivo: Conta de serviço, não de material.',
+      'Nova versão criada pelo Financeiro com a conta contábil 3.1.01 – Serviços de terceiros (antes sem conta). Motivo: Conta de serviço, não de material.',
     );
   });
 });

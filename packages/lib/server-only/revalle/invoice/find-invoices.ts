@@ -10,11 +10,7 @@ import {
 
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../../constants/app';
 import { type FinanceFilter, financeStatusLabel, invoiceViewPath } from '../../../revalle/finance/finance-status';
-import {
-  buildInvoiceExportCsv,
-  INVOICE_DEFER_CHOICE,
-  type InvoiceExportRow,
-} from '../../../revalle/invoice/export-csv';
+import { buildInvoiceExportCsv, type InvoiceExportRow } from '../../../revalle/invoice/export-csv';
 import {
   INVOICE_DELETED_LABEL,
   INVOICE_LIST_STATUSES,
@@ -45,7 +41,6 @@ export type InvoiceListRow = {
   deleted: boolean;
   account: { code: string; name: string | null } | null;
   accountKind: 'PAYABLE' | 'RECEIVABLE' | null;
-  deferred: boolean;
   suggestion: { code: string; confidence: string } | null;
   acceptedSuggestion: boolean | null;
   /** Fase 6: situação no Financeiro, versão (1, 2…) e quem do Financeiro aprovou (ou definiu) a conta. */
@@ -67,9 +62,6 @@ export type FindInvoicesOptions = InvoiceViewer & {
 
 const SENT = DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_SENT;
 
-/** Rascunho que está com o Financeiro: retido ("Deixar para o Financeiro") ou aprovado com o envio ainda não saído. */
-const FINANCE_DRAFT_STATUSES = [RevalleFinanceStatus.AWAITING_ACCOUNT, RevalleFinanceStatus.APPROVED];
-
 /** Status do envelope em que a NF ainda pode ser aprovada (enviada ou concluída). */
 const APPROVABLE_STATUSES = [DocumentStatus.PENDING, DocumentStatus.COMPLETED];
 
@@ -87,14 +79,6 @@ const financeFilterWhere = (filter: FinanceFilter | undefined): Prisma.EnvelopeW
 
   switch (filter) {
     case 'pendentes':
-      return {
-        OR: [
-          stateIs(RevalleFinanceStatus.AWAITING_ACCOUNT),
-          { ...stateIs(RevalleFinanceStatus.PENDING_APPROVAL), status: { in: APPROVABLE_STATUSES } },
-        ],
-      };
-    case 'aguardando-conta':
-      return stateIs(RevalleFinanceStatus.AWAITING_ACCOUNT);
     case 'aguardando-aprovacao':
       return { ...stateIs(RevalleFinanceStatus.PENDING_APPROVAL), status: { in: APPROVABLE_STATUSES } };
     case 'aprovadas':
@@ -115,7 +99,7 @@ const financeFilterWhere = (filter: FinanceFilter | undefined): Prisma.EnvelopeW
  * e para o Financeiro, mas o admin continua vendo (a contabilidade pode já ter lançado).
  *
  * Fase 6, além das NFs enviadas:
- * - o rascunho que está com o Financeiro (retido ou aprovado e ainda não enviado), para o Financeiro e o dono (quem
+ * - o rascunho que está com o Financeiro (nova versão aprovada e ainda não enviada), para o Financeiro e o dono (quem
  *   assina ainda não recebeu nada);
  * - a versão pendente substituída pelo Financeiro (escondida pelo upstream), para o dono, os destinatários e o
  *   Financeiro.
@@ -154,10 +138,7 @@ const buildInvoiceWhere = async ({
       : {
           OR: [
             { status: { in: [...INVOICE_LIST_STATUSES] } },
-            {
-              status: DocumentStatus.DRAFT,
-              revalleInvoice: { financeStatus: { in: FINANCE_DRAFT_STATUSES } },
-            },
+            { status: DocumentStatus.DRAFT, revalleInvoice: { financeStatus: RevalleFinanceStatus.APPROVED } },
           ],
         },
   );
@@ -185,8 +166,7 @@ const buildInvoiceWhere = async ({
     type: EnvelopeType.DOCUMENT,
     revalleInvoice: {
       isInvoice: RevalleInvoiceStatus.YES,
-      ...(filters.accountCode ? { choiceCode: filters.accountCode, choiceDefer: false } : {}),
-      ...(filters.deferred ? { choiceDefer: true } : {}),
+      ...(filters.accountCode ? { choiceCode: filters.accountCode } : {}),
     },
     AND: conditions,
   } satisfies Prisma.EnvelopeWhereInput;
@@ -206,7 +186,6 @@ const select = {
   revalleInvoice: {
     select: {
       choiceCode: true,
-      choiceDefer: true,
       acceptedSuggestion: true,
       suggestionStatus: true,
       suggestion: true,
@@ -265,8 +244,7 @@ const toRows = async (envelopes: SelectedEnvelope[], viewer: ResolvedViewer): Pr
 
   return envelopes.map((envelope) => {
     const invoice = envelope.revalleInvoice;
-    const deferred = invoice?.choiceDefer ?? false;
-    const code = deferred ? null : (invoice?.choiceCode ?? null);
+    const code = invoice?.choiceCode ?? null;
     const account = code ? accounts.get(code) : undefined;
     const financeStatus = invoice?.financeStatus ?? null;
     const isDraft = envelope.status === DocumentStatus.DRAFT;
@@ -296,7 +274,6 @@ const toRows = async (envelopes: SelectedEnvelope[], viewer: ResolvedViewer): Pr
       deleted,
       account: code ? { code, name: account?.name ?? null } : null,
       accountKind: account?.kind ?? null,
-      deferred,
       suggestion: readSuggestion(invoice),
       acceptedSuggestion: invoice?.acceptedSuggestion ?? null,
       financeStatus,
@@ -386,7 +363,7 @@ export const exportInvoicesCsv = async ({
     sentAt: row.sentAt,
     completedAt: row.completedAt,
     status: row.deleted ? INVOICE_DELETED_LABEL : INVOICE_STATUS_LABELS[row.status],
-    choice: row.deferred ? INVOICE_DEFER_CHOICE : (row.account?.code ?? null),
+    choice: row.account?.code ?? null,
     accountName: row.account?.name ?? null,
     accountKind: row.accountKind,
     suggestedCode: row.suggestion?.code ?? null,

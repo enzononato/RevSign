@@ -5,7 +5,7 @@
 //     "BackgroundJob" + POST assinado em /api/jobs) não sela a NF retida, e sela uma NF `LEGACY` no mesmo estado;
 //   - a reselagem pelo admin de uma NF retida chega ao job de selagem, que sai sem selar e sem falhar (defesa em
 //     profundidade: qualquer caminho que dispare o job fica retido);
-//   - `revalle.finance.approve`: 401 sem sessão, 403 fora do Financeiro, 400 numa NF aguardando a conta; pelo Financeiro
+//   - `revalle.finance.approve`: 401 sem sessão, 403 fora do Financeiro, 400 numa NF ainda em rascunho; pelo Financeiro
 //     grava `APPROVED` e quem/quando, registra o evento (também no log em PDF), sela e a contabilidade recebe 1 e-mail;
 //     a 2ª chamada devolve `{ approved: false }` sem nada a mais;
 //   - aprovar antes de todos assinarem: o último a assinar sela direto;
@@ -433,7 +433,7 @@ sessionTest(
   },
 );
 
-sessionTest('approve: 401 sem sessão, 403 fora do Financeiro e 400 numa NF aguardando a conta', async () => {
+sessionTest('approve: 401 sem sessão, 403 fora do Financeiro e 400 numa NF ainda em rascunho', async () => {
   assert.ok(held, 'depende do primeiro caso');
 
   const anonymous = await trpc('revalle.finance.approve', { envelopeId: held.id });
@@ -446,13 +446,13 @@ sessionTest('approve: 401 sem sessão, 403 fora do Financeiro e 400 numa NF agua
   assert.equal(financeStatus(held.id), 'PENDING_APPROVAL');
   assert.equal(auditCount(held.id, 'REVALLE_FINANCE_APPROVED'), 0);
 
-  // "Deixar para o Financeiro": a conta é definida (defineAccount), não aprovada.
-  const pdf = await danfe('deixar');
+  // Rascunho (ainda não enviado), mesmo com conta escolhida: não há o que aprovar.
+  const pdf = await danfe('rascunho');
   const created = await retryCreateOnStaleSocket(() =>
     createEnvelope({
-      recipients: [{ email: `f6-aprova-deixar-${RUN}@revalle.com.br` }],
+      recipients: [{ email: `f6-aprova-rascunho-${RUN}@revalle.com.br` }],
       pdf,
-      title: `[TESTE NF] financeiro aprovação deixar ${RUN}`,
+      title: `[TESTE NF] financeiro aprovação rascunho ${RUN}`,
     }),
   );
 
@@ -461,22 +461,18 @@ sessionTest('approve: 401 sem sessão, 403 fora do Financeiro e 400 numa NF agua
     (
       await trpcAs(userCookie, 'mutation', 'revalle.invoice.setChoice', {
         envelopeId: created.id,
-        choice: { defer: true },
+        choice: { code: '2.1.03' },
       })
     ).status,
     200,
   );
 
-  const sent = await api('POST', '/envelope/distribute', { envelopeId: created.id });
-
-  assert.equal(sent.status, 409, sent.text);
-  assert.equal(financeStatus(created.id), 'AWAITING_ACCOUNT');
-
   const notPending = await approve(created.id);
 
   assert.equal(notPending.status, 400, notPending.text);
-  assert.equal(financeStatus(created.id), 'AWAITING_ACCOUNT');
+  assert.equal(financeStatus(created.id), '-');
   assert.equal(status(created.id), 'DRAFT');
+  assert.equal(auditCount(created.id, 'REVALLE_FINANCE_APPROVED'), 0);
 });
 
 sessionTest(

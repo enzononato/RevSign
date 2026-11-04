@@ -75,7 +75,7 @@ const CHANGEABLE: Partial<Record<DocumentStatus, RevalleFinanceStatus[]>> = {
  *    Se 2 ou 3 falham, a marca de 1 é desfeita e a cópia apagada: a antiga nunca fica substituída sem sucessora.
  * 4. Depois: o envio da nova em nome do dono (já aprovada: não é retida nem vai ao Financeiro); o aviso por e-mail sai
  *    junto com esse envio, com o link de assinatura da nova versão. Se o envio falhar com a nova ainda em rascunho, ela
- *    fica `APPROVED` com a reserva solta (`approvedAt` nulo) e o Financeiro envia depois com `defineAccount` (que
+ *    fica `APPROVED` com a reserva solta (`approvedAt` nulo) e o Financeiro envia depois com `resendVersion` (que
  *    retoma uma reserva solta na hora), ou o remetente envia o rascunho; o aviso sai nesse envio.
  */
 export const changeInvoiceAccount = async ({
@@ -140,7 +140,7 @@ export const changeInvoiceAccount = async ({
     throw invalid(NOT_CHANGEABLE_MESSAGE);
   }
 
-  if (!row.choiceDefer && row.choiceCode === code) {
+  if (row.choiceCode === code) {
     throw invalid(SAME_ACCOUNT_MESSAGE);
   }
 
@@ -162,7 +162,6 @@ export const changeInvoiceAccount = async ({
       envelopeId,
       isInvoice: RevalleInvoiceStatus.YES,
       choiceCode: row.choiceCode,
-      choiceDefer: row.choiceDefer,
       // O estado exato que foi lido (com a selagem, que trava esta linha antes de concluir, a ordem fica definida).
       financeStatus: row.financeStatus,
       supersededAt: row.supersededAt,
@@ -272,7 +271,7 @@ const createNewVersion = async ({
   // A chave dos arquivos da cópia, como a classificação calcula: no envio, o rascunho com a mesma chave mantém a conta.
   const fileSha256 = filesKey(await loadEnvelopeFiles(newEnvelopeId));
   const { suggestion } = await toInvoiceState(row);
-  const fromAccount = row.choiceCode && !row.choiceDefer ? row.choiceCode : null;
+  const fromAccount = row.choiceCode;
   const fromName = fromAccount
     ? ((await prisma.revalleAccountingAccount.findUnique({ where: { code: fromAccount }, select: { name: true } }))
         ?.name ?? null)
@@ -290,7 +289,6 @@ const createNewVersion = async ({
     suggestion: isSuggestionPending || row.suggestion === null ? Prisma.DbNull : row.suggestion,
     suggestionAttempts: row.suggestionAttempts,
     choiceCode: account.code,
-    choiceDefer: false,
     choiceById: user.id,
     choiceAt: now,
     acceptedSuggestion: suggestion ? suggestion.accountCode === account.code : null,
@@ -487,7 +485,7 @@ const sendNewVersion = async ({
       return;
     }
 
-    // Solta a própria reserva: `defineAccount` reenvia na hora, sem esperar o prazo da reserva.
+    // Solta a própria reserva: `resendVersion` reenvia na hora, sem esperar o prazo da reserva.
     await prisma.revalleInvoiceClassification.updateMany({
       where: { envelopeId: newEnvelopeId, financeStatus: RevalleFinanceStatus.APPROVED, approvedAt: now },
       data: { approvedAt: null },

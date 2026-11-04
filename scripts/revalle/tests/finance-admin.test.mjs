@@ -358,10 +358,30 @@ sessionTest(
   },
 );
 
+test('Fase 7: a migração tirou "deixar para o Financeiro" (colunas e estado) e nenhuma linha ficou retida', () => {
+  assert.equal(
+    db(
+      `select count(*) from "_prisma_migrations" where migration_name = '20261104100000_revalle_remove_defer' and finished_at is not null and rolled_back_at is null`,
+    ),
+    '1',
+    'migração da Fase 7 não aplicada',
+  );
+  assert.equal(
+    db(
+      `select count(*) from information_schema.columns where table_name = 'RevalleInvoiceClassification' and column_name in ('choiceDefer', 'accountRequestedAt')`,
+    ),
+    '0',
+  );
+  assert.equal(
+    db(`select count(*) from "RevalleInvoiceClassification" where "financeStatus"::text = 'AWAITING_ACCOUNT'`),
+    '0',
+  );
+});
+
 test('a migração marcou como LEGACY as NFs que já existiam', (t) => {
   assert.equal(
     db(`select enum_range(null::"RevalleFinanceStatus")::text`),
-    '{AWAITING_ACCOUNT,PENDING_APPROVAL,APPROVED,SUPERSEDED,LEGACY}',
+    '{PENDING_APPROVAL,APPROVED,SUPERSEDED,LEGACY}',
   );
 
   const startedAt = db(`select started_at from "_prisma_migrations" where migration_name = '${MIGRATION}'`);

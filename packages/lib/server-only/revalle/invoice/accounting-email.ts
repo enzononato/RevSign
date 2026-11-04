@@ -31,8 +31,8 @@ export const shouldEmailInvoiceAccounting = async (envelopeId: string): Promise<
 };
 
 /**
- * Documento JÁ CONCLUÍDO marcado como NF depois do envio (ex.: NF escaneada enviada sem resposta): quando a conta
- * (ou "Deixar para o Financeiro", NF de antes da Fase 6) é gravada, a contabilidade recebe o e-mail que não saiu na conclusão.
+ * Documento JÁ CONCLUÍDO marcado como NF depois do envio (ex.: NF escaneada enviada sem resposta): quando a conta é
+ * gravada, a contabilidade recebe o e-mail que não saiu na conclusão.
  * Fase 6: a NF marcada depois do envio fica `PENDING_APPROVAL`, então o e-mail só sai na aprovação do Financeiro
  * (que chama esta função de novo).
  * O job reserva `accountingEmailSentAt` antes de enviar: uma NF gera no máximo um e-mail, e trocar a conta de uma NF
@@ -43,15 +43,11 @@ export const emailAccountingIfCompleted = async (envelopeId: string) => {
     prisma.envelope.findUnique({ where: { id: envelopeId }, select: { status: true } }),
     prisma.revalleInvoiceClassification.findUnique({
       where: { envelopeId },
-      select: { choiceCode: true, choiceDefer: true },
+      select: { choiceCode: true },
     }),
   ]);
 
-  if (
-    envelope?.status !== DocumentStatus.COMPLETED ||
-    !classification ||
-    (!classification.choiceCode && !classification.choiceDefer)
-  ) {
+  if (envelope?.status !== DocumentStatus.COMPLETED || !classification?.choiceCode) {
     return;
   }
 

@@ -4,7 +4,7 @@ import { setInvoiceChoice } from '@documenso/lib/server-only/revalle/invoice/cho
 import { authenticatedProcedure } from '../../trpc';
 import { ZSetInvoiceChoiceRequestSchema, ZSetInvoiceChoiceResponseSchema } from './set-choice.types';
 
-/** Conta contábil da NF (ou "Deixar para o Financeiro"). Depois do envio, quem troca é o Financeiro. */
+/** Conta contábil da NF. Depois do envio, quem troca é o Financeiro. */
 export const setInvoiceChoiceRoute = authenticatedProcedure
   .input(ZSetInvoiceChoiceRequestSchema)
   .output(ZSetInvoiceChoiceResponseSchema)

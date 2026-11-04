@@ -19,7 +19,6 @@ import { toInvoiceState } from '../invoice/classify';
 export type ApproveInvoiceAccountResult = { approved: boolean };
 
 const NOT_PENDING_MESSAGE = 'Esta nota fiscal não está aguardando a aprovação do Financeiro.';
-const AWAITING_ACCOUNT_MESSAGE = 'Esta nota fiscal ainda não tem conta: use "Definir conta e enviar".';
 const NO_ACCOUNT_MESSAGE = 'Esta nota fiscal ainda não tem conta contábil: escolha a conta e use "Definir e aprovar".';
 const NOT_SENT_MESSAGE = 'Só uma nota fiscal enviada (pendente ou concluída) pode ser aprovada.';
 const HAS_ACCOUNT_MESSAGE = 'Esta nota fiscal já tem conta: aprove-a ou use "Trocar conta".';
@@ -68,10 +67,6 @@ export const approveInvoiceAccount = async ({
     return { approved: false };
   }
 
-  if (row.financeStatus === RevalleFinanceStatus.AWAITING_ACCOUNT) {
-    throw invalid(AWAITING_ACCOUNT_MESSAGE);
-  }
-
   if (row.financeStatus !== RevalleFinanceStatus.PENDING_APPROVAL) {
     throw invalid(NOT_PENDING_MESSAGE);
   }
@@ -80,8 +75,8 @@ export const approveInvoiceAccount = async ({
     throw invalid(NOT_SENT_MESSAGE);
   }
 
-  if (!row.choiceCode || row.choiceDefer) {
-    if (!definedCode || row.choiceDefer) {
+  if (!row.choiceCode) {
+    if (!definedCode) {
       throw invalid(NO_ACCOUNT_MESSAGE);
     }
 
@@ -108,7 +103,6 @@ export const approveInvoiceAccount = async ({
         isInvoice: RevalleInvoiceStatus.YES,
         financeStatus: RevalleFinanceStatus.PENDING_APPROVAL,
         choiceCode: code,
-        choiceDefer: false,
       },
       data: {
         financeStatus: RevalleFinanceStatus.APPROVED,
@@ -191,11 +185,9 @@ const defineSentInvoiceAccount = async ({
         isInvoice: RevalleInvoiceStatus.YES,
         financeStatus: RevalleFinanceStatus.PENDING_APPROVAL,
         choiceCode: null,
-        choiceDefer: false,
       },
       data: {
         choiceCode: code,
-        choiceDefer: false,
         choiceById: user.id,
         choiceAt: now,
         acceptedSuggestion: suggestion ? suggestion.accountCode === code : null,

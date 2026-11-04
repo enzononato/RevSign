@@ -13,7 +13,7 @@ import {
 
 describe('filtros da página de notas fiscais', () => {
   it('lê os filtros da URL e volta para a mesma URL', () => {
-    const params = new URLSearchParams('de=2026-10-01&ate=2026-10-30&status=COMPLETED&conta=2.1.03&deixadas=1');
+    const params = new URLSearchParams('de=2026-10-01&ate=2026-10-30&status=COMPLETED&conta=2.1.03');
     const parsed = parseInvoiceFilterParams(params);
 
     expect(parsed.success && parsed.data).toEqual({
@@ -21,7 +21,6 @@ describe('filtros da página de notas fiscais', () => {
       to: '2026-10-30',
       status: 'COMPLETED',
       accountCode: '2.1.03',
-      deferred: true,
     });
     expect(invoiceFiltersToParams(parsed.success ? parsed.data : {}).toString()).toBe(params.toString());
   });
@@ -33,16 +32,23 @@ describe('filtros da página de notas fiscais', () => {
     expect(parsed.success && parsed.data).toEqual({ finance: 'pendentes' });
     expect(invoiceFiltersToParams({ finance: 'substituidas' }).toString()).toBe('financeiro=substituidas');
     expect(parseInvoiceFilterParams(new URLSearchParams('financeiro=qualquer')).success).toBe(false);
-    expect(readInvoiceFilterParams(new URLSearchParams('financeiro=qualquer&deixadas=1'))).toEqual({ deferred: true });
+    expect(readInvoiceFilterParams(new URLSearchParams('financeiro=qualquer'))).toEqual({});
   });
 
   it('recusa data, status ou conta inválidos para a planilha e os ignora na tela', () => {
     for (const query of ['de=ontem', 'ate=2026-02-30', 'status=DRAFT', `conta=${'9'.repeat(65)}`]) {
-      const params = new URLSearchParams(`${query}&deixadas=1`);
+      const params = new URLSearchParams(query);
 
       expect(parseInvoiceFilterParams(params).success, query).toBe(false);
-      expect(readInvoiceFilterParams(params), query).toEqual({ deferred: true });
+      expect(readInvoiceFilterParams(params), query).toEqual({});
     }
+  });
+
+  it('o filtro "deixadas" saiu: o link antigo (`deixadas=1`) é ignorado', () => {
+    const params = new URLSearchParams('status=COMPLETED&deixadas=1');
+
+    expect(readInvoiceFilterParams(params)).toEqual({ status: 'COMPLETED' });
+    expect(invoiceFiltersToParams(readInvoiceFilterParams(params)).toString()).toBe('status=COMPLETED');
   });
 
   it('período em dias de Brasília: de 00:00 até o fim do dia final', () => {

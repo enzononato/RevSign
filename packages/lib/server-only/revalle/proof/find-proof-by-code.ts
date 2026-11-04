@@ -102,7 +102,6 @@ export const findRevalleProofByCode = async (code: string): Promise<RevalleProof
                   isInvoice: true,
                   financeStatus: true,
                   choiceCode: true,
-                  choiceDefer: true,
                   approvedById: true,
                   approvedAt: true,
                   approvedAccountName: true,
@@ -182,7 +181,6 @@ type InvoiceRow = {
   isInvoice: RevalleInvoiceStatus;
   financeStatus: RevalleFinanceStatus | null;
   choiceCode: string | null;
-  choiceDefer: boolean;
   approvedById: number | null;
   approvedAt: Date | null;
   approvedAccountName: string | null;
@@ -199,7 +197,7 @@ const loadInvoiceSummary = async (row: InvoiceRow | null | undefined): Promise<R
     return null;
   }
 
-  const code = !row.choiceDefer && row.choiceCode ? row.choiceCode : null;
+  const code = row.choiceCode;
   const isApproved =
     row.approvedAt !== null && row.approvedById !== null && row.financeStatus !== RevalleFinanceStatus.PENDING_APPROVAL;
 

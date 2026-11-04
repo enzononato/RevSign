@@ -142,24 +142,8 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
       </h2>
 
       <p className="break-words text-sm">
-        {!state.choice ? (
-          <Trans>Nenhuma conta escolhida.</Trans>
-        ) : choiceCode === 'DEFER' ? (
-          state.financeStatus === 'LEGACY' ? (
-            <Trans>A definir pela contabilidade.</Trans>
-          ) : (
-            <Trans>A definir pelo Financeiro.</Trans>
-          )
-        ) : (
-          `${choiceCode} · ${choiceName}`
-        )}
+        {state.choice ? `${choiceCode} · ${choiceName}` : <Trans>Nenhuma conta escolhida.</Trans>}
       </p>
-
-      {state.financeStatus === 'AWAITING_ACCOUNT' && (
-        <p className="text-muted-foreground text-sm">
-          <Trans>Aguardando o Financeiro definir a conta</Trans>
-        </p>
-      )}
 
       {state.financeStatus === 'PENDING_APPROVAL' && state.choice && (
         <p className="text-muted-foreground text-sm">

@@ -1,13 +1,12 @@
-// Fase 6, Task 2: envio de nota fiscal com o Financeiro.
+// Fase 6, Task 2: envio de nota fiscal com o Financeiro. Fase 7: sem "Deixar para o Financeiro" nem "Definir conta e enviar".
 //   - NF com conta: é enviada normalmente e fica `PENDING_APPROVAL` (inclusive o rascunho que a migração marcou como
 //     `LEGACY`: rascunho nunca pula o Financeiro);
-//   - "Deixar para o Financeiro": o envio fica RETIDO (rascunho, sem convites; resposta 409 `INVOICE_HELD_FOR_FINANCE`
-//     na tela e nas APIs v1/v2), o estado vai para `AWAITING_ACCOUNT` e os membros do Financeiro recebem UM e-mail por
-//     retenção; sem ninguém no Financeiro, a retenção acontece mesmo assim e o admin vê o aviso na tela Admin → Financeiro;
-//   - `revalle.finance.defineAccount`: só membro do Financeiro (403), só em `AWAITING_ACCOUNT`; grava a conta já
-//     aprovada, envia em nome do dono (convites no Mailpit), registra no log de auditoria e não reenvia na 2ª chamada;
-//     envio do Financeiro em andamento = 409; caído no meio (reserva de 2 minutos vencida) é retomado; recusado pelo
-//     envio de verdade volta a aguardar a conta, sem convite;
+//   - NF sem conta: o envio é recusado (`INVOICE_ACCOUNT_REQUIRED`); nada é retido e o Financeiro não recebe aviso;
+//   - `revalle.finance.resendVersion` ("Enviar de novo"): só membro do Financeiro (403), só para a nova versão de uma
+//     troca de conta que ficou em rascunho (400 numa NF comum); envia em nome do dono com a MESMA conta (a conta não é
+//     parâmetro), convite no Mailpit, sem evento de definição de conta, e não reenvia na 2ª chamada; envio em andamento
+//     (reserva de 5 minutos) = 409; reserva vencida é retomada; recusado pelo envio de verdade solta a reserva, sem convite;
+//     o dono trocar o arquivo no meio devolve a NF para ele;
 //   - depois do envio o remetente não troca mais a conta (403); "Marcar como nota fiscal" depois do envio deixa a NF em
 //     `PENDING_APPROVAL` e só aceita a primeira conta;
 //   - o `assets/example.pdf` é enviado como antes.
@@ -42,7 +41,10 @@ const admin = { email: process.env.REVSIGN_ADMIN_EMAIL, password: process.env.RE
 
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const MAILPIT = 'http://localhost:8025/api/v1';
-const HELD_MESSAGE = 'Enviado para o Financeiro definir a conta. Os convites saem depois disso.';
+const REQUIRED_MESSAGE = 'Escolha a conta contábil.';
+const NOT_A_VERSION_MESSAGE = 'Esta nota fiscal não tem uma nova versão aguardando envio.';
+const FILE_CHANGED_MESSAGE = 'O remetente trocou o arquivo; a nota voltou para ele.';
+const REASON = 'Conta de serviço, não de material.';
 const AFTER_SEND_MESSAGE = 'Depois do envio, quem troca a conta é o Financeiro.';
 const IN_PROGRESS_MESSAGE = 'O envio desta nota já está em andamento. Aguarde um instante.';
 
@@ -62,8 +64,10 @@ let adminId;
 const data = (res) => res.body?.result?.data?.json;
 const setChoice = (envelopeId, choice, cookie = userCookie) =>
   trpcAs(cookie, 'mutation', 'revalle.invoice.setChoice', { envelopeId, choice });
-const defineAccount = (envelopeId, code, cookie = adminCookie) =>
-  trpcAs(cookie, 'mutation', 'revalle.finance.defineAccount', { envelopeId, code });
+const resendVersion = (envelopeId, cookie = adminCookie, extra = {}) =>
+  trpcAs(cookie, 'mutation', 'revalle.finance.resendVersion', { envelopeId, ...extra });
+const changeAccount = (envelopeId, code) =>
+  trpcAs(adminCookie, 'mutation', 'revalle.finance.changeAccount', { envelopeId, code, reason: REASON });
 const distribute = (envelopeId) => api('POST', '/envelope/distribute', { envelopeId });
 const status = (envelopeId) => db(`select status from "Envelope" where id = '${envelopeId}'`);
 const financeStatus = (envelopeId) =>
@@ -92,9 +96,6 @@ const waitMails = async (to, filter = () => true, timeoutMs = 30_000) => {
 
   return [];
 };
-
-const financeMails = async (title) =>
-  (await mailsTo(admin.email)).filter((m) => m.Subject === `Nota fiscal aguardando o Financeiro: ${title}`);
 
 const textPdf = async (lines) => {
   const doc = await PDFDocument.create();
@@ -149,11 +150,42 @@ const newDocument = async (pdf, label) => {
 
 const invites = async (doc) => (await mailsTo(doc.recipient)).length;
 
-const assertHeld = (res) => {
-  assert.equal(res.status, 409, res.text);
-  assert.ok(res.text.includes('INVOICE_HELD_FOR_FINANCE'), res.text);
-  assert.ok(res.text.includes(HELD_MESSAGE), res.text);
+// A nova versão de uma troca recebe dois e-mails de quem age nela: o convite e o aviso da troca (que só sai no envio).
+const NOTICE_PREFIX = 'Conta contábil da nota fiscal alterada pelo Financeiro:';
+const isInvite = (mail) => !mail.Subject.startsWith(NOTICE_PREFIX);
+const isNotice = (mail) => mail.Subject.startsWith(NOTICE_PREFIX);
+const inviteCount = async (email) => (await mailsTo(email)).filter(isInvite).length;
+
+// Troca de conta cujo envio da nova versão é recusado (destinatário de fora dos domínios, posto no banco depois do
+// envio da v1): a v2 fica rascunho `APPROVED` com a conta nova e a reserva solta, e quem é do Financeiro a reenvia.
+const failedVersion = async (label) => {
+  const doc = await newDocument(await danfe(label), label);
+
+  assert.equal((await setChoice(doc.id, { code: '2.1.03' })).status, 200);
+  assert.equal((await distribute(doc.id)).status, 200);
+  db(`update "Recipient" set email = 'f7-fora-${label}-${RUN}@example.com' where "envelopeId" = '${doc.id}'`);
+
+  const changed = await changeAccount(doc.id, '3.1.01');
+
+  assert.equal(changed.status, 409, changed.text);
+  assert.equal(changed.body?.error?.json?.data?.code, 'FINANCE_NEW_VERSION_NOT_SENT', changed.text);
+
+  const v2 = db(`select "supersededByEnvelopeId" from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`);
+
+  assert.ok(v2, 'a v2 não ficou criada');
+  assert.equal(status(v2), 'DRAFT');
+  assert.equal(released(v2), 'APPROVED|3.1.01|true');
+
+  return { doc, v2, fixed: `f7-reenvio-${label}-${RUN}@revalle.com.br` };
 };
+
+const fixRecipient = (v2, email) => db(`update "Recipient" set email = '${email}' where "envelopeId" = '${v2}'`);
+
+// Estado e reserva da v2: `true` = reserva solta (o envio falhou e o próximo sai na hora).
+const released = (envelopeId) =>
+  db(
+    `select "financeStatus" || '|' || "choiceCode" || '|' || ("approvedAt" is null) from "RevalleInvoiceClassification" where "envelopeId" = '${envelopeId}'`,
+  );
 
 const sessionTest = (name, fn) =>
   test(name, async (t) => {
@@ -220,10 +252,11 @@ sessionTest('NF com conta: é enviada e fica aguardando a aprovação do Finance
     '2.1.03',
   );
 
-  // Só NF aguardando a conta pode ser definida.
-  const notHeld = await defineAccount(doc.id, '3.1.01');
+  // "Enviar de novo" só serve para a nova versão de uma troca de conta: numa NF enviada comum, 400 e nada muda.
+  const notVersion = await resendVersion(doc.id);
 
-  assert.equal(notHeld.status, 400, notHeld.text);
+  assert.equal(notVersion.status, 400, notVersion.text);
+  assert.ok(notVersion.text.includes(NOT_A_VERSION_MESSAGE), notVersion.text);
   assert.equal(financeStatus(doc.id), 'PENDING_APPROVAL');
 });
 
@@ -240,367 +273,215 @@ sessionTest('rascunho marcado LEGACY pela migração: ao enviar com conta, vai p
   assert.equal(financeStatus(doc.id), 'PENDING_APPROVAL');
 });
 
-let held;
+sessionTest('NF sem conta: o envio é recusado, nada é retido e o Financeiro não recebe aviso', async () => {
+  const doc = await newDocument(await danfe('sem-conta'), 'sem-conta');
+  const refused = await distribute(doc.id);
 
-sessionTest(
-  '"Deixar para o Financeiro": envio retido (tela, API v1 e v2), sem convites, e 1 e-mail ao Financeiro',
-  async () => {
-    held = await newDocument(await danfe('deixar'), 'deixar');
+  assert.equal(refused.status, 400, refused.text);
+  assert.ok(refused.text.includes('INVOICE_ACCOUNT_REQUIRED'), refused.text);
+  assert.ok(refused.text.includes(REQUIRED_MESSAGE), refused.text);
 
-    assert.equal((await setChoice(held.id, { defer: true })).status, 200);
-    // Rascunho de antes da Fase 6: também é retido.
-    db(`update "RevalleInvoiceClassification" set "financeStatus" = 'LEGACY' where "envelopeId" = '${held.id}'`);
+  const documentId = doc.secondaryId.replace(/\D/g, '');
+  const viaV1 = await fetch(`${BASE_URL}/api/v1/documents/${documentId}/send`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.REVSIGN_API_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
 
-    // A tela (tRPC, com a sessão do remetente).
-    const teamId = db(`select "teamId" from "Envelope" where id = '${held.id}'`);
-    const viaScreen = await trpcAs(
-      userCookie,
-      'mutation',
-      'envelope.distribute',
-      { envelopeId: held.id },
-      { 'x-team-id': teamId },
-    );
+  assert.equal(viaV1.status, 400, await viaV1.text());
+  assert.equal(status(doc.id), 'DRAFT');
+  assert.equal(financeStatus(doc.id), '-');
 
-    assertHeld(viaScreen);
-    assert.equal(status(held.id), 'DRAFT');
-    assert.equal(financeStatus(held.id), 'AWAITING_ACCOUNT');
+  await sleep(3000);
+  assert.equal(auditCount(doc.id, 'DOCUMENT_SENT'), 0);
+  assert.equal(await invites(doc), 0, 'convite saiu de um envio recusado');
+  assert.equal(
+    (await mailsTo(admin.email)).filter((m) => m.Subject.includes(doc.title)).length,
+    0,
+    'o Financeiro recebeu aviso de uma NF sem conta',
+  );
+});
 
-    const [notice] = await waitMails(
-      admin.email,
-      (m) => m.Subject === `Nota fiscal aguardando o Financeiro: ${held.title}`,
-    );
+sessionTest('resendVersion numa NF comum em rascunho: 400, e nada muda', async () => {
+  const doc = await newDocument(await danfe('comum-rascunho'), 'comum-rascunho');
 
-    assert.ok(notice, 'o e-mail do Financeiro não chegou');
+  assert.equal((await setChoice(doc.id, { code: '2.1.03' })).status, 200);
 
-    // API v2 e API v1: a mesma retenção, sem novo e-mail (um por retenção).
-    assertHeld(await distribute(held.id));
+  const refused = await resendVersion(doc.id);
 
-    const documentId = held.secondaryId.replace(/\D/g, '');
-    const viaV1 = await fetch(`${BASE_URL}/api/v1/documents/${documentId}/send`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${process.env.REVSIGN_API_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
-    });
-    const v1Text = await viaV1.text();
+  assert.equal(refused.status, 400, refused.text);
+  assert.ok(refused.text.includes(NOT_A_VERSION_MESSAGE), refused.text);
+  assert.equal(status(doc.id), 'DRAFT');
+  assert.equal(financeStatus(doc.id), '-');
+  assert.equal(
+    db(`select "choiceCode" from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`),
+    '2.1.03',
+  );
+  assert.equal(auditCount(doc.id, 'DOCUMENT_SENT'), 0);
 
-    assert.equal(viaV1.status, 409, v1Text);
-    assert.ok(v1Text.includes(HELD_MESSAGE), v1Text);
+  // Documento que não é NF: 404.
+  const plain = await newDocument('assets/example.pdf', 'comum-sem-nf');
 
-    await sleep(3000);
-    assert.equal(status(held.id), 'DRAFT');
-    assert.equal(auditCount(held.id, 'DOCUMENT_SENT'), 0);
-    assert.equal(await invites(held), 0, 'convite saiu de um envio retido');
-    assert.equal((await financeMails(held.title)).length, 1);
+  assert.equal((await resendVersion(plain.id)).status, 404);
+  assert.equal(status(plain.id), 'DRAFT');
+});
 
-    // O remetente vê o estado e não troca mais a escolha (nem diz que não é NF) enquanto o Financeiro decide.
-    const state = data(await trpcAs(userCookie, 'query', 'revalle.invoice.get', { envelopeId: held.id }));
+sessionTest('resendVersion: quem não é do Financeiro recebe 403; sem sessão, 401; nada muda', async () => {
+  const { v2 } = await failedVersion('acesso');
 
-    assert.equal(state.financeStatus, 'AWAITING_ACCOUNT');
-
-    const changed = await setChoice(held.id, { code: '2.1.03' });
-
-    assert.equal(changed.status, 403, changed.text);
-    assert.ok(changed.text.includes(AFTER_SEND_MESSAGE), changed.text);
-
-    const flag = await trpcAs(userCookie, 'mutation', 'revalle.invoice.setInvoiceFlag', {
-      envelopeId: held.id,
-      isInvoice: false,
-    });
-
-    assert.equal(flag.status, 403, flag.text);
-    assert.equal(financeStatus(held.id), 'AWAITING_ACCOUNT');
-  },
-);
-
-sessionTest('defineAccount: quem não é do Financeiro recebe 403; sem sessão, 401; nada muda', async () => {
-  assert.ok(held, 'depende do caso "Deixar para o Financeiro"');
-
-  const refused = await defineAccount(held.id, '2.1.03', userCookie);
-
-  assert.equal(refused.status, 403, refused.text);
-  assert.equal((await defineAccount(held.id, '2.1.03', '')).status, 401);
-  assert.equal(status(held.id), 'DRAFT');
-  assert.equal(financeStatus(held.id), 'AWAITING_ACCOUNT');
+  assert.equal((await resendVersion(v2, userCookie)).status, 403);
+  assert.equal((await resendVersion(v2, '')).status, 401);
+  assert.equal(status(v2), 'DRAFT');
+  assert.equal(released(v2), 'APPROVED|3.1.01|true');
 });
 
 sessionTest(
-  'defineAccount pelo Financeiro: conta aprovada, enviado em nome do dono, convite e log; 2ª chamada não reenvia',
+  'resendVersion: recusado pelo envio de verdade solta a reserva, sem convite; corrigido, sai com a mesma conta',
   async () => {
-    assert.ok(held, 'depende do caso "Deixar para o Financeiro"');
+    const { doc, v2, fixed } = await failedVersion('reenvio');
 
-    // Conta inativa ou inexistente: 400, nada muda.
-    assert.equal((await defineAccount(held.id, `X.${RUN}`)).status, 400);
-    assert.equal(financeStatus(held.id), 'AWAITING_ACCOUNT');
+    // O destinatário continua de fora: o envio de verdade recusa, a v2 segue rascunho aprovado e a reserva fica solta.
+    const refused = await resendVersion(v2);
 
-    const defined = await defineAccount(held.id, '3.1.01');
+    assert.ok(refused.status >= 400 && refused.status < 500, `${refused.status}: ${refused.text}`);
+    assert.equal(status(v2), 'DRAFT');
+    assert.equal(released(v2), 'APPROVED|3.1.01|true');
+    assert.equal(auditCount(v2, 'DOCUMENT_SENT'), 0);
 
-    assert.equal(defined.status, 200, defined.text);
-    assert.equal(status(held.id), 'PENDING');
+    fixRecipient(v2, fixed);
+
+    // A conta não é parâmetro: um `code` mandado junto é ignorado e a v2 sai com a conta da troca.
+    const sent = await resendVersion(v2, adminCookie, { code: '2.1.03' });
+
+    assert.equal(sent.status, 200, sent.text);
+    assert.deepEqual(data(sent), { sent: true });
+    assert.equal(status(v2), 'PENDING');
     assert.equal(
       db(
-        `select "financeStatus" || ';' || coalesce("choiceCode", '-') || ';' || "choiceDefer" || ';' || "approvedById" || ';' || ("approvedAt" is not null) from "RevalleInvoiceClassification" where "envelopeId" = '${held.id}'`,
+        `select "financeStatus" || ';' || "choiceCode" || ';' || "approvedById" || ';' || ("approvedAt" = "choiceAt") from "RevalleInvoiceClassification" where "envelopeId" = '${v2}'`,
       ),
-      `APPROVED;3.1.01;false;${adminId};true`,
+      `APPROVED;3.1.01;${adminId};true`,
     );
-    // O dono continua o mesmo.
+    // O dono continua o mesmo e o convite chega a quem corrigiu.
     assert.equal(
-      db(`select u.email from "Envelope" e join "User" u on u.id = e."userId" where e.id = '${held.id}'`),
+      db(`select u.email from "Envelope" e join "User" u on u.id = e."userId" where e.id = '${v2}'`),
       user.email,
     );
-    assert.equal((await waitMails(held.recipient)).length, 1, 'o convite não chegou');
+    assert.equal((await waitMails(fixed, isInvite)).length, 1, 'o convite não chegou');
+    assert.equal((await waitMails(fixed, isNotice)).length, 1, 'o aviso da troca não chegou');
+    assert.equal(auditCount(v2, 'DOCUMENT_SENT'), 1);
+    // A troca já tem o evento dela; o reenvio não inventa a "definição de conta" do fluxo que saiu.
+    assert.equal(auditCount(v2, 'REVALLE_FINANCE_ACCOUNT_DEFINED'), 0);
+    assert.equal(financeStatus(doc.id), 'SUPERSEDED');
 
-    const events = JSON.parse(
-      db(
-        `select coalesce(json_agg(json_build_object('data', data, 'email', email)), '[]') from "DocumentAuditLog" where "envelopeId" = '${held.id}' and type = 'REVALLE_FINANCE_ACCOUNT_DEFINED'`,
-      ),
-    );
-
-    assert.equal(events.length, 1, JSON.stringify(events));
-    assert.deepEqual(events[0].data, { code: '3.1.01', name: 'Serviços de terceiros' });
-    assert.equal(events[0].email, admin.email);
-
-    // 2ª chamada (clique duplo ou repetição): nada é reenviado nem registrado de novo.
-    const again = await defineAccount(held.id, '3.1.01');
+    // 2ª chamada (clique duplo ou repetição): nada é reenviado.
+    const again = await resendVersion(v2);
 
     assert.equal(again.status, 200, again.text);
+    assert.deepEqual(data(again), { sent: false });
     await sleep(3000);
-    assert.equal(auditCount(held.id, 'DOCUMENT_SENT'), 1);
-    assert.equal(auditCount(held.id, 'REVALLE_FINANCE_ACCOUNT_DEFINED'), 1);
-    assert.equal(await invites(held), 1);
+    assert.equal(auditCount(v2, 'DOCUMENT_SENT'), 1);
+    assert.equal((await mailsTo(fixed)).length, 2, 'o reenvio repetido mandou e-mail de novo');
 
-    // Outra conta depois de definida: não é por aqui (a troca é outra rota).
-    assert.equal((await defineAccount(held.id, '2.1.03')).status, 400);
-
-    // O remetente vê "Aprovada pelo Financeiro" e continua sem trocar a conta.
-    const state = data(await trpcAs(userCookie, 'query', 'revalle.invoice.get', { envelopeId: held.id }));
+    // O remetente vê "Aprovada" e continua sem trocar a conta.
+    const state = data(await trpcAs(userCookie, 'query', 'revalle.invoice.get', { envelopeId: v2 }));
 
     assert.equal(state.financeStatus, 'APPROVED');
     assert.deepEqual(state.choice, { code: '3.1.01', name: 'Serviços de terceiros' });
-    assert.equal((await setChoice(held.id, { code: '2.1.03' })).status, 403);
+    assert.equal((await setChoice(v2, { code: '2.1.03' })).status, 403);
   },
 );
 
-sessionTest('defineAccount concorrente (clique duplo): um envio só', async () => {
-  const doc = await newDocument(await danfe('corrida'), 'corrida');
+sessionTest('resendVersion concorrente (clique duplo): um envio só', async () => {
+  const { v2, fixed } = await failedVersion('corrida');
 
-  assert.equal((await setChoice(doc.id, { defer: true })).status, 200);
-  assertHeld(await distribute(doc.id));
+  fixRecipient(v2, fixed);
 
-  const results = await Promise.all([defineAccount(doc.id, '2.1.03'), defineAccount(doc.id, '2.1.03')]);
+  const results = await Promise.all([resendVersion(v2), resendVersion(v2)]);
   const statuses = results.map((res) => res.status).sort();
   const texts = results.map((res) => res.text).join('\n');
 
   // Quem perde recebe 200 sem reenviar (o outro já enviou) ou 409 "em andamento" (o outro ainda está enviando).
   assert.ok(isDeepStrictEqual(statuses, [200, 200]) || isDeepStrictEqual(statuses, [200, 409]), texts);
+  assert.equal(results.filter((res) => res.status === 200 && data(res).sent === true).length, 1, texts);
 
   if (statuses[1] === 409) {
     assert.ok(texts.includes(IN_PROGRESS_MESSAGE), texts);
   }
 
-  assert.equal(status(doc.id), 'PENDING');
+  assert.equal(status(v2), 'PENDING');
   await sleep(3000);
-  assert.equal(auditCount(doc.id, 'DOCUMENT_SENT'), 1);
-  assert.equal(auditCount(doc.id, 'REVALLE_FINANCE_ACCOUNT_DEFINED'), 1);
-  assert.equal(await invites(doc), 1);
+  assert.equal(auditCount(v2, 'DOCUMENT_SENT'), 1);
+  assert.equal(await inviteCount(fixed), 1);
+  assert.equal((await mailsTo(fixed)).filter(isNotice).length, 1);
 });
 
 sessionTest(
-  'envio do Financeiro que caiu no meio (APPROVED em rascunho): em andamento = 409; reserva vencida é retomada',
+  'resendVersion com um envio em andamento (reserva com menos de 5 minutos): 409; reserva vencida é retomada',
   async () => {
-    const doc = await newDocument(await danfe('preso'), 'preso');
+    const { v2, fixed } = await failedVersion('andamento');
 
-    assert.equal((await setChoice(doc.id, { defer: true })).status, 200);
-    assertHeld(await distribute(doc.id));
+    fixRecipient(v2, fixed);
 
-    // O processo caiu entre a gravação da conta e o envio: APPROVED, com o documento ainda em rascunho.
-    const stuck = (age) =>
+    // O envio de outro pedido está em andamento (ou caiu): a reserva vale 5 minutos, o envio de um PDF grande demora.
+    const reserve = (age) =>
       db(
-        `update "RevalleInvoiceClassification" set "financeStatus" = 'APPROVED', "choiceCode" = '2.1.03', "choiceDefer" = false, "approvedById" = ${adminId}, "approvedAt" = now() - interval '${age}' where "envelopeId" = '${doc.id}'`,
+        `update "RevalleInvoiceClassification" set "approvedAt" = now() - interval '${age}' where "envelopeId" = '${v2}'`,
       );
 
-    // A reserva vale 5 minutos (o envio de um PDF grande pode demorar): com 4, ainda está em andamento.
-    stuck('4 minutes');
+    reserve('4 minutes');
 
-    const busy = await defineAccount(doc.id, '3.1.01');
+    const busy = await resendVersion(v2);
 
     assert.equal(busy.status, 409, busy.text);
     assert.ok(busy.text.includes(IN_PROGRESS_MESSAGE), busy.text);
+    assert.equal(status(v2), 'DRAFT');
 
     // O remetente também não mexe enquanto o Financeiro envia.
-    const changed = await setChoice(doc.id, { code: '2.1.03' });
+    const changed = await setChoice(v2, { code: '2.1.03' });
 
     assert.equal(changed.status, 403, changed.text);
     assert.ok(changed.text.includes(AFTER_SEND_MESSAGE), changed.text);
 
-    stuck('6 minutes');
+    reserve('6 minutes');
 
-    const recovered = await defineAccount(doc.id, '3.1.01');
+    const recovered = await resendVersion(v2);
 
     assert.equal(recovered.status, 200, recovered.text);
-    assert.equal(data(recovered).sent, true);
-    assert.equal(status(doc.id), 'PENDING');
-    assert.equal(
-      db(
-        `select "financeStatus" || ';' || "choiceCode" || ';' || ("approvedAt" > now() - interval '1 minute') from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`,
-      ),
-      'APPROVED;3.1.01;true',
-    );
-    assert.equal((await waitMails(doc.recipient)).length, 1, 'o convite não chegou');
+    assert.deepEqual(data(recovered), { sent: true });
+    assert.equal(status(v2), 'PENDING');
+    assert.equal((await waitMails(fixed, isInvite)).length, 1, 'o convite não chegou');
     await sleep(2000);
-    assert.equal(await invites(doc), 1);
-    assert.equal(auditCount(doc.id, 'DOCUMENT_SENT'), 1);
+    assert.equal(await inviteCount(fixed), 1);
+    assert.equal(auditCount(v2, 'DOCUMENT_SENT'), 1);
   },
 );
 
 sessionTest(
-  'envio do Financeiro recusado depois da retenção: 4xx, volta a aguardar, rascunho, sem convite; corrigido, envia',
+  'o dono troca o arquivo durante o "Enviar de novo": o Financeiro recebe "O remetente trocou o arquivo"',
   async () => {
-    const doc = await newDocument(await danfe('recusado'), 'recusado');
+    const { v2, fixed } = await failedVersion('arquivo-trocado');
 
-    assert.equal((await setChoice(doc.id, { defer: true })).status, 200);
-    assertHeld(await distribute(doc.id));
-
-    // Depois da retenção, o destinatário passa a ser de fora da empresa: o envio de verdade recusa.
-    const outside = `f6-fora-${RUN}@example.com`;
-
-    db(`update "Recipient" set email = '${outside}' where "envelopeId" = '${doc.id}'`);
-
-    const refused = await defineAccount(doc.id, '2.1.03');
-
-    assert.ok(refused.status >= 400 && refused.status < 500, `${refused.status}: ${refused.text}`);
-    assert.equal(financeStatus(doc.id), 'AWAITING_ACCOUNT');
-    assert.equal(
-      db(
-        `select "choiceDefer" || ';' || coalesce("choiceCode", '-') || ';' || coalesce("approvedAt"::text, '-') from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`,
-      ),
-      'true;-;-',
-    );
-    assert.equal(status(doc.id), 'DRAFT');
-    await sleep(2000);
-    assert.equal((await mailsTo(outside)).length, 0);
-    assert.equal(await invites(doc), 0);
-    assert.equal(auditCount(doc.id, 'REVALLE_FINANCE_ACCOUNT_DEFINED'), 0);
-
-    db(`update "Recipient" set email = '${doc.recipient}' where "envelopeId" = '${doc.id}'`);
-
-    const sent = await defineAccount(doc.id, '2.1.03');
-
-    assert.equal(sent.status, 200, sent.text);
-    assert.equal(status(doc.id), 'PENDING');
-    assert.equal(financeStatus(doc.id), 'APPROVED');
-    assert.equal((await waitMails(doc.recipient)).length, 1, 'o convite não chegou');
-  },
-);
-
-sessionTest(
-  'o dono troca o arquivo durante o "Definir conta e enviar": o Financeiro recebe "O remetente trocou o arquivo"',
-  async () => {
-    const doc = await newDocument(await danfe('arquivo-trocado'), 'arquivo-trocado');
-
-    assert.equal((await setChoice(doc.id, { defer: true })).status, 200);
-    assertHeld(await distribute(doc.id));
+    fixRecipient(v2, fixed);
 
     // A classificação ainda não viu o arquivo novo (a troca chegou entre a leitura do Financeiro e o envio): o envio
     // reclassifica, a conta é zerada e a NF volta a ser um rascunho do dono.
-    db(`update "RevalleInvoiceClassification" set "fileSha256" = 'arquivo-anterior' where "envelopeId" = '${doc.id}'`);
+    db(`update "RevalleInvoiceClassification" set "fileSha256" = 'arquivo-anterior' where "envelopeId" = '${v2}'`);
 
-    const refused = await defineAccount(doc.id, '2.1.03');
+    const refused = await resendVersion(v2);
 
     assert.equal(refused.status, 400, refused.text);
-    assert.ok(refused.text.includes('O remetente trocou o arquivo; a nota voltou para ele.'), refused.text);
-    assert.equal(status(doc.id), 'DRAFT');
-    assert.equal(financeStatus(doc.id), '-');
-    assert.equal(auditCount(doc.id, 'REVALLE_FINANCE_ACCOUNT_DEFINED'), 0);
+    assert.ok(refused.text.includes(FILE_CHANGED_MESSAGE), refused.text);
+    assert.equal(status(v2), 'DRAFT');
+    assert.equal(financeStatus(v2), '-');
     await sleep(2000);
-    assert.equal(await invites(doc), 0);
-  },
-);
+    assert.equal((await mailsTo(fixed)).length, 0);
+    assert.equal(auditCount(v2, 'DOCUMENT_SENT'), 0);
 
-sessionTest(
-  'envio do Financeiro retomado que falha, enviado depois pelo dono: a definição fica no log (quem do Financeiro definiu)',
-  async () => {
-    const doc = await newDocument(await danfe('retomada-dono'), 'retomada-dono');
-
-    assert.equal((await setChoice(doc.id, { defer: true })).status, 200);
-    assertHeld(await distribute(doc.id));
-
-    // Reserva vencida (o envio anterior caiu) e um destinatário que o envio recusa: a retomada falha e solta a reserva.
-    db(
-      `update "RevalleInvoiceClassification" set "financeStatus" = 'APPROVED', "choiceCode" = '2.1.03', "choiceDefer" = false, "choiceById" = ${adminId}, "choiceAt" = now() - interval '6 minutes', "approvedById" = ${adminId}, "approvedAt" = now() - interval '6 minutes' where "envelopeId" = '${doc.id}'`,
-    );
-    db(`update "Recipient" set email = 'f6-envio-fora-retomada-${RUN}@example.com' where "envelopeId" = '${doc.id}'`);
-
-    const failed = await defineAccount(doc.id, '2.1.03');
-
-    assert.ok(failed.status >= 400 && failed.status < 500, failed.text);
-    assert.equal(
-      db(
-        `select "financeStatus" || ';' || ("approvedAt" is null) from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`,
-      ),
-      'APPROVED;true',
-    );
-
-    db(`update "Recipient" set email = '${doc.recipient}' where "envelopeId" = '${doc.id}'`);
-
-    const sent = await distribute(doc.id);
-
-    assert.equal(sent.status, 200, sent.text);
-    assert.equal(status(doc.id), 'PENDING');
-    assert.equal(auditCount(doc.id, 'REVALLE_FINANCE_ACCOUNT_DEFINED'), 1, 'sem o evento da definição do Financeiro');
-    assert.equal(
-      db(
-        `select "userId" || ';' || (data->>'code') from "DocumentAuditLog" where "envelopeId" = '${doc.id}' and type = 'REVALLE_FINANCE_ACCOUNT_DEFINED'`,
-      ),
-      `${adminId};2.1.03`,
-    );
-    assert.equal(
-      db(
-        `select ("approvedAt" = "choiceAt") || ';' || ("approvedByName" is not distinct from (select nullif(trim(name), '') from "User" where id = ${adminId})) from "RevalleInvoiceClassification" where "envelopeId" = '${doc.id}'`,
-      ),
-      'true;true',
-    );
-  },
-);
-
-sessionTest(
-  'sem ninguém no Financeiro: retém mesmo assim e o admin vê o aviso; com membro de volta, o e-mail sai',
-  async () => {
-    const members = db(`select "userId" || ',' || coalesce("addedById"::text, 'null') from "RevalleFinanceMember"`)
-      .split('\n')
-      .filter(Boolean);
-    const doc = await newDocument(await danfe('sem-membros'), 'sem-membros');
-
-    assert.equal((await setChoice(doc.id, { defer: true })).status, 200);
-    db('delete from "RevalleFinanceMember"');
-
-    try {
-      assertHeld(await distribute(doc.id));
-      assert.equal(financeStatus(doc.id), 'AWAITING_ACCOUNT');
-
-      const listed = await trpcAs(adminCookie, 'query', 'revalle.finance.adminListUsers', { query: admin.email });
-
-      assert.equal(listed.status, 200, listed.text);
-      assert.equal(data(listed).memberCount, 0);
-      assert.ok(data(listed).awaitingAccountCount >= 1, listed.text);
-    } finally {
-      for (const member of members) {
-        const [userId, addedById] = member.split(',');
-
-        db(
-          `insert into "RevalleFinanceMember" ("userId", "addedById") values (${userId}, ${addedById}) on conflict do nothing`,
-        );
-      }
-    }
-
-    await sleep(2000);
-    assert.equal((await financeMails(doc.title)).length, 0);
-
-    // Nenhum e-mail foi "gasto" sem destinatário: o próximo envio retido avisa o Financeiro.
-    assertHeld(await distribute(doc.id));
-    assert.equal(
-      (await waitMails(admin.email, (m) => m.Subject === `Nota fiscal aguardando o Financeiro: ${doc.title}`)).length,
-      1,
-    );
+    // De volta ao dono: ele escolhe a conta de novo e envia como qualquer NF (aguarda a aprovação).
+    assert.equal((await setChoice(v2, { code: '2.1.03' })).status, 200);
+    assert.equal((await distribute(v2)).status, 200);
+    assert.equal(financeStatus(v2), 'PENDING_APPROVAL');
   },
 );
 
@@ -614,8 +495,6 @@ sessionTest('marcar como NF depois do envio: PENDING_APPROVAL; o dono escolhe a 
   assert.equal(marked.status, 200, marked.text);
   assert.equal(financeStatus(doc.id), 'PENDING_APPROVAL');
 
-  // Depois do envio não há "deixar para o Financeiro": o documento já saiu.
-  assert.equal((await setChoice(doc.id, { defer: true })).status, 400);
   assert.equal((await setChoice(doc.id, { code: '2.1.03' })).status, 200);
 
   const changed = await setChoice(doc.id, { code: '3.1.01' });

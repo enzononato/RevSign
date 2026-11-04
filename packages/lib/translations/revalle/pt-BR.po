@@ -4664,19 +4664,10 @@ msgstr "Quem é do Financeiro vê todas as notas fiscais e aprova a conta contá
 msgid "Todas as notas fiscais enviadas para assinatura (você é do Financeiro)."
 msgstr "Todas as notas fiscais enviadas para assinatura (você é do Financeiro)."
 
-# REVALLE: Fase 6, "Deixar para o Financeiro", envio retido e estado no cartão do remetente (msgids já em pt-BR).
-
-msgid "A definir pelo Financeiro"
-msgstr "A definir pelo Financeiro"
-
-msgid "A definir pelo Financeiro."
-msgstr "A definir pelo Financeiro."
+# REVALLE: Fase 6, estado da NF no cartão do remetente e avisos do Financeiro (msgids já em pt-BR).
 
 msgid "Aguardando aprovação do Financeiro"
 msgstr "Aguardando aprovação do Financeiro"
-
-msgid "Aguardando o Financeiro definir a conta"
-msgstr "Aguardando o Financeiro definir a conta"
 
 msgid "Aprovada pelo Financeiro"
 msgstr "Aprovada pelo Financeiro"
@@ -4684,44 +4675,11 @@ msgstr "Aprovada pelo Financeiro"
 msgid "Conta contábil definida pelo Financeiro: {account} (já aprovada)"
 msgstr "Conta contábil definida pelo Financeiro: {account} (já aprovada)"
 
-msgid "Conta: a definir pela contabilidade"
-msgstr "Conta: a definir pela contabilidade"
-
 msgid "deixar para o Financeiro"
 msgstr "deixar para o Financeiro"
 
-msgid "Deixar para o Financeiro"
-msgstr "Deixar para o Financeiro"
-
-msgid "Enviado para o Financeiro definir a conta. Os convites saem depois disso."
-msgstr "Enviado para o Financeiro definir a conta. Os convites saem depois disso."
-
-msgid "Escolha a conta contábil ou deixe para o Financeiro."
-msgstr "Escolha a conta contábil ou deixe para o Financeiro."
-
 msgid "Escolha a conta contábil. Depois, quem aprova ou troca é o Financeiro."
 msgstr "Escolha a conta contábil. Depois, quem aprova ou troca é o Financeiro."
-
-msgid "Escolha: deixar para o Financeiro"
-msgstr "Escolha: deixar para o Financeiro"
-
-msgid "Nota fiscal aguardando o Financeiro: {documentName}"
-msgstr "Nota fiscal aguardando o Financeiro: {documentName}"
-
-msgid "Nota fiscal enviada para o Financeiro"
-msgstr "Nota fiscal enviada para o Financeiro"
-
-msgid "Notas fiscais aguardando o Financeiro definir a conta: {awaitingCount}. Ninguém está marcado como Financeiro: marque alguém abaixo para que essas notas possam ser enviadas."
-msgstr "Notas fiscais aguardando o Financeiro definir a conta: {awaitingCount}. Ninguém está marcado como Financeiro: marque alguém abaixo para que essas notas possam ser enviadas."
-
-msgid "O remetente escolheu \"Deixar para o Financeiro\". Os convites para assinar só saem depois que alguém do Financeiro definir a conta."
-msgstr "O remetente escolheu \"Deixar para o Financeiro\". Os convites para assinar só saem depois que alguém do Financeiro definir a conta."
-
-msgid "Os convites saem depois que o Financeiro definir a conta."
-msgstr "Os convites saem depois que o Financeiro definir a conta."
-
-msgid "Uma nota fiscal aguarda o Financeiro definir a conta contábil"
-msgstr "Uma nota fiscal aguarda o Financeiro definir a conta contábil"
 
 msgid "Nota fiscal aguardando aprovação do Financeiro: {documentName}"
 msgstr "Nota fiscal aguardando aprovação do Financeiro: {documentName}"
@@ -4756,9 +4714,6 @@ msgstr "Nova versão criada pelo Financeiro com a conta contábil {to} (antes {f
 msgid "Conta contábil trocada pelo Financeiro de {from} para {to}: substituído por uma nova versão. Motivo: {reason}"
 msgstr "Conta contábil trocada pelo Financeiro de {from} para {to}: substituído por uma nova versão. Motivo: {reason}"
 
-msgid "a definir pelo Financeiro"
-msgstr "a definir pelo Financeiro"
-
 msgid "Conta aprovada pelo Financeiro. O envio anterior falhou: corrija o rascunho e envie."
 msgstr "Conta aprovada pelo Financeiro. O envio anterior falhou: corrija o rascunho e envie."
 
@@ -4792,9 +4747,6 @@ msgstr "Conta aprovada."
 msgid "Conta atual: {0}. Escolha a nova conta e escreva o motivo."
 msgstr "Conta atual: {0}. Escolha a nova conta e escreva o motivo."
 
-msgid "Conta definida. O documento foi enviado para assinatura."
-msgstr "Conta definida. O documento foi enviado para assinatura."
-
 msgid "Conta escolhida: {0} – {1}"
 msgstr "Conta escolhida: {0} – {1}"
 
@@ -4809,9 +4761,6 @@ msgstr "Conta: {account}. Depois de aprovada, a nota fiscal é concluída quando
 
 msgid "De {0} para {1} – {2}."
 msgstr "De {0} para {1} – {2}."
-
-msgid "Definir conta e enviar"
-msgstr "Definir conta e enviar"
 
 msgid "Enviado de novo para assinatura."
 msgstr "Enviado de novo para assinatura."
@@ -4836,9 +4785,6 @@ msgstr "Não foi possível carregar o Financeiro. Tente de novo."
 
 msgid "Não foi possível concluir."
 msgstr "Não foi possível concluir."
-
-msgid "O remetente deixou a conta para o Financeiro. Escolha a conta: o documento é enviado na hora, com a conta já aprovada."
-msgstr "O remetente deixou a conta para o Financeiro. Escolha a conta: o documento é enviado na hora, com a conta já aprovada."
 
 msgid "Quem escolheu"
 msgstr "Quem escolheu"
@@ -4954,9 +4900,6 @@ msgstr "Nenhuma nota fiscal aguardando o Financeiro."
 msgid "Situação no Financeiro"
 msgstr "Situação no Financeiro"
 
-msgid "Só as deixadas para o Financeiro"
-msgstr "Só as deixadas para o Financeiro"
-
 msgid "Versão"
 msgstr "Versão"
 
@@ -4965,12 +4908,6 @@ msgstr "não enviada"
 
 msgid "Abrir a nota fiscal"
 msgstr "Abrir a nota fiscal"
-
-msgid "A definir pela contabilidade"
-msgstr "A definir pela contabilidade"
-
-msgid "A definir pela contabilidade."
-msgstr "A definir pela contabilidade."
 
 msgid "A nova versão não existe mais: troque a conta de novo."
 msgstr "A nova versão não existe mais: troque a conta de novo."
@@ -4993,12 +4930,6 @@ msgstr "Conta: {accountLabel}. O documento é enviado agora, em nome do remetent
 msgid "Conta: {definedLabel}. Ela fica aprovada na hora; a nota fiscal é concluída quando todos tiverem assinado (se todos já assinaram, na hora)."
 msgstr "Conta: {definedLabel}. Ela fica aprovada na hora; a nota fiscal é concluída quando todos tiverem assinado (se todos já assinaram, na hora)."
 
-msgid "Conta: {definedLabel}. O documento é enviado agora, em nome do remetente, para todos os destinatários assinarem."
-msgstr "Conta: {definedLabel}. O documento é enviado agora, em nome do remetente, para todos os destinatários assinarem."
-
-msgid "Definir a conta e enviar?"
-msgstr "Definir a conta e enviar?"
-
 msgid "Definir e aprovar"
 msgstr "Definir e aprovar"
 
@@ -5019,3 +4950,17 @@ msgstr "Substitui o envio da versão anterior: {replacedTitle}"
 
 msgid "Verificar um documento"
 msgstr "Verificar um documento"
+
+# REVALLE: Fase 7, sem "Deixar para o Financeiro" (msgids já em pt-BR).
+
+msgid "Escolha a conta contábil."
+msgstr "Escolha a conta contábil."
+
+msgid "Nenhuma conta contábil cadastrada. Fale com o administrador."
+msgstr "Nenhuma conta contábil cadastrada. Fale com o administrador."
+
+msgid "O Financeiro está enviando esta nova versão. Os convites saem em instantes."
+msgstr "O Financeiro está enviando esta nova versão. Os convites saem em instantes."
+
+msgid "sem conta"
+msgstr "sem conta"
