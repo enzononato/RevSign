@@ -5088,3 +5088,24 @@ msgstr "Ver documento"
 
 msgid "Ver documento: {0}"
 msgstr "Ver documento: {0}"
+
+msgid "Confirmamos seu CPF e sua data de nascimento no cadastro de colaboradores."
+msgstr "Confirmamos seu CPF e sua data de nascimento no cadastro de colaboradores."
+
+msgid "Informe um CPF válido."
+msgstr "Informe um CPF válido."
+
+msgid "Informe a data de nascimento no formato dd/mm/aaaa."
+msgstr "Informe a data de nascimento no formato dd/mm/aaaa."
+
+msgid "Para criar a conta, informe o CPF e a data de nascimento na página de cadastro."
+msgstr "Para criar a conta, informe o CPF e a data de nascimento na página de cadastro."
+
+msgid "CPF ou data de nascimento não conferem com o cadastro de colaboradores."
+msgstr "CPF ou data de nascimento não conferem com o cadastro de colaboradores."
+
+msgid "Este CPF já está vinculado a outro e-mail. Fale com o administrador."
+msgstr "Este CPF já está vinculado a outro e-mail. Fale com o administrador."
+
+msgid "Não foi possível conferir seus dados agora. Tente de novo em alguns minutos."
+msgstr "Não foi possível conferir seus dados agora. Tente de novo em alguns minutos."

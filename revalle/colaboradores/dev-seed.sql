@@ -12,8 +12,11 @@
 -- | 7 | Teste Aceite F4 1           | 41000000141  | 1987-05-12 | (sem e-mail)             | ativo     | Alagoinhas        |
 -- | 8 | Teste Aceite F4 2           | 41000000222  | 1993-08-21 | (sem e-mail)             | ativo     | Juazeiro          |
 -- | 9 | Teste Aceite F4 3           | 41000000303  | 2001-11-30 | (sem e-mail)             | afastado  | Petrolina         |
+-- | 10| Teste Cadastro              | 11144477735  | 1991-02-03 | (sem e-mail)             | ativo     | Juazeiro          |
 --
 -- 7 a 9 são exclusivos do aceite da Fase 4 (scripts/revalle/tests/acceptance-f4.test.mjs); nenhum outro teste os usa.
+-- 10 é a pessoa dos cadastros de teste da Fase 7 (signupColaborador em scripts/revalle/tests/helpers.mjs): todo teste que
+-- cria conta se cadastra com o CPF e a data dela.
 --
 -- Role de leitura: revsign_leitura / revsign_leitura_dev (só desenvolvimento).
 -- Só enxerga a view; a tabela rh_colaboradores é negada.
@@ -55,6 +58,19 @@ FROM (VALUES
 ) AS v (cpf_completo, nome_completo, nascimento, cargo_nome, setor_nome, unidade_nome, matricula_rh, email_corp, celular, status_rh)
 WHERE NOT EXISTS (SELECT 1 FROM rh_colaboradores r WHERE r.cpf_completo = v.cpf_completo);
 -- aceite-f4:fim
+
+-- cadastro-f7:inicio
+-- Colaboradora FICTÍCIA dos cadastros de teste da Fase 7. A tabela não tem índice único no CPF (só a chave serial),
+-- então `ON CONFLICT DO NOTHING` nunca barraria a repetição: o bloco usa WHERE NOT EXISTS, como o do aceite da Fase 4.
+-- Numa base já criada, rode só este trecho (comando em revalle/docs/testes.md, seção "Cadastro com CPF").
+INSERT INTO rh_colaboradores
+  (cpf_completo, nome_completo, nascimento, cargo_nome, setor_nome, unidade_nome, matricula_rh, email_corp, celular, status_rh)
+SELECT v.*
+FROM (VALUES
+  ('11144477735', 'Teste Cadastro', DATE '1991-02-03', 'Analista de Cadastro', 'Recursos Humanos', 'Juazeiro', '90201', NULL::text, NULL::text, 'ativo')
+) AS v (cpf_completo, nome_completo, nascimento, cargo_nome, setor_nome, unidade_nome, matricula_rh, email_corp, celular, status_rh)
+WHERE NOT EXISTS (SELECT 1 FROM rh_colaboradores r WHERE r.cpf_completo = v.cpf_completo);
+-- cadastro-f7:fim
 
 CREATE VIEW vw_colaboradores_assinatura AS
 SELECT

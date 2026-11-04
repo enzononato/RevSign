@@ -8,7 +8,7 @@ Os testes rodam contra a stack local do RevSign (`revalle/deploy/compose.hml.yml
 2. Imagem reconstruída com o código atual: `docker build -f docker/Dockerfile -t revsign:local-f4 .` (~6 min) e `REVSIGN_IMAGE=revsign:local-f4` na stack. Depois de reconstruir, recrie só o app: `docker compose -f revalle/deploy/compose.hml.yml --env-file ../local-hml/hml.env up -d --force-recreate documenso`.
 3. Node 24 ou mais novo (sem dependências). No WSL: `export PATH="$HOME/.local/node/bin:$HOME/.local/bin:$PATH"`.
 4. Um token de API do time (Configurações → API no site).
-5. A base de colaboradores é a FICTÍCIA da stack (`revalle/colaboradores/dev-seed.sql`). Nunca rode estes testes contra produção. Numa base criada antes da Fase 4, carregue os colaboradores do aceite (seção "Aceite da Fase 4").
+5. A base de colaboradores é a FICTÍCIA da stack (`revalle/colaboradores/dev-seed.sql`). Nunca rode estes testes contra produção. Numa base criada antes da Fase 4, carregue os colaboradores do aceite (seção "Aceite da Fase 4"); numa criada antes da Fase 7, carregue também a colaboradora dos cadastros de teste (seção "Cadastro com CPF").
 
 ## Rodar a suíte completa
 
@@ -116,6 +116,32 @@ As traduções do RevSign ficam no overlay `packages/lib/translations/revalle/pt
 - Ele reescreve os `web.po` do upstream no lugar. Depois de rodar, desfaça com `git checkout -- 'packages/lib/translations/*/web.po'`. O pre-commit (`scripts/revalle/check-secrets.sh --staged`) recusa o commit se algum desses arquivos estiver no stage; num merge do upstream (`MERGE_HEAD`) eles passam, e `REVALLE_ALLOW_UPSTREAM_PO=1 git commit …` libera de propósito (ex.: reverter um commit acidental).
 - Testes puros do overlay, do validador e dessa guarda: `node --test scripts/revalle/tests/i18n.test.mjs` (não precisam da stack).
 - `sh scripts/revalle/check-image-i18n.sh <imagem>` confere que o catálogo pt-BR compilado dentro da imagem tem o overlay (o CI roda antes de publicar).
+
+## Cadastro com CPF (Fase 7)
+
+Desde a Fase 7, criar conta pede CPF e data de nascimento que conferem com a base de colaboradores. Todo teste que cria conta usa o ajudante `signupColaborador({ name, email, password })` (`scripts/revalle/tests/helpers.mjs`), que se cadastra como a colaboradora fictícia **Teste Cadastro** (CPF `11144477735`, nascimento `03/02/1991`, sem e-mail na base, ativa; é a nº 10 do `dev-seed.sql`). Esse CPF é só dos testes de cadastro.
+
+Antes da primeira vez numa base criada antes da Fase 7, carregue a colaboradora. Uma base nova já a traz. O bloco é idempotente (pode repetir, não duplica):
+
+```sh
+sed -n '/cadastro-f7:inicio/,/cadastro-f7:fim/p' revalle/colaboradores/dev-seed.sql \
+  | docker exec -i revsign-hml-colaboradores-db-1 psql -U postgres -d colaboradores -v ON_ERROR_STOP=1
+```
+
+- Por que `WHERE NOT EXISTS` e não `INSERT ... ON CONFLICT DO NOTHING`: a tabela fictícia `rh_colaboradores` só tem a chave serial, sem índice único no CPF. O `ON CONFLICT` nunca encontraria conflito e duplicaria a linha a cada execução.
+- O vínculo e-mail ↔ CPF é único e nasce quando a conta confirma o e-mail. Por isso o ajudante solta, antes de cada cadastro, o vínculo do CPF `11144477735` (de uma conta de teste anterior); sem isso o segundo teste receberia `SIGNUP_IDENTITY_CONFLICT`.
+- `auth.signup` aceita 30 cadastros por hora por IP. O ajudante sorteia o IP (faixa de teste `203.0.113.x`) a cada cadastro, então nenhum IP chega perto do limite, e os arquivos de teste limpam a tabela `RateLimit` no começo.
+
+`signup-identity.test.mjs` confere o cadastro de ponta a ponta: sem CPF e data (`SIGNUP_IDENTITY_REQUIRED`); CPF inválido, CPF certo com data errada e CPF fora da base (`SIGNUP_IDENTITY_INVALID`, com a **mesma** resposta, byte a byte); dados certos (conta criada, sem vínculo, CPF guardado de lado); confirmar o e-mail (o vínculo nasce e a primeira assinatura não pede CPF, com um contraste: o mesmo e-mail antes de confirmar ainda pede); dois cadastros com o mesmo CPF sem confirmar (quem confirma primeiro fica com o vínculo, e a confirmação do outro não falha nem cria vínculo); CPF com vínculo a outro e-mail e CPF com outro e-mail na base (`SIGNUP_IDENTITY_CONFLICT`, que só aparece a quem acertou CPF e data); o e-mail do admin, o e-mail já vinculado e o e-mail presente na base (criam sem CPF); domínio de fora (`SIGNUP_DISABLED` antes de olhar o CPF); tamanho e tipo dos campos; e o log do app (`docker logs`) sem o CPF nem a data. O teste do e-mail presente na base insere e apaga uma linha própria na base fictícia.
+
+**Base fora do ar (conferência manual, uma vez por versão).** Não dá para cobrir em teste automático sem subir outra stack. Rode à mão, só na stack `revsign-hml` (nunca `revsign-real-*`):
+
+1. `docker stop revsign-hml-colaboradores-db-1`
+2. Tente o cadastro com um e-mail novo da empresa e CPF e data quaisquer (tela `/signup` ou `POST /api/auth/email-password/signup` com `revalleCpf` e `revalleBirthDate`).
+3. Esperado: HTTP **503**, código `SIGNUP_IDENTITY_UNAVAILABLE`, mensagem `Não foi possível conferir seus dados agora. Tente de novo em alguns minutos.`, nenhuma conta criada, e no log do app só `base de colaboradores indisponível` com o código do erro (sem CPF).
+4. `docker start revsign-hml-colaboradores-db-1` e espere ficar `healthy` (`docker ps`) antes de rodar outros testes.
+
+Com a verificação desligada (`NEXT_PRIVATE_REVALLE_IDENTITY_CHECK=disabled`), `identity-skip.test.mjs` confere que o cadastro volta a aceitar só e-mail e senha.
 
 ## Aceite da Fase 4
 

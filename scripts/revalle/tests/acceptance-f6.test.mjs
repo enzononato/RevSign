@@ -43,6 +43,7 @@ import {
   poppler,
   retryCreateOnStaleSocket,
   signIn,
+  signupColaborador,
   trpc,
   trpcAs,
 } from './helpers.mjs';
@@ -175,15 +176,7 @@ const waitInvite = async (email, token, timeoutMs = 40_000) => {
 const newAccount = async (label) => {
   const email = `f6-aceite-${label}-${RUN}@revalle.com.br`;
   const name = `Aceite F6 ${label}`;
-  const created = await fetch(`${BASE_URL}/api/auth/email-password/signup`, {
-    method: 'POST',
-    headers: {
-      Origin: origin,
-      'Content-Type': 'application/json',
-      'X-Forwarded-For': `203.0.113.${Math.floor(Math.random() * 250) + 1}`,
-    },
-    body: JSON.stringify({ name, email, password: PASSWORD }),
-  });
+  const created = await signupColaborador({ name, email, password: PASSWORD });
 
   assert.ok(created.ok, `cadastro de ${label} falhou (${created.status}): ${await created.text()}`);
 

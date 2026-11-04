@@ -24,6 +24,7 @@ import {
   updatePasswordRateLimit,
   verifyEmailRateLimit,
 } from '@documenso/lib/server-only/rate-limit/rate-limits';
+import { assertSignupIdentity, saveSignupIdentity } from '@documenso/lib/server-only/revalle/signup/identity';
 import { getEmailBlocklistDomains } from '@documenso/lib/server-only/site-settings/get-email-blocklist-domains';
 import { createUser } from '@documenso/lib/server-only/user/create-user';
 import { forgotPassword } from '@documenso/lib/server-only/user/forgot-password';
@@ -198,7 +199,7 @@ export const emailPasswordRoute = new Hono<HonoAuthContext>()
       });
     }
 
-    const { name, email, password, signature, captchaToken } = c.req.valid('json');
+    const { name, email, password, signature, captchaToken, revalleCpf, revalleBirthDate } = c.req.valid('json');
 
     const signupLimitResult = await signupRateLimit.check({
       ip: requestMetadata.ipAddress ?? 'unknown',
@@ -231,10 +232,18 @@ export const emailPasswordRoute = new Hono<HonoAuthContext>()
       });
     }
 
+    // REVALLE: só colaborador cria conta (Fase 7). Depois do bloqueio de domínio e antes de criar o usuário.
+    const identity = await assertSignupIdentity({ email, cpf: revalleCpf, birthDate: revalleBirthDate });
+
     const user = await createUser({ name, email, password, signature }).catch((err) => {
       console.error(err);
       throw err;
     });
+
+    // REVALLE: o CPF só vira vínculo quando o e-mail é confirmado (verifyEmail)
+    if (identity.required) {
+      await saveSignupIdentity(user.id, identity.cpf);
+    }
 
     await jobsClient.triggerJob({
       name: 'send.signup.confirmation.email',

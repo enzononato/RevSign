@@ -262,6 +262,47 @@ export const signIn = async (email, password) => {
   return cookie();
 };
 
+// Colaboradora fictícia dos cadastros de teste (revalle/colaboradores/dev-seed.sql, "Teste Cadastro"). Sem e-mail na base.
+export const SIGNUP_COLABORADOR = { cpf: '11144477735', birthDate: '03/02/1991' };
+
+// IP de teste (faixa TEST-NET-3) sorteado a cada cadastro: `auth.signup` conta por IP (30 por hora), então um IP
+// fixo esgotaria o limite no meio da suíte. Com 250 endereços, nenhum chega perto do teto.
+const randomTestIp = () => `203.0.113.${Math.floor(Math.random() * 250) + 1}`;
+
+// POST do cadastro, como a tela faz (Fase 7: CPF e data de nascimento). Devolve a Response do `fetch`, sem lançar.
+// `revalleCpf` e `revalleBirthDate` entram no corpo só quando informados (para testar o cadastro sem eles).
+const fetchSignup = ({ name, email, password, revalleCpf, revalleBirthDate, headers = {} }) =>
+  fetch(`${BASE_URL}/api/auth/email-password/signup`, {
+    method: 'POST',
+    headers: {
+      Origin: new URL(BASE_URL).origin,
+      'Content-Type': 'application/json',
+      'X-Forwarded-For': randomTestIp(),
+      ...headers,
+    },
+    body: JSON.stringify({ name, email, password, revalleCpf, revalleBirthDate }),
+  });
+
+// Igual a `fetchSignup`, mas já lida: { status, ok, body, text }.
+export const postSignup = async (input) => parse(await fetchSignup(input));
+
+// Cria uma conta de teste como colaboradora "Teste Cadastro". O vínculo e-mail ↔ CPF é único e nasce quando a conta
+// confirma o e-mail, então a conta anterior do mesmo CPF seguraria o vínculo e a próxima receberia
+// SIGNUP_IDENTITY_CONFLICT: por isso solta o vínculo desse CPF antes de cadastrar. Devolve a Response do `fetch`
+// (como os testes antigos já usavam: `created.ok`, `await created.text()`).
+export const signupColaborador = ({ name, email, password, headers }) => {
+  db(`delete from "RevalleEmailLink" where cpf = '${SIGNUP_COLABORADOR.cpf}'`);
+
+  return fetchSignup({
+    name,
+    email,
+    password,
+    revalleCpf: SIGNUP_COLABORADOR.cpf,
+    revalleBirthDate: SIGNUP_COLABORADOR.birthDate,
+    headers,
+  });
+};
+
 // tRPC autenticado por sessão. `kind`: 'query' (GET com input na URL) ou 'mutation' (POST). `extraHeaders` (ex.: x-team-id).
 export const trpcAs = async (cookie, kind, procedure, input, extraHeaders = {}) => {
   const origin = new URL(BASE_URL).origin;

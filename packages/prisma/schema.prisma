@@ -76,6 +76,7 @@ model User {
 
   revalleFinanceMember    RevalleFinanceMember? // REVALLE: back-relation (perfil Financeiro)
   revalleAccountingMember RevalleAccountingMember? // REVALLE: back-relation (perfil Contabilidade)
+  revalleSignupIdentity   RevalleSignupIdentity? // REVALLE: back-relation (CPF do cadastro, até confirmar o e-mail)
 
   @@index([email])
 }
@@ -1539,5 +1540,15 @@ model RevalleAccountingMember {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Admin que marcou (sem FK, como choiceById).
   addedById Int?
+  createdAt DateTime @default(now())
+}
+
+/// REVALLE: CPF informado no cadastro (Fase 7), guardado só até o e-mail ser confirmado. Quando confirma, o CPF vira
+/// `RevalleEmailLink` e esta linha é apagada. O CPF não fica em `User`. Sem `@unique`: dois cadastros não confirmados
+/// podem trazer o mesmo CPF (quem confirmar primeiro fica com o vínculo).
+model RevalleSignupIdentity {
+  userId    Int      @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cpf       String
   createdAt DateTime @default(now())
 }

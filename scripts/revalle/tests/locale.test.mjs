@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 
-import { BASE_URL, latestMail } from './helpers.mjs';
+import { BASE_URL, latestMail, signupColaborador } from './helpers.mjs';
 
 const htmlLang = (html) => html.match(/<html[^>]*\slang="([^"]*)"/)?.[1];
 
@@ -42,17 +42,8 @@ test('o cookie lang continua mandando (troca manual de idioma)', async () => {
 
 test('o e-mail de confirmação do cadastro sai com o catálogo pt-BR', async () => {
   const email = `locale-${randomUUID().slice(0, 8)}@revalle.com.br`;
-  const origin = new URL(BASE_URL).origin;
 
-  const res = await fetch(`${BASE_URL}/api/auth/email-password/signup`, {
-    method: 'POST',
-    headers: {
-      Origin: origin,
-      'Content-Type': 'application/json',
-      'X-Forwarded-For': `203.0.113.${Math.floor(Math.random() * 250) + 1}`,
-    },
-    body: JSON.stringify({ name: 'Teste Locale', email, password: 'Senha-Forte-123!' }),
-  });
+  const res = await signupColaborador({ name: 'Teste Locale', email, password: 'Senha-Forte-123!' });
 
   assert.ok(res.ok, `cadastro falhou (${res.status}): ${await res.text()}`);
 

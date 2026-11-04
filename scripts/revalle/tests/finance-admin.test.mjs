@@ -27,6 +27,7 @@ import {
   db,
   fetchIdempotent,
   signIn,
+  signupColaborador,
   trpcAs,
 } from './helpers.mjs';
 
@@ -101,15 +102,7 @@ const waitMail = async (to, timeoutMs = 40_000) => {
 // Conta nova com e-mail da empresa (o cadastro só aceita os domínios da empresa), confirmada pelo link do Mailpit.
 const newAccount = async (label) => {
   const email = `f6-${label}-${RUN}@revalle.com.br`;
-  const created = await fetch(`${BASE_URL}/api/auth/email-password/signup`, {
-    method: 'POST',
-    headers: {
-      Origin: origin,
-      'Content-Type': 'application/json',
-      'X-Forwarded-For': `203.0.113.${Math.floor(Math.random() * 250) + 1}`,
-    },
-    body: JSON.stringify({ name: `Financeiro F6 ${label}`, email, password: PASSWORD }),
-  });
+  const created = await signupColaborador({ name: `Financeiro F6 ${label}`, email, password: PASSWORD });
 
   assert.ok(created.ok, `cadastro de ${label} falhou (${created.status}): ${await created.text()}`);
 

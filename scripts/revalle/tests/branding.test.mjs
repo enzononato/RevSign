@@ -21,6 +21,7 @@ import {
   fetchIdempotent,
   poppler,
   signIn,
+  signupColaborador,
   trpc,
 } from './helpers.mjs';
 
@@ -97,16 +98,7 @@ before(async () => {
   db('delete from "RateLimit"');
   db(`delete from "RevalleEmailLink" where cpf = '${FERNANDO.cpf}'`);
 
-  const origin = new URL(BASE_URL).origin;
-  const created = await fetch(`${BASE_URL}/api/auth/email-password/signup`, {
-    method: 'POST',
-    headers: {
-      Origin: origin,
-      'Content-Type': 'application/json',
-      'X-Forwarded-For': `203.0.113.${Math.floor(Math.random() * 250) + 1}`,
-    },
-    body: JSON.stringify({ name: 'Teste Marca', email: signup.email, password: PASSWORD }),
-  });
+  const created = await signupColaborador({ name: 'Teste Marca', email: signup.email, password: PASSWORD });
 
   assert.ok(created.ok, `cadastro falhou (${created.status}): ${await created.text()}`);
   [signup.confirmation] = await waitForMails(`to:${signup.email}`, 1);
