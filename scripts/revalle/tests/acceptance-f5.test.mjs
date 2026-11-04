@@ -1,6 +1,6 @@
 // Aceite da Fase 5 (nota fiscal com conta contábil sugerida; spec §8, §9 e §11). Roda contra a stack local, de ponta a
 // ponta, na ordem do plano:
-//   1. o admin importa 4 contas e define o prompt e o e-mail da contabilidade;
+//   1. o admin importa 4 contas e define o prompt;
 //   2. um remetente da empresa (conta nova, criada pelo teste) sobe um DANFE fictício; a sugestão sai e ele aceita;
 //   3. segundo documento: NFS-e sem conta (sem "Deixar para o Financeiro" desde a Fase 7, a NFS-e é uma NF de antes
 //      da Fase 6, sem conta, simulada no banco logo depois do envio);
@@ -11,7 +11,7 @@
 //   6. a página "Notas fiscais" (rota `revalle.invoice.find`) lista as 2 NFs para o remetente, 0 para um terceiro
 //      usuário sem envolvimento, só a NF em que é signatário para um colega, e as 2 para o admin; filtros;
 //   7. a planilha (`/notas-fiscais/csv`) tem BOM, o cabeçalho exato, 2 linhas e as contas certas, e respeita os filtros;
-//   8. chegaram 2 e-mails para a contabilidade;
+//   8. nenhum e-mail de fluxo (Fase 7): a contabilidade não recebe o PDF e o Financeiro não recebe pedido de aprovação;
 //   9. a política de privacidade tem a frase da spec §9 e diz com exatidão o que acontece com o CPF;
 //  10. Fase 6: o PDF selado do DANFE traz a conta no certificado (linha do documento com a aprovação e "Conta contábil
 //      vista ao assinar" em cada signatário); o da NFS-e (de antes da Fase 6, sem conta) não fala de conta.
@@ -21,7 +21,7 @@
 // remetente escolhe a mesma conta na lista e a planilha fica sem sugestão (o resto do aceite é igual).
 // Sessão: REVSIGN_ADMIN_* (conta ADMIN, marcada como Financeiro). O remetente, o terceiro e o colega são contas novas a
 // cada execução.
-// O prompt e o e-mail da contabilidade anteriores são restaurados no final. Ver revalle/docs/testes.md.
+// O prompt anterior é restaurado no final. Ver revalle/docs/testes.md.
 
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync } from 'node:fs';
@@ -58,7 +58,8 @@ const SKIP = !admin.email || !admin.password ? 'defina REVSIGN_ADMIN_EMAIL e REV
 
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const PASSWORD = `Aceite-F5-${RUN}!`;
-const ACCOUNTING = `contabilidade-f5-${RUN}@revalle.com.br`;
+// Os dois e-mails de fluxo que saíram na Fase 7 (assunto antigo).
+const WORKFLOW_SUBJECT = /^Nota fiscal (assinada|aguardando aprovação do Financeiro): /;
 const PROMPT = `Prompt do aceite da Fase 5 (${RUN}): fornecedores de mercadoria vão para 4.1.07.`;
 const CHAVE = '29241012345678000195550010000123451123456784';
 const PRIVACY_SENTENCE =
@@ -167,11 +168,8 @@ const getSettings = async () => {
   return data(res);
 };
 
-const saveSettings = async ({ prompt, accountingEmail }) => {
-  const res = await trpcAs(adminCookie, 'mutation', 'revalle.invoice.adminUpdateSettings', {
-    prompt,
-    accountingEmail,
-  });
+const saveSettings = async ({ prompt }) => {
+  const res = await trpcAs(adminCookie, 'mutation', 'revalle.invoice.adminUpdateSettings', { prompt });
 
   assert.equal(res.status, 200, res.text);
 };
@@ -382,11 +380,11 @@ before(async () => {
       .then((res) => res.ok)
       .catch(() => false));
 
-  // 1. Contas, prompt e e-mail da contabilidade.
+  // 1. Contas e prompt.
   const imported = await trpcAs(adminCookie, 'mutation', 'revalle.invoice.adminImportAccounts', { csv: ACCOUNTS_CSV });
 
   assert.equal(imported.status, 200, imported.text);
-  await saveSettings({ prompt: PROMPT, accountingEmail: ACCOUNTING });
+  await saveSettings({ prompt: PROMPT });
   db(`delete from "RateLimit" where action like 'revalle.invoice%'`);
 
   fx.sender = await newAccount('remetente');
@@ -484,7 +482,7 @@ after(async () => {
     }
   } finally {
     if (previous) {
-      await saveSettings({ prompt: previous.prompt, accountingEmail: previous.accountingEmail ?? '' });
+      await saveSettings({ prompt: previous.prompt });
     }
   }
 });
@@ -672,25 +670,30 @@ testStep('7. planilha: BOM, cabeçalho exato, 2 linhas com as contas certas, fil
   assert.equal(reversed.text, 'A data inicial é depois da data final.');
 });
 
-testStep('8. a contabilidade recebeu 2 e-mails (um por NF)', async () => {
-  const mails = await waitMails(ACCOUNTING, 2);
+testStep(
+  '8. nenhum e-mail de fluxo: sem PDF para a contabilidade e sem pedido de aprovação ao Financeiro',
+  async () => {
+    // As duas NFs já concluíram (o DANFE passou pela aprovação do admin, que é do Financeiro). O assunto antigo leva o
+    // título único de cada NF.
+    await sleep(4000);
 
-  assert.equal(mails.length, 2, JSON.stringify(mails.map((m) => m.Subject)));
+    for (const doc of [fx.danfe, fx.nfse]) {
+      const found = (await mailpit(`/search?query=${encodeURIComponent(`subject:"${doc.title}"`)}`)).messages ?? [];
 
-  const subjects = mails.map((m) => m.Subject).sort();
+      assert.deepEqual(
+        found.filter((m) => WORKFLOW_SUBJECT.test(m.Subject)).map((m) => m.Subject),
+        [],
+        `saiu e-mail de fluxo de ${doc.title}`,
+      );
+    }
 
-  assert.deepEqual(
-    subjects,
-    [
-      `Nota fiscal assinada: ${fx.danfe.title} · Conta 4.1.07 – Fornecedores Aceite Cinco`,
-      `Nota fiscal assinada: ${fx.nfse.title}`,
-    ].sort(),
-  );
-
-  // Nada para o contrato comum.
-  await sleep(2000);
-  assert.equal((await emailsTo(ACCOUNTING)).length, 2);
-});
+    // O admin, do Financeiro, não recebeu o pedido de aprovação do DANFE.
+    assert.deepEqual(
+      (await emailsTo(admin.email)).filter((m) => m.Subject.includes(fx.danfe.title)).map((m) => m.Subject),
+      [],
+    );
+  },
+);
 
 testStep('9. a política de privacidade tem a frase do Gemini (spec §9) e a do CPF, exata', async () => {
   const html = await fetchIdempotent(`${BASE_URL}/privacidade`, {}, (res) => res.text());

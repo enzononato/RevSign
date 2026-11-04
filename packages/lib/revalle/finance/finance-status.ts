@@ -60,5 +60,5 @@ export const FINANCE_FILTER_LABELS: Record<FinanceFilter, string> = {
 /** Padrão da página para quem é do Financeiro (sem `financeiro` na URL). */
 export const FINANCE_DEFAULT_FILTER: FinanceFilter = 'pendentes';
 
-/** Página da NF só de leitura (Financeiro e quem está na NF): a lista e os e-mails do Financeiro levam a ela. */
+/** Página da NF só de leitura (Financeiro e quem está na NF): a lista e o aviso da troca de conta levam a ela. */
 export const invoiceViewPath = (envelopeId: string) => `/notas-fiscais/${envelopeId}`;

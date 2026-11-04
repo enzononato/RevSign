@@ -10,7 +10,6 @@ import {
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { isAdmin } from '../../../utils/is-admin';
-import { emailAccountingIfCompleted } from './accounting-email';
 import type { InvoiceState } from './classify';
 import { getInvoiceState, toInvoiceState } from './classify';
 import { filesKey, loadEnvelopeFiles } from './envelope-files';
@@ -20,8 +19,7 @@ import { filesKey, loadEnvelopeFiles } from './envelope-files';
  * escaneada enviada sem responder "É nota fiscal?"): o dono ou o admin marca como NF na página do documento.
  * A classificação continua congelada (nada é relido nem reclassificado) e a IA não é chamada: grava `isInvoice = YES`,
  * `detectedBy = SENDER`, quem/quando e (Fase 6) `PENDING_APPROVAL`: a NF passa pelo Financeiro. A primeira conta vem
- * em seguida, no mesmo cartão (`setInvoiceChoice`); num documento concluído, é ela que dispara o e-mail da
- * contabilidade. Já marcado como NF: devolve o estado, sem gravar.
+ * em seguida, no mesmo cartão (`setInvoiceChoice`). Já marcado como NF: devolve o estado, sem gravar.
  */
 export const markSentEnvelopeAsInvoice = async ({
   envelopeId,
@@ -86,10 +84,6 @@ export const markSentEnvelopeAsInvoice = async ({
       skipDuplicates: true,
     });
   }
-
-  // Raro: o remetente tinha escolhido a conta no rascunho e depois disse "Não" (a escolha fica). Concluído com escolha:
-  // a contabilidade é avisada já.
-  await emailAccountingIfCompleted(envelopeId);
 
   return await getInvoiceState(envelopeId);
 };

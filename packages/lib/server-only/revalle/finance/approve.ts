@@ -13,7 +13,6 @@ import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { ApiRequestMetadata } from '../../../universal/extract-request-metadata';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { mapSecondaryIdToDocumentId } from '../../../utils/envelope';
-import { emailAccountingIfCompleted } from '../invoice/accounting-email';
 import { toInvoiceState } from '../invoice/classify';
 
 export type ApproveInvoiceAccountResult = { approved: boolean };
@@ -35,8 +34,7 @@ const invalid = (message: string) => new AppError(AppErrorCode.INVALID_REQUEST, 
  *   `{ approved: false }`, assim como qualquer repetição numa NF já aprovada.
  * - Documento pendente com todos os destinatários atuantes concluídos: dispara a selagem (que estava retida). Se ainda
  *   falta alguém, nada é disparado: a conclusão do último já não fica retida e sela.
- * - Documento já concluído (NF marcada depois da conclusão): a contabilidade recebe o e-mail que estava esperando a
- *   aprovação.
+ * - Documento já concluído (NF marcada depois da conclusão): só grava a aprovação, não há o que selar.
  * - "Definir e aprovar" (`code`): NF marcada depois do envio que ainda não tem conta. Ninguém viu conta nenhuma ao
  *   assinar, então o Financeiro escolhe e aprova no mesmo ato, sem nova versão e sem assinar de novo (evento
  *   `REVALLE_FINANCE_ACCOUNT_DEFINED`). Se a NF já tem conta, `code` só vale igual a ela (é a aprovação).
@@ -233,8 +231,8 @@ const defineSentInvoiceAccount = async ({
 };
 
 /**
- * Depois da aprovação, a NF segue como qualquer documento: pendente com todos concluídos é selada agora; concluída
- * avisa a contabilidade. Status relido aqui: a conclusão do último signatário pode ter chegado durante a aprovação.
+ * Depois da aprovação, a NF segue como qualquer documento: pendente com todos concluídos é selada agora; concluída não
+ * tem o que selar. Status relido aqui: a conclusão do último signatário pode ter chegado durante a aprovação.
  */
 const releaseHeldSeal = async ({
   envelopeId,
@@ -251,12 +249,6 @@ const releaseHeldSeal = async ({
   });
 
   if (!current) {
-    return;
-  }
-
-  if (current.status === DocumentStatus.COMPLETED) {
-    await emailAccountingIfCompleted(envelopeId);
-
     return;
   }
 

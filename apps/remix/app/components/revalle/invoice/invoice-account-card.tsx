@@ -25,7 +25,6 @@ export type InvoiceAccountCardProps = {
  * - Enviado que não é NF (NO, ou enviado antes desta versão): só um link discreto "É uma nota fiscal? Marcar como
  *   nota fiscal", para não pesar na página de todo contrato.
  * Marcar (sem IA) abre em seguida a escolha da conta, no cartão; a NF fica aguardando a aprovação do Financeiro.
- * Num documento concluído, a escolha avisa a contabilidade.
  */
 export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
   const { user } = useSession();

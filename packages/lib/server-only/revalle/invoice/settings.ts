@@ -23,7 +23,6 @@ export const getRevalleInvoiceAiConfig = (): { status: RevalleInvoiceAiStatus; m
 
 export type AccountingSettings = {
   prompt: string;
-  accountingEmail: string | null;
   updatedAt: Date | null;
   updatedBy: { name: string | null; email: string } | null;
 };
@@ -32,7 +31,7 @@ export const getAccountingSettings = async (): Promise<AccountingSettings> => {
   const settings = await prisma.revalleAccountingSettings.findUnique({ where: { id: SETTINGS_ID } });
 
   if (!settings) {
-    return { prompt: '', accountingEmail: null, updatedAt: null, updatedBy: null };
+    return { prompt: '', updatedAt: null, updatedBy: null };
   }
 
   const updatedBy = settings.updatedById
@@ -41,24 +40,14 @@ export const getAccountingSettings = async (): Promise<AccountingSettings> => {
 
   return {
     prompt: settings.prompt,
-    accountingEmail: settings.accountingEmail,
     updatedAt: settings.updatedAt,
     updatedBy,
   };
 };
 
-export const updateAccountingSettings = async ({
-  prompt,
-  accountingEmail,
-  userId,
-}: {
-  prompt?: string;
-  accountingEmail?: string | null;
-  userId: number;
-}) => {
+export const updateAccountingSettings = async ({ prompt, userId }: { prompt?: string; userId: number }) => {
   const data = {
     ...(prompt !== undefined ? { prompt } : {}),
-    ...(accountingEmail !== undefined ? { accountingEmail: accountingEmail?.trim() || null } : {}),
     updatedById: userId,
   };
 

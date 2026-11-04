@@ -4329,9 +4329,6 @@ msgstr "Corrija estes erros e envie de novo. Nada foi gravado."
 msgid "Descrição"
 msgstr "Descrição"
 
-msgid "E-mail da contabilidade"
-msgstr "E-mail da contabilidade"
-
 msgid "Enviar arquivo CSV"
 msgstr "Enviar arquivo CSV"
 
@@ -4359,9 +4356,6 @@ msgstr "Não foi possível aplicar a lista."
 msgid "Não foi possível ler a lista."
 msgstr "Não foi possível ler a lista."
 
-msgid "Não foi possível salvar. Confira o e-mail da contabilidade."
-msgstr "Não foi possível salvar. Confira o e-mail da contabilidade."
-
 msgid "Nenhuma conta encontrada."
 msgstr "Nenhuma conta encontrada."
 
@@ -4386,17 +4380,11 @@ msgstr "Ou cole a lista aqui"
 msgid "Prompt"
 msgstr "Prompt"
 
-msgid "Recebe o PDF assinado das notas fiscais. Pode ficar vazio."
-msgstr "Recebe o PDF assinado das notas fiscais. Pode ficar vazio."
-
 msgid "Salvar"
 msgstr "Salvar"
 
 msgid "Situação"
 msgstr "Situação"
-
-msgid "Sugestão e contabilidade"
-msgstr "Sugestão e contabilidade"
 
 msgid "Sugestão por IA: desligada. A escolha da conta funciona, mas sem sugestão."
 msgstr "Sugestão por IA: desligada. A escolha da conta funciona, mas sem sugestão."
@@ -4495,33 +4483,6 @@ msgstr "Conta contábil apagada porque o arquivo foi alterado (era {from})"
 
 msgid "O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e envie."
 msgstr "O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e envie."
-
-msgid "A conta foi escolhida pelo remetente."
-msgstr "A conta foi escolhida pelo remetente."
-
-msgid "A conta foi sugerida pela IA e aceita pelo remetente."
-msgstr "A conta foi sugerida pela IA e aceita pelo remetente."
-
-msgid "Concluído em {completedAt}"
-msgstr "Concluído em {completedAt}"
-
-msgid "Conta contábil: {account}"
-msgstr "Conta contábil: {account}"
-
-msgid "Documento: {documentName}"
-msgstr "Documento: {documentName}"
-
-msgid "Enviado por {senderName} ({senderEmail})"
-msgstr "Enviado por {senderName} ({senderEmail})"
-
-msgid "Nota fiscal assinada: {documentName}"
-msgstr "Nota fiscal assinada: {documentName}"
-
-msgid "O PDF assinado está em anexo."
-msgstr "O PDF assinado está em anexo."
-
-msgid "Uma nota fiscal foi assinada"
-msgstr "Uma nota fiscal foi assinada"
 
 # REVALLE: Fase 5, página "Notas fiscais" e menu (msgids já em pt-BR).
 
@@ -4680,15 +4641,6 @@ msgstr "deixar para o Financeiro"
 
 msgid "Escolha a conta contábil. Depois, quem aprova ou troca é o Financeiro."
 msgstr "Escolha a conta contábil. Depois, quem aprova ou troca é o Financeiro."
-
-msgid "Nota fiscal aguardando aprovação do Financeiro: {documentName}"
-msgstr "Nota fiscal aguardando aprovação do Financeiro: {documentName}"
-
-msgid "Uma nota fiscal aguarda a aprovação do Financeiro"
-msgstr "Uma nota fiscal aguarda a aprovação do Financeiro"
-
-msgid "Todos já assinaram. O documento só é concluído (e enviado à contabilidade) depois que alguém do Financeiro aprovar a conta."
-msgstr "Todos já assinaram. O documento só é concluído (e enviado à contabilidade) depois que alguém do Financeiro aprovar a conta."
 
 msgid "Conta contábil aprovada pelo Financeiro: {account}"
 msgstr "Conta contábil aprovada pelo Financeiro: {account}"
@@ -4906,23 +4858,14 @@ msgstr "Versão"
 msgid "não enviada"
 msgstr "não enviada"
 
-msgid "Abrir a nota fiscal"
-msgstr "Abrir a nota fiscal"
-
 msgid "A nova versão não existe mais: troque a conta de novo."
 msgstr "A nova versão não existe mais: troque a conta de novo."
 
 msgid "Assinar a nova versão"
 msgstr "Assinar a nova versão"
 
-msgid "Conta alterada pelo Financeiro ({financeName}) — motivo: {changeReason}"
-msgstr "Conta alterada pelo Financeiro ({financeName}) — motivo: {changeReason}"
-
 msgid "Conta definida e aprovada."
 msgstr "Conta definida e aprovada."
-
-msgid "Conta definida pelo Financeiro ({financeName})"
-msgstr "Conta definida pelo Financeiro ({financeName})"
 
 msgid "Conta: {accountLabel}. O documento é enviado agora, em nome do remetente, para todos os destinatários assinarem."
 msgstr "Conta: {accountLabel}. O documento é enviado agora, em nome do remetente, para todos os destinatários assinarem."
@@ -4942,11 +4885,8 @@ msgstr "Enviar de novo?"
 msgid "Esta nota fiscal foi marcada depois do envio e ainda não tem conta. Escolha a conta: ela fica aprovada na hora, sem nova versão (ninguém viu conta ao assinar)."
 msgstr "Esta nota fiscal foi marcada depois do envio e ainda não tem conta. Escolha a conta: ela fica aprovada na hora, sem nova versão (ninguém viu conta ao assinar)."
 
-msgid "Notas fiscais assinadas aguardando a aprovação do Financeiro: {approvalCount}. Ninguém está marcado como Financeiro: marque alguém abaixo; o pedido de aprovação sai em até 15 minutos."
-msgstr "Notas fiscais assinadas aguardando a aprovação do Financeiro: {approvalCount}. Ninguém está marcado como Financeiro: marque alguém abaixo; o pedido de aprovação sai em até 15 minutos."
-
-msgid "Substitui o envio da versão anterior: {replacedTitle}"
-msgstr "Substitui o envio da versão anterior: {replacedTitle}"
+msgid "Notas fiscais assinadas aguardando a aprovação do Financeiro: {approvalCount}. Ninguém está marcado como Financeiro: marque alguém abaixo. As notas esperam na página Notas fiscais até alguém do Financeiro aprovar."
+msgstr "Notas fiscais assinadas aguardando a aprovação do Financeiro: {approvalCount}. Ninguém está marcado como Financeiro: marque alguém abaixo. As notas esperam na página Notas fiscais até alguém do Financeiro aprovar."
 
 msgid "Verificar um documento"
 msgstr "Verificar um documento"

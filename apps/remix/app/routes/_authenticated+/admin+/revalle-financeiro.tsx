@@ -76,7 +76,8 @@ export default function AdminRevalleFinanceiroPage() {
           <p>
             <Trans>
               Notas fiscais assinadas aguardando a aprovação do Financeiro: {approvalCount}. Ninguém está marcado como
-              Financeiro: marque alguém abaixo; o pedido de aprovação sai em até 15 minutos.
+              Financeiro: marque alguém abaixo. As notas esperam na página Notas fiscais até alguém do Financeiro
+              aprovar.
             </Trans>
           </p>
         </div>

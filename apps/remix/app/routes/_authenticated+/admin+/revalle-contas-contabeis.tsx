@@ -371,22 +371,20 @@ const SettingsSection = () => {
   const { mutateAsync: updateSettings, isPending } = trpc.revalle.invoice.adminUpdateSettings.useMutation();
 
   const [prompt, setPrompt] = useState('');
-  const [accountingEmail, setAccountingEmail] = useState('');
 
   useEffect(() => {
     if (data) {
       setPrompt(data.prompt);
-      setAccountingEmail(data.accountingEmail ?? '');
     }
   }, [data]);
 
   const onSave = async () => {
     try {
-      await updateSettings({ prompt, accountingEmail: accountingEmail.trim() });
+      await updateSettings({ prompt });
       toast({ title: t`Configurações salvas.` });
       void refetch();
     } catch {
-      toast({ title: t`Não foi possível salvar. Confira o e-mail da contabilidade.`, variant: 'destructive' });
+      toast({ title: t`Não foi possível salvar. Tente de novo.`, variant: 'destructive' });
     }
   };
 
@@ -396,7 +394,7 @@ const SettingsSection = () => {
   return (
     <section className="mt-12">
       <h3 className="font-semibold text-xl">
-        <Trans>Sugestão e contabilidade</Trans>
+        <Trans>Sugestão da IA</Trans>
       </h3>
 
       <fieldset className="mt-4 space-y-4" disabled={!data || isPending}>
@@ -416,22 +414,6 @@ const SettingsSection = () => {
             maxLength={10_000}
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="revalle-accounting-email">
-            <Trans>E-mail da contabilidade</Trans>
-          </Label>
-          <p className="text-muted-foreground text-sm">
-            <Trans>Recebe o PDF assinado das notas fiscais. Pode ficar vazio.</Trans>
-          </p>
-          <Input
-            id="revalle-accounting-email"
-            type="email"
-            className="max-w-sm"
-            value={accountingEmail}
-            onChange={(event) => setAccountingEmail(event.target.value)}
           />
         </div>
 

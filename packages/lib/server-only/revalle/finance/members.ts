@@ -18,20 +18,9 @@ export const isFinanceMember = async (userId: number): Promise<boolean> => {
   return member !== null;
 };
 
-/** Quantos membros recebem os avisos (contas desativadas ficam de fora, como em `listFinanceMemberEmails`). */
+/** Quantos membros o Financeiro tem (contas desativadas ficam de fora); zero faz a tela do admin avisar. */
 export const countFinanceMembers = async (): Promise<number> =>
   await prisma.revalleFinanceMember.count({ where: { user: { disabled: false } } });
-
-/** E-mails para os avisos do Financeiro: todos os membros, menos contas desativadas. */
-export const listFinanceMemberEmails = async (): Promise<string[]> => {
-  const members = await prisma.revalleFinanceMember.findMany({
-    where: { user: { disabled: false } },
-    orderBy: [{ createdAt: 'asc' }, { userId: 'asc' }],
-    select: { user: { select: { email: true } } },
-  });
-
-  return members.map((member) => member.user.email);
-};
 
 /** Marca ou desmarca. Idempotente: marcar quem já é membro mantém quem marcou primeiro; desmarcar quem não é não falha. */
 export const setFinanceMember = async ({

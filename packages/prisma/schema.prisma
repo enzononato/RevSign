@@ -1421,11 +1421,10 @@ model RevalleAccountingAccount {
 
 /// REVALLE: configuração da sugestão de conta (linha única, id = 1).
 model RevalleAccountingSettings {
-  id              Int      @id @default(1)
-  prompt          String   @default("")
-  accountingEmail String?
-  updatedById     Int?
-  updatedAt       DateTime @updatedAt
+  id          Int      @id @default(1)
+  prompt      String   @default("")
+  updatedById Int?
+  updatedAt   DateTime @updatedAt
 }
 
 enum RevalleInvoiceStatus {
@@ -1466,7 +1465,6 @@ model RevalleInvoiceClassification {
   choiceById             Int?
   choiceAt               DateTime?
   acceptedSuggestion     Boolean?
-  accountingEmailSentAt  DateTime?
   /// Fase 6: aprovação do Financeiro. Nulo = não é NF (ou NF ainda em rascunho); `LEGACY` = NF de antes da Fase 6.
   financeStatus          RevalleFinanceStatus?
   /// Quem do Financeiro aprovou (ou definiu) a conta e quando (sem FK, como choiceById).
@@ -1476,8 +1474,6 @@ model RevalleInvoiceClassification {
   approvedAccountName    String?
   /// Nome de quem aprovou (ou definiu), congelado no mesmo momento. Nulo = usa o nome atual.
   approvedByName         String?
-  /// Selagem retida (todos assinaram, falta a aprovação): quando o e-mail "aguardando aprovação" saiu (um por retenção).
-  approvalRequestedAt    DateTime?
   /// Versão substituída por outra com a conta trocada pelo Financeiro: quando, quem, o motivo e a nova versão.
   supersededAt           DateTime?
   supersededById         Int?
