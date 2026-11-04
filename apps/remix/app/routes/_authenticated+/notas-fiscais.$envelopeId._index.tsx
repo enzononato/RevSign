@@ -14,6 +14,7 @@ import { isRouteErrorResponse, Link, useRevalidator } from 'react-router';
 import { DocumentStatus } from '~/components/general/document/document-status';
 import { GenericErrorLayout } from '~/components/general/generic-error-layout';
 import PDFViewerLazy from '~/components/general/pdf-viewer/pdf-viewer-lazy';
+import { AccountingCard } from '~/components/revalle/accounting/accounting-card';
 import { FinanceCard } from '~/components/revalle/finance/finance-card';
 import { appMetaTags } from '~/utils/meta';
 
@@ -25,8 +26,8 @@ export function meta() {
 
 /**
  * Página da NF só de leitura (Fase 6): para quem é do Financeiro (com o cartão "Financeiro"), para a Contabilidade (Fase
- * 7, a mesma leitura, sem as ações do Financeiro) e para quem está na NF. Quem não é de nenhum dos perfis nem está na NF
- * recebe 404, sem saber que ela existe.
+ * 7, com o cartão "Contabilidade") e para quem está na NF. Quem não é de nenhum dos perfis nem está na NF recebe 404, sem
+ * saber que ela existe.
  */
 export async function loader({ request, params }: Route.LoaderArgs) {
   const { user } = await getSession(request);
@@ -106,7 +107,11 @@ export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
               data-testid="invoice-view-superseded"
             >
               <p className="font-medium">
-                <Trans>Esta versão foi substituída (conta contábil alterada pelo Financeiro).</Trans>
+                {finance.supersedeKind === 'COST_CENTER' ? (
+                  <Trans>Esta versão foi substituída (centro de custo corrigido pela Contabilidade).</Trans>
+                ) : (
+                  <Trans>Esta versão foi substituída (conta contábil alterada pelo Financeiro).</Trans>
+                )}
               </p>
               {finance.supersedeReason && (
                 <p className="mt-1 break-words">
@@ -153,7 +158,17 @@ export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
                 {finance.account ? `${finance.account.code} – ${finance.account.name ?? ''}` : '-'}
               </p>
               {situation && <p className="text-muted-foreground">{situation}</p>}
+              <h2 className="mt-2 font-medium">
+                <Trans>Centro de custo</Trans>
+              </h2>
+              <p className="break-words" data-testid="invoice-view-cost-center">
+                {finance.costCenterLabel ?? '-'}
+              </p>
             </section>
+          )}
+
+          {view.viewer.isAccounting && (
+            <AccountingCard envelopeId={view.id} onChanged={() => void revalidator.revalidate()} />
           )}
 
           <section className="flex flex-col gap-2 rounded-xl border border-border bg-widget p-4 text-sm dark:bg-background">

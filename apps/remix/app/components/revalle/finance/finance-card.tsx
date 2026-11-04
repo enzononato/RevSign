@@ -6,7 +6,11 @@ import {
   CHANGE_REASON_MIN,
   isValidChangeReason,
 } from '@documenso/lib/revalle/finance/account-change';
-import { financeStatusLabel, invoiceViewPath } from '@documenso/lib/revalle/finance/finance-status';
+import {
+  financeStatusLabel,
+  invoiceViewPath,
+  isNewVersionDraftRow,
+} from '@documenso/lib/revalle/finance/finance-status';
 import { trpc } from '@documenso/trpc/react';
 import type { TGetFinanceCardResponse } from '@documenso/trpc/server/revalle-router/finance/get.types';
 import { Button } from '@documenso/ui/primitives/button';
@@ -53,12 +57,8 @@ const actionsFor = (card: Card) => {
         (card.envelopeStatus === 'COMPLETED' && card.financeStatus === 'LEGACY') ||
         // Versão substituída cuja nova versão foi apagada (ou a troca morreu no meio): troca de novo.
         (sent && card.canRetakeChange)),
-    // Nova versão de uma troca de conta, já aprovada, cujo envio não saiu: manda de novo, mesma conta.
-    resend:
-      card.envelopeStatus === 'DRAFT' &&
-      card.financeStatus === 'APPROVED' &&
-      card.account !== null &&
-      card.previousEnvelopeId !== null,
+    // Nova versão cujo envio não saiu: manda de novo, mesma conta.
+    resend: card.envelopeStatus === 'DRAFT' && isNewVersionDraftRow(card),
   };
 };
 
@@ -247,6 +247,15 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
           </dd>
         </div>
 
+        <div>
+          <dt className="text-muted-foreground">
+            <Trans>Centro de custo</Trans>
+          </dt>
+          <dd className="break-words" data-testid="finance-card-cost-center">
+            {card.costCenterLabel ?? '-'}
+          </dd>
+        </div>
+
         {card.choiceBy && (
           <div>
             <dt className="text-muted-foreground">
@@ -293,7 +302,11 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
         {card.financeStatus === 'SUPERSEDED' && card.supersedeReason && (
           <div>
             <dt className="text-muted-foreground">
-              <Trans>Motivo da troca</Trans>
+              {card.supersedeKind === 'COST_CENTER' ? (
+                <Trans>Motivo da correção</Trans>
+              ) : (
+                <Trans>Motivo da troca</Trans>
+              )}
             </dt>
             <dd className="break-words">{card.supersedeReason}</dd>
           </div>
@@ -314,13 +327,20 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
         </Button>
       )}
 
-      {actions.resend && card.account && (
+      {actions.resend && (
         <div className="flex flex-col gap-2" data-testid="finance-card-resend">
           <p className="text-muted-foreground">
-            <Trans>
-              A conta já está aprovada, mas o documento ainda não foi enviado. Se o envio falhou, corrija o problema e
-              envie de novo (mesma conta).
-            </Trans>
+            {card.financeStatus === 'APPROVED' ? (
+              <Trans>
+                A conta já está aprovada, mas o documento ainda não foi enviado. Se o envio falhou, corrija o problema e
+                envie de novo (mesma conta).
+              </Trans>
+            ) : (
+              <Trans>
+                A nova versão ainda não foi enviada. Se o envio falhou, corrija o problema e envie de novo (mesma conta
+                e mesmo centro).
+              </Trans>
+            )}
           </p>
           <Button
             type="button"
@@ -577,7 +597,7 @@ type ConfirmDialogProps = {
   onConfirm: () => void;
 };
 
-const ConfirmDialog = ({
+export const ConfirmDialog = ({
   open,
   isBusy,
   isLoading,

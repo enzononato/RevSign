@@ -15,7 +15,8 @@ para a contabilidade nem para o Financeiro: tudo o que precisa de ação fica na
 - A sugestão é só uma sugestão: o RevSign nunca escolhe a conta sozinho.
 - Desde a Fase 7, toda NF leva também um **centro de custo**, de uma lista fixa: 101 Puxada, 201 Armazém, 301
   Administrativo, 401 Vendas e 501 Entrega. Quem envia escolhe; a IA não participa. A NF só é enviada com a conta **e**
-  o centro. Depois do envio, o centro já escolhido não muda pela página do documento: a correção é da Contabilidade.
+  o centro. Depois do envio, o centro já escolhido não muda pela página do documento: a correção é da Contabilidade, e
+  gera uma nova versão que todos assinam de novo (seção 9, "Contabilidade").
 - O centro de custo também **faz parte do que é assinado**: quem assina vê "Nota fiscal · Conta contábil: {código} – {nome}
   · Centro de custo: 101 – Puxada" (numa NF sem centro, a frase de antes), a prova de cada signatário guarda o centro
   que a pessoa viu, e o certificado ganha a linha "Centro de custo visto ao assinar" em cada signatário e a linha
@@ -113,8 +114,8 @@ o mesmo PDF for enviado de novo, a sugestão vem do cache, sem nova chamada. Por
 5. Depois do envio, a página do documento mostra ao dono e ao admin:
    - numa NF, o cartão **Conta contábil**, só de leitura: a conta, o centro de custo ("Centro de custo: 101 – Puxada")
      e a situação no Financeiro ("Aguardando aprovação do Financeiro", "Aprovada pelo Financeiro" ou, se o Financeiro
-     trocou a conta, "Substituída…" com o botão **Abrir a nova versão**). Depois do envio, quem troca a conta é o
-     Financeiro e quem corrige o centro é a Contabilidade. Numa NF que ainda não tem centro (marcada depois do envio ou
+     trocou a conta ou a Contabilidade corrigiu o centro, "Substituída…" com o botão **Abrir a nova versão**). Depois do
+     envio, quem troca a conta é o Financeiro e quem corrige o centro é a Contabilidade. Numa NF que ainda não tem centro (marcada depois do envio ou
      enviada antes da Fase 7), o dono ou o admin escolhe o primeiro no próprio cartão, sem nova versão. Essas NFs
      continuam sendo aprovadas e concluídas normalmente sem o centro;
    - num PDF escaneado enviado sem a resposta (pela API), o cartão **Conta contábil** com a pergunta "Este documento é
@@ -159,12 +160,12 @@ chegaram para ela assinar. O **administrador**, quem é do **Financeiro** e quem
 
 Desde a Fase 6 também aparecem:
 
-- o **rascunho que está com o Financeiro** (a nova versão de uma troca de conta, com a conta já aprovada e o envio que
-  ainda não saiu), para o Financeiro, a Contabilidade e quem enviou. A coluna de envio diz "não enviada". Outros
-  rascunhos continuam fora: o rascunho comum de outra pessoa não aparece nem abre pelo endereço, para o Financeiro e
-  para a Contabilidade;
-- a **versão substituída** (o Financeiro trocou a conta), para quem enviou, quem assina, o Financeiro e a Contabilidade,
-  mesmo que o documento tenha sumido das listas comuns do RevSign.
+- o **rascunho de uma nova versão** (de uma troca de conta ou de uma correção do centro, aprovada ou aguardando
+  aprovação, com o envio que ainda não saiu), para o Financeiro, a Contabilidade e quem enviou. A coluna de envio diz
+  "não enviada". Outros rascunhos continuam fora: o rascunho comum de outra pessoa não aparece nem abre pelo endereço,
+  para o Financeiro e para a Contabilidade;
+- a **versão substituída** (o Financeiro trocou a conta ou a Contabilidade corrigiu o centro), para quem enviou, quem
+  assina, o Financeiro e a Contabilidade, mesmo que o documento tenha sumido das listas comuns do RevSign.
 
 **NF excluída pelo remetente:** some para quem enviou e para quem assinou, mas o administrador continua vendo (a
 contabilidade pode já ter lançado a nota). Na tela ela aparece com a marca **excluído pelo remetente**; na planilha, a
@@ -274,11 +275,13 @@ hora). Não há e-mail para o Financeiro: as notas aguardando aprovação ficam 
 - Clicando no título, a **página da NF**, só de leitura: o PDF, o título, o remetente, quem assina e a situação de cada
   um, as versões (link para a anterior e a nova, quando houver) e o cartão **Financeiro**, com:
   - a conta atual e a situação;
+  - o centro de custo, só de leitura (quem corrige é a Contabilidade);
   - quem escolheu a conta e quando;
   - a sugestão da IA (com a confiança e o motivo);
   - quem aprovou, quando já foi aprovada.
 - Quem não é do Financeiro nem da Contabilidade também abre a página da NF em que está envolvido (enviou ou assina),
-  sem o cartão. Quem não é de nenhum dos dois perfis e não está na NF recebe "Nota fiscal não encontrada".
+  sem o cartão, e vê a conta e o centro de custo. Quem não é de nenhum dos dois perfis e não está na NF recebe "Nota
+  fiscal não encontrada".
 
 ### Contabilidade (Fase 7)
 
@@ -290,10 +293,48 @@ hora. Se ninguém estiver na Contabilidade, a tela do admin mostra um aviso.
 - A Contabilidade vê **todas** as NFs, como o Financeiro: na lista **Notas fiscais**, na **página da NF**, no PDF e na
   planilha. Desligada, perde tudo na hora (a página da NF volta a dar "Nota fiscal não encontrada"). Ela não vê o
   rascunho comum de outra pessoa, como o Financeiro.
-- Ela **não aprova nem troca a conta**: essas ações (`revalle.finance.approve`, `changeAccount`, `resendVersion`) são só
-  do Financeiro e respondem **403** à Contabilidade. Na página da NF ela vê a conta como quem não é do Financeiro, sem
-  o cartão.
+- Ela **não aprova nem troca a conta**: essas ações (`revalle.finance.approve`, `changeAccount`) são só do Financeiro e
+  respondem **403** à Contabilidade. Na página da NF ela vê a conta como quem não é do Financeiro, mais o cartão
+  **Contabilidade**. **Enviar de novo** (`resendVersion`) vale para os dois perfis.
 - Ela continua enviando e assinando como qualquer colaborador.
+- O administrador só age aqui se também estiver marcado como Contabilidade: sem a marca, as ações respondem **403**.
+
+**Cartão Contabilidade.** Só para quem é do perfil. Mostra o centro de custo e a situação: **Aguardando validação**,
+**Validado por {nome} em {data}** ou **Sem centro de custo**.
+
+- **Validar centro de custo** (pede confirmação): a qualquer momento depois do envio, antes ou depois do Financeiro.
+  Grava quem e quando. Repetir não faz nada. A validação **não segura a conclusão**: a NF conclui quando todos assinam e
+  o Financeiro aprova, validada ou não. O certificado e o `/verificar` não falam dela.
+- **Corrigir centro de custo**: escolha o centro certo e escreva o **motivo** (de 10 a 500 caracteres). O diálogo avisa
+  "Todos vão precisar assinar de novo.". Funciona como a troca de conta, inclusive depois de concluída, e não existe
+  "rejeitar":
+  - a versão atual vira **Substituída**; quem abrir o link antigo vê "Este documento foi substituído por uma nova
+    versão.". Se ela já estava concluída, continua concluída;
+  - sai uma **nova versão** (" (v2)", " (v3)"…), com a mesma conta, a mesma situação no Financeiro (se já estava aprovada,
+    continua aprovada, com os mesmos nomes, e conclui sem nova aprovação; se aguardava, continua aguardando), o centro
+    novo e já validada por quem corrigiu;
+  - uma NF `LEGACY` concluída que é corrigida passa a aguardar o Financeiro na nova versão, como qualquer envio;
+  - o remetente e quem assina recebem o aviso "Centro de custo da nota fiscal corrigido pela Contabilidade: {título}",
+    com a frase "O centro de custo foi corrigido de 101 – Puxada para 201 – Armazém. Motivo: {motivo}.";
+  - uma NF sem centro não tem o que corrigir: a tela oferece **Definir centro de custo**.
+- **Definir centro de custo** (NF enviada sem centro, marcada depois do envio ou de antes da Fase 7): grava e valida no
+  mesmo ato, sem nova versão, porque ninguém viu centro ao assinar. Com centro já escolhido, a tela não oferece e o
+  servidor recusa.
+- **Enviar de novo**: nova versão cujo envio falhou. Ver "Enviar de novo" abaixo.
+- Na versão substituída, o cartão é só de leitura, com o motivo e o link **Abrir a nova versão**. Se a nova versão foi
+  apagada (ou a correção parou no meio e passaram 5 minutos), ele diz "A nova versão não existe mais: corrija o centro
+  de custo de novo." e volta a mostrar **Corrigir centro de custo**.
+
+**Quem mudou o quê na nova versão:**
+
+| Quem mudou | Conta | Situação no Financeiro | Centro | Validação |
+|---|---|---|---|---|
+| Financeiro trocou a conta | a nova | aprovada por quem trocou | o mesmo | a mesma da anterior |
+| Contabilidade corrigiu o centro | a mesma | a mesma da anterior, com os nomes | o novo | validado por quem corrigiu |
+
+Financeiro e Contabilidade agindo ao mesmo tempo: um vence, nunca há duas novas versões, e o outro recebe "A situação
+desta nota mudou. Atualize a página e tente de novo." (ou "Esta versão da nota fiscal já foi substituída", se a nova versão
+já saiu).
 - Pela API: `revalle.accounting.me` devolve `{ isMember }`; `revalle.accounting.adminSetMember({ userId, isMember })` é só
   do administrador (sem sessão **401**, usuário comum **403**). `revalle.finance.adminListUsers` devolve, por pessoa,
   `isFinanceMember` e `isAccountingMember`.
@@ -320,9 +361,9 @@ escreva o **motivo** (de 10 a 500 caracteres; o contador mostra quantos já fora
 "Todos vão assinar de novo uma nova versão."
 
 - A versão atual vira **Substituída** e não pode mais ser assinada: quem abrir o link antigo vê "Este documento foi
-  substituído por uma nova versão (conta contábil alterada).". Se ela já estava concluída, continua concluída.
+  substituído por uma nova versão.". Se ela já estava concluída, continua concluída.
 - O RevSign cria uma **nova versão** (mesmo PDF, mesmas pessoas e campos, título com " (v2)", " (v3)"…), já com a
-  conta nova aprovada, e envia na hora. A tela abre a página da nova versão.
+  conta nova aprovada, o mesmo centro e a mesma validação, e envia na hora. A tela abre a página da nova versão.
 - Quando a nova versão é enviada, o remetente e todos que assinam (das duas versões) recebem o aviso "Conta contábil da
   nota fiscal alterada pelo Financeiro: {título}", com o texto "A conta contábil da nota fiscal {título} foi alterada
   pelo Financeiro de {antiga} para {nova}. Motivo: {motivo}.". O botão leva cada um aonde ele entra: quem assina a nova
@@ -340,19 +381,23 @@ escreva o **motivo** (de 10 a 500 caracteres; o contador mostra quantos já fora
 
 ### Enviar de novo
 
-Quando a troca de conta criou a nova versão mas o envio dela falhou, a nova versão fica como rascunho com a conta já
-aprovada, e o cartão mostra o botão **Enviar de novo** (pede confirmação): o RevSign envia o documento em nome do dono,
-com a mesma conta da troca. Só a nova versão de uma troca tem esse botão; uma NF comum em rascunho é do remetente. Se
-aparecer "Envio em andamento. Aguarde um instante.", outra pessoa do Financeiro acabou de enviar: espere e atualize (um
+Quando a troca de conta ou a correção do centro criou a nova versão mas o envio dela falhou, a nova versão fica como
+rascunho, e os cartões do Financeiro e da Contabilidade mostram o botão **Enviar de novo** (pede confirmação): o RevSign
+envia o documento em nome do dono, com a mesma conta e o mesmo centro. Numa correção do centro, o rascunho fica como foi
+criado, aprovado ou aguardando aprovação, e o reenvio não mexe na aprovação copiada. O remetente não troca a conta nem o
+centro desse rascunho: ele corrige o que impediu o envio e envia, ou troca o arquivo, e aí a nota volta a ser um rascunho
+comum dele, que escolhe a conta e o centro de novo (a aprovação e a validação caem). Só a nova versão tem esse botão; uma
+NF comum em rascunho é do remetente. Se aparecer "Envio em andamento. Aguarde um instante.", outra pessoa do Financeiro acabou de enviar: espere e atualize (um
 envio que parou no meio pode ser retomado depois de 5 minutos). Se aparecer "O remetente trocou o arquivo; a nota voltou
 para ele.", o remetente substituiu o PDF do rascunho enquanto isso: a NF voltou a ser um rascunho dele, que escolhe a
 conta de novo.
 
-### E-mail da troca de conta
+### E-mail da nova versão
 
 | E-mail | Quando sai | Para quem | Botão |
 |---|---|---|---|
 | "Conta contábil da nota fiscal alterada pelo Financeiro: {título}" | A nova versão de uma troca de conta foi enviada | O remetente e quem assina, das duas versões | **Assinar a nova versão** (quem assina), **Abrir a nova versão** (remetente) ou **Verificar um documento** (os demais) |
+| "Centro de custo da nota fiscal corrigido pela Contabilidade: {título}" | A nova versão de uma correção do centro foi enviada | Os mesmos | Os mesmos |
 
 Ele sai uma vez por pessoa, porque quem assina pode não ter conta no RevSign. O RevSign não manda e-mail pedindo a
 aprovação do Financeiro nem avisando a contabilidade: as notas ficam em **Notas fiscais**.

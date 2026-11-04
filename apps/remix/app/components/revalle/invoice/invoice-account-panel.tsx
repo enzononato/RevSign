@@ -114,11 +114,11 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
   // antes da classificação nova (os arquivos podem ter mudado). Sem estado (erro na consulta), o envio segue: o
   // servidor confere de qualquer forma. Escaneado (UNKNOWN) só libera com "Sim" (e a conta) ou "Não": uma NF tirada
   // no celular não pode sair do fluxo da contabilidade com um toque em "Enviar". O servidor não exige a resposta (API).
-  // Nova versão de uma troca de conta com o envio do Financeiro em andamento: quem envia agora é o Financeiro. Conta
-  // aprovada cujo envio pelo Financeiro falhou (reserva solta): a conta fica travada, mas o rascunho pode sair por aqui.
-  // Sem nenhuma conta ativa na lista, nenhuma nota fiscal sai (mesmo com uma escolha antiga). O centro de custo é
-  // exigido no primeiro envio: a nova versão com o envio parado (`isReleased`) pode sair sem ele.
-  const isReleased = isInvoice && state?.financeStatus === 'APPROVED' && state.isFinanceSendReleased;
+  // Nova versão de uma troca de conta com o envio do Financeiro em andamento: quem envia agora é o Financeiro. Nova versão
+  // cujo envio falhou: a conta e o centro ficam travados, mas o rascunho pode sair por aqui. Sem nenhuma conta ativa na
+  // lista, nenhuma nota fiscal sai (mesmo com uma escolha antiga). A conta e o centro são exigidos no primeiro envio: a
+  // nova versão com o envio parado (`isReleased`) leva o que a anterior tinha.
+  const isReleased = isInvoice && state?.isFinanceSendReleased === true;
   const isHeld = isInvoice && !isReleased && state?.financeStatus === 'APPROVED';
   const hasNoAccounts = isInvoice && accountsData !== undefined && accountsData.accounts.length === 0;
   const isReady = isInvoiceReady({
@@ -126,6 +126,7 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
     isError,
     isHeld,
     hasNoAccounts,
+    requiresChoice: !isReleased,
     requiresCostCenter: !isReleased,
     state,
   });
@@ -254,7 +255,7 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
           <Trans>Nota fiscal · Conta contábil</Trans>
         </h3>
         <p className="text-sm">
-          {state.choice?.name ? `${state.choice.code} – ${state.choice.name}` : state.choice?.code}
+          {state.choice?.name ? `${state.choice.code} – ${state.choice.name}` : (state.choice?.code ?? '-')}
         </p>
         {state.costCenter && (
           <p className="text-sm">
@@ -262,7 +263,11 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
           </p>
         )}
         <p className="text-muted-foreground text-sm">
-          <Trans>Conta aprovada pelo Financeiro. O envio anterior falhou: corrija o rascunho e envie.</Trans>
+          {state.financeStatus === 'APPROVED' ? (
+            <Trans>Conta aprovada pelo Financeiro. O envio anterior falhou: corrija o rascunho e envie.</Trans>
+          ) : (
+            <Trans>O envio anterior falhou: corrija o rascunho e envie.</Trans>
+          )}
         </p>
       </section>
     );

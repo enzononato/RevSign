@@ -20,7 +20,7 @@ export type InvoiceAccountCardProps = {
 /**
  * "Conta contábil" na página do documento já enviado (inclusive concluído), só para o dono e o admin.
  * - NF com conta: só leitura (Fase 6: depois do envio, quem troca a conta é o Financeiro), com o estado no Financeiro;
- *   substituída (o Financeiro trocou a conta), com o link para a nova versão.
+ *   substituída (o Financeiro trocou a conta ou a Contabilidade corrigiu o centro), com o link para a nova versão.
  * - NF sem conta (marcada depois do envio): a lista já vem aberta, até a primeira escolha.
  * - Centro de custo (Fase 7): em leitura quando já escolhido (depois do envio quem corrige é a Contabilidade); sem
  *   centro (NF marcada depois do envio, ou enviada antes desta versão), o dono e o admin escolhem o primeiro aqui, sem
@@ -149,7 +149,7 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
 
   const choiceCode = state.choice?.code;
   const choiceName = state.choice?.name ?? '';
-  // A versão substituída não recebe centro: a nova versão é a que vale.
+  // A versão substituída não recebe conta nem centro: a nova versão é a que vale.
   const canChooseCostCenter = !state.costCenter && state.financeStatus !== 'SUPERSEDED';
 
   return (
@@ -180,7 +180,16 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
       {state.financeStatus === 'SUPERSEDED' && (
         <>
           <p className="text-muted-foreground text-sm" data-testid="invoice-account-superseded">
-            <Trans>Substituída: o Financeiro trocou a conta e criou uma nova versão, que todos assinam de novo.</Trans>
+            {state.supersedeKind === 'COST_CENTER' ? (
+              <Trans>
+                Substituída: a Contabilidade corrigiu o centro de custo e criou uma nova versão, que todos assinam de
+                novo.
+              </Trans>
+            ) : (
+              <Trans>
+                Substituída: o Financeiro trocou a conta e criou uma nova versão, que todos assinam de novo.
+              </Trans>
+            )}
           </p>
           {state.supersededByEnvelopeId && (
             <Button asChild variant="outline" className="h-11 w-full whitespace-normal sm:w-auto sm:self-start">
@@ -192,7 +201,7 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
         </>
       )}
 
-      {!state.choice && (
+      {!state.choice && state.financeStatus !== 'SUPERSEDED' && (
         <>
           <AccountCombobox
             accounts={accountsData?.accounts ?? []}
