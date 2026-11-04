@@ -189,7 +189,14 @@ export const createRevalleSignatureProof = async ({
   // conta escolhida depois que a página abriu: nula, e o certificado fica sem a linha "Conta contábil vista ao assinar".
   const currentAccount = await findSigningInvoiceAccount(recipient.envelopeId, tx);
   const invoiceAccount =
-    currentAccount && gate?.invoiceAccountShownCode === currentAccount.code ? currentAccount : null;
+    currentAccount && gate?.invoiceAccountShownCode === currentAccount.code
+      ? { code: currentAccount.code, name: currentAccount.name }
+      : null;
+  // Fase 7: o centro de custo segue a mesma regra, em separado da conta (NF sem centro, ou centro definido depois que a
+  // página abriu, fica sem a linha "Centro de custo visto ao assinar").
+  const currentCostCenter = currentAccount?.costCenter ?? null;
+  const invoiceCostCenter =
+    currentCostCenter && gate?.invoiceCostCenterShownCode === currentCostCenter.code ? currentCostCenter : null;
 
   // O CPF mascarado vem sempre do portão; sem a base, os demais dados do RH ficam nulos.
   const employee: ProofEmployee | null = gate?.cpf
@@ -220,6 +227,7 @@ export const createRevalleSignatureProof = async ({
     drewSignature: signatureKind === 'IMAGE',
     signatureKind,
     invoiceAccount: invoiceAccount ?? Prisma.JsonNull,
+    invoiceCostCenter: invoiceCostCenter ?? Prisma.JsonNull,
   };
 
   // O código é aleatório e único. Dentro da transação um erro de unicidade abortaria tudo,

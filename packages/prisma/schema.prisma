@@ -1328,27 +1328,29 @@ model RevalleEmailLink {
 }
 
 model RevalleRecipientGate {
-  id                      String    @id @default(cuid())
-  recipientId             Int       @unique
-  recipient               Recipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
-  email                   String?
-  termVersion             String?
-  termAcceptedAt          DateTime?
-  termIpAddress           String?
-  termUserAgent           String?
-  identityStatus          String    @default("PENDING") // PENDING | VERIFIED | CONFIRMED | LINKED | SKIPPED
-  pendingCpf              String?
-  cpf                     String?
-  identityConfirmedAt     DateTime?
-  failedAttempts          Int       @default(0)
-  codeFailedAttempts      Int       @default(0)
-  lockedAt                DateTime?
-  lockReason              String? // ATTEMPTS | CPF_CONFLICT | CODE_ATTEMPTS
-  conflictCpf             String?
+  id                         String    @id @default(cuid())
+  recipientId                Int       @unique
+  recipient                  Recipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  email                      String?
+  termVersion                String?
+  termAcceptedAt             DateTime?
+  termIpAddress              String?
+  termUserAgent              String?
+  identityStatus             String    @default("PENDING") // PENDING | VERIFIED | CONFIRMED | LINKED | SKIPPED
+  pendingCpf                 String?
+  cpf                        String?
+  identityConfirmedAt        DateTime?
+  failedAttempts             Int       @default(0)
+  codeFailedAttempts         Int       @default(0)
+  lockedAt                   DateTime?
+  lockReason                 String? // ATTEMPTS | CPF_CONFLICT | CODE_ATTEMPTS
+  conflictCpf                String?
   /// Fase 6: número da conta contábil da NF que a página de assinatura mostrou (a prova só congela a conta mostrada).
-  invoiceAccountShownCode String?
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
+  invoiceAccountShownCode    String?
+  /// Fase 7: código do centro de custo da NF que a página de assinatura mostrou (congelado só se for o atual).
+  invoiceCostCenterShownCode String?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
 }
 
 /// REVALLE: SHA-256 do PDF original (no envio) e do PDF selado, por item do envelope.
@@ -1377,26 +1379,28 @@ model RevalleSealedHash {
 
 /// REVALLE: prova congelada por signatário (dados do RH, fatores, termo, IP, aparelho, local). Imutável depois de criada.
 model RevalleSignatureProof {
-  id               String    @id @default(cuid())
-  recipientId      Int       @unique
-  recipient        Recipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
-  verificationCode String    @unique
-  signedAt         DateTime
-  employee         Json?
-  identityVerified Boolean
-  factors          Json
-  termVersion      String?
-  termAcceptedAt   DateTime?
-  ipAddress        String?
-  userAgent        String?
-  device           String?
-  ipLocation       Json?
-  deviceLocation   Json
-  drewSignature    Boolean
-  signatureKind    String // IMAGE | TYPED | NONE
+  id                String    @id @default(cuid())
+  recipientId       Int       @unique
+  recipient         Recipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  verificationCode  String    @unique
+  signedAt          DateTime
+  employee          Json?
+  identityVerified  Boolean
+  factors           Json
+  termVersion       String?
+  termAcceptedAt    DateTime?
+  ipAddress         String?
+  userAgent         String?
+  device            String?
+  ipLocation        Json?
+  deviceLocation    Json
+  drewSignature     Boolean
+  signatureKind     String // IMAGE | TYPED | NONE
   /// Fase 6: { code, name } da conta contábil da NF vista ao assinar (congelada). Nula em documento comum.
-  invoiceAccount   Json?
-  createdAt        DateTime  @default(now())
+  invoiceAccount    Json?
+  /// Fase 7: { code, name } do centro de custo da NF visto ao assinar (congelado). Nulo em NF sem centro e em documento comum.
+  invoiceCostCenter Json?
+  createdAt         DateTime  @default(now())
 }
 
 /// REVALLE: tipo da conta contábil importada pelo CSV (`pagar` / `receber`).

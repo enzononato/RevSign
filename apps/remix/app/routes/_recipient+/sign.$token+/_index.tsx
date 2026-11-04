@@ -425,8 +425,8 @@ export async function loader(loaderArgs: Route.LoaderArgs) {
   } as const);
 }
 
-// REVALLE: conta da NF só com o documento aberto para quem assina (portão passado e acesso válido), nunca antes; o
-// número mostrado fica registrado para a prova.
+// REVALLE: conta e centro de custo da NF só com o documento aberto para quem assina (portão passado e acesso válido),
+// nunca antes; os números mostrados ficam registrados para a prova.
 const loadRevalleInvoiceAccount = async (token: string, payload: object) =>
   'revalleGate' in payload || !('isDocumentAccessValid' in payload) || payload.isDocumentAccessValid !== true
     ? null

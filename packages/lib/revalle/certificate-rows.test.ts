@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildRevalleCertificateRows,
   buildRevalleInvoiceCertificateLine,
+  buildRevalleInvoiceCostCenterCertificateLine,
   getRevalleSigningPositions,
   type RevalleCertificateProof,
 } from './certificate-rows';
@@ -275,5 +276,60 @@ describe('conta contábil da NF no certificado (Fase 6)', () => {
         approvedAt: '2026-10-30T21:05:00.000Z',
       }),
     ).toBe('Conta contábil: 2.1.03 · aprovada pelo Financeiro (Rosa) em 30/10/2026 18:05 (horário de Brasília)');
+  });
+});
+
+describe('centro de custo da NF no certificado (Fase 7)', () => {
+  it('quem assinou uma NF com centro: a linha vem logo depois da conta e antes do código de verificação', () => {
+    const rows = buildRevalleCertificateRows(
+      {
+        ...minimalProof,
+        invoiceAccount: { code: '2.1.03', name: 'Fornecedores' },
+        invoiceCostCenter: { code: '101', name: 'Puxada' },
+      },
+      { role: 'SIGNER' },
+    );
+    const labels = rows.map((row) => row.label);
+
+    expect(labels.indexOf('Centro de custo visto ao assinar')).toBe(
+      labels.indexOf('Conta contábil vista ao assinar') + 1,
+    );
+    expect(rows.slice(-3)).toEqual([
+      { label: 'Conta contábil vista ao assinar', value: '2.1.03' },
+      { label: 'Centro de custo visto ao assinar', value: '101' },
+      { label: 'Código de verificação', value: 'ABCD-2345' },
+    ]);
+  });
+
+  it('conta e centro são independentes: o centro sozinho também aparece, a conta sozinha não ganha centro', () => {
+    const onlyCenter = buildRevalleCertificateRows(
+      { ...minimalProof, invoiceCostCenter: { code: '301', name: 'Administrativo' } },
+      { role: 'SIGNER' },
+    );
+    const onlyAccount = buildRevalleCertificateRows(
+      { ...minimalProof, invoiceAccount: { code: '2.1.03', name: 'Fornecedores' } },
+      { role: 'SIGNER' },
+    );
+
+    expect(rowValue(onlyCenter, 'Centro de custo visto ao assinar')).toBe('301');
+    expect(rowValue(onlyCenter, 'Conta contábil vista ao assinar')).toBeUndefined();
+    expect(rowValue(onlyAccount, 'Centro de custo visto ao assinar')).toBeUndefined();
+  });
+
+  it('NF sem centro, prova anterior à Fase 7 ou centro malformado: a linha não existe', () => {
+    for (const invoiceCostCenter of [null, undefined, { name: 'Sem código' }, { code: '', name: 'x' }, 'texto']) {
+      const rows = buildRevalleCertificateRows(
+        { ...minimalProof, invoiceAccount: { code: '2.1.03', name: 'Fornecedores' }, invoiceCostCenter },
+        { role: 'SIGNER' },
+      );
+
+      expect(rows.some((row) => row.label === 'Centro de custo visto ao assinar')).toBe(false);
+    }
+  });
+
+  it('linha do documento: o centro com o nome da lista, sem afirmar validação da Contabilidade', () => {
+    expect(buildRevalleInvoiceCostCenterCertificateLine('401')).toBe('Centro de custo: 401 – Vendas');
+    expect(buildRevalleInvoiceCostCenterCertificateLine('101')).toBe('Centro de custo: 101 – Puxada');
+    expect(buildRevalleInvoiceCostCenterCertificateLine('101')).not.toMatch(/valid|aprovad/i);
   });
 });

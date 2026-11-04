@@ -86,6 +86,8 @@ const GATE_MESSAGE = 'Este documento foi substituído por uma nova versão (cont
 const DOCUMENT_LINE = (account, approver, at) =>
   `Conta contábil: ${account.code} – ${account.name} · aprovada pelo Financeiro (${approver}) em ${at} (horário de Brasília)`;
 const SIGNER_ROW = (code) => `Conta contábil vista ao assinar: ${code}`;
+const CENTER_SIGNER_ROW = 'Centro de custo visto ao assinar: 101';
+const CENTER_LINE = 'Centro de custo: 101 – Puxada';
 
 const tmp = mkdtempSync(path.join(tmpdir(), 'revsign-aceite-f6-'));
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -561,6 +563,13 @@ testStep(
 
     assert.ok(text.includes(DOCUMENT_LINE(OLD, fx.fin.name, at)), 'certificado sem a linha da conta e da aprovação');
     assert.equal(text.split(SIGNER_ROW(OLD.code)).length - 1, 2, 'uma linha "vista ao assinar" por signatário');
+    // Fase 7: o centro de custo (101 por padrão em `chooseInvoice`) vai junto, no signatário e no documento.
+    assert.equal(
+      text.split(CENTER_SIGNER_ROW).length - 1,
+      2,
+      'uma linha "Centro de custo visto ao assinar" por signatário',
+    );
+    assert.ok(text.includes(CENTER_LINE), 'certificado sem a linha do documento com o centro');
 
     // Saiu de "Aguardando o Financeiro"; a situação na lista é "aprovada".
     assert.equal(await findRow(fx.fin.cookie, fx.a.id, { finance: 'pendentes' }), undefined);
@@ -698,6 +707,9 @@ testStep(
       'certificado da v2 sem a conta nova aprovada',
     );
     assert.equal(text.split(SIGNER_ROW(NEW.code)).length - 1, 2);
+    // A v2 leva o centro da antiga: o signatário viu o mesmo centro, e o documento o mostra.
+    assert.equal(text.split(CENTER_SIGNER_ROW).length - 1, 2, 'a v2 sem o centro visto ao assinar');
+    assert.ok(text.includes(CENTER_LINE), 'certificado da v2 sem a linha do documento com o centro');
     // A conta antiga só aparece no log (o evento da troca liga as versões), nunca como conta vista ou aprovada.
     assert.equal(text.split(SIGNER_ROW(OLD.code)).length - 1, 0, 'a conta antiga aparece como vista ao assinar na v2');
     assert.ok(!text.includes(`Conta contábil: ${OLD.code} – ${OLD.name} · aprovada`), 'a v2 aprova a conta antiga');

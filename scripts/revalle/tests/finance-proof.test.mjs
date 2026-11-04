@@ -16,6 +16,15 @@
 //     que não mostra o bloco) ou com a página aberta antes de a conta existir (NF marcada depois do envio) fica sem a
 //     conta, e o certificado sem a linha "Conta contábil vista ao assinar" dele.
 //
+// Fase 7, Task 4: o centro de custo faz parte do que é assinado, pela mesma regra e em separado da conta:
+//   - a frase da página vira "Nota fiscal · Conta contábil: {código} – {nome} · Centro de custo: {código} – {nome}";
+//     NF sem centro (marcada depois do envio) mostra a frase de antes;
+//   - a prova grava `invoiceCostCenter` ({ code, name }) só se o centro é o que a página mostrou; a conta da prova não
+//     leva o centro dentro;
+//   - o certificado traz "Centro de custo visto ao assinar" em cada signatário e a linha do documento "Centro de custo:
+//     101 – Puxada" para qualquer NF com centro, também a que conclui como `LEGACY`, e não afirma validação;
+//   - o /verificar mostra "Centro de custo: …"; NF sem centro, nenhuma dessas linhas.
+//
 // Sessões: REVSIGN_USER_* (admin@hml.local, dono do REVSIGN_API_TOKEN, fora do Financeiro) e REVSIGN_ADMIN_* (rsadmin,
 // ADMIN, marcado como Financeiro aqui). Ver revalle/docs/testes.md.
 
@@ -59,8 +68,11 @@ const ACCOUNTS_CSV = [
 ].join('\n');
 
 // Textos exatos (global-constraints).
-const BLOCK = (code, name) => `Nota fiscal · Conta contábil: ${code} – ${name}`;
+const BLOCK_NO_CENTER = (code, name) => `Nota fiscal · Conta contábil: ${code} – ${name}`;
+const BLOCK = (code, name, center = '101 – Puxada') => `${BLOCK_NO_CENTER(code, name)} · Centro de custo: ${center}`;
 const SIGNER_ROW = (code) => `Conta contábil vista ao assinar: ${code}`;
+const CENTER_SIGNER_ROW = (code) => `Centro de custo visto ao assinar: ${code}`;
+const CENTER_LINE = (label) => `Centro de custo: ${label}`;
 const DOCUMENT_LINE = (code, name, approver, at) =>
   `Conta contábil: ${code} – ${name} · aprovada pelo Financeiro (${approver}) em ${at} (horário de Brasília)`;
 const WAITING = 'Aguardando aprovação do Financeiro';
@@ -90,6 +102,16 @@ const proofOf = (recipientId) =>
     `select coalesce("invoiceAccount"::text, 'null') || '|' || "verificationCode" from "RevalleSignatureProof" where "recipientId" = ${recipientId}`,
   ).split('|');
 const invoiceAccountOf = (recipientId) => JSON.parse(proofOf(recipientId)[0]);
+const invoiceCostCenterOf = (recipientId) =>
+  JSON.parse(
+    db(
+      `select coalesce("invoiceCostCenter"::text, 'null') from "RevalleSignatureProof" where "recipientId" = ${recipientId}`,
+    ),
+  );
+const shownCostCenterOf = (recipientId) =>
+  db(
+    `select coalesce("invoiceCostCenterShownCode", '-') from "RevalleRecipientGate" where "recipientId" = ${recipientId}`,
+  );
 const codeOf = (recipientId) => proofOf(recipientId)[1];
 
 const waitStatus = async (envelopeId, wanted, attempts = 45) => {
@@ -157,8 +179,8 @@ const loadVersion = (envelopeId) => {
   };
 };
 
-// Cria a NF com a conta 2.1.03, envia pela API v2 e devolve a versão lida do banco.
-const newInvoice = async (label, { signers = 2 } = {}) => {
+// Cria a NF com a conta 2.1.03 e o centro (101 por padrão), envia pela API v2 e devolve a versão lida do banco.
+const newInvoice = async (label, { signers = 2, costCenter = '101' } = {}) => {
   const emails = Array.from({ length: signers }, (_, index) => `f6-prova-${label}-${index + 1}-${RUN}@revalle.com.br`);
   const title = `[TESTE NF] financeiro prova ${label} ${RUN}`;
   const pdf = await danfe(label);
@@ -168,7 +190,7 @@ const newInvoice = async (label, { signers = 2 } = {}) => {
 
   assert.equal(created.status, 200, created.text);
 
-  const chosen = await chooseInvoice({ cookie: userCookie, envelopeId: created.id });
+  const chosen = await chooseInvoice({ cookie: userCookie, envelopeId: created.id, costCenter });
 
   assert.equal(chosen.status, 200, chosen.text);
   assert.equal((await distribute(created.id)).length, signers);
@@ -257,10 +279,13 @@ const gate = async (token) => {
 
 // Portão, a página de assinatura (que mostra a conta), assinatura e conclusão com o código, como a tela faz.
 // `openPage: false` = assinatura sem a página do RevSign (o embed não mostra o bloco da conta).
-const sign = async (doc, index, { openPage = true } = {}) => {
+// `preGated: true` = o teste já passou pelo portão (e abriu a página) e muda algo antes de assinar, sem refazer o portão.
+const sign = async (doc, index, { openPage = true, preGated = false } = {}) => {
   const recipient = doc.recipients[index];
 
-  await gate(recipient.token);
+  if (!preGated) {
+    await gate(recipient.token);
+  }
 
   if (openPage) {
     assert.equal((await html(`/sign/${recipient.token}`)).status, 200);
@@ -377,6 +402,7 @@ sessionTest(
     assert.equal(plain.status, 200);
     assert.ok(plain.text.includes(common.title), 'a página do documento comum não abriu');
     assert.ok(!plain.text.includes('Nota fiscal · Conta contábil'), 'documento comum com o bloco da NF');
+    assert.ok(!plain.text.includes('Centro de custo'), 'documento comum com o centro de custo');
   },
 );
 
@@ -390,6 +416,7 @@ sessionTest(
 
     for (const recipient of nf.recipients) {
       assert.deepEqual(invoiceAccountOf(recipient.id), { code: '2.1.03', name: 'Fornecedores' });
+      assert.deepEqual(invoiceCostCenterOf(recipient.id), { code: '101', name: 'Puxada' });
     }
 
     // Retida: o último a assinar vê a espera pelo Financeiro (não "Processando documento").
@@ -435,12 +462,14 @@ sessionTest(
 
     await sign(common, 0);
     assert.equal(invoiceAccountOf(common.recipients[0].id), null);
+    assert.equal(invoiceCostCenterOf(common.recipients[0].id), null);
     assert.equal(await waitStatus(common.id, 'COMPLETED'), 'COMPLETED');
 
     const plain = await sealedText(common);
 
     assert.ok(plain.includes('Certificado de Assinatura'), 'documento comum sem o certificado');
     assert.ok(!/conta cont[aá]bil/i.test(plain), 'documento comum com linha de conta contábil');
+    assert.ok(!/centro de custo/i.test(plain), 'documento comum com linha de centro de custo');
 
     const done = await html(`/sign/${common.recipients[0].token}/complete`);
 
@@ -451,6 +480,7 @@ sessionTest(
     const plainVerify = await html(`/verificar?codigo=${encodeURIComponent(codeOf(common.recipients[0].id))}`);
 
     assert.ok(!plainVerify.text.includes('Conta contábil'), '/verificar de documento comum com conta');
+    assert.ok(!plainVerify.text.includes('Centro de custo'), '/verificar de documento comum com centro de custo');
   },
 );
 
@@ -484,6 +514,9 @@ sessionTest(
     await sign(v2, 0);
     assert.deepEqual(invoiceAccountOf(v2.recipients[0].id), { code: '3.1.01', name: 'Serviços de terceiros' });
     assert.deepEqual(invoiceAccountOf(nf.recipients[0].id), { code: '2.1.03', name: 'Fornecedores' });
+    // A v2 leva o centro da antiga (a troca de conta não mexe nele) e as duas provas guardam o centro visto.
+    assert.deepEqual(invoiceCostCenterOf(v2.recipients[0].id), { code: '101', name: 'Puxada' });
+    assert.deepEqual(invoiceCostCenterOf(nf.recipients[0].id), { code: '101', name: 'Puxada' });
 
     const newCode = codeOf(v2.recipients[0].id);
     const at = brasiliaColumn('supersededAt', nf.id);
@@ -496,6 +529,7 @@ sessionTest(
     assert.ok(verify.text.includes(nf.title), '/verificar da versão antiga não achou o documento');
     assert.ok(verify.text.includes(SUPERSEDED(at)), `/verificar sem "${SUPERSEDED(at)}"`);
     assert.ok(verify.text.includes('Conta contábil: 2.1.03 – Fornecedores'), '/verificar sem a conta da versão antiga');
+    assert.ok(verify.text.includes(CENTER_LINE('101 – Puxada')), '/verificar sem o centro da versão antiga');
     assert.ok(!verify.text.includes(newCode), 'o código da nova versão aparece no /verificar da antiga');
     assert.ok(!verify.text.includes(v2.id), 'o id da nova versão aparece no /verificar da antiga');
     assert.ok(!verify.text.includes('3.1.01'), 'a conta da nova versão aparece no /verificar da antiga');
@@ -576,13 +610,18 @@ sessionTest(
     await sign(nf, 0, { openPage: false });
     await sign(nf, 1);
     assert.equal(invoiceAccountOf(nf.recipients[0].id), null, 'a prova afirma uma conta que a pessoa não viu');
+    assert.equal(invoiceCostCenterOf(nf.recipients[0].id), null, 'a prova afirma um centro que a pessoa não viu');
     assert.deepEqual(invoiceAccountOf(nf.recipients[1].id), { code: '2.1.03', name: 'Fornecedores' });
+    assert.deepEqual(invoiceCostCenterOf(nf.recipients[1].id), { code: '101', name: 'Puxada' });
 
     const approved = await trpcAs(adminCookie, 'mutation', 'revalle.finance.approve', { envelopeId: nf.id });
 
     assert.equal(approved.status, 200, approved.text);
     assert.equal(await waitStatus(nf.id, 'COMPLETED'), 'COMPLETED');
-    assert.equal(count(await sealedText(nf), SIGNER_ROW('2.1.03')), 1, 'só quem viu a conta tem a linha');
+    const partial = await sealedText(nf);
+
+    assert.equal(count(partial, SIGNER_ROW('2.1.03')), 1, 'só quem viu a conta tem a linha');
+    assert.equal(count(partial, CENTER_SIGNER_ROW('101')), 1, 'só quem viu o centro tem a linha');
 
     // NF marcada depois do envio: a página abriu sem conta, o dono escolheu a conta e a pessoa assinou sem recarregar.
     const late = await newCommon('conta-depois');
@@ -609,5 +648,167 @@ sessionTest(
 
     await sign(late, 0, { openPage: false });
     assert.equal(invoiceAccountOf(late.recipients[0].id), null, 'a prova afirma a conta escolhida depois');
+    assert.equal(invoiceCostCenterOf(late.recipients[0].id), null);
+  },
+);
+
+sessionTest(
+  'centro de custo 201: a frase da página, a prova, o certificado (signatário e documento) e o /verificar',
+  async () => {
+    const nf = await newInvoice('centro', { costCenter: '201' });
+    const first = nf.recipients[0];
+
+    // Antes do portão, nada do centro; depois, a frase inteira num só nó de texto.
+    const beforeGate = await html(`/sign/${first.token}`);
+
+    assert.equal(beforeGate.status, 200);
+    assert.ok(!beforeGate.text.includes('Centro de custo'), 'o centro aparece antes do portão');
+    assert.ok(!beforeGate.text.includes('Armazém'), 'o nome do centro aparece antes do portão');
+
+    await gate(first.token);
+
+    const page = await html(`/sign/${first.token}`);
+
+    assert.ok(
+      page.text.includes(BLOCK('2.1.03', 'Fornecedores', '201 – Armazém')),
+      'a página não mostrou a conta e o centro na mesma frase',
+    );
+    assert.equal(shownCostCenterOf(first.id), '201', 'o portão não registrou o centro mostrado');
+
+    await sign(nf, 0, { openPage: false, preGated: true });
+    await sign(nf, 1);
+
+    for (const recipient of nf.recipients) {
+      assert.deepEqual(invoiceCostCenterOf(recipient.id), { code: '201', name: 'Armazém' });
+      // O centro é uma coluna própria: a conta da prova continua só { code, name }.
+      assert.deepEqual(invoiceAccountOf(recipient.id), { code: '2.1.03', name: 'Fornecedores' });
+    }
+
+    const approved = await trpcAs(adminCookie, 'mutation', 'revalle.finance.approve', { envelopeId: nf.id });
+
+    assert.equal(approved.status, 200, approved.text);
+    assert.equal(await waitStatus(nf.id, 'COMPLETED'), 'COMPLETED');
+
+    const text = await sealedText(nf);
+
+    assert.ok(text.includes('Certificado de Assinatura'), 'sem o certificado');
+    assert.equal(
+      count(text, CENTER_SIGNER_ROW('201')),
+      2,
+      'uma linha "Centro de custo visto ao assinar" por signatário',
+    );
+    assert.ok(text.includes(CENTER_LINE('201 – Armazém')), 'sem a linha do documento com o centro');
+    assert.ok(!text.includes('Contabilidade'), 'o certificado afirma algo da Contabilidade');
+
+    db('delete from "RateLimit"');
+
+    const verify = await html(`/verificar?codigo=${encodeURIComponent(codeOf(first.id))}`);
+
+    assert.equal(verify.status, 200);
+    assert.ok(verify.text.includes(CENTER_LINE('201 – Armazém')), '/verificar sem o centro');
+    assert.ok(!verify.text.includes('Contabilidade'), '/verificar afirma algo da Contabilidade');
+  },
+);
+
+// NF marcada depois do envio: o dono escolhe a conta e a página abre só com ela (`withCenterAfterPage` define o centro
+// depois que a página abriu e antes de a pessoa assinar). Aprovada pelo Financeiro e selada.
+const signLateInvoice = async (label, { withCenterAfterPage = null } = {}) => {
+  const late = await newCommon(label);
+  const recipient = late.recipients[0];
+
+  assert.equal(
+    (await trpcAs(userCookie, 'mutation', 'revalle.invoice.markAsInvoice', { envelopeId: late.id })).status,
+    200,
+  );
+  assert.equal((await chooseInvoice({ cookie: userCookie, envelopeId: late.id, costCenter: null })).status, 200);
+
+  await gate(recipient.token);
+
+  const page = await html(`/sign/${recipient.token}`);
+
+  assert.ok(page.text.includes(BLOCK_NO_CENTER('2.1.03', 'Fornecedores')), 'a página não mostrou a conta');
+  assert.ok(!page.text.includes('Centro de custo'), 'a página mostrou um centro que a NF não tem');
+  assert.equal(shownCostCenterOf(recipient.id), '-', 'o portão registrou um centro que a página não mostrou');
+
+  if (withCenterAfterPage) {
+    // Primeira escolha depois do envio, pelo dono, sem nova versão: ninguém viu esse centro ao assinar.
+    assert.equal(
+      (await chooseInvoice({ cookie: userCookie, envelopeId: late.id, code: null, costCenter: withCenterAfterPage }))
+        .status,
+      200,
+    );
+  }
+
+  await sign(late, 0, { openPage: false, preGated: true });
+  assert.deepEqual(invoiceAccountOf(recipient.id), { code: '2.1.03', name: 'Fornecedores' });
+  assert.equal(invoiceCostCenterOf(recipient.id), null, 'a prova afirma um centro que a pessoa não viu');
+
+  const approved = await trpcAs(adminCookie, 'mutation', 'revalle.finance.approve', { envelopeId: late.id });
+
+  assert.equal(approved.status, 200, approved.text);
+  assert.equal(await waitStatus(late.id, 'COMPLETED'), 'COMPLETED', 'a NF sem centro não concluiu depois da aprovação');
+
+  return late;
+};
+
+sessionTest(
+  'NF marcada depois do envio, sem centro: a frase de antes, e nenhuma linha do centro na prova, no certificado nem no /verificar',
+  async () => {
+    const late = await signLateInvoice('sem-centro');
+    const text = await sealedText(late);
+
+    assert.ok(text.includes(SIGNER_ROW('2.1.03')), 'a conta vista ao assinar sumiu');
+    assert.ok(!/centro de custo/i.test(text), 'o certificado tem linha de centro de custo numa NF sem centro');
+
+    db('delete from "RateLimit"');
+
+    const verify = await html(`/verificar?codigo=${encodeURIComponent(codeOf(late.recipients[0].id))}`);
+
+    assert.ok(verify.text.includes('Conta contábil: 2.1.03 – Fornecedores'), '/verificar sem a conta');
+    assert.ok(!verify.text.includes('Centro de custo'), '/verificar com centro numa NF sem centro');
+  },
+);
+
+sessionTest(
+  'o centro definido depois que a página abriu não entra na prova do signatário, mas a linha do documento sai',
+  async () => {
+    const late = await signLateInvoice('centro-depois', { withCenterAfterPage: '301' });
+    const text = await sealedText(late);
+
+    assert.ok(text.includes(SIGNER_ROW('2.1.03')), 'a conta vista ao assinar sumiu');
+    assert.ok(!text.includes('Centro de custo visto ao assinar'), 'o signatário não viu o centro e tem a linha dele');
+    assert.ok(text.includes(CENTER_LINE('301 – Administrativo')), 'sem a linha do documento com o centro');
+
+    db('delete from "RateLimit"');
+
+    const verify = await html(`/verificar?codigo=${encodeURIComponent(codeOf(late.recipients[0].id))}`);
+
+    assert.ok(verify.text.includes(CENTER_LINE('301 – Administrativo')), '/verificar sem o centro');
+  },
+);
+
+sessionTest(
+  'NF LEGACY com centro: conclui sem o Financeiro e o certificado e o /verificar trazem o centro, sem a linha da conta aprovada',
+  async () => {
+    const nf = await newInvoice('legacy', { signers: 1, costCenter: '301' });
+
+    db(`update "RevalleInvoiceClassification" set "financeStatus" = 'LEGACY' where "envelopeId" = '${nf.id}'`);
+
+    await sign(nf, 0);
+    assert.equal(await waitStatus(nf.id, 'COMPLETED'), 'COMPLETED', 'a NF LEGACY esperou o Financeiro');
+    assert.deepEqual(invoiceCostCenterOf(nf.recipients[0].id), { code: '301', name: 'Administrativo' });
+
+    const text = await sealedText(nf);
+
+    assert.ok(text.includes(CENTER_LINE('301 – Administrativo')), 'sem a linha do documento com o centro');
+    assert.equal(count(text, CENTER_SIGNER_ROW('301')), 1);
+    assert.ok(!text.includes('aprovada pelo Financeiro'), 'a NF LEGACY ganhou a linha de aprovação');
+
+    db('delete from "RateLimit"');
+
+    const verify = await html(`/verificar?codigo=${encodeURIComponent(codeOf(nf.recipients[0].id))}`);
+
+    assert.ok(verify.text.includes(CENTER_LINE('301 – Administrativo')), '/verificar sem o centro');
+    assert.ok(!verify.text.includes('Aprovada pelo Financeiro'), '/verificar de NF LEGACY com aprovação');
   },
 );

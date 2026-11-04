@@ -1,9 +1,10 @@
+import { costCenterLabel } from '@documenso/lib/revalle/invoice/cost-centers';
 import { cn } from '@documenso/ui/lib/utils';
 import { useLingui } from '@lingui/react/macro';
 import { ReceiptTextIcon } from 'lucide-react';
 import { createContext, type ReactNode, useContext } from 'react';
 
-export type SigningInvoiceAccount = { code: string; name: string };
+export type SigningInvoiceAccount = { code: string; name: string; costCenter: { code: string; name: string } | null };
 
 const SigningInvoiceAccountContext = createContext<SigningInvoiceAccount | null>(null);
 
@@ -19,7 +20,10 @@ export const SigningInvoiceAccountProvider = ({
   children: ReactNode;
 }) => <SigningInvoiceAccountContext.Provider value={account ?? null}>{children}</SigningInvoiceAccountContext.Provider>;
 
-/** Fase 6: quem assina vê a conta contábil da NF, que faz parte do que é assinado e fica na prova. */
+/**
+ * Fase 6: quem assina vê a conta contábil da NF, que faz parte do que é assinado e fica na prova. Fase 7: o centro de
+ * custo vai na mesma frase; NF sem centro (marcada depois do envio ou de antes da Fase 7) mostra a frase de antes.
+ */
 export const SigningInvoiceAccountBlock = ({ className }: { className?: string }) => {
   const account = useContext(SigningInvoiceAccountContext);
   const { t } = useLingui();
@@ -29,6 +33,7 @@ export const SigningInvoiceAccountBlock = ({ className }: { className?: string }
   }
 
   const label = account.name ? `${account.code} – ${account.name}` : account.code;
+  const centerLabel = account.costCenter ? costCenterLabel(account.costCenter.code) : null;
 
   return (
     <div
@@ -40,7 +45,11 @@ export const SigningInvoiceAccountBlock = ({ className }: { className?: string }
     >
       <ReceiptTextIcon aria-hidden className="mt-0.5 h-4 w-4 flex-shrink-0" />
       {/* Um só nó de texto: a frase sai inteira no HTML do servidor. */}
-      <span className="min-w-0 break-words">{t`Nota fiscal · Conta contábil: ${label}`}</span>
+      <span className="min-w-0 break-words">
+        {centerLabel
+          ? t`Nota fiscal · Conta contábil: ${label} · Centro de custo: ${centerLabel}`
+          : t`Nota fiscal · Conta contábil: ${label}`}
+      </span>
     </div>
   );
 };

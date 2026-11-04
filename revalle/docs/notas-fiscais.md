@@ -16,6 +16,11 @@ para a contabilidade nem para o Financeiro: tudo o que precisa de ação fica na
 - Desde a Fase 7, toda NF leva também um **centro de custo**, de uma lista fixa: 101 Puxada, 201 Armazém, 301
   Administrativo, 401 Vendas e 501 Entrega. Quem envia escolhe; a IA não participa. A NF só é enviada com a conta **e**
   o centro. Depois do envio, o centro já escolhido não muda pela página do documento: a correção é da Contabilidade.
+- O centro de custo também **faz parte do que é assinado**: quem assina vê "Nota fiscal · Conta contábil: {código} – {nome}
+  · Centro de custo: 101 – Puxada" (numa NF sem centro, a frase de antes), a prova de cada signatário guarda o centro
+  que a pessoa viu, e o certificado ganha a linha "Centro de custo visto ao assinar" em cada signatário e a linha
+  "Centro de custo: 101 – Puxada" no topo. O certificado e o `/verificar` só informam o centro: não dizem que a
+  Contabilidade validou. Ver `prova.md`.
 - Sem a chave do Gemini, tudo funciona do mesmo jeito, só que sem sugestão: o remetente escolhe na lista.
 
 ## 1. Importar a lista de contas

@@ -5,6 +5,7 @@ import { RevalleFinanceStatus, RevalleInvoiceStatus } from '@prisma/client';
 import {
   buildRevalleCertificateRows,
   buildRevalleInvoiceCertificateLine,
+  buildRevalleInvoiceCostCenterCertificateLine,
   getRevalleSigningPositions,
   type RevalleCertificateRow,
 } from '../../revalle/certificate-rows';
@@ -39,7 +40,7 @@ export const loadRevalleCertificateData = async ({
   recipients,
   envelopeItemId,
 }: LoadRevalleCertificateDataOptions): Promise<RevalleCertificateData> => {
-  const [proofs, hashes, meta, invoiceLine] = await Promise.all([
+  const [proofs, hashes, meta, invoiceLine, costCenterLine] = await Promise.all([
     prisma.revalleSignatureProof.findMany({
       where: { recipientId: { in: recipients.map((recipient) => recipient.id) } },
     }),
@@ -52,6 +53,7 @@ export const loadRevalleCertificateData = async ({
       select: { documentMeta: { select: { signingOrder: true } } },
     }),
     loadInvoiceLine(envelopeId),
+    loadCostCenterLine(envelopeId),
   ]);
 
   // Ordem de assinatura só existe (e só aparece) em documento sequencial.
@@ -87,6 +89,10 @@ export const loadRevalleCertificateData = async ({
 
   if (invoiceLine) {
     headerLines.push({ text: invoiceLine, wrap: 'word' });
+  }
+
+  if (costCenterLine) {
+    headerLines.push({ text: costCenterLine, wrap: 'word' });
   }
 
   return { recipients: byRecipient, headerLines };
@@ -144,4 +150,22 @@ const loadInvoiceLine = async (envelopeId: string): Promise<string | null> => {
     approverName: row.approvedByName ?? (approver?.name?.trim() || 'Financeiro'),
     approvedAt: row.approvedAt,
   });
+};
+
+/**
+ * Fase 7: qualquer NF com centro de custo ganha a linha dele no certificado, com ou sem aprovação do Financeiro (a
+ * concluída como `LEGACY` também). A linha só diz qual é o centro: a validação da Contabilidade pode acontecer depois
+ * da selagem, então o certificado não a afirma. NF sem centro e documento comum, nada.
+ */
+const loadCostCenterLine = async (envelopeId: string): Promise<string | null> => {
+  const row = await prisma.revalleInvoiceClassification.findUnique({
+    where: { envelopeId },
+    select: { isInvoice: true, costCenterCode: true },
+  });
+
+  if (!row || row.isInvoice !== RevalleInvoiceStatus.YES || !row.costCenterCode) {
+    return null;
+  }
+
+  return buildRevalleInvoiceCostCenterCertificateLine(row.costCenterCode);
 };

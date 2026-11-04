@@ -7,6 +7,7 @@ import {
   SigningStatus,
 } from '@prisma/client';
 
+import { REVALLE_COST_CENTERS } from '../../../revalle/invoice/cost-centers';
 import { VERIFICATION_CODE_ALPHABET, VERIFICATION_CODE_REGEX } from './verification-code';
 
 /**
@@ -46,6 +47,11 @@ export type RevalleProofLookup = {
     isAwaitingApproval: boolean;
     supersededAt: Date | null;
   } | null;
+  /**
+   * Fase 7, em qualquer NF com centro de custo (também a concluída como `LEGACY`, sem passar pelo Financeiro): o centro
+   * desta versão. Não afirma validação da Contabilidade.
+   */
+  costCenter: { code: string; name: string } | null;
 };
 
 const FINANCE_STATUSES_SHOWN: RevalleFinanceStatus[] = [
@@ -107,6 +113,7 @@ export const findRevalleProofByCode = async (code: string): Promise<RevalleProof
                   approvedAccountName: true,
                   approvedByName: true,
                   supersededAt: true,
+                  costCenterCode: true,
                 },
               },
             },
@@ -174,7 +181,18 @@ export const findRevalleProofByCode = async (code: string): Promise<RevalleProof
     items,
     signers,
     invoice: await loadInvoiceSummary(invoiceRow),
+    costCenter: toCostCenter(invoiceRow),
   };
+};
+
+const toCostCenter = (row: Pick<InvoiceRow, 'isInvoice' | 'costCenterCode'> | null | undefined) => {
+  if (!row || row.isInvoice !== RevalleInvoiceStatus.YES) {
+    return null;
+  }
+
+  const center = REVALLE_COST_CENTERS.find((item) => item.code === row.costCenterCode);
+
+  return center ? { code: center.code, name: center.name } : null;
 };
 
 type InvoiceRow = {
@@ -186,6 +204,7 @@ type InvoiceRow = {
   approvedAccountName: string | null;
   approvedByName: string | null;
   supersededAt: Date | null;
+  costCenterCode: string | null;
 };
 
 const loadInvoiceSummary = async (row: InvoiceRow | null | undefined): Promise<RevalleProofLookup['invoice']> => {

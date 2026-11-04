@@ -4933,3 +4933,6 @@ msgstr "Escolha a conta contábil e o centro de custo."
 
 msgid "O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e o centro de custo e envie."
 msgstr "O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e o centro de custo e envie."
+
+msgid "Nota fiscal · Conta contábil: {label} · Centro de custo: {centerLabel}"
+msgstr "Nota fiscal · Conta contábil: {label} · Centro de custo: {centerLabel}"
