@@ -63,8 +63,9 @@ const failure = (reason: InvoiceFailureReason): Prisma.InputJsonValue => ({ fail
 
 /**
  * Fase 8: as colunas da linha que espelham os dados lidos pela IA, tiradas da sugestão. Todo lugar que grava `DONE`
- * passa por aqui, para a coluna e o JSON da sugestão nunca discordarem. A chave de acesso que a IA leu (a de uma NF
- * escaneada, que não tem texto) soma-se às que a linha já tem, sem repetir, quando passa na conferência do dígito.
+ * passa por aqui, para a coluna e o JSON da sugestão nunca discordarem. A chave de acesso que a IA leu só entra quando a
+ * linha ainda não tem nenhuma (o texto dos arquivos não trouxe chave: a NF escaneada) e passa na conferência do dígito. Com
+ * a chave do texto na linha, a que a IA devolve é a de uma nota citada, ou um erro, e acusaria por engano.
  */
 export const invoiceDataColumns = (suggestion: InvoiceSuggestion, accessKeys: readonly string[]) => {
   const { supplierName, invoiceNumber, totalAmountCents, accessKey } = normalizeInvoiceData(suggestion);
@@ -73,7 +74,7 @@ export const invoiceDataColumns = (suggestion: InvoiceSuggestion, accessKeys: re
     supplierName,
     invoiceNumber,
     totalAmountCents,
-    accessKeys: accessKey === null || accessKeys.includes(accessKey) ? [...accessKeys] : [...accessKeys, accessKey],
+    accessKeys: accessKey === null || accessKeys.length > 0 ? [...accessKeys] : [accessKey],
   };
 };
 

@@ -349,6 +349,12 @@ e a chave de acesso, e avisa quando uma nota **parece já ter sido enviada** (se
    nota ganha o alerta com o título e o link da outra nota, e a planilha ganha as colunas `chave_acesso` e
    `possivel_duplicada` no fim. O alerta não impede nada: aprovar e validar continuam possíveis. No envio, a pessoa marca
    **Sei disso e quero enviar mesmo assim**; pela API o envio não é bloqueado.
+6. **Conferência de primeiro uso.** Depois de atualizar, envie uma NF de teste (um DANFE em PDF) pela tela: o bloco da nota
+   no diálogo de envio deve mostrar **Lido pela IA: fornecedor · Nº número · valor**. Se, em vez disso, a sugestão falha
+   ("Não foi possível sugerir; escolha na lista"), procure no log do app a linha `revalle.invoice.suggestion`:
+   `providerStatusCode: 400` indica que o Gemini **recusou o formato** pedido (o esquema com os quatro campos novos); os
+   outros códigos (`429`, `403`, `404`) são cota, chave e modelo, como antes. Esse formato só se confirma com o Gemini de
+   verdade: os testes usam um servidor falso.
 
 ## Notas fiscais enviadas pela API ou por modelo (Fase 5)
 

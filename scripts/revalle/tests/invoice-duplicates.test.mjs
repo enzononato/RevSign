@@ -214,11 +214,12 @@ const devolucao = (ownKey, citedKey, tag) =>
     `NF-e referenciada: ${spaced(citedKey)}`,
   ]);
 
-// CT-e (modelo 57): a chave própria no cabeçalho e a da NF-e transportada nos documentos originários.
+// CT-e (modelo 57): a chave própria no cabeçalho e a da NF-e transportada nos documentos originários. Sem a expressão "Nota
+// Fiscal de Serviço": ela é o sinal de NFS-e, e a página de NFS-e sem DANFE não dá chave.
 const dacte = (ownKey, citedKey, tag) =>
   textPdf([
     'DACTE - Documento Auxiliar do Conhecimento de Transporte Eletrônico',
-    'Nota fiscal de serviço de transporte   CNPJ 12.345.678/0001-95',
+    'Nota fiscal de frete   CNPJ 12.345.678/0001-95',
     'Chave de acesso',
     spaced(ownKey),
     `Referência do teste: duplicada ${tag} ${RUN}`,
@@ -415,6 +416,46 @@ const newEnvelopeWithFiles = async (files, label) => {
 };
 
 const sentNf = async (who, bytes, label, options) => sendNf(await draftNf(who, bytes, label, options));
+
+// Documento v1 (`internalVersion = 1`) do dono: abre no editor antigo, onde o botão de enviar não espera pelo bloco da NF.
+// Criado por `/api/v2-beta/document/create`, que faz o mesmo envelope que a API v1 (esta só cria com o transporte S3).
+const newV1Draft = async (bytes, label) => {
+  const title = `[TESTE NF] duplicada ${label} ${RUN}`;
+  const form = new FormData();
+
+  form.append(
+    'payload',
+    JSON.stringify({
+      title,
+      meta: { distributionMethod: 'NONE' },
+      recipients: [
+        {
+          email: `dup-${label}-${RUN}@revalle.com.br`,
+          name: 'Teste',
+          role: 'SIGNER',
+          fields: [{ type: 'SIGNATURE', pageNumber: 1, pageX: 10, pageY: 80, width: 30, height: 8 }],
+        },
+      ],
+    }),
+  );
+  form.append('file', new File([bytes], `${label}.pdf`, { type: 'application/pdf' }));
+
+  const res = await fetch(`${BASE_URL}/api/v2-beta/document/create`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.REVSIGN_API_TOKEN}` },
+    body: form,
+  });
+  const body = await res.json();
+
+  assert.equal(res.status, 200, JSON.stringify(body));
+  assert.equal(db(`select "internalVersion" from "Envelope" where id = '${body.envelopeId}'`), '1');
+
+  const classified = await invoice(userCookie, 'mutation', 'classify', { envelopeId: body.envelopeId });
+
+  assert.equal(classified.status, 200, classified.text);
+
+  return { id: body.envelopeId, title };
+};
 
 // ---------- Páginas, lista e planilha ----------
 
@@ -827,7 +868,7 @@ sessionTest(
         true,
         'o admin sem perfil não vê a marca',
       );
-      assert.deepEqual((await csvRow(adminCookie, mine.id)).cells?.slice(-2), [key, 'sim']);
+      assert.deepEqual((await csvRow(adminCookie, mine.id)).cells?.slice(-2), [spaced(key), 'sim']);
     } finally {
       const restored = await trpcAs(adminCookie, 'mutation', 'revalle.finance.adminSetMember', {
         userId: adminId,
@@ -844,16 +885,18 @@ sessionTest(
     assert.equal(own.isPossibleDuplicate, false);
     assert.ok(!JSON.stringify(own).includes(finance.id), 'a linha do colaborador aponta para a outra nota');
 
-    // Planilha: a chave e a marca por último; o Financeiro vê "sim", o colaborador comum, vazio (com a própria chave).
+    // Planilha: a chave (como no DANFE, em grupos de 4 dígitos: 44 seguidos o Excel corta) e a marca por último; o
+    // Financeiro vê "sim", o colaborador comum, vazio (com a própria chave).
     const asFinance = await csvRow(adminCookie, mine.id);
 
     assert.deepEqual(asFinance.header.slice(-2), ['chave_acesso', 'possivel_duplicada']);
-    assert.deepEqual(asFinance.cells?.slice(-2), [key, 'sim']);
-    assert.deepEqual((await csvRow(adminCookie, finance.id)).cells?.slice(-2), [key, 'sim']);
-    assert.deepEqual((await csvRow(accountant.cookie, mine.id)).cells?.slice(-2), [key, 'sim']);
-    assert.deepEqual((await csvRow(userCookie, mine.id)).cells?.slice(-2), [key, '']);
+    assert.match(asFinance.cells?.at(-2) ?? '', /^(\d{4} ){10}\d{4}$/, 'a chave não saiu em grupos de 4 dígitos');
+    assert.deepEqual(asFinance.cells?.slice(-2), [spaced(key), 'sim']);
+    assert.deepEqual((await csvRow(adminCookie, finance.id)).cells?.slice(-2), [spaced(key), 'sim']);
+    assert.deepEqual((await csvRow(accountant.cookie, mine.id)).cells?.slice(-2), [spaced(key), 'sim']);
+    assert.deepEqual((await csvRow(userCookie, mine.id)).cells?.slice(-2), [spaced(key), '']);
     assert.deepEqual((await csvRow(adminCookie, alone.id)).cells?.slice(-2), [
-      `${accessKeysOf(alone.id).slice(1, -1)}`,
+      spaced(accessKeysOf(alone.id).slice(1, -1)),
       '',
     ]);
   },
@@ -1022,27 +1065,31 @@ aiTest('trocar o arquivo substitui as chaves: as do texto e a que a IA leu saem 
     assert.equal(removed.status, 200, removed.text);
   };
 
-  // DANFE + escaneado: a chave do texto e a da IA (a IA só lê o que é NF).
+  // Dois escaneados, sem texto: a chave da IA é a única e entra; trocar o arquivo a tira.
   await program({ invoiceData: { supplierName: 'Fornecedor Falso LTDA', accessKey: aiKey } });
 
-  const mixed = await newEnvelopeWithFiles(
+  const scans = await newEnvelopeWithFiles(
     [
-      ['trocar-danfe.pdf', await danfe(firstKey, 'A', 'troca-1')],
-      ['trocar-escaneado.pdf', await scanned('troca-1')],
+      ['trocar-escaneado-a.pdf', await scanned('troca-1a')],
+      ['trocar-escaneado-b.pdf', await scanned('troca-1b')],
     ],
     'troca-1',
   );
 
-  assert.equal((await invoice(userCookie, 'mutation', 'classify', { envelopeId: mixed.id })).status, 200);
-  assert.equal((await waitSettled(userCookie, mixed.id)).suggestionStatus, 'DONE');
-  assert.equal(accessKeysOf(mixed.id), `{${firstKey},${aiKey}}`);
+  assert.equal(data(await invoice(userCookie, 'mutation', 'classify', { envelopeId: scans.id })).isInvoice, 'UNKNOWN');
 
-  await removeItem(mixed, 'trocar-danfe');
+  const flagged = await invoice(userCookie, 'mutation', 'setInvoiceFlag', { envelopeId: scans.id, isInvoice: true });
 
-  const after = data(await invoice(userCookie, 'mutation', 'classify', { envelopeId: mixed.id }));
+  assert.equal(flagged.status, 200, flagged.text);
+  assert.equal((await waitSettled(userCookie, scans.id)).suggestionStatus, 'DONE');
+  assert.equal(accessKeysOf(scans.id), `{${aiKey}}`);
+
+  await removeItem(scans, 'trocar-escaneado-b');
+
+  const after = data(await invoice(userCookie, 'mutation', 'classify', { envelopeId: scans.id }));
 
   assert.equal(after.isInvoice, 'UNKNOWN');
-  assert.equal(accessKeysOf(mixed.id), '{}', 'as chaves do arquivo anterior ficaram');
+  assert.equal(accessKeysOf(scans.id), '{}', 'a chave da IA do arquivo anterior ficou');
 
   // Dois DANFEs: sai a chave do arquivo removido e fica a do outro.
   await program({});
@@ -1061,6 +1108,50 @@ aiTest('trocar o arquivo substitui as chaves: as do texto e a que a IA leu saem 
   await removeItem(both, 'trocar-b');
   assert.equal(data(await invoice(userCookie, 'mutation', 'classify', { envelopeId: both.id })).isInvoice, 'YES');
   assert.equal(accessKeysOf(both.id), `{${firstKey}}`, 'a chave do arquivo removido ficou');
+});
+
+aiTest('a chave que a IA devolve não entra quando o texto do PDF já trouxe a chave própria (citação)', async () => {
+  const ownKey = makeKey();
+  const citedKey = makeKey();
+  const mixedKey = makeKey();
+
+  // A nota citada já foi enviada; a IA, diante do DANFE novo, devolve a chave dela em vez da própria.
+  await sentNf('sender', await danfe(citedKey, 'A', 'ia-cita-original'), 'ia-cita-original');
+  await program({ invoiceData: { supplierName: 'Fornecedor Falso LTDA', accessKey: citedKey } });
+
+  const before = (await calls()).length;
+  const own = await draftNf('user', await danfe(ownKey, 'A', 'ia-cita-propria'), 'ia-cita-propria');
+  const state = await waitSettled(own.owner.cookie, own.id);
+
+  assert.equal(state.suggestionStatus, 'DONE', JSON.stringify(state));
+  assert.ok((await calls()).length > before, 'a IA não foi chamada: o teste não provou nada');
+  assert.equal(
+    accessKeysOf(own.id),
+    `{${ownKey}}`,
+    'a chave citada, devolvida pela IA, entrou nas chaves do PDF com texto',
+  );
+  assert.deepEqual(state.duplicates, [], 'a nota acusa a que ela cita');
+
+  // Depois do envio, a lista e a planilha também não marcam nenhuma das duas.
+  await sendNf(own);
+  assert.deepEqual(await duplicatesOf(adminCookie, own.id), []);
+  assert.equal((await findRow(adminCookie, own.id))?.isPossibleDuplicate, false, 'a lista marca a nota');
+  assert.equal((await csvRow(adminCookie, own.id)).cells?.at(-1), '', 'a planilha marca a nota');
+
+  // O mesmo vale com um escaneado ao lado do DANFE: o texto trouxe a chave, a da IA fica de fora.
+  const mixed = await newEnvelopeWithFiles(
+    [
+      ['cita-danfe.pdf', await danfe(mixedKey, 'A', 'ia-cita-mista')],
+      ['cita-escaneado.pdf', await scanned('ia-cita-mista')],
+    ],
+    'ia-cita-mista',
+  );
+
+  assert.equal((await invoice(userCookie, 'mutation', 'classify', { envelopeId: mixed.id })).status, 200);
+  assert.equal((await waitSettled(userCookie, mixed.id)).suggestionStatus, 'DONE');
+  assert.equal(accessKeysOf(mixed.id), `{${mixedKey}}`, 'a chave da IA entrou ao lado da do texto');
+
+  await program({});
 });
 
 sessionTest('se a busca de duplicadas falhar, o estado sai sem aviso e o log não traz dados', async () => {
@@ -1132,6 +1223,11 @@ sessionTest(
     const pair = await sentNf('sender', await danfe(pairKey, 'A', 'tela-par-1'), 'tela-par-1');
     const sent = await sentNf('user', await danfe(pairKey, 'B', 'tela-par-2'), 'tela-par-2');
 
+    // Documento v1, no editor antigo: o mesmo aviso, sem a caixa de confirmação (o botão de lá não espera por ela).
+    const legacy = await newV1Draft(await danfe(key, 'B', 'tela-legado'), 'tela-legado');
+
+    assert.equal((await waitSettled(userCookie, legacy.id)).duplicates.length, 1, 'o rascunho v1 não acusou');
+
     // NF escaneada: a chave só chega com a resposta da IA, devagar, com o diálogo já aberto.
     let late;
 
@@ -1151,6 +1247,7 @@ sessionTest(
         ownerCookie: userCookie,
         financeCookie: adminCookie,
         draftId: draft.id,
+        legacyId: legacy.id,
         lateId: late?.id ?? null,
         otherTitle: other.title,
         otherId: other.id,

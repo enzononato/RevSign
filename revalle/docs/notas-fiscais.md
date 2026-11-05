@@ -166,14 +166,17 @@ uma sem abrir o PDF. **Podem estar errados**: a IA lê o documento como uma pess
 "Lido pela IA" e, na página da nota, "Lidos pela IA, confira no PDF".
 
 - **Onde aparecem:** no bloco da nota, no diálogo de envio ("Lido pela IA: …"); na lista **Notas fiscais**, numa linha
-  menor abaixo do título; na página da nota, no bloco **Informações** (Fornecedor, Número, Valor); e na planilha, nas
-  colunas `fornecedor`, `numero_nf` e `valor`. Quem vê a lista ou a página vê os dados.
+  menor abaixo do título (com a legenda "Fornecedor, número e valor: lidos pela IA, confira no PDF." acima da tabela, que
+  só aparece quando alguma nota da página tem esses dados: no celular não há como passar o mouse); na página da nota, no
+  bloco **Informações** (Fornecedor, Número, Valor); e na planilha, nas colunas `fornecedor`, `numero_nf` e `valor`. Quem
+  vê a lista ou a página vê os dados.
 - **Onde não aparecem:** na tela de assinatura, na prova de quem assinou, no certificado do PDF selado e no
   `/verificar`. Eles não fazem parte do que é assinado.
 - **Ninguém edita** esses dados. Para mudar, o jeito é pedir outra sugestão (**Sugerir de novo**), que lê a nota de novo.
 - **Quando a IA não lê ou lê algo sem sentido,** o campo fica vazio e a sugestão de conta continua valendo. Isso vale
   para texto no lugar do valor, valor zero ou negativo (ou maior que R$ 21.474.836,47), chave de acesso que não passa na
-  conferência do dígito e resposta sem os campos. Sem a IA ligada, ou com a sugestão falhando, os campos ficam vazios e
+  conferência do dígito, a palavra `null`, `N/A` ou `Não informado` escrita no lugar do dado (maiúsculas e minúsculas
+  valem igual) e resposta sem os campos. Sem a IA ligada, ou com a sugestão falhando, os campos ficam vazios e
   tudo funciona como antes. O fornecedor é cortado em 200 caracteres e o número em 60; quebras de linha viram espaço.
 - **Notas que já tinham sugestão antes da Fase 8** não têm esses dados. A sugestão guardada daquele arquivo deixa de ser
   reaproveitada, e a próxima vez que ele passar por uma sugestão (um documento novo com o mesmo arquivo, ou **Sugerir de
@@ -200,19 +203,30 @@ arquivo**, e essa outra nota:
 A própria nota também precisa estar "viva" para mostrar o alerta: uma nota substituída, recusada, cancelada ou excluída
 não mostra. Rascunho de outra pessoa não conta.
 
-**De onde vêm as chaves.** Só a chave **própria** da nota conta. O RevSign guarda, de cada página dos arquivos detectados
-como nota fiscal, a **primeira** chave de acesso válida do texto (44 números, com UF, mês, CNPJ e dígito verificador certos,
-dos modelos 55 NF-e, 57 CT-e, 65 NFC-e e 67 CT-e OS), sem repetir: um DANFE ou um DACTE imprime a chave dele no cabeçalho e a
-repete em cada página. E soma a chave que a IA leu, o que cobre o PDF escaneado; a IA é instruída a copiar a chave **desta
-nota**, não as de notas citadas. Só a nota nova (ou que teve o arquivo trocado) guarda chaves, e trocar o arquivo refaz a
-lista; **as notas que já existiam são achadas pelo mesmo arquivo**, não pela chave. Uma nova versão leva as chaves da anterior.
+**De onde vêm as chaves.** Só a chave **própria** da nota conta. O RevSign olha cada página dos arquivos detectados como
+nota fiscal e para na **primeira** chave de acesso estruturalmente válida (44 números, com UF, mês, CNPJ e dígito
+verificador certos, de **qualquer** modelo): se ela for dos modelos 55 NF-e, 57 CT-e, 65 NFC-e ou 67 CT-e OS, é guardada, sem
+repetir. Um DANFE ou um DACTE imprime a chave dele no cabeçalho e a repete em cada página; as que vêm depois são de notas
+citadas. Parar em qualquer modelo evita que um DAMDFE (modelo 58) adote a chave que cita, e a **página de NFS-e sem DANFE
+não fornece chave** (a NFS-e não tem chave de 44 números, então a que aparece nela é de uma nota citada). A chave que a IA
+leu só é somada quando o **texto dos arquivos não trouxe nenhuma chave** (em geral o PDF escaneado): num PDF com texto e
+com a chave própria, uma citação devolvida pela IA não entra. A IA é instruída a copiar a chave **desta nota**, não as de notas citadas. Só a nota nova (ou
+que teve o arquivo trocado) guarda chaves, e trocar o arquivo refaz a lista; **as notas que já existiam são achadas pelo
+mesmo arquivo**, não pela chave. Uma nova versão leva as chaves da anterior.
 
 **O que o alerta não pega.**
 - Uma NFS-e (nota de serviço) com **arquivo diferente** não é achada: ela não tem chave de 44 números, e o número lido
   pela IA não é confiável o bastante para acusar.
+- Uma nota **sem chave** (por exemplo, uma NFS-e) reenviada **com um anexo a mais** não é achada: o arquivo comparado é o
+  **conjunto** de arquivos do documento, e um anexo a mais muda o conjunto.
 - Uma nota que **cita** a chave de outra (uma devolução que traz a chave da nota original, um CT-e que lista as NF-e
-  transportadas) **não acusa a original, nem é acusada por ela**: a chave citada não entra. O limite é o inverso: um layout que
-  imprime uma chave citada **antes** da própria pode perder o casamento por chave (o mesmo arquivo ainda acusa).
+  transportadas) normalmente **não acusa a original, nem é acusada por ela**: a chave citada não entra. O limite está nos
+  layouts fora do comum: um que imprime uma chave citada **antes** da própria pode tanto **não achar** uma duplicada quanto
+  **acusar por engano**, e uma página de continuação **sem chave própria** pode trazer a citada. (O mesmo arquivo ainda
+  acusa.)
+- Quando o texto não trouxe chave nenhuma (um escaneado, ou uma NFS-e com texto) e a IA devolve a chave de uma nota
+  **citada** em vez de deixar vazio, ela entra e pode acusar por engano. O prompt pede só a chave desta nota, mas a IA pode
+  errar.
 
 **Onde aparece, e para quem.**
 
@@ -226,6 +240,8 @@ lista; **as notas que já existiam são achadas pelo mesmo arquivo**, não pela 
 
 - Se a chave da IA chegar **com o diálogo de envio aberto** (nota escaneada), o alerta aparece na hora e o botão
   **Enviar** volta a ficar travado até a confirmação.
+- No **editor antigo** (documento criado pela API v1 ou por modelo antigo) o alerta aparece, mas **sem a caixa de
+  confirmação**: o botão de enviar daquele editor não espera pelo bloco, então a caixa não destravaria nada.
 - O alerta **some** quando a outra nota é recusada, cancelada, excluída ou substituída.
 - **Pela API o envio não é bloqueado**: a confirmação existe só na tela. Aprovar e validar continuam possíveis; o
   Financeiro e a Contabilidade decidem olhando o alerta.
@@ -315,7 +331,7 @@ O arquivo abre direto no Excel (separador `;`, UTF-8 com BOM). Colunas:
 | `fornecedor` | Fornecedor lido da nota pela IA (pode estar errado); vazio quando a IA não leu |
 | `numero_nf` | Número da nota lido pela IA; vazio quando a IA não leu |
 | `valor` | Valor total lido pela IA, com vírgula nos centavos e sem símbolo nem ponto (`1234,56`); vazio quando a IA não leu |
-| `chave_acesso` | Chaves de acesso guardadas da nota (a própria de cada página do arquivo e a que a IA leu), separadas por espaço; vazio quando não há |
+| `chave_acesso` | Chaves de acesso guardadas da nota (a própria de cada página do arquivo e, no escaneado, a que a IA leu), escritas **como no DANFE, em grupos de 4 números separados por espaço** (`2924 1012 …`): 44 números seguidos o Excel lê como número (`2,92E+43`) e perde o final. Várias chaves ficam separadas por ` / `; vazio quando não há |
 | `possivel_duplicada` | `sim` quando outra nota viva tem uma chave em comum ou o mesmo arquivo; vazio nos demais. Só vem preenchida na planilha do Financeiro, da Contabilidade e do admin |
 
 As colunas `financeiro` e `aprovado_por` (Fase 6), as quatro do centro de custo (Fase 7), as três lidas pela IA e, por

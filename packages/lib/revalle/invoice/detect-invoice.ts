@@ -56,8 +56,8 @@ const isValidCnpj = (digits14: string): boolean => {
 
 // Fase 8: a chave da duplicada vale para os quatro modelos de documento fiscal eletrônico: NF-e (55), CT-e (57), NFC-e
 // (65) e CT-e OS (67). A DETECÇÃO de nota fiscal continua só com 55 e 65 (`isValidChaveAcesso`): reconhecer um CT-e
-// sozinho como nota fiscal está fora do escopo.
-const hasValidChaveStructure = (digits44: string, models: readonly string[]): boolean => {
+// sozinho como nota fiscal está fora do escopo. Sem `models`, vale a estrutura de qualquer modelo (`extractAccessKeys`).
+const hasValidChaveStructure = (digits44: string, models?: readonly string[]): boolean => {
   if (!/^\d{44}$/.test(digits44)) {
     return false;
   }
@@ -69,7 +69,7 @@ const hasValidChaveStructure = (digits44: string, models: readonly string[]): bo
     return false;
   }
 
-  if (!models.includes(model) || !isValidCnpj(digits44.slice(6, 20))) {
+  if ((models && !models.includes(model)) || !isValidCnpj(digits44.slice(6, 20))) {
     return false;
   }
 
@@ -94,22 +94,30 @@ export const isValidChaveDocumento = (digits44: string): boolean =>
   hasValidChaveStructure(digits44, ['55', '57', '65', '67']);
 
 /**
- * A chave PRÓPRIA da nota em cada página: a primeira chave válida do texto (com ou sem espaços), sem repetir. Um DANFE ou
- * um DACTE imprime a chave dele no cabeçalho e a repete em cada página; as que aparecem depois são de notas citadas (a
- * devolução traz a da nota original, o CT-e traz a das NF-e transportadas) e, se entrassem, fariam a nota citada acusar a
- * que a cita. Limite: um layout que imprime uma chave citada antes da própria pode perder o casamento por chave.
+ * A chave PRÓPRIA da nota em cada página: a primeira chave estruturalmente válida do texto, de qualquer modelo (com ou sem
+ * espaços), que só conta se for do modelo 55, 57, 65 ou 67. Um DANFE ou um DACTE imprime a chave dele no cabeçalho e a
+ * repete em cada página; as que aparecem depois são de notas citadas (a devolução traz a da nota original, o CT-e traz a
+ * das NF-e transportadas) e, se entrassem, fariam a nota citada acusar a que a cita. Parar em qualquer modelo impede que um
+ * DAMDFE (58), que imprime a própria chave, adote a que cita. Página com o sinal de NFS-e e sem o de DANFE não dá chave: a
+ * NFS-e não tem chave de 44 dígitos, e a que aparece nela é de uma nota citada.
+ * Limite: um layout que imprime uma chave citada antes da própria pode tanto perder o casamento por chave quanto acusar por
+ * engano, e uma página de continuação sem chave própria pode trazer a citada.
  */
 export const extractAccessKeys = (pages: string[]): string[] => {
   const keys = new Set<string>();
 
   // Página por página: um grupo de 4 dígitos não atravessa a quebra de página.
   for (const page of pages) {
-    const own = (page.match(CHAVE_PATTERN) ?? [])
-      .map((candidate) => candidate.replace(/\s/g, ''))
-      .find((digits) => isValidChaveDocumento(digits));
+    if (NFSE_PATTERN.test(page) && !DANFE_PATTERN.test(page)) {
+      continue;
+    }
 
-    if (own !== undefined) {
-      keys.add(own);
+    const first = (page.match(CHAVE_PATTERN) ?? [])
+      .map((candidate) => candidate.replace(/\s/g, ''))
+      .find((digits) => hasValidChaveStructure(digits));
+
+    if (first !== undefined && isValidChaveDocumento(first)) {
+      keys.add(first);
     }
   }
 

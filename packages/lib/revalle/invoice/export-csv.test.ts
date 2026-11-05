@@ -253,7 +253,7 @@ describe('buildInvoiceExportCsv', () => {
     expect(header.slice(22)).toEqual(['chave_acesso', 'possivel_duplicada']);
   });
 
-  it('Fase 8: a chave de acesso e o "sim" da possível duplicada; várias chaves separadas por espaço', () => {
+  it('Fase 8: a chave sai como no DANFE, em grupos de 4 dígitos, e várias chaves ficam separadas por " / "', () => {
     const one = '29241012345678000195550010000123451123456784';
     const other = '35241012345678000195550010000123461123456781';
     const csv = buildInvoiceExportCsv([
@@ -265,9 +265,20 @@ describe('buildInvoiceExportCsv', () => {
       .slice(1, 4)
       .map((line) => line.split(';').slice(22));
 
-    expect(cells[0]).toEqual([one, 'sim']);
-    expect(cells[1]).toEqual([`${one} ${other}`, '']);
+    expect(cells[0]).toEqual(['2924 1012 3456 7800 0195 5500 1000 0123 4511 2345 6784', 'sim']);
+    expect(cells[1]).toEqual([
+      '2924 1012 3456 7800 0195 5500 1000 0123 4511 2345 6784 / 3524 1012 3456 7800 0195 5500 1000 0123 4611 2345 6781',
+      '',
+    ]);
     expect(cells[2]).toEqual(['', '']);
+  });
+
+  it('Fase 8: a chave nunca sai como 44 dígitos seguidos, que o Excel lê como número e corta no fim', () => {
+    const key = '29241012345678000195550010000123451123456784';
+    const cell = lines(buildInvoiceExportCsv([{ ...baseRow, accessKeys: [key] }]))[1]?.split(';')[22] ?? '';
+
+    expect(cell).not.toMatch(/\d{5,}/);
+    expect(cell.replace(/\s/g, '')).toBe(key);
   });
 
   it('Fase 8: possivel_duplicada nunca escreve "não": é "sim" ou vazio', () => {

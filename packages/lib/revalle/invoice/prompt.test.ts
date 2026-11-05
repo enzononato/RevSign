@@ -30,15 +30,17 @@ describe('buildInvoicePrompt', () => {
     expect(result).toContain('accountCode');
   });
 
-  it('pede os dados da NF no mesmo JSON e manda responder null em vez de adivinhar', () => {
+  it('pede os quatro campos da NF no mesmo JSON e manda responder null, sem aspas, em vez de adivinhar', () => {
     const result = buildInvoicePrompt({ userPrompt: 'x', accounts });
 
     expect(result).toContain(
-      '"supplierName": "<razão social do emitente, ou null>", "invoiceNumber": "<número da nota, ou null>", "totalAmount": <valor total em reais, número com ponto decimal, ou null>, "accessKey": "<chave de acesso desta nota, 44 dígitos, só números, não a de notas citadas, ou null>"',
+      '"supplierName": "<razão social do emitente>", "invoiceNumber": "<número da nota>", "totalAmount": <valor total em reais, número com ponto decimal>, "accessKey": "<chave de acesso desta nota, 44 dígitos, só números, não a de notas citadas>"',
     );
     expect(result).toContain(
-      'Copie esses dados do documento. Se um deles não estiver claro, responda null em vez de adivinhar.',
+      'Copie supplierName, invoiceNumber, totalAmount e accessKey do documento. Se um deles não estiver claro, responda null, sem aspas, em vez de adivinhar.',
     );
+    // O null dentro das aspas levava o modelo a escrever a palavra "null" no campo de texto.
+    expect(result).not.toMatch(/ou null/);
   });
 
   it('gera o bloco fixo mesmo com prompt vazio', () => {

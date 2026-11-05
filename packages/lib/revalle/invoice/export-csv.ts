@@ -27,7 +27,7 @@ export type InvoiceExportRow = {
   supplierName: string | null;
   invoiceNumber: string | null;
   totalAmountCents: number | null;
-  /** Fase 8: chaves de acesso guardadas da NF (várias saem separadas por espaço) e se parece já ter sido enviada. */
+  /** Fase 8: chaves de acesso guardadas da NF (saem como no DANFE, em grupos de 4 dígitos, separadas por " / ") e se parece já ter sido enviada. */
   accessKeys: readonly string[];
   isPossibleDuplicate: boolean;
 };
@@ -76,6 +76,9 @@ const escapeCell = (value: string) => {
   return /[;"\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 };
 
+// 44 dígitos seguidos o Excel lê como número (2,92E+43) e perde o final: em grupos de 4, como no DANFE, ele mantém o texto.
+const formatAccessKey = (key: string) => key.match(/.{1,4}/g)?.join(' ') ?? key;
+
 const formatDate = (date: Date | null) => (date ? formatRevalleDateTime(date) : '');
 
 const formatKind = (kind: InvoiceExportRow['accountKind']) => {
@@ -119,7 +122,7 @@ export const buildInvoiceExportCsv = (rows: InvoiceExportRow[]): string => {
       row.supplierName ?? '',
       row.invoiceNumber ?? '',
       row.totalAmountCents === null ? '' : formatInvoiceAmountCsv(row.totalAmountCents),
-      row.accessKeys.join(' '),
+      row.accessKeys.map(formatAccessKey).join(' / '),
       row.isPossibleDuplicate ? 'sim' : '',
     ]
       .map(escapeCell)

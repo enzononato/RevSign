@@ -34,6 +34,10 @@ export const INVOICE_AMOUNT_MAX_CENTS = 2_147_483_647;
 const SPACING = /[\p{White_Space}]+/gu;
 const INVISIBLE = /[\p{Cc}\p{Cf}\p{Cs}]/gu;
 
+// O modelo às vezes escreve a palavra no lugar do dado que não achou, em vez de devolver null: não vai para a tela nem para a
+// planilha. Só a palavra inteira, sem diferenciar maiúsculas.
+const PLACEHOLDER_WORDS = new Set(['null', 'n/a', 'não informado']);
+
 // `transform` roda depois da limpeza e ANTES do corte: um CPF perto do limite não deixa dígitos para trás.
 const cleanText = (value: string, maxLength: number, transform: (text: string) => string = (text) => text) => {
   const cleaned = Array.from(
@@ -43,7 +47,7 @@ const cleanText = (value: string, maxLength: number, transform: (text: string) =
     .join('')
     .trim();
 
-  return cleaned || null;
+  return cleaned && !PLACEHOLDER_WORDS.has(cleaned.toLowerCase()) ? cleaned : null;
 };
 
 // O nome empresarial de um MEI é o nome do dono seguido do CPF, só com dígitos ("MARIA SOUZA 12345678909"), e uma NF

@@ -1,6 +1,9 @@
 export type InvoiceReadyInput = {
   isClassified: boolean;
-  /** A consulta do estado falhou: o envio segue, porque o servidor confere de qualquer forma. */
+  /**
+   * A consulta do estado falhou e não há estado nenhum: o envio segue, porque o servidor confere de qualquer forma. Se o
+   * estado já tinha chegado e foi só o recarregamento que falhou, vale o estado que a pessoa viu (inclusive o aviso de duplicada).
+   */
   isError: boolean;
   /** Nova versão de uma troca de conta com o envio do Financeiro em andamento. */
   isHeld: boolean;
@@ -42,7 +45,7 @@ export const isInvoiceReady = ({
     return false;
   }
 
-  if (isError) {
+  if (isError && !state) {
     return true;
   }
 

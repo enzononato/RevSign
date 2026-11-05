@@ -152,6 +152,8 @@ export default function InvoicesPage() {
   const exportHref = `/notas-fiscais/csv${exportQuery ? `?${exportQuery}` : ''}`;
   const count = data?.count ?? 0;
   const isOverLimit = isOverInvoiceExportLimit(count);
+  // Fase 8: a legenda explica a linha curta de cada nota (no toque não há `title`); só aparece se alguma linha tem os dados.
+  const hasInvoiceData = Boolean(data?.data.some((row) => formatInvoiceDataLine(row.invoiceData) !== null));
 
   const statusLabels: Record<InvoiceListStatus, string> = {
     PENDING: t`Pendente`,
@@ -316,6 +318,12 @@ export default function InvoicesPage() {
           </Button>
         )}
       </div>
+
+      {hasInvoiceData && (
+        <p className="mt-2 text-muted-foreground text-xs" data-testid="invoice-data-legend">
+          <Trans>Fornecedor, número e valor: lidos pela IA, confira no PDF.</Trans>
+        </p>
+      )}
 
       <div className="mt-4 min-w-0 rounded-md border">
         <Table>

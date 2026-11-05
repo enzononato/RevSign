@@ -22,6 +22,11 @@ export type InvoiceAccountPanelProps = {
    * ou enquanto o estado ainda não chegou: o botão de enviar fica bloqueado.
    */
   onReadyChange: (ready: boolean) => void;
+  /**
+   * `false` onde o botão de enviar não depende do bloco (o editor antigo): o aviso de nota duplicada aparece, mas sem a
+   * caixa "Sei disso e quero enviar mesmo assim", que ali não destravaria nada.
+   */
+  hasDuplicateAcknowledgement?: boolean;
 };
 
 const POLL_INTERVAL_MS = 2_000;
@@ -36,7 +41,11 @@ const STALE_REFETCH_MS = 61_000;
  * abrir, consulta a sugestão enquanto ela está em andamento e grava cada escolha no servidor na hora (o envio confere de
  * novo). A sugestão nunca vira escolha sozinha.
  */
-export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccountPanelProps) => {
+export const InvoiceAccountPanel = ({
+  envelopeId,
+  onReadyChange,
+  hasDuplicateAcknowledgement = true,
+}: InvoiceAccountPanelProps) => {
   const { t } = useLingui();
   const { toast } = useToast();
   const utils = trpc.useUtils();
@@ -215,7 +224,11 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
   const duplicateNotice = (
     <InvoiceDuplicateNotice
       duplicates={duplicates}
-      acknowledgement={{ checked: isDuplicateAcknowledged, onChange: setIsDuplicateAcknowledged }}
+      acknowledgement={
+        hasDuplicateAcknowledgement
+          ? { checked: isDuplicateAcknowledged, onChange: setIsDuplicateAcknowledged }
+          : undefined
+      }
     />
   );
 

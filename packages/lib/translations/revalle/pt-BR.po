@@ -5079,6 +5079,9 @@ msgstr "Lido pela IA: {invoiceDataLine}"
 msgid "Lidos pela IA, confira no PDF"
 msgstr "Lidos pela IA, confira no PDF"
 
+msgid "Fornecedor, número e valor: lidos pela IA, confira no PDF."
+msgstr "Fornecedor, número e valor: lidos pela IA, confira no PDF."
+
 msgid "Fornecedor: {supplierName}"
 msgstr "Fornecedor: {supplierName}"
 

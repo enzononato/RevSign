@@ -1,10 +1,10 @@
 // REVALLE (Fase 8): chamado por `invoice-duplicates.test.mjs` (ver `shared.mjs`). Confere, no navegador, o alerta de nota
 // duplicada: o diálogo de envio (o aviso, o botão Enviar travado até a confirmação, no computador e no celular, e o aviso
 // que chega com o diálogo aberto quando a chave só vem com a resposta da IA), o cartão do dono depois do envio, a marca na
-// lista e o alerta da página da NF.
+// lista e o alerta da página da NF. No editor antigo (documento v1) o aviso aparece sem a caixa de confirmação.
 //
 // Entrada: a URL, o time, as sessões do dono (colaborador comum) e do Financeiro, um rascunho de NF que repete outra NF
-// (`draftId`, e a outra nota: `otherTitle` e `otherId`), uma NF escaneada ainda sem resposta (`lateId`, a IA devolve a chave
+// (`draftId`, e a outra nota: `otherTitle` e `otherId`), um rascunho v1 que repete a mesma (`legacyId`), uma NF escaneada ainda sem resposta (`lateId`, a IA devolve a chave
 // devagar) e uma NF já enviada do dono que repete outra (`sentId`, e a outra nota: `pairTitle` e `pairId`).
 import { finish, openAs, payload, report, section, shot } from './shared.mjs';
 
@@ -14,6 +14,7 @@ const {
   ownerCookie,
   financeCookie,
   draftId,
+  legacyId,
   lateId,
   otherTitle,
   otherId,
@@ -125,6 +126,34 @@ for (const [name, viewport] of [
     await context.close();
   });
 }
+
+await section('editor antigo (documento v1): o aviso aparece, sem a caixa de confirmação', async () => {
+  const { context, page } = await openAs(ownerCookie, DESKTOP);
+
+  await page.goto(`${baseUrl}/t/${teamUrl}/documents/${legacyId}/legacy_editor`, { waitUntil: 'networkidle' });
+
+  const panel = page.getByTestId('invoice-account-panel');
+  const alert = panel.getByTestId('invoice-duplicate-alert');
+
+  await alert.waitFor();
+
+  const lines = await alert.getByTestId('invoice-duplicate-line').allInnerTexts();
+
+  report(
+    (await alert.innerText()).includes('Esta nota parece já ter sido enviada'),
+    'o editor antigo diz "Esta nota parece já ter sido enviada"',
+  );
+  report(
+    lines.length === 1 && SENT_LINE.test(lines[0].trim()),
+    `uma linha "Enviada em … por ${senderName} · Pendente" (veio ${JSON.stringify(lines)})`,
+  );
+  report(
+    (await page.getByTestId('invoice-duplicate-ack').count()) === 0,
+    'sem a caixa "Sei disso e quero enviar mesmo assim": ela não destravaria nada neste editor',
+  );
+  report(!(await page.locator('body').innerText()).includes(otherTitle), 'o aviso não mostra o título da outra nota');
+  await context.close();
+});
 
 if (lateId) {
   await section('chave da IA chega com o diálogo aberto', async () => {

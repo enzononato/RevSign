@@ -137,6 +137,30 @@ describe('extractAccessKeys', () => {
     expect(extractAccessKeys([`${cte} cita ${cited}`, `${VALID_KEY} cita ${cited}`])).toEqual([cte, VALID_KEY]);
   });
 
+  it('a primeira chave estruturalmente válida de qualquer modelo para a busca: o DAMDFE (58) não adota a chave que cita', () => {
+    const mdfe = withModel('58');
+    const cited = withCheckDigit(`3524${VALID_KEY.slice(4, 43)}`);
+
+    expect(isValidChaveDocumento(mdfe)).toBe(false);
+    expect(extractAccessKeys([`DAMDFE\nChave de acesso ${spaced(mdfe)}\nCT-e vinculado ${cited}`])).toEqual([]);
+    // Controle: a mesma citação, sem a chave própria na frente, entra.
+    expect(extractAccessKeys([`DAMDFE\nCT-e vinculado ${cited}`])).toEqual([cited]);
+    // A chave de modelo desconhecido só vale como ponto de parada na página dela.
+    expect(extractAccessKeys([`${mdfe} cita ${cited}`, `${VALID_KEY} cita ${cited}`])).toEqual([VALID_KEY]);
+  });
+
+  it('página de NFS-e sem DANFE não fornece chave: a NFS-e que cita uma NF-e não adota a citada', () => {
+    const cited = VALID_KEY;
+
+    expect(extractAccessKeys([`NFS-e Nota Fiscal de Serviços Eletrônica\nReferente à NF-e ${spaced(cited)}`])).toEqual(
+      [],
+    );
+    expect(extractAccessKeys([`Prefeitura\nNota Fiscal de Serviço\nNF-e anterior ${cited}`])).toEqual([]);
+    // O DANFE na mesma página mantém a chave; a página seguinte, sem o sinal de serviço, também.
+    expect(extractAccessKeys([`NFS-e vinculada\nDANFE\nChave de acesso ${cited}`])).toEqual([cited]);
+    expect(extractAccessKeys([`NFS-e ${cited}`, `Chave de acesso ${cited}`])).toEqual([cited]);
+  });
+
   it('um 44 dígitos inválido antes da chave própria não a esconde', () => {
     expect(extractAccessKeys([`${WRONG_KEY} e depois ${VALID_KEY}`])).toEqual([VALID_KEY]);
   });

@@ -443,18 +443,20 @@ aiTest(
     );
     assert.ok(call.accountCodeEnum.includes('2.1.03'));
 
-    // O prompt fixo pede os dados e manda responder null em vez de adivinhar.
-    assert.ok(call.system.includes('"supplierName": "<razão social do emitente, ou null>"'));
+    // O prompt fixo pede os quatro campos e manda responder null, sem aspas, em vez de adivinhar: o "ou null" dentro das
+    // aspas levava o modelo a escrever a palavra no campo de texto.
+    assert.ok(call.system.includes('"supplierName": "<razão social do emitente>"'));
     assert.ok(
       call.system.includes(
-        '"accessKey": "<chave de acesso desta nota, 44 dígitos, só números, não a de notas citadas, ou null>"',
+        '"accessKey": "<chave de acesso desta nota, 44 dígitos, só números, não a de notas citadas>"',
       ),
     );
     assert.ok(
       call.system.includes(
-        'Copie esses dados do documento. Se um deles não estiver claro, responda null em vez de adivinhar.',
+        'Copie supplierName, invoiceNumber, totalAmount e accessKey do documento. Se um deles não estiver claro, responda null, sem aspas, em vez de adivinhar.',
       ),
     );
+    assert.ok(!call.system.includes('ou null'), 'o prompt ainda tem "ou null" dentro das aspas');
   },
 );
 
@@ -614,6 +616,22 @@ aiTest('texto longo, com quebra de linha, e valor acima do que cabe: cortado, li
   assert.equal(state.invoiceData.invoiceNumber.length, 60);
   assert.equal(state.invoiceData.totalAmountCents, null);
   assert.equal(columns(env.id).supplierName.length, 200);
+});
+
+aiTest('a palavra "null", "N/A" ou "Não informado" no lugar do dado não vai para a tela nem para a lista', async () => {
+  await program({ invoiceData: { supplierName: 'NULL', invoiceNumber: 'n/a', totalAmount: 10.5 } });
+
+  const first = await newDoneDraft('palavra-vazia-a');
+
+  assert.deepEqual(first.state.invoiceData, { supplierName: null, invoiceNumber: null, totalAmountCents: 1050 });
+  assert.deepEqual(columns(first.env.id), { supplierName: null, invoiceNumber: null, totalAmountCents: 1050 });
+
+  await program({ invoiceData: { supplierName: 'Não informado', invoiceNumber: 'Null' } });
+
+  const second = await newDoneDraft('palavra-vazia-b');
+
+  assert.equal(second.state.invoiceData, null);
+  assert.deepEqual(columns(second.env.id), NO_DATA);
 });
 
 aiTest('resposta com chave de acesso válida: guardada só na sugestão', async () => {

@@ -58,6 +58,29 @@ await section('lista', async () => {
     title === 'Lidos pela IA, confira no PDF',
     'a linha da lista avisa que foi lida pela IA (ajuda ao passar o mouse)',
   );
+
+  // No toque não há `title`: a legenda visível, acima da tabela, diz de onde vêm os dados da linha curta.
+  const legend = page.getByTestId('invoice-data-legend');
+  const legendText = (await legend.innerText()).trim();
+  const legendBox = await legend.boundingBox();
+  const legendBottom = legendBox ? legendBox.y + legendBox.height : Number.POSITIVE_INFINITY;
+  const tableTop = (await page.getByRole('table').boundingBox())?.y ?? 0;
+
+  report(
+    legendText === 'Fornecedor, número e valor: lidos pela IA, confira no PDF.',
+    `a lista tem a legenda "Fornecedor, número e valor: lidos pela IA, confira no PDF." (veio "${legendText}")`,
+  );
+  report(legendBottom < tableTop, 'a legenda fica acima da tabela');
+  report((await page.getByTestId('invoice-data-legend').count()) === 1, 'a legenda aparece uma vez, não uma por nota');
+  await context.close();
+});
+
+await section('lista sem nenhuma nota com dados: sem a legenda', async () => {
+  const { context, page } = await openAs(ownerCookie, { width: 390, height: 844 });
+
+  await page.goto(`${baseUrl}/notas-fiscais?de=2001-01-01&ate=2001-01-02`, { waitUntil: 'networkidle' });
+  await page.getByText('Nenhuma nota fiscal com esses filtros.').waitFor();
+  report((await page.getByTestId('invoice-data-legend').count()) === 0, 'a legenda não aparece com a lista vazia');
   await context.close();
 });
 

@@ -104,7 +104,13 @@ describe('o bloco da nota fiscal libera o envio', () => {
     );
   });
 
-  it('Fase 8: erro na consulta continua liberando: sem estado não há o que confirmar, o servidor confere', () => {
-    expect(isInvoiceReady(ready({ state: undefined, isError: true }))).toBe(true);
+  it('Fase 8: falha ao recarregar com o estado já carregado não libera o que a duplicada trava', () => {
+    const withDuplicate = { isInvoice: 'YES', choice: account, costCenter, duplicates: [duplicate] } as const;
+
+    expect(isInvoiceReady(ready({ state: withDuplicate, isError: true }))).toBe(false);
+    expect(isInvoiceReady(ready({ state: withDuplicate, isError: true, duplicateAcknowledged: true }))).toBe(true);
+    expect(
+      isInvoiceReady(ready({ state: { isInvoice: 'YES', choice: null, costCenter, duplicates: [] }, isError: true })),
+    ).toBe(false);
   });
 });

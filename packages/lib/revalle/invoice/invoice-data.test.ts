@@ -81,6 +81,19 @@ describe('normalizeInvoiceData', () => {
     expect(normalizeInvoiceData({ invoiceNumber: 1.5 }).invoiceNumber).toBeNull();
   });
 
+  it('a palavra "null", "N/A" ou "Não informado" no lugar do dado fica vazia, em qualquer caixa', () => {
+    for (const word of ['null', 'NULL', ' Null ', 'n/a', 'N/A', 'Não informado', 'NÃO INFORMADO', 'não  informado']) {
+      expect(normalizeInvoiceData({ supplierName: word, invoiceNumber: word }), word).toEqual(EMPTY_INVOICE_DATA);
+    }
+
+    // Só a palavra inteira: um nome ou número que a contém continua valendo.
+    expect(normalizeInvoiceData({ supplierName: 'Nullus N/A Comércio', invoiceNumber: 'N/A-12' })).toEqual({
+      ...EMPTY_INVOICE_DATA,
+      supplierName: 'Nullus N/A Comércio',
+      invoiceNumber: 'N/A-12',
+    });
+  });
+
   it('a chave só vale com 44 dígitos e o dígito verificador certo', () => {
     expect(normalizeInvoiceData({ accessKey: '123' }).accessKey).toBeNull();
     expect(normalizeInvoiceData({ accessKey: `${VALID_KEY.slice(0, 43)}0` }).accessKey).toBeNull();
