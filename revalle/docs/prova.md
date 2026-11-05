@@ -115,6 +115,8 @@ Destinatário de documento assinado antes da Fase 4 não tem prova congelada: o 
    - se, além disso, aparecer `Existe uma versão selada mais recente deste documento, de <data>`: a cópia é legítima, mas o documento foi reselado depois (o selo digital foi refeito, por exemplo na troca do certificado da empresa). As assinaturas são as mesmas; quem precisar da versão atual pode baixá-la de novo;
    - `Este arquivo é diferente do documento assinado.`: o arquivo não confere com nenhuma versão selada: foi alterado, é uma versão de antes da conclusão ou é outro documento.
 
+A conta e o centro de custo também são escritos, em azul, na página da nota do PDF final (acima do carimbo da primeira assinatura); isso não faz parte da prova congelada nem do `/verificar`, e o SHA-256 do original não muda (ver `notas-fiscais.md`, "A conta e o centro de custo no PDF final").
+
 O que **não** aparece no `/verificar`, de propósito: e-mail, IP, aparelho, localização, CPF completo e o conteúdo do documento.
 
 - Código errado ou de documento excluído/cancelado: `Código não encontrado.` (sem dizer mais nada).

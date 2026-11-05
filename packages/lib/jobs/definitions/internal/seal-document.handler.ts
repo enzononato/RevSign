@@ -24,6 +24,11 @@ import { insertFieldInPDFV2 } from '../../../server-only/pdf/insert-field-in-pdf
 import { legacy_insertFieldInPDF } from '../../../server-only/pdf/legacy-insert-field-in-pdf';
 import { recordFinalHash } from '../../../server-only/revalle/document-hashes'; // REVALLE:
 import { holdSealForFinance, lockSupersededInvoiceForSealing } from '../../../server-only/revalle/finance/seal-hold'; // REVALLE:
+import {
+  drawRevalleInvoiceAnnotation,
+  loadRevalleInvoiceAnnotation,
+  type RevalleInvoiceAnnotation,
+} from '../../../server-only/revalle/invoice/pdf-annotation'; // REVALLE:
 import { loadRevalleStamps } from '../../../server-only/revalle/proof/load-stamps'; // REVALLE:
 import { getTeamSettings } from '../../../server-only/team/get-team-settings';
 import { triggerWebhook } from '../../../server-only/webhooks/trigger/trigger-webhook';
@@ -235,6 +240,8 @@ export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition
 
     // REVALLE: carimbo de texto montado a partir da prova congelada de cada destinatário.
     const revalleStamps = await loadRevalleStamps(envelope.id);
+    // REVALLE: conta e centro de custo da NF, escritos acima da primeira assinatura; NF recusada não leva.
+    const revalleInvoiceAnnotation = isRejected ? null : await loadRevalleInvoiceAnnotation(envelope.id);
 
     const needsCertificate = settings.includeSigningCertificate;
     const needsAuditLog = settings.includeAuditLog;
@@ -321,6 +328,7 @@ export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition
         certificateDoc,
         auditLogDoc,
         revalleStamps, // REVALLE:
+        revalleInvoiceAnnotation, // REVALLE:
       });
 
       newDocumentData.push(result);
@@ -440,6 +448,7 @@ type DecorateAndSignPdfOptions = {
   certificateDoc: PDF | null;
   auditLogDoc: PDF | null;
   revalleStamps: Map<number, RevalleStamp>; // REVALLE:
+  revalleInvoiceAnnotation: RevalleInvoiceAnnotation | null; // REVALLE:
 };
 
 /**
@@ -455,6 +464,7 @@ const decorateAndSignPdf = async ({
   certificateDoc,
   auditLogDoc,
   revalleStamps, // REVALLE:
+  revalleInvoiceAnnotation, // REVALLE:
 }: DecorateAndSignPdfOptions) => {
   let pdfDoc = await PDF.load(pdfData);
 
@@ -560,6 +570,13 @@ const decorateAndSignPdf = async ({
       });
     }
   }
+
+  // REVALLE: conta e centro de custo da NF; depois dos campos para ficarem por cima do que já foi desenhado.
+  await drawRevalleInvoiceAnnotation({
+    pdfDoc,
+    annotation: revalleInvoiceAnnotation,
+    envelopeItemId: envelopeItem.id,
+  });
 
   // Re-flatten the form to handle our checkbox and radio fields that
   // create native arcoFields

@@ -247,6 +247,40 @@ mesmo arquivo**, não pela chave. Uma nova versão leva as chaves da anterior.
   Financeiro e a Contabilidade decidem olhando o alerta.
 - Os dados do alerta (chaves, nomes e datas) **não vão para o log**.
 
+### A conta e o centro de custo no PDF final
+
+No PDF final da nota (depois que todos assinam e o Financeiro aprova), a selagem escreve, **em azul**, logo acima do
+carimbo da primeira assinatura:
+
+```
+Conta: 342401 - Manutenção Predial
+CC: 201 - Armazém
+```
+
+- **Só no PDF final.** O arquivo original e a prévia que aparece durante a assinatura e a espera pelo Financeiro não
+  mudam, e o SHA-256 do original continua o mesmo: o texto entra só na selagem. O certificado e o `/verificar` seguem
+  como estavam.
+- **A conta** é a que o Financeiro aprovou, com o nome da hora da aprovação (se a lista de contas for reimportada com
+  outro nome, o PDF continua com o nome aprovado). Sem nome, só o código. **O centro** vem da lista fixa de centros.
+- **Linhas que faltam:** a nota sem centro sai só com a linha da conta; a nota sem conta aprovada (de antes da Fase 6, ou
+  marcada como nota depois do envio) sai só com a do centro; sem nenhum dos dois, nada. Documento comum e nota recusada
+  não levam o texto.
+- **Primeira assinatura** é o primeiro campo de assinatura na ordem: arquivo do envelope, página, de cima para baixo, da
+  esquerda para a direita (não é a ordem dos destinatários). O texto aparece uma vez só, mesmo com vários signatários.
+  Se o campo estiver no alto da página e não houver espaço acima, o texto vai logo abaixo do campo; se também não houver
+  abaixo, vai acima, encostado na margem de 18 pt. Sem nenhum campo de assinatura, vai no alto da primeira página.
+- **Nunca sai da página:** um nome longo quebra em mais de uma linha dentro da margem de 18 pt, e o texto recua para a
+  esquerda se o campo estiver muito à direita. Não há fundo branco: o texto pode ficar sobre o que está impresso, e
+  não o apaga. Vale em página com rotação e nos documentos das duas versões do editor.
+- **Nova versão** (troca de conta, correção do centro): sai do PDF original, então o texto antigo nunca fica por baixo; a
+  versão anterior, já concluída, continua como foi selada. **Reselagem pelo admin** também parte do PDF original e
+  escreve o mesmo texto, sem duplicar.
+- **Se o texto não puder ser escrito** (por exemplo, a fonte não carregou), a nota é selada normalmente, sem ele, e o
+  motivo vai para o log do servidor (`revalle invoice annotation`), sem dados da nota. Nesse caso, resselar o documento
+  depois que o problema passar escreve o texto.
+- **Limite conhecido:** num envelope com mais de um arquivo, vale o primeiro campo de assinatura, que pode estar em outro
+  arquivo que não a nota.
+
 ## 5. Página "Notas fiscais" e planilha
 
 No menu do site, **Notas fiscais**. Cada pessoa vê as NFs já enviadas em que está envolvida: as que enviou e as que
