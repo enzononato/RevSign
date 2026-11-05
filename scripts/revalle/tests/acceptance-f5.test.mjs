@@ -79,9 +79,10 @@ const ACCOUNTS_CSV = [
   'numero;nome;descricao;tipo',
   ...ACCOUNTS.map((a) => `${a.code};${a.name};Conta do aceite da Fase 5;${a.kind}`),
 ].join('\n');
-// Fase 6: `financeiro;aprovado_por` no fim do cabeçalho; Fase 7: depois deles, as quatro colunas do centro de custo.
+// Fase 6: `financeiro;aprovado_por` no fim do cabeçalho; Fase 7: depois deles, as quatro colunas do centro de custo;
+// Fase 8: depois delas, `fornecedor;numero_nf;valor` (lidos pela IA).
 const HEADER =
-  'id;titulo;remetente;enviado_em;concluido_em;status;conta;nome_conta;tipo;sugestao_ia;confianca;aceitou_sugestao;link;financeiro;aprovado_por;centro_custo;nome_centro_custo;validacao_contabilidade;validado_por';
+  'id;titulo;remetente;enviado_em;concluido_em;status;conta;nome_conta;tipo;sugestao_ia;confianca;aceitou_sugestao;link;financeiro;aprovado_por;centro_custo;nome_centro_custo;validacao_contabilidade;validado_por;fornecedor;numero_nf;valor';
 
 const tmp = mkdtempSync(path.join(tmpdir(), 'revsign-aceite-f5-'));
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

@@ -1,5 +1,12 @@
 import { z } from 'zod';
 
+/** Fase 8: fornecedor, número e valor que a IA leu da NF (podem estar errados; a tela diz que vieram da IA). */
+export const ZInvoiceDataSummarySchema = z.object({
+  supplierName: z.string().nullable(),
+  invoiceNumber: z.string().nullable(),
+  totalAmountCents: z.number().nullable(),
+});
+
 export const ZInvoiceEnvelopeRequestSchema = z.object({ envelopeId: z.string().min(1) });
 
 export const ZInvoiceStateSchema = z.object({
@@ -25,6 +32,8 @@ export const ZInvoiceStateSchema = z.object({
       'NO_CONTENT',
     ])
     .nullable(),
+  /** Nulo quando os três estão vazios. */
+  invoiceData: ZInvoiceDataSummarySchema.nullable(),
   choice: z.object({ code: z.string(), name: z.string().optional() }).nullable(),
   /** Fase 7: centro de custo (lista fixa), exigido junto com a conta no primeiro envio. */
   costCenter: z.object({ code: z.string(), name: z.string() }).nullable(),

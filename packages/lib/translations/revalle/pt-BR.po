@@ -5070,3 +5070,20 @@ msgstr "Não foi possível conferir seus dados agora. Tente de novo em alguns mi
 
 msgid "Muitas tentativas com este CPF. Tente de novo amanhã ou fale com o administrador."
 msgstr "Muitas tentativas com este CPF. Tente de novo amanhã ou fale com o administrador."
+
+# REVALLE: Fase 8, dados da NF lidos pela IA (msgids já em pt-BR).
+
+msgid "Lido pela IA: {invoiceDataLine}"
+msgstr "Lido pela IA: {invoiceDataLine}"
+
+msgid "Lidos pela IA, confira no PDF"
+msgstr "Lidos pela IA, confira no PDF"
+
+msgid "Fornecedor: {supplierName}"
+msgstr "Fornecedor: {supplierName}"
+
+msgid "Número: {invoiceNumber}"
+msgstr "Número: {invoiceNumber}"
+
+msgid "Valor: {amount}"
+msgstr "Valor: {amount}"

@@ -1,4 +1,5 @@
 import { formatRevalleDateTime } from '../date-format';
+import { formatInvoiceAmountCsv } from './invoice-data';
 
 export type InvoiceExportRow = {
   id: number | string;
@@ -22,6 +23,10 @@ export type InvoiceExportRow = {
   costCenterName: string | null;
   accountingStatus: string;
   validatedBy: string | null;
+  /** Fase 8: dados lidos da NF pela IA (podem estar errados; nulos quando a IA não leu). */
+  supplierName: string | null;
+  invoiceNumber: string | null;
+  totalAmountCents: number | null;
 };
 
 const HEADER = [
@@ -46,15 +51,24 @@ const HEADER = [
   'nome_centro_custo',
   'validacao_contabilidade',
   'validado_por',
+  // Fase 8: dados lidos pela IA, de novo no fim.
+  'fornecedor',
+  'numero_nf',
+  'valor',
 ];
 
 const BOM = '﻿';
 
-const escapeCell = (value: string) => (/[;"\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
-
+// Texto que começa com =, +, - ou @ (ou tabulação/CR) o Excel executa como fórmula. Como a neutralização está na função
+// de todas as células, nenhuma coluna de texto escapa, nem as que um dia receberem texto lido de um documento. O que é
+// número ou data (id, valor `1234,56`, `29/10/2026 14:30`) não começa com esses caracteres.
 const FORMULA_START = /^[=+\-@\t\r]/;
 
-const safeText = (value: string) => (FORMULA_START.test(value) ? `'${value}` : value);
+const escapeCell = (value: string) => {
+  const text = FORMULA_START.test(value) ? `'${value}` : value;
+
+  return /[;"\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
 
 const formatDate = (date: Date | null) => (date ? formatRevalleDateTime(date) : '');
 
@@ -78,24 +92,27 @@ export const buildInvoiceExportCsv = (rows: InvoiceExportRow[]): string => {
   const lines = rows.map((row) => {
     return [
       String(row.id),
-      safeText(row.title),
-      safeText(row.senderName),
+      row.title,
+      row.senderName,
       formatDate(row.sentAt),
       formatDate(row.completedAt),
       row.status,
-      safeText(row.choice ?? ''),
-      safeText(row.accountName ?? ''),
+      row.choice ?? '',
+      row.accountName ?? '',
       formatKind(row.accountKind),
-      safeText(row.suggestedCode ?? ''),
+      row.suggestedCode ?? '',
       row.confidence ?? '',
       formatBoolean(row.acceptedSuggestion),
       row.link,
       row.financeStatus,
-      safeText(row.approvedBy ?? ''),
-      safeText(row.costCenterCode ?? ''),
-      safeText(row.costCenterName ?? ''),
+      row.approvedBy ?? '',
+      row.costCenterCode ?? '',
+      row.costCenterName ?? '',
       row.accountingStatus,
-      safeText(row.validatedBy ?? ''),
+      row.validatedBy ?? '',
+      row.supplierName ?? '',
+      row.invoiceNumber ?? '',
+      row.totalAmountCents === null ? '' : formatInvoiceAmountCsv(row.totalAmountCents),
     ]
       .map(escapeCell)
       .join(';');

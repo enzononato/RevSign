@@ -13,6 +13,7 @@ import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { normalizeEmail } from '../../../revalle/email-domain';
 import { isNewVersionDraftRow } from '../../../revalle/finance/finance-status';
 import { costCenterLabel } from '../../../revalle/invoice/cost-centers';
+import { type InvoiceDataSummary, toInvoiceDataSummary } from '../../../revalle/invoice/invoice-data';
 import { isAdmin as isAdminUser } from '../../../utils/is-admin';
 import { isAccountingMember } from '../accounting/members';
 import { isFinanceMember } from './members';
@@ -75,6 +76,9 @@ const loadEnvelope = async (envelopeId: string) =>
           supersededAt: true,
           supersedeReason: true,
           supersedeKind: true,
+          supplierName: true,
+          invoiceNumber: true,
+          totalAmountCents: true,
         },
       },
     },
@@ -165,6 +169,8 @@ export type InvoiceView = {
     supersedeReason: string | null;
     supersedeKind: RevalleSupersedeKind | null;
   };
+  /** Fase 8: fornecedor, número e valor que a IA leu da NF (podem estar errados); nulo quando os três estão vazios. */
+  invoiceData: InvoiceDataSummary | null;
   viewer: InvoiceViewer;
   /** Página completa do documento para quem tem: o dono (no time) e o admin (no painel). */
   documentPath: string | null;
@@ -240,6 +246,7 @@ export const getInvoiceView = async ({
       supersedeReason: invoice.supersedeReason,
       supersedeKind: invoice.supersedeKind,
     },
+    invoiceData: toInvoiceDataSummary(invoice),
     viewer,
     documentPath,
   };

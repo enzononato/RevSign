@@ -30,6 +30,17 @@ describe('buildInvoicePrompt', () => {
     expect(result).toContain('accountCode');
   });
 
+  it('pede os dados da NF no mesmo JSON e manda responder null em vez de adivinhar', () => {
+    const result = buildInvoicePrompt({ userPrompt: 'x', accounts });
+
+    expect(result).toContain(
+      '"supplierName": "<razão social do emitente, ou null>", "invoiceNumber": "<número da nota, ou null>", "totalAmount": <valor total em reais, número com ponto decimal, ou null>, "accessKey": "<chave de acesso de 44 dígitos, só números, ou null>"',
+    );
+    expect(result).toContain(
+      'Copie esses dados do documento. Se um deles não estiver claro, responda null em vez de adivinhar.',
+    );
+  });
+
   it('gera o bloco fixo mesmo com prompt vazio', () => {
     const result = buildInvoicePrompt({ userPrompt: '   ', accounts });
 

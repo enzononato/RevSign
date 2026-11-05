@@ -75,9 +75,9 @@ const ACCOUNTS_CSV = [
   `${NEW.code};${NEW.name};Conta do aceite da Fase 6;pagar`,
 ].join('\n');
 
-// Textos exatos (spec e global-constraints). Fase 7: as quatro colunas do centro de custo vêm depois de `aprovado_por`.
+// Textos exatos (spec e global-constraints). Fase 7: as quatro colunas do centro de custo vêm depois de `aprovado_por`; Fase 8: `fornecedor;numero_nf;valor` depois delas.
 const HEADER =
-  'id;titulo;remetente;enviado_em;concluido_em;status;conta;nome_conta;tipo;sugestao_ia;confianca;aceitou_sugestao;link;financeiro;aprovado_por;centro_custo;nome_centro_custo;validacao_contabilidade;validado_por';
+  'id;titulo;remetente;enviado_em;concluido_em;status;conta;nome_conta;tipo;sugestao_ia;confianca;aceitou_sugestao;link;financeiro;aprovado_por;centro_custo;nome_centro_custo;validacao_contabilidade;validado_por;fornecedor;numero_nf;valor';
 const AWAITING_SUBJECT_PREFIX = 'Nota fiscal aguardando o Financeiro:';
 const NOTICE_SUBJECT = (title) => `Conta contábil da nota fiscal alterada pelo Financeiro: ${title}`;
 const NOTICE = (title) =>

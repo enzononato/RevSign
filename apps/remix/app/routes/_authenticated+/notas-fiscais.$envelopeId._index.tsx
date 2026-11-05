@@ -2,6 +2,7 @@ import { getSession } from '@documenso/auth/server/lib/utils/get-session';
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
 import { formatRevalleDateTime } from '@documenso/lib/revalle/date-format';
 import { financeStatusLabel, invoiceViewPath } from '@documenso/lib/revalle/finance/finance-status';
+import { formatInvoiceAmount } from '@documenso/lib/revalle/invoice/invoice-data'; // REVALLE: Fase 8
 import { getInvoiceView } from '@documenso/lib/server-only/revalle/finance/invoice-view';
 import { Button } from '@documenso/ui/primitives/button';
 import { Card, CardContent } from '@documenso/ui/primitives/card';
@@ -71,9 +72,42 @@ const RecipientStatus = ({
   return <Trans>Ainda não assinou</Trans>;
 };
 
+/** Fase 8: fornecedor, número e valor que a IA leu da NF. Podem estar errados: a página diz isso e manda conferir no PDF. */
+const InvoiceReadData = ({
+  data,
+}: {
+  data: NonNullable<Route.ComponentProps['loaderData']['view']['invoiceData']>;
+}) => {
+  const { supplierName, invoiceNumber } = data;
+  const amount = data.totalAmountCents === null ? null : formatInvoiceAmount(data.totalAmountCents);
+
+  return (
+    <div className="flex flex-col gap-1" data-testid="invoice-view-data">
+      {supplierName && (
+        <p className="break-words">
+          <Trans>Fornecedor: {supplierName}</Trans>
+        </p>
+      )}
+      {invoiceNumber && (
+        <p className="break-words">
+          <Trans>Número: {invoiceNumber}</Trans>
+        </p>
+      )}
+      {amount && (
+        <p>
+          <Trans>Valor: {amount}</Trans>
+        </p>
+      )}
+      <p className="text-muted-foreground text-xs">
+        <Trans>Lidos pela IA, confira no PDF</Trans>
+      </p>
+    </div>
+  );
+};
+
 export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
   const { view } = loaderData;
-  const { finance } = view;
+  const { finance, invoiceData } = view;
   const revalidator = useRevalidator();
 
   const situation = financeStatusLabel(finance.status, view.status);
@@ -188,6 +222,7 @@ export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
                 <Trans>Concluído em {formatRevalleDateTime(view.completedAt)}</Trans>
               </p>
             )}
+            {invoiceData && <InvoiceReadData data={invoiceData} />}
             {/* REVALLE: "Baixar PDF" (Fase 7): quem vê a nota baixa o arquivo sem depender de e-mail */}
             {view.items.map((item) => (
               <Button

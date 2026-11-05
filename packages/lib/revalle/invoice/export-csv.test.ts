@@ -22,6 +22,9 @@ const baseRow: InvoiceExportRow = {
   costCenterName: 'Puxada',
   accountingStatus: 'Aguardando validação',
   validatedBy: null,
+  supplierName: null,
+  invoiceNumber: null,
+  totalAmountCents: null,
 };
 
 const lines = (csv: string) => csv.split('\r\n');
@@ -32,7 +35,7 @@ describe('buildInvoiceExportCsv', () => {
 
     expect(csv.startsWith('﻿')).toBe(true);
     expect(lines(csv)[0]).toBe(
-      '﻿id;titulo;remetente;enviado_em;concluido_em;status;conta;nome_conta;tipo;sugestao_ia;confianca;aceitou_sugestao;link;financeiro;aprovado_por;centro_custo;nome_centro_custo;validacao_contabilidade;validado_por',
+      '﻿id;titulo;remetente;enviado_em;concluido_em;status;conta;nome_conta;tipo;sugestao_ia;confianca;aceitou_sugestao;link;financeiro;aprovado_por;centro_custo;nome_centro_custo;validacao_contabilidade;validado_por;fornecedor;numero_nf;valor',
     );
   });
 
@@ -56,7 +59,12 @@ describe('buildInvoiceExportCsv', () => {
       'financeiro',
       'aprovado_por',
     ]);
-    expect(header.slice(15)).toEqual(['centro_custo', 'nome_centro_custo', 'validacao_contabilidade', 'validado_por']);
+    expect(header.slice(15, 19)).toEqual([
+      'centro_custo',
+      'nome_centro_custo',
+      'validacao_contabilidade',
+      'validado_por',
+    ]);
   });
 
   it('Fase 7: centro, situação da validação e quem validou (nome congelado, neutralizado como texto livre)', () => {
@@ -67,10 +75,12 @@ describe('buildInvoiceExportCsv', () => {
       { ...baseRow, costCenterCode: null, costCenterName: null, accountingStatus: 'Sem centro de custo' },
     ]);
 
-    expect(lines(validated)[1]?.endsWith(";;101;Puxada;Validado;'=Contabilidade Ana")).toBe(true);
-    expect(lines(withoutCenter)[1]?.endsWith(';Aguardando aprovação;;;;Sem centro de custo;')).toBe(true);
+    expect(lines(validated)[1]?.endsWith(";;101;Puxada;Validado;'=Contabilidade Ana;;;")).toBe(true);
+    expect(lines(withoutCenter)[1]?.endsWith(';Aguardando aprovação;;;;Sem centro de custo;;;;')).toBe(true);
     expect(
-      lines(buildInvoiceExportCsv([baseRow]))[1]?.endsWith(';Aguardando aprovação;;101;Puxada;Aguardando validação;'),
+      lines(buildInvoiceExportCsv([baseRow]))[1]?.endsWith(
+        ';Aguardando aprovação;;101;Puxada;Aguardando validação;;;;',
+      ),
     ).toBe(true);
   });
 
@@ -78,7 +88,7 @@ describe('buildInvoiceExportCsv', () => {
     const csv = buildInvoiceExportCsv([baseRow]);
 
     expect(lines(csv)[1]).toBe(
-      '42;NF 123;Maria;29/10/2026 14:30;;Pendente;2.1.03;Fornecedores;pagar;2.1.03;alta;sim;https://assinaturas.example/documents/42;Aguardando aprovação;;101;Puxada;Aguardando validação;',
+      '42;NF 123;Maria;29/10/2026 14:30;;Pendente;2.1.03;Fornecedores;pagar;2.1.03;alta;sim;https://assinaturas.example/documents/42;Aguardando aprovação;;101;Puxada;Aguardando validação;;;;',
     );
   });
 
@@ -125,7 +135,7 @@ describe('buildInvoiceExportCsv', () => {
     expect(first).toContain(';2.1.03;');
     expect(
       first?.endsWith(
-        ';https://assinaturas.example/documents/42;Aguardando aprovação;;101;Puxada;Aguardando validação;',
+        ';https://assinaturas.example/documents/42;Aguardando aprovação;;101;Puxada;Aguardando validação;;;;',
       ),
     ).toBe(true);
   });
@@ -144,7 +154,92 @@ describe('buildInvoiceExportCsv', () => {
     ]);
 
     expect(lines(csv)[1]).toBe(
-      '42;NF 123;Maria;29/10/2026 14:30;;Pendente;;;;;;;https://assinaturas.example/documents/42;Aguardando aprovação;;101;Puxada;Aguardando validação;',
+      '42;NF 123;Maria;29/10/2026 14:30;;Pendente;;;;;;;https://assinaturas.example/documents/42;Aguardando aprovação;;101;Puxada;Aguardando validação;;;;',
     );
+  });
+
+  it('Fase 8: fornecedor, número da NF e valor vêm depois de validado_por e as anteriores não mudam de posição', () => {
+    const header = lines(buildInvoiceExportCsv([]))[0]?.replace('﻿', '').split(';') ?? [];
+
+    expect(header).toHaveLength(22);
+    expect(header.slice(15, 19)).toEqual([
+      'centro_custo',
+      'nome_centro_custo',
+      'validacao_contabilidade',
+      'validado_por',
+    ]);
+    expect(header.slice(19)).toEqual(['fornecedor', 'numero_nf', 'valor']);
+  });
+
+  it('Fase 8: escreve o fornecedor, o número e o valor lidos da NF, com vírgula nos centavos', () => {
+    const csv = buildInvoiceExportCsv([
+      { ...baseRow, supplierName: 'ACME LTDA', invoiceNumber: '12345', totalAmountCents: 123456 },
+    ]);
+
+    expect(lines(csv)[1]?.endsWith(';Aguardando validação;;ACME LTDA;12345;1234,56')).toBe(true);
+    expect(lines(csv)[1]?.split(';')).toHaveLength(22);
+  });
+
+  it('Fase 8: texto lido do documento com ponto e vírgula fica entre aspas', () => {
+    const csv = buildInvoiceExportCsv([{ ...baseRow, supplierName: 'Comércio; "Bom" Ltda' }]);
+
+    expect(lines(csv)[1]?.endsWith(';"Comércio; ""Bom"" Ltda";;')).toBe(true);
+  });
+
+  it('Fase 8: célula de texto que começa com =, +, - ou @ sai com apóstrofo, em todas as colunas de texto', () => {
+    const formula = '=HYPERLINK("x")';
+    const csv = buildInvoiceExportCsv([
+      {
+        ...baseRow,
+        title: formula,
+        senderName: '+1',
+        status: '-status',
+        choice: '@conta',
+        accountName: formula,
+        suggestedCode: '=1+1',
+        confidence: '@alta',
+        link: '=link',
+        financeStatus: '+fin',
+        approvedBy: '-ana',
+        costCenterCode: '=1',
+        costCenterName: '@c',
+        accountingStatus: '=contab',
+        validatedBy: '+val',
+        supplierName: formula,
+        invoiceNumber: '-123',
+      },
+    ]);
+    const cells = (lines(csv)[1] ?? '').split(';');
+
+    // Os textos com aspas e ponto e vírgula ficam entre aspas, então confere célula por célula pelo conteúdo.
+    expect(csv).toContain(`"'=HYPERLINK(""x"")"`);
+
+    for (const text of [
+      "'+1",
+      "'-status",
+      "'@conta",
+      "'=1+1",
+      "'@alta",
+      "'=link",
+      "'+fin",
+      "'-ana",
+      "'=1",
+      "'@c",
+      "'=contab",
+      "'+val",
+      "'-123",
+    ]) {
+      expect(cells, text).toContain(text);
+    }
+
+    expect(csv.match(/"'=HYPERLINK\(""x""\)"/g)).toHaveLength(3);
+  });
+
+  it('Fase 8: o valor, a data e o id nunca ganham apóstrofo', () => {
+    const csv = buildInvoiceExportCsv([{ ...baseRow, totalAmountCents: 5, invoiceNumber: '000123' }]);
+
+    expect(lines(csv)[1]?.startsWith('42;')).toBe(true);
+    expect(lines(csv)[1]?.endsWith(';;000123;0,05')).toBe(true);
+    expect(lines(csv)[1]).toContain(';29/10/2026 14:30;');
   });
 });

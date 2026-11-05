@@ -1467,6 +1467,11 @@ model RevalleInvoiceClassification {
   suggestionStatus          RevalleSuggestionStatus  @default(SKIPPED)
   suggestion                Json?
   suggestionAttempts        Int                      @default(0)
+  /// Fase 8: o que a IA leu da NF junto com a sugestão (podem estar errados, a tela diz que vieram da IA). Valor em
+  /// centavos; nulos quando a IA não leu, a sugestão falhou ou o arquivo mudou.
+  supplierName              String?
+  invoiceNumber             String?
+  totalAmountCents          Int?
   choiceCode                String?
   choiceById                Int?
   choiceAt                  DateTime?

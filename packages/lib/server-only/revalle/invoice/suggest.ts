@@ -4,10 +4,11 @@ import { Prisma, RevalleInvoiceStatus, RevalleSuggestionStatus } from '@prisma/c
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { jobs } from '../../../jobs/client';
 import { firstPagesPdf } from '../../../revalle/invoice/first-pages-pdf';
+import { NO_INVOICE_DATA_COLUMNS, normalizeInvoiceData } from '../../../revalle/invoice/invoice-data';
 import { buildInvoicePrompt } from '../../../revalle/invoice/prompt';
 import { providerStatusCode } from '../../../revalle/invoice/provider-status';
 import type { InvoiceSuggestion } from '../../../revalle/invoice/suggestion';
-import { validateSuggestion, ZInvoiceSuggestionSchema } from '../../../revalle/invoice/suggestion';
+import { validateSuggestion, ZInvoiceAccountSuggestionSchema } from '../../../revalle/invoice/suggestion';
 import { logger } from '../../../utils/logger';
 import { createRateLimit } from '../../rate-limit/rate-limit';
 import { assertRateLimit } from '../../rate-limit/rate-limit-middleware';
@@ -61,12 +62,28 @@ const activeAccountCodes = async () =>
 const failure = (reason: InvoiceFailureReason): Prisma.InputJsonValue => ({ failure: reason });
 
 /**
+ * Fase 8: as colunas da linha que espelham os dados lidos pela IA, tiradas da sugestão. Todo lugar que grava `DONE`
+ * passa por aqui, para a coluna e o JSON da sugestão nunca discordarem.
+ */
+export const invoiceDataColumns = (suggestion: InvoiceSuggestion) => {
+  const { supplierName, invoiceNumber, totalAmountCents } = normalizeInvoiceData(suggestion);
+
+  return { supplierName, invoiceNumber, totalAmountCents };
+};
+
+/**
  * Sugestão do cache (por SHA-256), só se a conta ainda estiver ativa. Conta desativada = sem cache (nova chamada).
+ * Entrada de antes da Fase 8 não tem a chave `supplierName` (a gravada depois tem, mesmo nula): conta como ausente, e a
+ * próxima sugestão do arquivo chama a IA uma vez.
  */
 const readCachedSuggestion = async (fileSha256: string, activeCodes: Set<string>) => {
   const cached = await prisma.revalleInvoiceSuggestionCache.findUnique({ where: { fileSha256 } });
 
   if (!cached) {
+    return null;
+  }
+
+  if (!cached.suggestion || typeof cached.suggestion !== 'object' || !('supplierName' in cached.suggestion)) {
     return null;
   }
 
@@ -142,7 +159,7 @@ export const startInvoiceSuggestion = async ({
   if (cached) {
     await prisma.revalleInvoiceClassification.updateMany({
       where: guard,
-      data: { suggestionStatus: RevalleSuggestionStatus.DONE, suggestion: cached },
+      data: { suggestionStatus: RevalleSuggestionStatus.DONE, suggestion: cached, ...invoiceDataColumns(cached) },
     });
 
     return;
@@ -165,7 +182,13 @@ export const startInvoiceSuggestion = async ({
 
   const { count } = await prisma.revalleInvoiceClassification.updateMany({
     where: guard,
-    data: { suggestionStatus: RevalleSuggestionStatus.PENDING, suggestion: Prisma.DbNull, suggestionAttempts: attempt },
+    // Os dados lidos pela IA acompanham a sugestão: começa outra, saem os da anterior (a falha não deixa dado velho).
+    data: {
+      suggestionStatus: RevalleSuggestionStatus.PENDING,
+      suggestion: Prisma.DbNull,
+      suggestionAttempts: attempt,
+      ...NO_INVOICE_DATA_COLUMNS,
+    },
   });
 
   if (count === 0) {
@@ -189,6 +212,9 @@ export const startInvoiceSuggestion = async ({
               suggestionStatus: row.suggestionStatus,
               suggestion: storedJson(row.suggestion),
               suggestionAttempts: row.suggestionAttempts,
+              supplierName: row.supplierName,
+              invoiceNumber: row.invoiceNumber,
+              totalAmountCents: row.totalAmountCents,
             }
           : {
               suggestionStatus: RevalleSuggestionStatus.FAILED,
@@ -279,9 +305,10 @@ const interpretRaw = (raw: unknown, activeCodes: Set<string>): SuggestionOutcome
     }
   }
 
+  // A parte da conta é o que decide: um dado da NF com tipo errado não faz a resposta "inválida".
   return {
     status: 'FAILED',
-    reason: ZInvoiceSuggestionSchema.safeParse(candidate).success ? 'UNKNOWN_ACCOUNT' : 'INVALID_RESPONSE',
+    reason: ZInvoiceAccountSuggestionSchema.safeParse(candidate).success ? 'UNKNOWN_ACCOUNT' : 'INVALID_RESPONSE',
   };
 };
 
@@ -321,7 +348,11 @@ export const runInvoiceSuggestion = async ({
 
       const { count } = await prisma.revalleInvoiceClassification.updateMany({
         where: pendingWhere,
-        data: { suggestionStatus: RevalleSuggestionStatus.DONE, suggestion: stored },
+        data: {
+          suggestionStatus: RevalleSuggestionStatus.DONE,
+          suggestion: stored,
+          ...invoiceDataColumns(outcome.suggestion),
+        },
       });
 
       // O resultado vale para o arquivo, mesmo que o documento tenha mudado: guarda no cache.

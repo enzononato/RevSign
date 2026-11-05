@@ -13,6 +13,11 @@ import {
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { isNewVersionDraftRow } from '../../../revalle/finance/finance-status';
 import { REVALLE_COST_CENTERS } from '../../../revalle/invoice/cost-centers';
+import {
+  type InvoiceDataSummary,
+  NO_INVOICE_DATA_COLUMNS,
+  toInvoiceDataSummary,
+} from '../../../revalle/invoice/invoice-data';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { findNewVersionKind, findVisibleSuccessor } from '../finance/successor';
@@ -33,6 +38,11 @@ export type InvoiceState = {
   } | null;
   /** Código curto quando `suggestionStatus` é FAILED (nunca texto da NF nem do provedor). */
   failureReason: InvoiceFailureReason | null;
+  /**
+   * Fase 8: fornecedor, número e valor que a IA leu da NF com a sugestão. Podem estar errados (a tela diz que vieram da
+   * IA) e não entram na assinatura. Nulo quando os três estão vazios.
+   */
+  invoiceData: InvoiceDataSummary | null;
   choice: { code: string; name?: string } | null;
   /** Fase 7: centro de custo escolhido (lista fixa); a conta e o centro são exigidos juntos no primeiro envio. */
   costCenter: { code: string; name: string } | null;
@@ -132,6 +142,7 @@ export const toInvoiceState = async (row: RevalleInvoiceClassification): Promise
         ? // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
           (stored.failure as InvoiceFailureReason)
         : null,
+    invoiceData: toInvoiceDataSummary(row),
     choice,
     costCenter: row.costCenterCode
       ? {
@@ -173,6 +184,8 @@ const expireStalePending = async (row: RevalleInvoiceClassification) => {
  * eram para outro arquivo. Sem a aprovação na linha, ela também não volta numa retomada (`nextClassification`).
  */
 const CLEARED_CHOICE = {
+  // Fase 8: os dados lidos pela IA eram do arquivo anterior.
+  ...NO_INVOICE_DATA_COLUMNS,
   choiceCode: null,
   choiceById: null,
   choiceAt: null,
@@ -197,6 +210,7 @@ const unclassifiedState = (): InvoiceState => ({
   suggestionStatus: 'SKIPPED',
   suggestion: null,
   failureReason: null,
+  invoiceData: null,
   choice: null,
   costCenter: null,
   financeStatus: null,
@@ -395,6 +409,7 @@ export const setInvoiceFlag = async ({
           isInvoice: RevalleInvoiceStatus.NO,
           suggestionStatus: RevalleSuggestionStatus.SKIPPED,
           suggestion: Prisma.DbNull,
+          ...NO_INVOICE_DATA_COLUMNS,
         },
   });
 

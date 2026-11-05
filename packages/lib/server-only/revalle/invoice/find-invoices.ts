@@ -19,6 +19,7 @@ import {
 } from '../../../revalle/finance/finance-status';
 import { costCenterLabel, costCenterName } from '../../../revalle/invoice/cost-centers';
 import { buildInvoiceExportCsv, type InvoiceExportRow } from '../../../revalle/invoice/export-csv';
+import { type InvoiceDataSummary, toInvoiceDataSummary } from '../../../revalle/invoice/invoice-data';
 import {
   INVOICE_DELETED_LABEL,
   INVOICE_LIST_STATUSES,
@@ -51,6 +52,8 @@ export type InvoiceListRow = {
   account: { code: string; name: string | null } | null;
   accountKind: 'PAYABLE' | 'RECEIVABLE' | null;
   suggestion: { code: string; confidence: string } | null;
+  /** Fase 8: fornecedor, número e valor lidos da NF pela IA (podem estar errados); nulo quando os três estão vazios. */
+  invoiceData: InvoiceDataSummary | null;
   acceptedSuggestion: boolean | null;
   /** Fase 6: situação no Financeiro, versão (1, 2…) e quem do Financeiro aprovou (ou definiu) a conta. */
   financeStatus: RevalleFinanceStatus | null;
@@ -271,6 +274,9 @@ const select = {
       acceptedSuggestion: true,
       suggestionStatus: true,
       suggestion: true,
+      supplierName: true,
+      invoiceNumber: true,
+      totalAmountCents: true,
       financeStatus: true,
       approvedById: true,
       version: true,
@@ -368,6 +374,7 @@ const toRows = async (envelopes: SelectedEnvelope[], viewer: ResolvedViewer): Pr
       account: code ? { code, name: account?.name ?? null } : null,
       accountKind: account?.kind ?? null,
       suggestion: readSuggestion(invoice),
+      invoiceData: invoice ? toInvoiceDataSummary(invoice) : null,
       acceptedSuggestion: invoice?.acceptedSuggestion ?? null,
       financeStatus,
       version: invoice?.version ?? 1,
@@ -476,6 +483,9 @@ export const exportInvoicesCsv = async ({
     costCenterName: row.costCenterCode ? costCenterName(row.costCenterCode) : null,
     accountingStatus: accountingStatusLabel(row),
     validatedBy: row.costCenterValidatedBy,
+    supplierName: row.invoiceData?.supplierName ?? null,
+    invoiceNumber: row.invoiceData?.invoiceNumber ?? null,
+    totalAmountCents: row.invoiceData?.totalAmountCents ?? null,
   }));
 
   return { tooMany: false, csv: buildInvoiceExportCsv(rows) };

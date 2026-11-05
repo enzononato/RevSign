@@ -1,6 +1,7 @@
 import { DO_NOT_INVALIDATE_QUERY_ON_MUTATION } from '@documenso/lib/constants/trpc';
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
 import { costCenterLabel } from '@documenso/lib/revalle/invoice/cost-centers';
+import { formatInvoiceDataLine } from '@documenso/lib/revalle/invoice/invoice-data';
 import { isInvoiceReady } from '@documenso/lib/revalle/invoice/invoice-ready';
 import { trpc } from '@documenso/trpc/react';
 import type { TInvoiceState } from '@documenso/trpc/server/revalle-router/invoice/invoice-state.types';
@@ -301,6 +302,8 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
   const choiceName = choice?.name ?? '';
   const hasFailed = state.suggestionStatus === 'FAILED' || (isPending && hasGivenUp);
   const canResuggest = state.aiAvailable && (state.suggestionStatus === 'DONE' || state.suggestionStatus === 'FAILED');
+  // Fase 8: fornecedor, número e valor que a IA leu; só o que existe. Texto puro, como o motivo.
+  const invoiceDataLine = formatInvoiceDataLine(state.invoiceData);
 
   return (
     <section className="mb-4 flex flex-col gap-3 rounded-lg border p-3" data-testid="invoice-account-panel">
@@ -341,6 +344,12 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
             </Button>
           )}
         </div>
+      )}
+
+      {invoiceDataLine && (
+        <p className="break-words text-muted-foreground text-sm" data-testid="invoice-data-line">
+          <Trans>Lido pela IA: {invoiceDataLine}</Trans>
+        </p>
       )}
 
       {hasFailed && (

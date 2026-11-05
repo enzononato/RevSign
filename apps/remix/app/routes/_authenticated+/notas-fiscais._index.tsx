@@ -13,6 +13,7 @@ import {
   type FinanceFilter,
   financeStatusLabel,
 } from '@documenso/lib/revalle/finance/finance-status';
+import { formatInvoiceDataLine } from '@documenso/lib/revalle/invoice/invoice-data'; // REVALLE: Fase 8
 import {
   INVOICE_EXPORT_LIMIT_MESSAGE,
   INVOICE_LIST_STATUSES,
@@ -415,6 +416,10 @@ export default function InvoicesPage() {
 }
 
 const InvoiceTableRow = ({ row }: { row: InvoiceRow }) => {
+  const { t } = useLingui();
+  // Fase 8: o que a IA leu da NF, em texto menor abaixo do título (pode estar errado; o texto de ajuda avisa).
+  const invoiceDataLine = formatInvoiceDataLine(row.invoiceData);
+
   const account = row.account ? (
     <span>
       <span className="font-mono">{row.account.code}</span>
@@ -444,6 +449,15 @@ const InvoiceTableRow = ({ row }: { row: InvoiceRow }) => {
           </Link>
         ) : (
           <span className="break-words">{row.title}</span>
+        )}
+        {invoiceDataLine && (
+          <p
+            className="mt-0.5 break-words font-normal text-muted-foreground text-xs"
+            title={t`Lidos pela IA, confira no PDF`}
+            data-testid="invoice-row-data"
+          >
+            {invoiceDataLine}
+          </p>
         )}
       </TableCell>
       <TableCell className="min-w-[8rem]">{row.senderName}</TableCell>

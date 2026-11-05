@@ -19,6 +19,7 @@ import {
   nextVersionTitle,
 } from '../../../revalle/finance/account-change';
 import { isCostCenterCode } from '../../../revalle/invoice/cost-centers';
+import { NO_INVOICE_DATA_COLUMNS } from '../../../revalle/invoice/invoice-data';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { ApiRequestMetadata } from '../../../universal/extract-request-metadata';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
@@ -380,6 +381,14 @@ const createNewVersion = async ({
     suggestionStatus: isSuggestionPending ? RevalleSuggestionStatus.SKIPPED : row.suggestionStatus,
     suggestion: isSuggestionPending || row.suggestion === null ? Prisma.DbNull : row.suggestion,
     suggestionAttempts: row.suggestionAttempts,
+    // Fase 8: a cópia tem os mesmos arquivos, então leva o que a IA leu da NF (sem sugestão, sem dados).
+    ...(isSuggestionPending
+      ? NO_INVOICE_DATA_COLUMNS
+      : {
+          supplierName: row.supplierName,
+          invoiceNumber: row.invoiceNumber,
+          totalAmountCents: row.totalAmountCents,
+        }),
     ...nextClassification(row, change, user, now, accountName),
     // Fica fora da função pura: depende da sugestão ainda ativa na lista, lida do banco.
     acceptedSuggestion:
