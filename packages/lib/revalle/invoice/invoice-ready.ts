@@ -1,6 +1,9 @@
 export type InvoiceReadyInput = {
   isClassified: boolean;
-  /** A consulta do estado falhou: o envio segue, porque o servidor confere de qualquer forma. */
+  /**
+   * A consulta do estado falhou e não há estado nenhum: o envio segue, porque o servidor confere de qualquer forma. Se o
+   * estado já tinha chegado e foi só o recarregamento que falhou, vale o estado que a pessoa viu (inclusive o aviso de duplicada).
+   */
   isError: boolean;
   /** Nova versão de uma troca de conta com o envio do Financeiro em andamento. */
   isHeld: boolean;
@@ -13,12 +16,20 @@ export type InvoiceReadyInput = {
   requiresCostCenter?: boolean;
   /** `false` na nova versão de uma correção do centro numa NF marcada depois do envio, que ainda não tem conta. */
   requiresChoice?: boolean;
-  state: { isInvoice: 'YES' | 'NO' | 'UNKNOWN'; choice: unknown; costCenter: unknown } | undefined;
+  /**
+   * Fase 8: a pessoa marcou "Sei disso e quero enviar mesmo assim" diante do aviso de nota duplicada. Só pesa quando o
+   * estado traz alguma duplicada; a API não pede isso.
+   */
+  duplicateAcknowledged: boolean;
+  state:
+    | { isInvoice: 'YES' | 'NO' | 'UNKNOWN'; choice: unknown; costCenter: unknown; duplicates: readonly unknown[] }
+    | undefined;
 };
 
 /**
  * O bloco "Nota fiscal" do diálogo de envio libera o botão de enviar? NF só sai com a conta e o centro de custo;
- * escaneado (UNKNOWN) só depois da resposta a "É nota fiscal?"; documento comum sai como sempre.
+ * escaneado (UNKNOWN) só depois da resposta a "É nota fiscal?"; documento comum sai como sempre. Fase 8: NF que parece já
+ * ter sido enviada só sai depois da confirmação da pessoa.
  */
 export const isInvoiceReady = ({
   isClassified,
@@ -27,13 +38,14 @@ export const isInvoiceReady = ({
   hasNoAccounts,
   requiresCostCenter = true,
   requiresChoice = true,
+  duplicateAcknowledged,
   state,
 }: InvoiceReadyInput) => {
   if (!isClassified || isHeld || hasNoAccounts) {
     return false;
   }
 
-  if (isError) {
+  if (isError && !state) {
     return true;
   }
 
@@ -41,8 +53,13 @@ export const isInvoiceReady = ({
     return false;
   }
 
-  return (
-    state.isInvoice !== 'YES' ||
-    ((!requiresChoice || state.choice !== null) && (!requiresCostCenter || state.costCenter !== null))
-  );
+  if (state.isInvoice !== 'YES') {
+    return true;
+  }
+
+  if (state.duplicates.length > 0 && !duplicateAcknowledged) {
+    return false;
+  }
+
+  return (!requiresChoice || state.choice !== null) && (!requiresCostCenter || state.costCenter !== null);
 };

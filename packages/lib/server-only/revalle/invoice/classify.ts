@@ -13,9 +13,17 @@ import {
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { isNewVersionDraftRow } from '../../../revalle/finance/finance-status';
 import { REVALLE_COST_CENTERS } from '../../../revalle/invoice/cost-centers';
+import { extractAccessKeys } from '../../../revalle/invoice/detect-invoice';
+import {
+  type InvoiceDataSummary,
+  NO_INVOICE_DATA_COLUMNS,
+  toInvoiceDataSummary,
+} from '../../../revalle/invoice/invoice-data';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { findNewVersionKind, findVisibleSuccessor } from '../finance/successor';
+import type { InvoiceDuplicate } from './duplicates';
+import { findInvoiceDuplicatesOrEmpty } from './duplicates';
 import { filesKey, loadEnvelopeFiles, readFilesContent } from './envelope-files';
 import { getRevalleInvoiceAiConfig } from './settings';
 import type { InvoiceFailureReason, InvoiceRequester } from './suggest';
@@ -33,6 +41,17 @@ export type InvoiceState = {
   } | null;
   /** Código curto quando `suggestionStatus` é FAILED (nunca texto da NF nem do provedor). */
   failureReason: InvoiceFailureReason | null;
+  /**
+   * Fase 8: fornecedor, número e valor que a IA leu da NF com a sugestão. Podem estar errados (a tela diz que vieram da
+   * IA) e não entram na assinatura. Nulo quando os três estão vazios.
+   */
+  invoiceData: InvoiceDataSummary | null;
+  /**
+   * Fase 8: outras NFs vivas com uma chave em comum ou o mesmo arquivo (a tela avisa "Esta nota parece já ter sido
+   * enviada"). Só data, remetente e situação: quem vê o estado pode não ter acesso à outra nota, então nada de título nem
+   * id. Vazio quando esta NF não está viva (substituída, recusada, cancelada ou excluída) ou não é NF.
+   */
+  duplicates: Pick<InvoiceDuplicate, 'sentAt' | 'senderName' | 'status'>[];
   choice: { code: string; name?: string } | null;
   /** Fase 7: centro de custo escolhido (lista fixa); a conta e o centro são exigidos juntos no primeiro envio. */
   costCenter: { code: string; name: string } | null;
@@ -80,8 +99,14 @@ const isSendReleased = async (row: RevalleInvoiceClassification) => {
   );
 };
 
-/** Monta o estado da tela. Nomes das contas vêm da lista (inclusive inativas: documento antigo mostra número e nome). */
-export const toInvoiceState = async (row: RevalleInvoiceClassification): Promise<InvoiceState> => {
+/** O estado sem o aviso de duplicada: o que quem só precisa da sugestão ou da escolha (aprovação, nova versão) usa. */
+export type InvoiceStateBase = Omit<InvoiceState, 'duplicates'>;
+
+/**
+ * O estado sem a busca de duplicadas. A aprovação do Financeiro e a nova versão só querem a sugestão: não pagam a consulta
+ * e não ganham um ponto de falha. Nomes das contas vêm da lista (inclusive inativas: documento antigo mostra número e nome).
+ */
+export const toInvoiceStateBase = async (row: RevalleInvoiceClassification): Promise<InvoiceStateBase> => {
   const stored = readStored(row.suggestion);
   const hasSuggestion =
     row.suggestionStatus === RevalleSuggestionStatus.DONE &&
@@ -132,6 +157,7 @@ export const toInvoiceState = async (row: RevalleInvoiceClassification): Promise
         ? // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
           (stored.failure as InvoiceFailureReason)
         : null,
+    invoiceData: toInvoiceDataSummary(row),
     choice,
     costCenter: row.costCenterCode
       ? {
@@ -149,6 +175,22 @@ export const toInvoiceState = async (row: RevalleInvoiceClassification): Promise
     aiAvailable: getRevalleInvoiceAiConfig().status === 'CONFIGURED',
   };
 };
+
+/**
+ * Monta o estado da tela, com o aviso de nota duplicada. Se a busca de duplicadas falhar, o estado sai sem o aviso (a falha
+ * é registrada, sem dados): o alerta não pode derrubar a tela nem o que ela faz.
+ */
+export const toInvoiceState = async (row: RevalleInvoiceClassification): Promise<InvoiceState> => ({
+  ...(await toInvoiceStateBase(row)),
+  duplicates:
+    row.isInvoice === RevalleInvoiceStatus.YES
+      ? (await findInvoiceDuplicatesOrEmpty(row)).map(({ sentAt, senderName, status }) => ({
+          sentAt,
+          senderName,
+          status,
+        }))
+      : [],
+});
 
 /** PENDING esquecido (job perdido) vira FAILED/TIMEOUT, para a tela não ficar presa em "Buscando sugestão…". */
 const expireStalePending = async (row: RevalleInvoiceClassification) => {
@@ -173,6 +215,8 @@ const expireStalePending = async (row: RevalleInvoiceClassification) => {
  * eram para outro arquivo. Sem a aprovação na linha, ela também não volta numa retomada (`nextClassification`).
  */
 const CLEARED_CHOICE = {
+  // Fase 8: os dados lidos pela IA eram do arquivo anterior.
+  ...NO_INVOICE_DATA_COLUMNS,
   choiceCode: null,
   choiceById: null,
   choiceAt: null,
@@ -197,6 +241,8 @@ const unclassifiedState = (): InvoiceState => ({
   suggestionStatus: 'SKIPPED',
   suggestion: null,
   failureReason: null,
+  invoiceData: null,
+  duplicates: [],
   choice: null,
   costCenter: null,
   financeStatus: null,
@@ -276,11 +322,24 @@ export const classifyEnvelope = async (
           ? RevalleInvoiceStatus.UNKNOWN
           : RevalleInvoiceStatus.NO;
 
+    // Fase 8: as chaves de acesso do alerta de duplicada vêm do texto dos arquivos da NF (só a chave própria de cada página,
+    // `extractAccessKeys`); sem nenhum arquivo detectado, de todos os que têm texto (se o remetente marcar "É nota fiscal"
+    // depois, as chaves já estão lá). Trocar o arquivo refaz a lista, e a chave que a IA leu da outra versão do arquivo sai
+    // junto.
+    const accessKeys = [
+      ...new Set(
+        (invoiceFiles.length > 0 ? invoiceFiles : contents.filter((content) => !content.isSparse)).flatMap((content) =>
+          extractAccessKeys(content.pages),
+        ),
+      ),
+    ];
+
     const data = {
       isInvoice,
       detectedBy: RevalleInvoiceDetectedBy.TEXT,
       signals: [...new Set(invoiceFiles.flatMap((content) => content.detection.signals))],
       fileSha256: key,
+      accessKeys,
       suggestionStatus: RevalleSuggestionStatus.SKIPPED,
       suggestion: Prisma.DbNull,
       ...CLEARED_CHOICE,
@@ -395,6 +454,7 @@ export const setInvoiceFlag = async ({
           isInvoice: RevalleInvoiceStatus.NO,
           suggestionStatus: RevalleSuggestionStatus.SKIPPED,
           suggestion: Prisma.DbNull,
+          ...NO_INVOICE_DATA_COLUMNS,
         },
   });
 

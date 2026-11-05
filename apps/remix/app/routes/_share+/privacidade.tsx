@@ -10,7 +10,7 @@ export default function PrivacidadePage() {
       <header className="space-y-2">
         <h1 className="font-semibold text-3xl">Política de privacidade</h1>
         <p className="text-muted-foreground text-sm">
-          {REVALLE_TERM_NOTICE} Versão {REVALLE_TERM_VERSION} — 04/11/2026
+          {REVALLE_TERM_NOTICE} Versão {REVALLE_TERM_VERSION} — 05/11/2026
         </p>
       </header>
 
@@ -78,7 +78,7 @@ export default function PrivacidadePage() {
         </p>
         <p>
           As notas fiscais enviadas para assinatura são analisadas por um serviço de inteligência artificial (Google
-          Gemini) apenas para sugerir a conta contábil.
+          Gemini) para sugerir a conta contábil e para ler da nota o fornecedor, o número, o valor e a chave de acesso.
         </p>
         <p className="text-muted-foreground text-sm">
           Vai para essa análise apenas o conteúdo da nota fiscal. No texto da nota, números de CPF são mascarados antes

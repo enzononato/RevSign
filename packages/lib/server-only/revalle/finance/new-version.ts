@@ -19,6 +19,7 @@ import {
   nextVersionTitle,
 } from '../../../revalle/finance/account-change';
 import { isCostCenterCode } from '../../../revalle/invoice/cost-centers';
+import { NO_INVOICE_DATA_COLUMNS } from '../../../revalle/invoice/invoice-data';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { ApiRequestMetadata } from '../../../universal/extract-request-metadata';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
@@ -26,7 +27,7 @@ import { logger } from '../../../utils/logger';
 import { sendDocument } from '../../document/send-document';
 import { duplicateEnvelope } from '../../envelope/duplicate-envelope';
 import { revalleErrorCode } from '../error-code';
-import { toInvoiceState } from '../invoice/classify';
+import { toInvoiceStateBase } from '../invoice/classify';
 import { filesKey, loadEnvelopeFiles } from '../invoice/envelope-files';
 import { isStaleChangeClaim } from './successor';
 
@@ -361,7 +362,7 @@ const createNewVersion = async ({
   const title = nextVersionTitle(envelope.title, version);
   // A chave dos arquivos da cópia, como a classificação calcula: no envio, o rascunho com a mesma chave mantém a conta.
   const fileSha256 = filesKey(await loadEnvelopeFiles(newEnvelopeId));
-  const { suggestion } = await toInvoiceState(row);
+  const { suggestion } = await toInvoiceStateBase(row);
   const fromAccount = row.choiceCode;
   const fromName =
     change.kind === 'ACCOUNT' && fromAccount
@@ -380,6 +381,15 @@ const createNewVersion = async ({
     suggestionStatus: isSuggestionPending ? RevalleSuggestionStatus.SKIPPED : row.suggestionStatus,
     suggestion: isSuggestionPending || row.suggestion === null ? Prisma.DbNull : row.suggestion,
     suggestionAttempts: row.suggestionAttempts,
+    // Fase 8: a cópia tem os mesmos arquivos, então leva as chaves de acesso e o que a IA leu da NF (sem sugestão, sem dados).
+    accessKeys: row.accessKeys,
+    ...(isSuggestionPending
+      ? NO_INVOICE_DATA_COLUMNS
+      : {
+          supplierName: row.supplierName,
+          invoiceNumber: row.invoiceNumber,
+          totalAmountCents: row.totalAmountCents,
+        }),
     ...nextClassification(row, change, user, now, accountName),
     // Fica fora da função pura: depende da sugestão ainda ativa na lista, lida do banco.
     acceptedSuggestion:

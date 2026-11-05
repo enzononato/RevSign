@@ -1,4 +1,4 @@
-# RevSign — notas fiscais, conta contábil e centro de custo (Fases 5 a 7)
+# RevSign — notas fiscais, conta contábil e centro de custo (Fases 5 a 8)
 
 Guia para o Enzo e para a TI. Explica como configurar a sugestão de conta contábil, o que o remetente vê, a página
 **Notas fiscais**, a planilha exportada e o trabalho do **Financeiro** (seção 9).
@@ -104,6 +104,9 @@ o mesmo PDF for enviado de novo, a sugestão vem do cache, sem nova chamada. Por
    conta contábil cadastrada. Fale com o administrador." (mesmo que já houvesse uma conta escolhida) e nenhuma NF pode
    ser enviada.
    Logo abaixo da conta fica o **Centro de custo**: uma lista com os cinco centros, "Selecione o centro de custo".
+   Na mesma chamada, a IA lê da nota o **fornecedor**, o **número** e o **valor total**, e o bloco os mostra abaixo da
+   sugestão: "Lido pela IA: ACME Ltda · Nº 12345 · R$ 1.234,56" (só o que ela conseguiu ler). Veja a seção "Dados da
+   nota lidos pela IA" mais abaixo.
 3. O botão **Enviar** só libera depois das duas escolhas, a conta e o centro de custo. Com as duas, o documento sai e a
    NF fica aguardando a aprovação do Financeiro. Se a conta escolhida saiu da lista antes do envio (ficou inativa), o
    envio é recusado do mesmo jeito e a pessoa escolhe outra. A nova versão criada pelo Financeiro numa troca de conta
@@ -154,6 +157,95 @@ nota fiscal** na página do documento (item 5).
 
 **NFs enviadas antes desta atualização** não têm classificação: não aparecem em **Notas fiscais** nem na planilha. Para
 colocar uma delas no fluxo, use **Marcar como nota fiscal** (item 5).
+
+### Dados da nota lidos pela IA (Fase 8)
+
+Junto com a conta, a IA copia do documento o **fornecedor** (razão social de quem emitiu), o **número da nota**, o
+**valor total** e a **chave de acesso** (44 números). Eles servem para quem trabalha com as notas achar e conferir cada
+uma sem abrir o PDF. **Podem estar errados**: a IA lê o documento como uma pessoa com pressa. Por isso a tela sempre diz
+"Lido pela IA" e, na página da nota, "Lidos pela IA, confira no PDF".
+
+- **Onde aparecem:** no bloco da nota, no diálogo de envio ("Lido pela IA: …"); na lista **Notas fiscais**, numa linha
+  menor abaixo do título (com a legenda "Fornecedor, número e valor: lidos pela IA, confira no PDF." acima da tabela, que
+  só aparece quando alguma nota da página tem esses dados: no celular não há como passar o mouse); na página da nota, no
+  bloco **Informações** (Fornecedor, Número, Valor); e na planilha, nas colunas `fornecedor`, `numero_nf` e `valor`. Quem
+  vê a lista ou a página vê os dados.
+- **Onde não aparecem:** na tela de assinatura, na prova de quem assinou, no certificado do PDF selado e no
+  `/verificar`. Eles não fazem parte do que é assinado.
+- **Ninguém edita** esses dados. Para mudar, o jeito é pedir outra sugestão (**Sugerir de novo**), que lê a nota de novo.
+- **Quando a IA não lê ou lê algo sem sentido,** o campo fica vazio e a sugestão de conta continua valendo. Isso vale
+  para texto no lugar do valor, valor zero ou negativo (ou maior que R$ 21.474.836,47), chave de acesso que não passa na
+  conferência do dígito, a palavra `null`, `N/A` ou `Não informado` escrita no lugar do dado (maiúsculas e minúsculas
+  valem igual) e resposta sem os campos. Sem a IA ligada, ou com a sugestão falhando, os campos ficam vazios e
+  tudo funciona como antes. O fornecedor é cortado em 200 caracteres e o número em 60; quebras de linha viram espaço.
+- **Notas que já tinham sugestão antes da Fase 8** não têm esses dados. A sugestão guardada daquele arquivo deixa de ser
+  reaproveitada, e a próxima vez que ele passar por uma sugestão (um documento novo com o mesmo arquivo, ou **Sugerir de
+  novo**) a IA é chamada uma vez e os dados passam a existir. Nota já enviada não é lida de novo sozinha.
+- A **nova versão** de uma nota (troca de conta pelo Financeiro ou correção do centro pela Contabilidade) leva os
+  mesmos dados. **Trocar o arquivo** do rascunho, ou marcar **Não é nota fiscal**, apaga os dados.
+- A **chave de acesso** lida fica guardada junto da sugestão e entra no alerta de nota duplicada (próxima seção). O
+  **fornecedor** sai com os números de CPF escondidos (`***.***.***-**`): o nome de um MEI costuma terminar no CPF do
+  dono, e uma nota escaneada chega à IA sem máscara.
+
+### Alerta de nota duplicada (Fase 8)
+
+O RevSign avisa quando uma nota **parece já ter sido enviada**, para ninguém pagar a mesma nota duas vezes. O aviso é um
+alerta: **ninguém é impedido**. Quem decide é a pessoa (e, depois do envio, o Financeiro e a Contabilidade).
+
+**Quando uma nota é "possível duplicada".** Quando **outra nota** tem **uma chave de acesso em comum** ou **o mesmo
+arquivo**, e essa outra nota:
+
+- já foi enviada (pendente ou concluída);
+- não foi recusada, cancelada nem excluída;
+- não é uma versão substituída (a troca de conta e a correção do centro criam uma nova versão: a nova nunca acusa a
+  anterior, mas continua acusando uma terceira nota).
+
+A própria nota também precisa estar "viva" para mostrar o alerta: uma nota substituída, recusada, cancelada ou excluída
+não mostra. Rascunho de outra pessoa não conta.
+
+**De onde vêm as chaves.** Só a chave **própria** da nota conta. O RevSign olha cada página dos arquivos detectados como
+nota fiscal e para na **primeira** chave de acesso estruturalmente válida (44 números, com UF, mês, CNPJ e dígito
+verificador certos, de **qualquer** modelo): se ela for dos modelos 55 NF-e, 57 CT-e, 65 NFC-e ou 67 CT-e OS, é guardada, sem
+repetir. Um DANFE ou um DACTE imprime a chave dele no cabeçalho e a repete em cada página; as que vêm depois são de notas
+citadas. Parar em qualquer modelo evita que um DAMDFE (modelo 58) adote a chave que cita, e a **página de NFS-e sem DANFE
+não fornece chave** (a NFS-e não tem chave de 44 números, então a que aparece nela é de uma nota citada). A chave que a IA
+leu só é somada quando o **texto dos arquivos não trouxe nenhuma chave** (em geral o PDF escaneado): num PDF com texto e
+com a chave própria, uma citação devolvida pela IA não entra. A IA é instruída a copiar a chave **desta nota**, não as de notas citadas. Só a nota nova (ou
+que teve o arquivo trocado) guarda chaves, e trocar o arquivo refaz a lista; **as notas que já existiam são achadas pelo
+mesmo arquivo**, não pela chave. Uma nova versão leva as chaves da anterior.
+
+**O que o alerta não pega.**
+- Uma NFS-e (nota de serviço) com **arquivo diferente** não é achada: ela não tem chave de 44 números, e o número lido
+  pela IA não é confiável o bastante para acusar.
+- Uma nota **sem chave** (por exemplo, uma NFS-e) reenviada **com um anexo a mais** não é achada: o arquivo comparado é o
+  **conjunto** de arquivos do documento, e um anexo a mais muda o conjunto.
+- Uma nota que **cita** a chave de outra (uma devolução que traz a chave da nota original, um CT-e que lista as NF-e
+  transportadas) normalmente **não acusa a original, nem é acusada por ela**: a chave citada não entra. O limite está nos
+  layouts fora do comum: um que imprime uma chave citada **antes** da própria pode tanto **não achar** uma duplicada quanto
+  **acusar por engano**, e uma página de continuação **sem chave própria** pode trazer a citada. (O mesmo arquivo ainda
+  acusa.)
+- Quando o texto não trouxe chave nenhuma (um escaneado, ou uma NFS-e com texto) e a IA devolve a chave de uma nota
+  **citada** em vez de deixar vazio, ela entra e pode acusar por engano. O prompt pede só a chave desta nota, mas a IA pode
+  errar.
+
+**Onde aparece, e para quem.**
+
+| Onde | Quem vê | O que mostra |
+|---|---|---|
+| Diálogo de envio, no bloco da nota | Quem está enviando | Alerta âmbar "Esta nota parece já ter sido enviada", uma linha por nota ("Enviada em 05/11/2026 10:00 por Maria · Pendente"; até 5, da mais antiga para a mais nova) e a caixa **Sei disso e quero enviar mesmo assim**. O botão **Enviar** só libera depois de marcar. **Sem título e sem link**, porque a pessoa pode não ter acesso à outra nota. |
+| Cartão "Conta contábil" do documento já enviado | O dono e o admin | O mesmo aviso, sem a caixa e sem link |
+| Lista **Notas fiscais** | Só Financeiro, Contabilidade e admin | O selo **Possível duplicada** abaixo do título. O colaborador comum não recebe a marca (a consulta nem roda para ele) |
+| Página da nota | Financeiro, Contabilidade e admin | O alerta com o **título**, a data, o remetente, a situação e o **link** de cada outra nota. O dono vê o alerta **sem título e sem link**. Quem só assina não vê |
+| Planilha | Quem exporta | Colunas `chave_acesso` e `possivel_duplicada` (`sim` ou vazio; o `sim` só para Financeiro, Contabilidade e admin) |
+
+- Se a chave da IA chegar **com o diálogo de envio aberto** (nota escaneada), o alerta aparece na hora e o botão
+  **Enviar** volta a ficar travado até a confirmação.
+- No **editor antigo** (documento criado pela API v1 ou por modelo antigo) o alerta aparece, mas **sem a caixa de
+  confirmação**: o botão de enviar daquele editor não espera pelo bloco, então a caixa não destravaria nada.
+- O alerta **some** quando a outra nota é recusada, cancelada, excluída ou substituída.
+- **Pela API o envio não é bloqueado**: a confirmação existe só na tela. Aprovar e validar continuam possíveis; o
+  Financeiro e a Contabilidade decidem olhando o alerta.
+- Os dados do alerta (chaves, nomes e datas) **não vão para o log**.
 
 ## 5. Página "Notas fiscais" e planilha
 
@@ -236,9 +328,15 @@ O arquivo abre direto no Excel (separador `;`, UTF-8 com BOM). Colunas:
 | `nome_centro_custo` | Nome do centro de custo (Puxada, Armazém…); vazio quando a NF ainda não tem centro |
 | `validacao_contabilidade` | `Aguardando validação`, `Validado`, `Sem centro de custo` ou `Sem validação` (nota recusada, cancelada, substituída ou excluída que ninguém validou), como na tela |
 | `validado_por` | Quem da Contabilidade validou o centro (o nome na hora da validação); vazio sem validação |
+| `fornecedor` | Fornecedor lido da nota pela IA (pode estar errado); vazio quando a IA não leu |
+| `numero_nf` | Número da nota lido pela IA; vazio quando a IA não leu |
+| `valor` | Valor total lido pela IA, com vírgula nos centavos e sem símbolo nem ponto (`1234,56`); vazio quando a IA não leu |
+| `chave_acesso` | Chaves de acesso guardadas da nota (a própria de cada página do arquivo e, no escaneado, a que a IA leu), escritas **como no DANFE, em grupos de 4 números separados por espaço** (`2924 1012 …`): 44 números seguidos o Excel lê como número (`2,92E+43`) e perde o final. Várias chaves ficam separadas por ` / `; vazio quando não há |
+| `possivel_duplicada` | `sim` quando outra nota viva tem uma chave em comum ou o mesmo arquivo; vazio nos demais. Só vem preenchida na planilha do Financeiro, da Contabilidade e do admin |
 
-As colunas `financeiro` e `aprovado_por` (Fase 6) e as quatro do centro de custo (Fase 7) ficam **no fim**, nesta ordem:
-as planilhas que já leem as colunas anteriores continuam funcionando.
+As colunas `financeiro` e `aprovado_por` (Fase 6), as quatro do centro de custo (Fase 7), as três lidas pela IA e, por
+último, `chave_acesso` e `possivel_duplicada` (Fase 8) ficam **no fim**, nesta ordem: as planilhas que já leem as colunas
+anteriores continuam funcionando.
 
 **Para a contabilidade: não lance as linhas com `financeiro` = `Substituída`.** Elas são versões que o Financeiro
 substituiu ao trocar a conta ou que a Contabilidade substituiu ao corrigir o centro de custo (a mesma nota aparece de
@@ -251,7 +349,8 @@ de novo). A contabilidade não lança a versão recusada nem a substituída: só
 
 Limite: **10.000 linhas** por planilha. Acima disso, a tela avisa "Filtre por período para exportar menos de 10.000
 notas." e a planilha não é gerada. Textos que começam com `=`, `+`, `-` ou `@` ganham um `'` na frente, para o Excel não
-tratar como fórmula.
+tratar como fórmula. Isso vale para **todas** as colunas de texto (título, remetente, fornecedor, número da nota…), porque
+agora há texto lido de um documento qualquer na planilha.
 
 ## 6. Limites
 
@@ -259,23 +358,30 @@ tratar como fórmula.
   arquivos que são NF vão; um contrato junto fica de fora.
 - Até 20.000 caracteres de texto por arquivo; PDF escaneado vai cortado nas 5 primeiras páginas (como imagem).
 - A IA tem 20 segundos para responder. Se demorar, errar o formato ou sugerir uma conta que não existe (ou está
-  inativa), fica "sem sugestão" e o remetente escolhe na lista. Nada trava.
+  inativa), fica "sem sugestão" e o remetente escolhe na lista. Nada trava. Um dado da nota (fornecedor, número, valor
+  ou chave) em formato errado só fica vazio: não custa a sugestão da conta.
 - 60 sugestões por usuário por hora, e no máximo 6 chamadas à IA por documento (a automática + 5 "Sugerir de novo" ou
   "Sim"/"Não").
 
 ## 7. Privacidade
 
-- A política de privacidade (`/privacidade`) diz: "As notas fiscais enviadas para assinatura são analisadas por um
-  serviço de inteligência artificial (Google Gemini) apenas para sugerir a conta contábil."
+- A política de privacidade (`/privacidade`, versão 1, de 05/11/2026) diz: "As notas fiscais enviadas para assinatura
+  são analisadas por um serviço de inteligência artificial (Google Gemini) para sugerir a conta contábil e para ler da
+  nota o fornecedor, o número, o valor e a chave de acesso."
 - E também: "No texto da nota, números de CPF são mascarados antes do envio; uma nota digitalizada (imagem) é enviada
   como está. Nunca enviamos a data de nascimento nem os dados da verificação de quem assina."
 - Na prática: no texto, `123.456.789-09`, `123456789-09` e 11 dígitos logo depois de "CPF", "CPF nº" ou "CPF/CNPJ"
   viram `***.***.***-**`; CNPJ (14 dígitos) e a chave de acesso (44) ficam. Uma NF escaneada (foto ou digitalização)
   vai como imagem, e o CPF que estiver nela vai junto: não há texto para mascarar.
 - O log do servidor registra só o modelo, os tokens, a duração, o resultado e, quando o Google recusa, o código HTTP
-  (ex.: 429 = cota, 403 = chave, 404 = modelo retirado); nunca o texto da NF nem a resposta do Google.
+  (ex.: 429 = cota, 403 = chave, 404 = modelo retirado); nunca o texto da NF nem a resposta do Google. Os dados lidos da
+  nota (fornecedor, número, valor, chave) também não vão para o log.
+- A frase de antes ("…apenas para sugerir a conta contábil") ficou curta quando a IA passou a ler também o fornecedor, o
+  número, o valor e a chave. O texto foi corrigido e a data do cabeçalho passou para 05/11/2026; a **versão do termo
+  continua a mesma** (`1`): quem já aceitou não precisa aceitar de novo. O jurídico ainda precisa validar a página.
 - **Cache das sugestões:** a tabela `RevalleInvoiceSuggestionCache` guarda, por SHA-256 do arquivo, a conta sugerida,
-  a confiança, o modelo e o motivo escrito pela IA (que pode citar o nome do fornecedor ou do tomador). Não tem prazo
+  a confiança, o modelo, o motivo escrito pela IA (que pode citar o nome do fornecedor ou do tomador) e, desde a Fase 8,
+  o fornecedor (com o CPF escondido), o número, o valor e a chave de acesso lidos da nota. Não tem prazo
   e não é apagada quando o documento é excluído. Para limpar (as NFs seguintes voltam a chamar a IA):
   `delete from "RevalleInvoiceSuggestionCache";` no banco.
 - A chave fica só no servidor (EasyPanel).

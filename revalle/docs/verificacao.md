@@ -52,6 +52,8 @@ Se o e-mail da pessoa já constar na base de colaboradores (coluna `email` da vi
 
 A página pública `/privacidade` diz o mesmo: o CPF aparece só mascarado na auditoria e no certificado, e o vínculo e-mail ↔ CPF fica no banco. Ela também diz que, ao criar a conta, a pessoa informa CPF e data de nascimento para confirmar que é colaborador, que o CPF fica guardado para ligar o e-mail a ele e que a data de nascimento não é gravada.
 
+Desde a Fase 8, a página também diz que a inteligência artificial (Google Gemini) lê da nota fiscal o fornecedor, o número, o valor e a chave de acesso, além de sugerir a conta contábil. Esses dados, e o aviso de nota duplicada, **não fazem parte do que é assinado**: não aparecem na tela de assinatura, na prova, no certificado nem no `/verificar`.
+
 ## Cadastro: só colaborador cria conta
 
 Quem clica em **Criar conta** informa o e-mail da empresa (como antes) e também o **CPF** e a **data de nascimento**. O RevSign confere os dois na base de colaboradores antes de criar a conta.

@@ -19,6 +19,7 @@ import {
 } from '../../../revalle/finance/finance-status';
 import { costCenterLabel, costCenterName } from '../../../revalle/invoice/cost-centers';
 import { buildInvoiceExportCsv, type InvoiceExportRow } from '../../../revalle/invoice/export-csv';
+import { type InvoiceDataSummary, toInvoiceDataSummary } from '../../../revalle/invoice/invoice-data';
 import {
   INVOICE_DELETED_LABEL,
   INVOICE_LIST_STATUSES,
@@ -31,6 +32,7 @@ import {
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import { isAccountingMember } from '../accounting/members';
 import { isFinanceMember } from '../finance/members';
+import { findDuplicateEnvelopeIdsOrEmpty, sentAtOf } from './duplicates';
 
 export type InvoiceViewer = { userId: number; isAdmin: boolean };
 
@@ -51,6 +53,13 @@ export type InvoiceListRow = {
   account: { code: string; name: string | null } | null;
   accountKind: 'PAYABLE' | 'RECEIVABLE' | null;
   suggestion: { code: string; confidence: string } | null;
+  /** Fase 8: fornecedor, número e valor lidos da NF pela IA (podem estar errados); nulo quando os três estão vazios. */
+  invoiceData: InvoiceDataSummary | null;
+  /**
+   * Fase 8: outra NF viva tem uma chave em comum ou o mesmo arquivo. Só é calculado para o Financeiro, a Contabilidade e
+   * o admin; para os demais é sempre `false` (a consulta nem roda).
+   */
+  isPossibleDuplicate: boolean;
   acceptedSuggestion: boolean | null;
   /** Fase 6: situação no Financeiro, versão (1, 2…) e quem do Financeiro aprovou (ou definiu) a conta. */
   financeStatus: RevalleFinanceStatus | null;
@@ -271,6 +280,11 @@ const select = {
       acceptedSuggestion: true,
       suggestionStatus: true,
       suggestion: true,
+      supplierName: true,
+      invoiceNumber: true,
+      totalAmountCents: true,
+      accessKeys: true,
+      fileSha256: true,
       financeStatus: true,
       approvedById: true,
       version: true,
@@ -296,7 +310,10 @@ const readSuggestion = (invoice: SelectedEnvelope['revalleInvoice']) => {
   return typeof accountCode === 'string' && typeof confidence === 'string' ? { code: accountCode, confidence } : null;
 };
 
-const toRows = async (envelopes: SelectedEnvelope[], viewer: ResolvedViewer): Promise<InvoiceListRow[]> => {
+/** A linha da lista com as chaves de acesso, que só a planilha usa (a lista não as mostra). */
+type InvoiceRowWithKeys = InvoiceListRow & { accessKeys: string[] };
+
+const toRows = async (envelopes: SelectedEnvelope[], viewer: ResolvedViewer): Promise<InvoiceRowWithKeys[]> => {
   const codes = [
     ...new Set(envelopes.flatMap((e) => (e.revalleInvoice?.choiceCode ? [e.revalleInvoice.choiceCode] : []))),
   ];
@@ -334,6 +351,24 @@ const toRows = async (envelopes: SelectedEnvelope[], viewer: ResolvedViewer): Pr
       : [],
   );
 
+  // Fase 8: a marca "Possível duplicada" é de quem decide sobre a nota; para os outros nem se consulta.
+  const duplicateIds =
+    viewer.isFinance || viewer.isAccounting || viewer.isAdmin
+      ? await findDuplicateEnvelopeIdsOrEmpty(
+          envelopes.flatMap((envelope) =>
+            envelope.revalleInvoice
+              ? [
+                  {
+                    envelopeId: envelope.id,
+                    accessKeys: envelope.revalleInvoice.accessKeys,
+                    fileSha256: envelope.revalleInvoice.fileSha256,
+                  },
+                ]
+              : [],
+          ),
+        )
+      : new Set<string>();
+
   return envelopes.map((envelope) => {
     const invoice = envelope.revalleInvoice;
     const code = invoice?.choiceCode ?? null;
@@ -368,6 +403,9 @@ const toRows = async (envelopes: SelectedEnvelope[], viewer: ResolvedViewer): Pr
       account: code ? { code, name: account?.name ?? null } : null,
       accountKind: account?.kind ?? null,
       suggestion: readSuggestion(invoice),
+      invoiceData: invoice ? toInvoiceDataSummary(invoice) : null,
+      isPossibleDuplicate: duplicateIds.has(envelope.id),
+      accessKeys: invoice?.accessKeys ?? [],
       acceptedSuggestion: invoice?.acceptedSuggestion ?? null,
       financeStatus,
       version: invoice?.version ?? 1,
@@ -383,9 +421,6 @@ const toRows = async (envelopes: SelectedEnvelope[], viewer: ResolvedViewer): Pr
     };
   });
 };
-
-const sentAtOf = (envelope: { createdAt: Date; auditLogs: { createdAt: Date }[] }) =>
-  envelope.auditLogs[0]?.createdAt ?? envelope.createdAt;
 
 /**
  * Ids na ordem da coluna "Enviado em" (mais recente primeiro; empate pelo id). O Prisma não ordena pelo primeiro evento
@@ -421,6 +456,9 @@ const findRowsInOrder = async (ids: string[], viewer: ResolvedViewer) => {
   return await toRows(envelopes, viewer);
 };
 
+/** A lista não leva as chaves de acesso. */
+const withoutKeys = ({ accessKeys: _accessKeys, ...row }: InvoiceRowWithKeys): InvoiceListRow => row;
+
 const resolveViewer = async ({ userId, isAdmin }: InvoiceViewer): Promise<ResolvedViewer> => {
   const [isFinance, isAccounting] = await Promise.all([isFinanceMember(userId), isAccountingMember(userId)]);
 
@@ -433,7 +471,7 @@ export const findInvoices = async ({ userId, isAdmin, filters, page = 1, perPage
   const count = ids.length;
 
   return {
-    data: await findRowsInOrder(ids.slice((page - 1) * perPage, page * perPage), viewer),
+    data: (await findRowsInOrder(ids.slice((page - 1) * perPage, page * perPage), viewer)).map(withoutKeys),
     count,
     currentPage: page,
     perPage,
@@ -476,6 +514,11 @@ export const exportInvoicesCsv = async ({
     costCenterName: row.costCenterCode ? costCenterName(row.costCenterCode) : null,
     accountingStatus: accountingStatusLabel(row),
     validatedBy: row.costCenterValidatedBy,
+    supplierName: row.invoiceData?.supplierName ?? null,
+    invoiceNumber: row.invoiceData?.invoiceNumber ?? null,
+    totalAmountCents: row.invoiceData?.totalAmountCents ?? null,
+    accessKeys: row.accessKeys,
+    isPossibleDuplicate: row.isPossibleDuplicate,
   }));
 
   return { tooMany: false, csv: buildInvoiceExportCsv(rows) };

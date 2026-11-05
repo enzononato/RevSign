@@ -33,6 +33,27 @@ const assertNoHorizontalScroll = async (page, label) => {
   report(scrollWidth <= width, `${label}: sem rolagem horizontal (${scrollWidth} de ${width} px)`);
 };
 
+// O estado da NF segundo o servidor (`revalle.invoice.get`, com a sessão do contexto), quando a sugestão deixa de estar em
+// andamento: só então a lista de duplicadas é a final.
+const settledState = async (context, page, envelopeId) => {
+  const url = `${baseUrl}/api/trpc/revalle.invoice.get?input=${encodeURIComponent(JSON.stringify({ json: { envelopeId } }))}`;
+  const deadline = performance.now() + 40_000;
+
+  for (;;) {
+    const state = (await (await context.request.get(url)).json())?.result?.data?.json;
+
+    if (state && state.suggestionStatus !== 'PENDING') {
+      return state;
+    }
+
+    if (performance.now() > deadline) {
+      throw new Error('a sugestão não assentou em 40 s');
+    }
+
+    await page.waitForTimeout(500);
+  }
+};
+
 const waitSubmit = async (submit, isEnabled) => {
   await submit.page().waitForLoadState('networkidle');
 
@@ -109,6 +130,24 @@ for (const viewport of VIEWPORTS) {
       report(await waitSubmit(submit, false), `${width} px: só com a conta, Enviar continua desabilitado`);
       await shot(page, `${width}-02-envio-so-conta`);
       await chooseCenter(page, panel);
+    }
+
+    // Fase 8: a nota fictícia repete notas enviadas por execuções anteriores, então o alerta de nota duplicada aparece e o
+    // Enviar espera pela confirmação, como para a pessoa. Quem decide se o alerta tem de existir é o estado do servidor, lido
+    // depois que a sugestão assentou (a chave da IA chega junto com ela); a tela é que espera por ele, sem um `isVisible()`
+    // num instante qualquer.
+    const settled = await settledState(context, page, drafts[width]);
+    const acknowledge = dialog.getByTestId('invoice-duplicate-ack');
+
+    if (settled.duplicates.length > 0) {
+      await acknowledge.waitFor();
+      report(
+        await waitSubmit(submit, false),
+        `${width} px: com a conta e o centro, o alerta de nota duplicada ainda segura o Enviar`,
+      );
+      await acknowledge.click();
+    } else {
+      report((await acknowledge.count()) === 0, `${width} px: sem duplicada no servidor, a tela não mostra o alerta`);
     }
 
     report(!(await waitSubmit(submit, true)), `${width} px: com a conta e o centro, Enviar habilita`);

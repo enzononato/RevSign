@@ -2,13 +2,14 @@ import { getSession } from '@documenso/auth/server/lib/utils/get-session';
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
 import { formatRevalleDateTime } from '@documenso/lib/revalle/date-format';
 import { financeStatusLabel, invoiceViewPath } from '@documenso/lib/revalle/finance/finance-status';
+import { formatInvoiceAmount } from '@documenso/lib/revalle/invoice/invoice-data'; // REVALLE: Fase 8
 import { getInvoiceView } from '@documenso/lib/server-only/revalle/finance/invoice-view';
 import { Button } from '@documenso/ui/primitives/button';
 import { Card, CardContent } from '@documenso/ui/primitives/card';
 import { msg } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { RecipientRole, SigningStatus } from '@prisma/client';
-import { ChevronLeft, DownloadIcon, ExternalLinkIcon } from 'lucide-react'; // REVALLE: DownloadIcon
+import { ChevronLeft, DownloadIcon, ExternalLinkIcon, TriangleAlertIcon } from 'lucide-react'; // REVALLE: DownloadIcon, Fase 8
 import { isRouteErrorResponse, Link, useRevalidator } from 'react-router';
 
 import { DocumentStatus } from '~/components/general/document/document-status';
@@ -16,6 +17,7 @@ import { GenericErrorLayout } from '~/components/general/generic-error-layout';
 import PDFViewerLazy from '~/components/general/pdf-viewer/pdf-viewer-lazy';
 import { AccountingCard } from '~/components/revalle/accounting/accounting-card';
 import { FinanceCard } from '~/components/revalle/finance/finance-card';
+import { InvoiceDuplicateSentence } from '~/components/revalle/invoice/invoice-duplicate-notice'; // REVALLE: Fase 8
 import { appMetaTags } from '~/utils/meta';
 
 import type { Route } from './+types/notas-fiscais.$envelopeId._index';
@@ -71,9 +73,89 @@ const RecipientStatus = ({
   return <Trans>Ainda não assinou</Trans>;
 };
 
+/** Fase 8: fornecedor, número e valor que a IA leu da NF. Podem estar errados: a página diz isso e manda conferir no PDF. */
+const InvoiceReadData = ({
+  data,
+}: {
+  data: NonNullable<Route.ComponentProps['loaderData']['view']['invoiceData']>;
+}) => {
+  const { supplierName, invoiceNumber } = data;
+  const amount = data.totalAmountCents === null ? null : formatInvoiceAmount(data.totalAmountCents);
+
+  return (
+    <div className="flex flex-col gap-1" data-testid="invoice-view-data">
+      {supplierName && (
+        <p className="break-words">
+          <Trans>Fornecedor: {supplierName}</Trans>
+        </p>
+      )}
+      {invoiceNumber && (
+        <p className="break-words">
+          <Trans>Número: {invoiceNumber}</Trans>
+        </p>
+      )}
+      {amount && (
+        <p>
+          <Trans>Valor: {amount}</Trans>
+        </p>
+      )}
+      <p className="text-muted-foreground text-xs">
+        <Trans>Lidos pela IA, confira no PDF</Trans>
+      </p>
+    </div>
+  );
+};
+
+/**
+ * Fase 8: "Esta nota parece já ter sido enviada". O Financeiro, a Contabilidade e o admin veem o título (com o link para a
+ * outra nota), a data, o remetente e a situação; o dono vê só data, remetente e situação (`id` e `title` vêm nulos).
+ */
+const InvoiceDuplicates = ({
+  duplicates,
+}: {
+  duplicates: Route.ComponentProps['loaderData']['view']['duplicates'];
+}) => (
+  <section
+    className="flex flex-col gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm"
+    data-testid="invoice-view-duplicates"
+  >
+    <h2 className="flex items-start gap-2 font-medium">
+      <TriangleAlertIcon className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" />
+      <Trans>Esta nota parece já ter sido enviada</Trans>
+    </h2>
+    <p className="text-muted-foreground">
+      <Trans>Tem a mesma chave de acesso ou o mesmo arquivo de outra nota enviada. Confira antes de decidir.</Trans>
+    </p>
+    <ul className="flex flex-col gap-2">
+      {duplicates.map((duplicate, index) => {
+        return (
+          <li
+            key={duplicate.id ?? `${duplicate.sentAt?.toISOString() ?? 'sem-data'}-${index}`}
+            className="min-w-0"
+            data-testid="invoice-view-duplicate"
+          >
+            {duplicate.id && duplicate.title && (
+              <Link
+                to={invoiceViewPath(duplicate.id)}
+                className="flex min-h-11 items-center break-words font-medium text-documenso-700 hover:underline"
+                data-testid="invoice-view-duplicate-link"
+              >
+                {duplicate.title}
+              </Link>
+            )}
+            <p className="break-words">
+              <InvoiceDuplicateSentence duplicate={duplicate} />
+            </p>
+          </li>
+        );
+      })}
+    </ul>
+  </section>
+);
+
 export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
   const { view } = loaderData;
-  const { finance } = view;
+  const { finance, invoiceData } = view;
   const revalidator = useRevalidator();
 
   const situation = financeStatusLabel(finance.status, view.status);
@@ -120,6 +202,8 @@ export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
               )}
             </section>
           )}
+
+          {view.duplicates.length > 0 && <InvoiceDuplicates duplicates={view.duplicates} />}
 
           {(finance.previous || finance.next) && (
             <section className="flex flex-col gap-1 rounded-xl border border-border bg-widget p-4 text-sm dark:bg-background">
@@ -188,6 +272,7 @@ export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
                 <Trans>Concluído em {formatRevalleDateTime(view.completedAt)}</Trans>
               </p>
             )}
+            {invoiceData && <InvoiceReadData data={invoiceData} />}
             {/* REVALLE: "Baixar PDF" (Fase 7): quem vê a nota baixa o arquivo sem depender de e-mail */}
             {view.items.map((item) => (
               <Button

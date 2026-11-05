@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { detectInvoice, isValidChaveAcesso } from './detect-invoice';
+import { detectInvoice, extractAccessKeys, isValidChaveAcesso, isValidChaveDocumento } from './detect-invoice';
 
 const checkDigitOf = (first43: string): number => {
   let total = 0;
@@ -63,6 +63,119 @@ describe('isValidChaveAcesso', () => {
   it('recusa tamanho errado e caracteres que não são dígitos', () => {
     expect(isValidChaveAcesso(VALID_KEY.slice(1))).toBe(false);
     expect(isValidChaveAcesso(`${VALID_KEY.slice(0, 43)}x`)).toBe(false);
+  });
+});
+
+// Troca o modelo (posições 20 e 21) e recalcula o dígito verificador.
+const withModel = (model: string) => withCheckDigit(`${VALID_KEY.slice(0, 20)}${model}${VALID_KEY.slice(22, 43)}`);
+
+describe('isValidChaveDocumento', () => {
+  it('aceita uma chave certa de cada modelo: 55, 57, 65 e 67', () => {
+    for (const model of ['55', '57', '65', '67']) {
+      const key = withModel(model);
+
+      expect(key).toHaveLength(44);
+      expect(key.slice(20, 22)).toBe(model);
+      expect(isValidChaveDocumento(key), `modelo ${model}`).toBe(true);
+    }
+  });
+
+  it('recusa o modelo 01 e qualquer outro fora dos quatro, mesmo com o dígito verificador certo', () => {
+    for (const model of ['01', '02', '58', '59', '66', '99']) {
+      expect(isValidChaveDocumento(withModel(model)), `modelo ${model}`).toBe(false);
+    }
+  });
+
+  it('recusa UF fora da lista, mês 13, CNPJ errado e dígito verificador errado', () => {
+    expect(isValidChaveDocumento(withCheckDigit(`99${VALID_KEY.slice(2, 43)}`))).toBe(false);
+    expect(isValidChaveDocumento(withCheckDigit(`${VALID_KEY.slice(0, 4)}13${VALID_KEY.slice(6, 43)}`))).toBe(false);
+    expect(
+      isValidChaveDocumento(withCheckDigit(`${VALID_KEY.slice(0, 6)}12345678000196${VALID_KEY.slice(20, 43)}`)),
+    ).toBe(false);
+    expect(isValidChaveDocumento(WRONG_KEY)).toBe(false);
+    expect(isValidChaveDocumento(VALID_KEY.slice(1))).toBe(false);
+    expect(isValidChaveDocumento(`${VALID_KEY.slice(0, 43)}x`)).toBe(false);
+  });
+
+  it('a detecção não muda: isValidChaveAcesso continua só com 55 e 65', () => {
+    expect(isValidChaveAcesso(withModel('55'))).toBe(true);
+    expect(isValidChaveAcesso(withModel('65'))).toBe(true);
+    expect(isValidChaveAcesso(withModel('57'))).toBe(false);
+    expect(isValidChaveAcesso(withModel('67'))).toBe(false);
+    expect(detectInvoice([`${filler}\nChave de acesso ${withModel('57')}`]).signals).not.toContain('CHAVE_ACESSO');
+  });
+});
+
+describe('extractAccessKeys', () => {
+  it('acha a chave escrita sem espaços e em grupos de 4 dígitos', () => {
+    expect(extractAccessKeys([`${filler} ${VALID_KEY}`])).toEqual([VALID_KEY]);
+    expect(extractAccessKeys([`Chave de acesso\n${spaced(VALID_KEY)}\nOutro texto`])).toEqual([VALID_KEY]);
+  });
+
+  it('não repete a chave que aparece duas vezes, nem a que aparece em páginas diferentes', () => {
+    expect(extractAccessKeys([`${VALID_KEY} e ${spaced(VALID_KEY)}`, `de novo ${VALID_KEY}`])).toEqual([VALID_KEY]);
+  });
+
+  it('em cada página fica só a primeira chave válida: a própria nota vem antes das citadas', () => {
+    const cited = withCheckDigit(`3524${VALID_KEY.slice(4, 43)}`);
+
+    expect(cited).not.toBe(VALID_KEY);
+    expect(isValidChaveDocumento(cited)).toBe(true);
+    // Uma devolução traz a chave dela no cabeçalho e, depois, a da nota original.
+    expect(
+      extractAccessKeys([
+        `Chave de Acesso ${spaced(VALID_KEY)}\nInformações complementares: NF-e referenciada ${cited}`,
+      ]),
+    ).toEqual([VALID_KEY]);
+    expect(extractAccessKeys([`${VALID_KEY} ${cited} ${cited}`])).toEqual([VALID_KEY]);
+  });
+
+  it('duas páginas com chaves próprias diferentes guardam as duas (CT-e inclusive), cada uma sem as citadas', () => {
+    const cte = withModel('57');
+    const cited = withCheckDigit(`3524${VALID_KEY.slice(4, 43)}`);
+
+    expect(extractAccessKeys([`${cte} cita ${cited}`, `${VALID_KEY} cita ${cited}`])).toEqual([cte, VALID_KEY]);
+  });
+
+  it('a primeira chave estruturalmente válida de qualquer modelo para a busca: o DAMDFE (58) não adota a chave que cita', () => {
+    const mdfe = withModel('58');
+    const cited = withCheckDigit(`3524${VALID_KEY.slice(4, 43)}`);
+
+    expect(isValidChaveDocumento(mdfe)).toBe(false);
+    expect(extractAccessKeys([`DAMDFE\nChave de acesso ${spaced(mdfe)}\nCT-e vinculado ${cited}`])).toEqual([]);
+    // Controle: a mesma citação, sem a chave própria na frente, entra.
+    expect(extractAccessKeys([`DAMDFE\nCT-e vinculado ${cited}`])).toEqual([cited]);
+    // A chave de modelo desconhecido só vale como ponto de parada na página dela.
+    expect(extractAccessKeys([`${mdfe} cita ${cited}`, `${VALID_KEY} cita ${cited}`])).toEqual([VALID_KEY]);
+  });
+
+  it('página de NFS-e sem DANFE não fornece chave: a NFS-e que cita uma NF-e não adota a citada', () => {
+    const cited = VALID_KEY;
+
+    expect(extractAccessKeys([`NFS-e Nota Fiscal de Serviços Eletrônica\nReferente à NF-e ${spaced(cited)}`])).toEqual(
+      [],
+    );
+    expect(extractAccessKeys([`Prefeitura\nNota Fiscal de Serviço\nNF-e anterior ${cited}`])).toEqual([]);
+    // O DANFE na mesma página mantém a chave; a página seguinte, sem o sinal de serviço, também.
+    expect(extractAccessKeys([`NFS-e vinculada\nDANFE\nChave de acesso ${cited}`])).toEqual([cited]);
+    expect(extractAccessKeys([`NFS-e ${cited}`, `Chave de acesso ${cited}`])).toEqual([cited]);
+  });
+
+  it('um 44 dígitos inválido antes da chave própria não a esconde', () => {
+    expect(extractAccessKeys([`${WRONG_KEY} e depois ${VALID_KEY}`])).toEqual([VALID_KEY]);
+  });
+
+  it('ignora 44 dígitos que não são chave: dígito errado, boleto, e dígitos dentro de um número maior', () => {
+    expect(extractAccessKeys([`${WRONG_KEY}`, `Boleto 34191790010104351004791020150008291070026000`])).toEqual([]);
+    expect(extractAccessKeys([`${VALID_KEY}9`, `9${VALID_KEY}`])).toEqual([]);
+    expect(extractAccessKeys([])).toEqual([]);
+    expect(extractAccessKeys(['sem chave nenhuma'])).toEqual([]);
+  });
+
+  it('um grupo de 4 dígitos não atravessa a quebra de página', () => {
+    const groups = spaced(VALID_KEY).split(' ');
+
+    expect(extractAccessKeys([groups.slice(0, 6).join(' '), groups.slice(6).join(' ')])).toEqual([]);
   });
 });
 

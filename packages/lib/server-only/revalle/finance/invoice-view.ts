@@ -13,8 +13,10 @@ import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { normalizeEmail } from '../../../revalle/email-domain';
 import { isNewVersionDraftRow } from '../../../revalle/finance/finance-status';
 import { costCenterLabel } from '../../../revalle/invoice/cost-centers';
+import { type InvoiceDataSummary, toInvoiceDataSummary } from '../../../revalle/invoice/invoice-data';
 import { isAdmin as isAdminUser } from '../../../utils/is-admin';
 import { isAccountingMember } from '../accounting/members';
+import { findInvoiceDuplicatesOrEmpty } from '../invoice/duplicates';
 import { isFinanceMember } from './members';
 import { findVisibleSuccessor } from './successor';
 
@@ -75,6 +77,11 @@ const loadEnvelope = async (envelopeId: string) =>
           supersededAt: true,
           supersedeReason: true,
           supersedeKind: true,
+          supplierName: true,
+          invoiceNumber: true,
+          totalAmountCents: true,
+          accessKeys: true,
+          fileSha256: true,
         },
       },
     },
@@ -165,9 +172,25 @@ export type InvoiceView = {
     supersedeReason: string | null;
     supersedeKind: RevalleSupersedeKind | null;
   };
+  /** Fase 8: fornecedor, número e valor que a IA leu da NF (podem estar errados); nulo quando os três estão vazios. */
+  invoiceData: InvoiceDataSummary | null;
+  /**
+   * Fase 8: as outras notas vivas com uma chave em comum ou o mesmo arquivo. O Financeiro, a Contabilidade e o admin veem o
+   * título e o id (para o link); o dono vê só data, remetente e situação (`id` e `title` nulos), porque pode não ter acesso
+   * à outra; quem só assina não vê nada.
+   */
+  duplicates: InvoiceViewDuplicate[];
   viewer: InvoiceViewer;
   /** Página completa do documento para quem tem: o dono (no time) e o admin (no painel). */
   documentPath: string | null;
+};
+
+export type InvoiceViewDuplicate = {
+  id: string | null;
+  title: string | null;
+  sentAt: Date | null;
+  senderName: string;
+  status: 'PENDING' | 'COMPLETED';
 };
 
 const linkedVersion = async (envelopeId: string | null) => {
@@ -213,6 +236,26 @@ export const getInvoiceView = async ({
       : null,
   ]);
 
+  // Quem decide sobre a nota abre as outras; o dono (que pode não ter acesso a elas) só fica sabendo que existem.
+  const canOpenOthers = viewer.isAdmin || viewer.isFinance || viewer.isAccounting;
+  const duplicates =
+    canOpenOthers || viewer.isOwner
+      ? (
+          await findInvoiceDuplicatesOrEmpty({
+            envelopeId: envelope.id,
+            accessKeys: invoice.accessKeys,
+            fileSha256: invoice.fileSha256,
+            financeStatus: invoice.financeStatus,
+          })
+        ).map(({ envelopeId, title, sentAt, senderName, status }) => ({
+          id: canOpenOthers ? envelopeId : null,
+          title: canOpenOthers ? title : null,
+          sentAt,
+          senderName,
+          status,
+        }))
+      : [];
+
   const documentPath =
     viewer.isOwner && envelope.deletedAt === null
       ? `/t/${envelope.team.url}/documents/${envelope.id}`
@@ -240,6 +283,8 @@ export const getInvoiceView = async ({
       supersedeReason: invoice.supersedeReason,
       supersedeKind: invoice.supersedeKind,
     },
+    invoiceData: toInvoiceDataSummary(invoice),
+    duplicates,
     viewer,
     documentPath,
   };

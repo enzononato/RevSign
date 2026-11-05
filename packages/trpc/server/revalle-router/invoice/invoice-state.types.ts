@@ -1,5 +1,22 @@
 import { z } from 'zod';
 
+/** Fase 8: fornecedor, número e valor que a IA leu da NF (podem estar errados; a tela diz que vieram da IA). */
+export const ZInvoiceDataSummarySchema = z.object({
+  supplierName: z.string().nullable(),
+  invoiceNumber: z.string().nullable(),
+  totalAmountCents: z.number().nullable(),
+});
+
+/**
+ * Fase 8: outra NF viva com uma chave em comum ou o mesmo arquivo. Sem título nem id de propósito: quem vê o estado (o
+ * remetente que vai enviar) pode não ter acesso à outra nota.
+ */
+export const ZInvoiceDuplicateSummarySchema = z.object({
+  sentAt: z.date().nullable(),
+  senderName: z.string(),
+  status: z.enum(['PENDING', 'COMPLETED']),
+});
+
 export const ZInvoiceEnvelopeRequestSchema = z.object({ envelopeId: z.string().min(1) });
 
 export const ZInvoiceStateSchema = z.object({
@@ -25,6 +42,10 @@ export const ZInvoiceStateSchema = z.object({
       'NO_CONTENT',
     ])
     .nullable(),
+  /** Nulo quando os três estão vazios. */
+  invoiceData: ZInvoiceDataSummarySchema.nullable(),
+  /** Fase 8: as outras notas que esta parece repetir (do envio mais antigo ao mais novo, até 5); vazio se não há. */
+  duplicates: z.array(ZInvoiceDuplicateSummarySchema),
   choice: z.object({ code: z.string(), name: z.string().optional() }).nullable(),
   /** Fase 7: centro de custo (lista fixa), exigido junto com a conta no primeiro envio. */
   costCenter: z.object({ code: z.string(), name: z.string() }).nullable(),

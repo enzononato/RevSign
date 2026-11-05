@@ -7,11 +7,17 @@
 //
 // Rotas:
 //   POST /v1beta/models/{modelo}:generateContent   resposta no formato do Gemini, conforme o modo programado
-//   POST /__program { mode, accountCode?, delayMs?, apiKey? }
+//   POST /__program { mode, accountCode?, delayMs?, apiKey?, invoiceData?, responseDelayMs? }
 //        modos: ok | unknown-account | garbage | slow (25 s) | error (HTTP 500) | proxy (repassa ao Gemini de verdade
 //        com `apiKey`; perna opcional dos testes, chave só na memória, nunca devolvida nem registrada)
+//        `invoiceData` (Fase 8, só no modo ok): objeto com os campos que a resposta leva no lugar dos padrões
+//        (supplierName 'Fornecedor Falso LTDA', invoiceNumber '12345', totalAmount 1234.56, accessKey null); `null`
+//        omite todos. Sem a chave, vale o padrão.
+//        `responseDelayMs` (Fase 8, só no modo ok): espera esse tanto antes de responder, para o teste abrir o diálogo de
+//        envio com a sugestão ainda em andamento (a chamada já consta em /__calls). Padrão 0.
 //   GET  /__calls                                    chamadas recebidas (modelo, se veio PDF ou texto, tamanhos,
-//                                                    thinkingConfig, códigos da trava, as partes da mensagem)
+//                                                    thinkingConfig, códigos da trava, o `responseSchema` inteiro, as
+//                                                    partes da mensagem)
 //   POST /__reset                                    apaga as chamadas e volta ao modo ok
 //
 // Uso: node scripts/revalle/tests/fake-gemini.mjs   (porta: FAKE_GEMINI_PORT, padrão 8787)
@@ -25,7 +31,22 @@ const MODES = new Set(['ok', 'unknown-account', 'garbage', 'slow', 'error', 'pro
 const REAL_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 const GENERATE_PATH = /^\/v1beta\/models\/([^/:]+):generateContent$/;
 
-const initialProgram = () => ({ mode: 'ok', accountCode: null, delayMs: 25_000, apiKey: null });
+// Fase 8: o que o modo `ok` devolve além da conta. `invoiceData` indefinido no programa = estes valores.
+const DEFAULT_INVOICE_DATA = {
+  supplierName: 'Fornecedor Falso LTDA',
+  invoiceNumber: '12345',
+  totalAmount: 1234.56,
+  accessKey: null,
+};
+
+const initialProgram = () => ({
+  mode: 'ok',
+  accountCode: null,
+  delayMs: 25_000,
+  apiKey: null,
+  invoiceData: undefined,
+  responseDelayMs: 0,
+});
 const publicProgram = () => ({ ...program, apiKey: program.apiKey ? '(definida)' : null });
 
 let program = initialProgram();
@@ -112,6 +133,7 @@ const handleGenerate = async (req, res, model) => {
     parts,
     responseMimeType: body.generationConfig?.responseMimeType ?? null,
     hasResponseSchema: Boolean(body.generationConfig?.responseSchema),
+    responseSchema: body.generationConfig?.responseSchema ?? null,
     accountCodeEnum: body.generationConfig?.responseSchema?.properties?.accountCode?.enum ?? null,
     thinkingConfig: body.generationConfig?.thinkingConfig ?? null,
   };
@@ -128,12 +150,21 @@ const handleGenerate = async (req, res, model) => {
 
   switch (program.mode) {
     case 'ok':
+      if (program.responseDelayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, program.responseDelayMs));
+      }
+
       sendJson(
         res,
         200,
         geminiResponse(
           model,
-          JSON.stringify({ accountCode, confidence: 'alta', reason: 'Compra de mercadoria de fornecedor (falso).' }),
+          JSON.stringify({
+            accountCode,
+            confidence: 'alta',
+            reason: 'Compra de mercadoria de fornecedor (falso).',
+            ...(program.invoiceData === undefined ? DEFAULT_INVOICE_DATA : (program.invoiceData ?? {})),
+          }),
         ),
       );
 
@@ -220,6 +251,8 @@ const server = createServer(async (req, res) => {
         accountCode: input.accountCode ?? null,
         delayMs: Number(input.delayMs ?? 25_000),
         apiKey: input.mode === 'proxy' ? (input.apiKey ?? null) : null,
+        invoiceData: Object.hasOwn(input, 'invoiceData') ? input.invoiceData : undefined,
+        responseDelayMs: input.mode === 'ok' ? Number(input.responseDelayMs ?? 0) : 0,
       };
       sendJson(res, 200, publicProgram());
 

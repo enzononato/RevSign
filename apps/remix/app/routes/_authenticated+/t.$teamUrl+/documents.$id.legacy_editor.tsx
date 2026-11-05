@@ -129,10 +129,15 @@ export default function DocumentEditPage() {
 
       {/* REVALLE: nota fiscal · conta contábil. Documento v1 (ex.: criado pela API) abre neste editor, que não tem o
           diálogo de envio novo: o bloco fica aqui, no rascunho. O servidor recusa o envio da NF sem conta
-          (INVOICE_ACCOUNT_REQUIRED), então o botão de enviar deste editor não precisa ser bloqueado. */}
+          (INVOICE_ACCOUNT_REQUIRED), então o botão de enviar deste editor não precisa ser bloqueado. O aviso de nota duplicada
+          aparece sem a caixa de confirmação: o botão daqui não espera por ela (e o `DocumentEditForm` é do upstream). */}
       {document.status === DocumentStatusEnum.DRAFT && (
         <div className="mt-6 max-w-2xl empty:hidden">
-          <InvoiceAccountPanel envelopeId={document.envelopeId} onReadyChange={() => undefined} />
+          <InvoiceAccountPanel
+            envelopeId={document.envelopeId}
+            onReadyChange={() => undefined}
+            hasDuplicateAcknowledgement={false}
+          />
         </div>
       )}
 

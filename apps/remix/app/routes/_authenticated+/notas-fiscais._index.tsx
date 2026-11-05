@@ -13,6 +13,7 @@ import {
   type FinanceFilter,
   financeStatusLabel,
 } from '@documenso/lib/revalle/finance/finance-status';
+import { formatInvoiceDataLine } from '@documenso/lib/revalle/invoice/invoice-data'; // REVALLE: Fase 8
 import {
   INVOICE_EXPORT_LIMIT_MESSAGE,
   INVOICE_LIST_STATUSES,
@@ -151,6 +152,8 @@ export default function InvoicesPage() {
   const exportHref = `/notas-fiscais/csv${exportQuery ? `?${exportQuery}` : ''}`;
   const count = data?.count ?? 0;
   const isOverLimit = isOverInvoiceExportLimit(count);
+  // Fase 8: a legenda explica a linha curta de cada nota (no toque não há `title`); só aparece se alguma linha tem os dados.
+  const hasInvoiceData = Boolean(data?.data.some((row) => formatInvoiceDataLine(row.invoiceData) !== null));
 
   const statusLabels: Record<InvoiceListStatus, string> = {
     PENDING: t`Pendente`,
@@ -316,6 +319,12 @@ export default function InvoicesPage() {
         )}
       </div>
 
+      {hasInvoiceData && (
+        <p className="mt-2 text-muted-foreground text-xs" data-testid="invoice-data-legend">
+          <Trans>Fornecedor, número e valor: lidos pela IA, confira no PDF.</Trans>
+        </p>
+      )}
+
       <div className="mt-4 min-w-0 rounded-md border">
         <Table>
           <TableHeader>
@@ -415,6 +424,10 @@ export default function InvoicesPage() {
 }
 
 const InvoiceTableRow = ({ row }: { row: InvoiceRow }) => {
+  const { t } = useLingui();
+  // Fase 8: o que a IA leu da NF, em texto menor abaixo do título (pode estar errado; o texto de ajuda avisa).
+  const invoiceDataLine = formatInvoiceDataLine(row.invoiceData);
+
   const account = row.account ? (
     <span>
       <span className="font-mono">{row.account.code}</span>
@@ -444,6 +457,25 @@ const InvoiceTableRow = ({ row }: { row: InvoiceRow }) => {
           </Link>
         ) : (
           <span className="break-words">{row.title}</span>
+        )}
+        {invoiceDataLine && (
+          <p
+            className="mt-0.5 break-words font-normal text-muted-foreground text-xs"
+            title={t`Lidos pela IA, confira no PDF`}
+            data-testid="invoice-row-data"
+          >
+            {invoiceDataLine}
+          </p>
+        )}
+        {/* REVALLE (Fase 8): só vem verdadeiro para o Financeiro, a Contabilidade e o admin. */}
+        {row.isPossibleDuplicate && (
+          <span
+            className="mt-1 inline-block whitespace-nowrap rounded-full bg-amber-500/15 px-2 py-0.5 font-normal text-amber-800 text-xs dark:text-amber-300"
+            title={t`Outra nota enviada tem a mesma chave de acesso ou o mesmo arquivo. Confira antes de aprovar.`}
+            data-testid="invoice-row-duplicate"
+          >
+            <Trans>Possível duplicada</Trans>
+          </span>
         )}
       </TableCell>
       <TableCell className="min-w-[8rem]">{row.senderName}</TableCell>

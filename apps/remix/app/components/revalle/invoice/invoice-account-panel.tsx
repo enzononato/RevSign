@@ -1,6 +1,7 @@
 import { DO_NOT_INVALIDATE_QUERY_ON_MUTATION } from '@documenso/lib/constants/trpc';
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
 import { costCenterLabel } from '@documenso/lib/revalle/invoice/cost-centers';
+import { formatInvoiceDataLine } from '@documenso/lib/revalle/invoice/invoice-data';
 import { isInvoiceReady } from '@documenso/lib/revalle/invoice/invoice-ready';
 import { trpc } from '@documenso/trpc/react';
 import type { TInvoiceState } from '@documenso/trpc/server/revalle-router/invoice/invoice-state.types';
@@ -12,6 +13,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { AccountCombobox } from './account-combobox';
 import { CostCenterSelect } from './cost-center-select';
+import { InvoiceDuplicateNotice } from './invoice-duplicate-notice';
 
 export type InvoiceAccountPanelProps = {
   envelopeId: string;
@@ -20,6 +22,11 @@ export type InvoiceAccountPanelProps = {
    * ou enquanto o estado ainda não chegou: o botão de enviar fica bloqueado.
    */
   onReadyChange: (ready: boolean) => void;
+  /**
+   * `false` onde o botão de enviar não depende do bloco (o editor antigo): o aviso de nota duplicada aparece, mas sem a
+   * caixa "Sei disso e quero enviar mesmo assim", que ali não destravaria nada.
+   */
+  hasDuplicateAcknowledgement?: boolean;
 };
 
 const POLL_INTERVAL_MS = 2_000;
@@ -34,7 +41,11 @@ const STALE_REFETCH_MS = 61_000;
  * abrir, consulta a sugestão enquanto ela está em andamento e grava cada escolha no servidor na hora (o envio confere de
  * novo). A sugestão nunca vira escolha sozinha.
  */
-export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccountPanelProps) => {
+export const InvoiceAccountPanel = ({
+  envelopeId,
+  onReadyChange,
+  hasDuplicateAcknowledgement = true,
+}: InvoiceAccountPanelProps) => {
   const { t } = useLingui();
   const { toast } = useToast();
   const utils = trpc.useUtils();
@@ -42,6 +53,8 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
   const [isClassified, setIsClassified] = useState(false);
   const [hasGivenUp, setHasGivenUp] = useState(false);
   const [isChanging, setIsChanging] = useState(false);
+  // Fase 8: "Sei disso e quero enviar mesmo assim", diante do aviso de nota duplicada.
+  const [isDuplicateAcknowledged, setIsDuplicateAcknowledged] = useState(false);
   const pendingSince = useRef<number | null>(null);
 
   const { mutateAsync: classify } = trpc.revalle.invoice.classify.useMutation();
@@ -104,6 +117,19 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
   }, [isPending, hasGivenUp]);
 
   const isInvoice = state?.isInvoice === 'YES';
+  // O aviso pode aparecer depois do diálogo aberto (a chave que a IA leu numa NF escaneada chega com a sugestão).
+  const duplicates = isInvoice ? (state?.duplicates ?? []) : [];
+
+  // A confirmação vale para este documento e para este aviso: ao trocar de documento, ou quando o aviso some, zera.
+  useEffect(() => {
+    setIsDuplicateAcknowledged(false);
+  }, [envelopeId]);
+
+  useEffect(() => {
+    if (duplicates.length === 0) {
+      setIsDuplicateAcknowledged(false);
+    }
+  }, [duplicates.length]);
 
   const { data: accountsData } = trpc.revalle.invoice.findAccounts.useQuery(undefined, {
     ...DO_NOT_INVALIDATE_QUERY_ON_MUTATION,
@@ -128,6 +154,7 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
     hasNoAccounts,
     requiresChoice: !isReleased,
     requiresCostCenter: !isReleased,
+    duplicateAcknowledged: isDuplicateAcknowledged,
     state,
   });
 
@@ -194,6 +221,16 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
   }
 
   const isBusy = isSavingChoice || isSavingCostCenter || isSavingFlag || isResuggesting;
+  const duplicateNotice = (
+    <InvoiceDuplicateNotice
+      duplicates={duplicates}
+      acknowledgement={
+        hasDuplicateAcknowledgement
+          ? { checked: isDuplicateAcknowledged, onChange: setIsDuplicateAcknowledged }
+          : undefined
+      }
+    />
+  );
 
   if (state.isInvoice === 'NO') {
     // Só quem marcou "Não é nota fiscal" vê o desfazer; documento comum não muda em nada.
@@ -254,6 +291,7 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
         <h3 className="font-medium text-sm">
           <Trans>Nota fiscal · Conta contábil</Trans>
         </h3>
+        {duplicateNotice}
         <p className="text-sm">
           {state.choice?.name ? `${state.choice.code} – ${state.choice.name}` : (state.choice?.code ?? '-')}
         </p>
@@ -301,6 +339,8 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
   const choiceName = choice?.name ?? '';
   const hasFailed = state.suggestionStatus === 'FAILED' || (isPending && hasGivenUp);
   const canResuggest = state.aiAvailable && (state.suggestionStatus === 'DONE' || state.suggestionStatus === 'FAILED');
+  // Fase 8: fornecedor, número e valor que a IA leu; só o que existe. Texto puro, como o motivo.
+  const invoiceDataLine = formatInvoiceDataLine(state.invoiceData);
 
   return (
     <section className="mb-4 flex flex-col gap-3 rounded-lg border p-3" data-testid="invoice-account-panel">
@@ -312,6 +352,8 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
           <Trans>Não é nota fiscal</Trans>
         </Button>
       </div>
+
+      {duplicateNotice}
 
       {isPending && !hasGivenUp && (
         <p className="flex items-center gap-2 text-muted-foreground text-sm">
@@ -341,6 +383,12 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
             </Button>
           )}
         </div>
+      )}
+
+      {invoiceDataLine && (
+        <p className="break-words text-muted-foreground text-sm" data-testid="invoice-data-line">
+          <Trans>Lido pela IA: {invoiceDataLine}</Trans>
+        </p>
       )}
 
       {hasFailed && (
