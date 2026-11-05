@@ -13,7 +13,7 @@ import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { ApiRequestMetadata } from '../../../universal/extract-request-metadata';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { mapSecondaryIdToDocumentId } from '../../../utils/envelope';
-import { toInvoiceState } from '../invoice/classify';
+import { toInvoiceStateBase } from '../invoice/classify';
 
 export type ApproveInvoiceAccountResult = { approved: boolean };
 
@@ -185,7 +185,7 @@ const defineSentInvoiceAccount = async ({
   }
 
   const row = await prisma.revalleInvoiceClassification.findUniqueOrThrow({ where: { envelopeId } });
-  const { suggestion } = await toInvoiceState(row);
+  const { suggestion } = await toInvoiceStateBase(row);
   const now = new Date();
 
   const defined = await prisma.$transaction(async (tx) => {

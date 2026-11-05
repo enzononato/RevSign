@@ -34,6 +34,7 @@ import { PDFDocument, rgb, StandardFonts } from '@cantoo/pdf-lib';
 
 import {
   api,
+  appLogs,
   assertNoPaidGeminiCalls,
   BASE_URL,
   chooseInvoice,
@@ -198,6 +199,34 @@ const scanned = async (tag) => {
   return Buffer.from(await doc.save());
 };
 
+// Devolução: traz a chave PRÓPRIA no cabeçalho e, nas informações complementares, a da nota original que ela cita.
+const devolucao = (ownKey, citedKey, tag) =>
+  textPdf([
+    'DANFE - Documento Auxiliar da Nota Fiscal Eletrônica',
+    '0 - Entrada   1 - Saída   Nº 000.054.321   Série 001',
+    'Chave de Acesso',
+    spaced(ownKey),
+    'Natureza da Operação: Devolução de mercadoria',
+    'Emitente: Distribuidora Fictícia de Ferragens Ltda   CNPJ 12.345.678/0001-95',
+    `Referência do teste: duplicada ${tag} ${RUN}`,
+    'Valor Total da Nota: R$ 90,00',
+    'Informações complementares',
+    `NF-e referenciada: ${spaced(citedKey)}`,
+  ]);
+
+// CT-e (modelo 57): a chave própria no cabeçalho e a da NF-e transportada nos documentos originários.
+const dacte = (ownKey, citedKey, tag) =>
+  textPdf([
+    'DACTE - Documento Auxiliar do Conhecimento de Transporte Eletrônico',
+    'Nota fiscal de serviço de transporte   CNPJ 12.345.678/0001-95',
+    'Chave de acesso',
+    spaced(ownKey),
+    `Referência do teste: duplicada ${tag} ${RUN}`,
+    'Valor total da prestação: R$ 200,00   ICMS: R$ 36,00',
+    'Documentos originários',
+    `NF-e ${spaced(citedKey)}`,
+  ]);
+
 const writeFixture = (name, bytes) => {
   const file = path.join(tmp, name);
 
@@ -346,6 +375,43 @@ const sendNf = async (doc) => {
   assert.equal(db(`select status from "Envelope" where id = '${doc.id}'`), 'PENDING');
 
   return doc;
+};
+
+// Documento com vários arquivos (a criação da API v2 aceita mais de um em `files`). Devolve o envelope (com os itens).
+const newEnvelopeWithFiles = async (files, label) => {
+  const form = new FormData();
+
+  form.append(
+    'payload',
+    JSON.stringify({
+      title: `[TESTE NF] duplicada ${label} ${RUN}`,
+      type: 'DOCUMENT',
+      meta: { distributionMethod: 'NONE' },
+      recipients: [
+        {
+          role: 'SIGNER',
+          name: 'Teste',
+          email: `dup-${label}-${RUN}@revalle.com.br`,
+          fields: [{ type: 'SIGNATURE', page: 1, positionX: 10, positionY: 80, width: 30, height: 8 }],
+        },
+      ],
+    }),
+  );
+
+  for (const [name, bytes] of files) {
+    form.append('files', new File([bytes], name, { type: 'application/pdf' }));
+  }
+
+  const created = await fetch(`${BASE_URL}/api/v2-beta/envelope/create`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.REVSIGN_API_TOKEN}` },
+    body: form,
+  });
+  const body = await created.json();
+
+  assert.equal(created.status, 200, JSON.stringify(body));
+
+  return (await api('GET', `/envelope/${body.id}`)).body;
 };
 
 const sentNf = async (who, bytes, label, options) => sendNf(await draftNf(who, bytes, label, options));
@@ -869,6 +935,175 @@ sessionTest('o rascunho de uma nova versão tem a marca na lista, como na págin
   assert.equal((await duplicatesOf(adminCookie, v2)).length, 1);
   assert.equal((await findRow(adminCookie, original.id))?.isPossibleDuplicate, false, 'a substituída tem a marca');
   assert.equal((await findRow(adminCookie, third.id))?.isPossibleDuplicate, false, 'um rascunho de versão acusou');
+});
+
+sessionTest(
+  'nota que cita a chave de outra (devolução, CT-e) não acusa e não é acusada: só a chave própria vale',
+  async () => {
+    const original = makeKey();
+    const returnKey = makeKey();
+    const cteKey = makeKey('57');
+    const first = await sentNf('sender', await danfe(original, 'A', 'cita-original'), 'cita-original');
+    const returned = await sentNf('user', await devolucao(returnKey, original, 'cita-devolucao'), 'cita-devolucao');
+    const transport = await sentNf('user', await dacte(cteKey, original, 'cita-cte'), 'cita-cte');
+
+    // Só a chave própria (a primeira da página) é guardada; a da nota citada fica de fora.
+    assert.equal(accessKeysOf(returned.id), `{${returnKey}}`, 'a devolução guardou a chave da nota que ela cita');
+    assert.equal(accessKeysOf(transport.id), `{${cteKey}}`, 'o CT-e guardou a chave da NF-e que ele cita');
+
+    const docs = [first, returned, transport];
+
+    for (const doc of docs) {
+      assert.deepEqual(await duplicatesOf(adminCookie, doc.id), [], `${doc.label} acusa por uma chave citada`);
+      assert.equal(
+        (await findRow(adminCookie, doc.id))?.isPossibleDuplicate,
+        false,
+        `${doc.label} com a marca na lista`,
+      );
+      assert.equal((await csvRow(adminCookie, doc.id)).cells?.at(-1), '', `${doc.label} com "sim" na planilha`);
+    }
+
+    // Controle: uma cópia de verdade da nota original (a mesma chave própria) continua acusando as duas, e só elas.
+    const copy = await sentNf('user', await danfe(original, 'B', 'cita-copia'), 'cita-copia');
+
+    assert.equal((await duplicatesOf(adminCookie, first.id)).length, 1, 'a cópia não acusou a original');
+    assert.equal((await duplicatesOf(adminCookie, copy.id)).length, 1);
+    assert.equal((await findRow(adminCookie, first.id))?.isPossibleDuplicate, true);
+    assert.equal((await findRow(adminCookie, copy.id))?.isPossibleDuplicate, true);
+    assert.equal((await csvRow(adminCookie, copy.id)).cells?.at(-1), 'sim');
+
+    for (const doc of [returned, transport]) {
+      assert.deepEqual(await duplicatesOf(adminCookie, doc.id), [], `${doc.label} passou a acusar depois da cópia`);
+      assert.equal((await findRow(adminCookie, doc.id))?.isPossibleDuplicate, false);
+    }
+  },
+);
+
+sessionTest('fileSha256 nulo nunca casa: duas NFs sem chave e sem hash não se acusam (uma NF e o lote)', async () => {
+  const bytes = await nfse('hash-nulo');
+  const first = await sentNf('sender', bytes, 'nulo-1');
+  const second = await sentNf('user', bytes, 'nulo-2');
+
+  assert.equal(accessKeysOf(first.id), '{}');
+  assert.equal(accessKeysOf(second.id), '{}');
+
+  // Controle: com o mesmo hash, a NF e o lote acusam.
+  assert.equal((await duplicatesOf(adminCookie, second.id)).length, 1, 'controle: o mesmo arquivo deveria acusar');
+  assert.equal((await findRow(adminCookie, first.id))?.isPossibleDuplicate, true);
+  assert.equal((await findRow(adminCookie, second.id))?.isPossibleDuplicate, true);
+
+  db(
+    `update "RevalleInvoiceClassification" set "fileSha256" = null where "envelopeId" in ('${first.id}', '${second.id}')`,
+  );
+  assert.equal(columnOf(first.id, '"fileSha256" is null'), 't');
+  assert.equal(columnOf(second.id, '"fileSha256" is null'), 't');
+
+  // Uma NF: nada a procurar, nada acusa.
+  assert.deepEqual(await duplicatesOf(adminCookie, first.id), [], 'o hash nulo casou (uma NF)');
+  assert.deepEqual(await duplicatesOf(adminCookie, second.id), [], 'o hash nulo casou (uma NF)');
+  // Lote (lista e planilha).
+  for (const doc of [first, second]) {
+    assert.equal((await findRow(adminCookie, doc.id))?.isPossibleDuplicate, false, 'o hash nulo casou (lote)');
+    assert.equal((await csvRow(adminCookie, doc.id)).cells?.at(-1), '');
+  }
+});
+
+aiTest('trocar o arquivo substitui as chaves: as do texto e a que a IA leu saem junto', async () => {
+  const firstKey = makeKey();
+  const secondKey = makeKey();
+  const aiKey = makeKey();
+  const itemOf = (envelope, prefix) => envelope.envelopeItems.find((item) => item.title.startsWith(prefix));
+  const removeItem = async (envelope, prefix) => {
+    const removed = await api('POST', '/envelope/item/delete', {
+      envelopeId: envelope.id,
+      envelopeItemId: itemOf(envelope, prefix).id,
+    });
+
+    assert.equal(removed.status, 200, removed.text);
+  };
+
+  // DANFE + escaneado: a chave do texto e a da IA (a IA só lê o que é NF).
+  await program({ invoiceData: { supplierName: 'Fornecedor Falso LTDA', accessKey: aiKey } });
+
+  const mixed = await newEnvelopeWithFiles(
+    [
+      ['trocar-danfe.pdf', await danfe(firstKey, 'A', 'troca-1')],
+      ['trocar-escaneado.pdf', await scanned('troca-1')],
+    ],
+    'troca-1',
+  );
+
+  assert.equal((await invoice(userCookie, 'mutation', 'classify', { envelopeId: mixed.id })).status, 200);
+  assert.equal((await waitSettled(userCookie, mixed.id)).suggestionStatus, 'DONE');
+  assert.equal(accessKeysOf(mixed.id), `{${firstKey},${aiKey}}`);
+
+  await removeItem(mixed, 'trocar-danfe');
+
+  const after = data(await invoice(userCookie, 'mutation', 'classify', { envelopeId: mixed.id }));
+
+  assert.equal(after.isInvoice, 'UNKNOWN');
+  assert.equal(accessKeysOf(mixed.id), '{}', 'as chaves do arquivo anterior ficaram');
+
+  // Dois DANFEs: sai a chave do arquivo removido e fica a do outro.
+  await program({});
+
+  const both = await newEnvelopeWithFiles(
+    [
+      ['trocar-a.pdf', await danfe(firstKey, 'A', 'troca-2a')],
+      ['trocar-b.pdf', await danfe(secondKey, 'A', 'troca-2b')],
+    ],
+    'troca-2',
+  );
+
+  assert.equal((await invoice(userCookie, 'mutation', 'classify', { envelopeId: both.id })).status, 200);
+  assert.equal(accessKeysOf(both.id), `{${firstKey},${secondKey}}`);
+
+  await removeItem(both, 'trocar-b');
+  assert.equal(data(await invoice(userCookie, 'mutation', 'classify', { envelopeId: both.id })).isInvoice, 'YES');
+  assert.equal(accessKeysOf(both.id), `{${firstKey}}`, 'a chave do arquivo removido ficou');
+});
+
+sessionTest('se a busca de duplicadas falhar, o estado sai sem aviso e o log não traz dados', async () => {
+  const key = makeKey();
+  const other = await sentNf('sender', await danfe(key, 'A', 'falha-1'), 'falha-1');
+  const mine = await draftNf('user', await danfe(key, 'B', 'falha-2'), 'falha-2');
+
+  assert.equal((await duplicatesOf(mine.owner.cookie, mine.id)).length, 1, 'controle: a busca deveria achar a outra');
+
+  // A busca lê o primeiro envio de cada nota no log de auditoria; sem essa tabela só ela falha (o resto do estado não a usa).
+  const logsBefore = appLogs().length;
+
+  db(`alter table "DocumentAuditLog" rename to "DocumentAuditLog_f8"`);
+
+  let res;
+
+  try {
+    res = await invoice(mine.owner.cookie, 'query', 'get', { envelopeId: mine.id });
+  } finally {
+    db(`alter table "DocumentAuditLog_f8" rename to "DocumentAuditLog"`);
+  }
+
+  assert.equal(res.status, 200, res.text);
+  assert.equal(data(res).isInvoice, 'YES');
+  assert.deepEqual(data(res).duplicates, [], 'o estado deveria sair sem o aviso');
+
+  const logged = appLogs().slice(logsBefore);
+
+  assert.ok(logged.includes('revalle.invoice.duplicates.failed'), 'a falha da busca não foi registrada');
+
+  // Sem dados no log: nem a chave, nem o hash, nem o remetente, nem o título ou o id da outra nota.
+  for (const secret of [
+    key,
+    columnOf(mine.id, '"fileSha256"'),
+    senderLabel(admin.email),
+    other.title,
+    other.id,
+    mine.title,
+  ]) {
+    assert.ok(!logged.includes(secret), 'o log da falha traz dados da nota');
+  }
+
+  assert.equal((await duplicatesOf(mine.owner.cookie, mine.id)).length, 1, 'a busca deveria voltar com a tabela');
 });
 
 sessionTest(

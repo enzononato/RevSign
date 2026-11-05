@@ -27,7 +27,7 @@ import { logger } from '../../../utils/logger';
 import { sendDocument } from '../../document/send-document';
 import { duplicateEnvelope } from '../../envelope/duplicate-envelope';
 import { revalleErrorCode } from '../error-code';
-import { toInvoiceState } from '../invoice/classify';
+import { toInvoiceStateBase } from '../invoice/classify';
 import { filesKey, loadEnvelopeFiles } from '../invoice/envelope-files';
 import { isStaleChangeClaim } from './successor';
 
@@ -362,7 +362,7 @@ const createNewVersion = async ({
   const title = nextVersionTitle(envelope.title, version);
   // A chave dos arquivos da cópia, como a classificação calcula: no envio, o rascunho com a mesma chave mantém a conta.
   const fileSha256 = filesKey(await loadEnvelopeFiles(newEnvelopeId));
-  const { suggestion } = await toInvoiceState(row);
+  const { suggestion } = await toInvoiceStateBase(row);
   const fromAccount = row.choiceCode;
   const fromName =
     change.kind === 'ACCOUNT' && fromAccount

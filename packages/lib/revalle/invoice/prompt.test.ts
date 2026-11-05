@@ -34,7 +34,7 @@ describe('buildInvoicePrompt', () => {
     const result = buildInvoicePrompt({ userPrompt: 'x', accounts });
 
     expect(result).toContain(
-      '"supplierName": "<razão social do emitente, ou null>", "invoiceNumber": "<número da nota, ou null>", "totalAmount": <valor total em reais, número com ponto decimal, ou null>, "accessKey": "<chave de acesso de 44 dígitos, só números, ou null>"',
+      '"supplierName": "<razão social do emitente, ou null>", "invoiceNumber": "<número da nota, ou null>", "totalAmount": <valor total em reais, número com ponto decimal, ou null>, "accessKey": "<chave de acesso desta nota, 44 dígitos, só números, não a de notas citadas, ou null>"',
     );
     expect(result).toContain(
       'Copie esses dados do documento. Se um deles não estiver claro, responda null em vez de adivinhar.',

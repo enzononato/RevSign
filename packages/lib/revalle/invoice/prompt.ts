@@ -22,7 +22,7 @@ export const buildInvoicePrompt = (input: { userPrompt: string; accounts: Invoic
     '',
     'Escolha a conta mais adequada para a nota fiscal enviada, usando somente os códigos da lista acima.',
     'Responda só com JSON, sem texto antes ou depois, neste formato:',
-    '{"accountCode": "<código da lista>", "confidence": "alta" | "media" | "baixa", "reason": "<motivo em até 200 caracteres>", "supplierName": "<razão social do emitente, ou null>", "invoiceNumber": "<número da nota, ou null>", "totalAmount": <valor total em reais, número com ponto decimal, ou null>, "accessKey": "<chave de acesso de 44 dígitos, só números, ou null>"}',
+    '{"accountCode": "<código da lista>", "confidence": "alta" | "media" | "baixa", "reason": "<motivo em até 200 caracteres>", "supplierName": "<razão social do emitente, ou null>", "invoiceNumber": "<número da nota, ou null>", "totalAmount": <valor total em reais, número com ponto decimal, ou null>, "accessKey": "<chave de acesso desta nota, 44 dígitos, só números, não a de notas citadas, ou null>"}',
     'Copie esses dados do documento. Se um deles não estiver claro, responda null em vez de adivinhar.',
   ].join('\n');
 

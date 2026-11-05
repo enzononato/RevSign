@@ -10,6 +10,7 @@ import {
 } from '@prisma/client';
 
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
+import { logger } from '../../../utils/logger';
 
 /**
  * Fase 8, o alerta de nota duplicada. Uma NF é "possível duplicada" quando OUTRA NF viva tem uma chave de acesso em
@@ -202,4 +203,46 @@ export const findDuplicateEnvelopeIds = async (
   }
 
   return duplicated;
+};
+
+// Só o nome e o código do erro vão para o log: a mensagem do Prisma pode trazer os parâmetros da consulta (chaves, hash).
+const logLookupFailure = (kind: 'single' | 'batch', error: unknown) => {
+  logger.error({
+    msg: 'revalle.invoice.duplicates.failed',
+    kind,
+    errorName: error instanceof Error ? error.name : 'unknown',
+    errorCode:
+      error !== null && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
+        ? error.code
+        : undefined,
+  });
+};
+
+/**
+ * `findInvoiceDuplicates` para as rotas que levam o resultado a uma tela: se a busca falhar, registra (sem dados) e
+ * responde sem duplicadas, em vez de derrubar o pedido inteiro. O alerta é um aviso; nada depende dele.
+ */
+export const findInvoiceDuplicatesOrEmpty = async (
+  row: Parameters<typeof findInvoiceDuplicates>[0],
+): Promise<InvoiceDuplicate[]> => {
+  try {
+    return await findInvoiceDuplicates(row);
+  } catch (error) {
+    logLookupFailure('single', error);
+
+    return [];
+  }
+};
+
+/** `findDuplicateEnvelopeIds` para a lista e a planilha, com a mesma regra: falhou, registra (sem dados) e segue sem a marca. */
+export const findDuplicateEnvelopeIdsOrEmpty = async (
+  rows: Parameters<typeof findDuplicateEnvelopeIds>[0],
+): Promise<Set<string>> => {
+  try {
+    return await findDuplicateEnvelopeIds(rows);
+  } catch (error) {
+    logLookupFailure('batch', error);
+
+    return new Set();
+  }
 };

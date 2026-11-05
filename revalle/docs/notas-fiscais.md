@@ -200,17 +200,19 @@ arquivo**, e essa outra nota:
 A própria nota também precisa estar "viva" para mostrar o alerta: uma nota substituída, recusada, cancelada ou excluída
 não mostra. Rascunho de outra pessoa não conta.
 
-**De onde vêm as chaves.** O RevSign guarda as chaves de acesso válidas (44 números, com UF, mês, CNPJ e dígito
-verificador certos, dos modelos 55 NF-e, 57 CT-e, 65 NFC-e e 67 CT-e OS) que acha no texto dos arquivos detectados como
-nota fiscal, e soma a chave que a IA leu, o que cobre o PDF escaneado. Só a nota nova (ou que teve o arquivo trocado)
-guarda chaves; **as notas que já existiam são achadas pelo mesmo arquivo**, não pela chave. Uma nova versão leva as
-chaves da anterior.
+**De onde vêm as chaves.** Só a chave **própria** da nota conta. O RevSign guarda, de cada página dos arquivos detectados
+como nota fiscal, a **primeira** chave de acesso válida do texto (44 números, com UF, mês, CNPJ e dígito verificador certos,
+dos modelos 55 NF-e, 57 CT-e, 65 NFC-e e 67 CT-e OS), sem repetir: um DANFE ou um DACTE imprime a chave dele no cabeçalho e a
+repete em cada página. E soma a chave que a IA leu, o que cobre o PDF escaneado; a IA é instruída a copiar a chave **desta
+nota**, não as de notas citadas. Só a nota nova (ou que teve o arquivo trocado) guarda chaves, e trocar o arquivo refaz a
+lista; **as notas que já existiam são achadas pelo mesmo arquivo**, não pela chave. Uma nova versão leva as chaves da anterior.
 
 **O que o alerta não pega.**
 - Uma NFS-e (nota de serviço) com **arquivo diferente** não é achada: ela não tem chave de 44 números, e o número lido
   pela IA não é confiável o bastante para acusar.
-- Uma nota que **cita** a chave de outra no texto (por exemplo, uma devolução que traz a chave da nota original) pode
-  acusar a original. Por isso se diz "possível": confira antes de decidir.
+- Uma nota que **cita** a chave de outra (uma devolução que traz a chave da nota original, um CT-e que lista as NF-e
+  transportadas) **não acusa a original, nem é acusada por ela**: a chave citada não entra. O limite é o inverso: um layout que
+  imprime uma chave citada **antes** da própria pode perder o casamento por chave (o mesmo arquivo ainda acusa).
 
 **Onde aparece, e para quem.**
 
@@ -313,7 +315,7 @@ O arquivo abre direto no Excel (separador `;`, UTF-8 com BOM). Colunas:
 | `fornecedor` | Fornecedor lido da nota pela IA (pode estar errado); vazio quando a IA não leu |
 | `numero_nf` | Número da nota lido pela IA; vazio quando a IA não leu |
 | `valor` | Valor total lido pela IA, com vírgula nos centavos e sem símbolo nem ponto (`1234,56`); vazio quando a IA não leu |
-| `chave_acesso` | Chaves de acesso guardadas da nota (as do texto do arquivo e a que a IA leu), separadas por espaço; vazio quando não há |
+| `chave_acesso` | Chaves de acesso guardadas da nota (a própria de cada página do arquivo e a que a IA leu), separadas por espaço; vazio quando não há |
 | `possivel_duplicada` | `sim` quando outra nota viva tem uma chave em comum ou o mesmo arquivo; vazio nos demais. Só vem preenchida na planilha do Financeiro, da Contabilidade e do admin |
 
 As colunas `financeiro` e `aprovado_por` (Fase 6), as quatro do centro de custo (Fase 7), as três lidas pela IA e, por

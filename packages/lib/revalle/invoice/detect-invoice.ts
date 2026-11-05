@@ -93,18 +93,23 @@ export const isValidChaveAcesso = (digits44: string): boolean => hasValidChaveSt
 export const isValidChaveDocumento = (digits44: string): boolean =>
   hasValidChaveStructure(digits44, ['55', '57', '65', '67']);
 
-/** As chaves válidas do texto (escritas com ou sem espaços), sem repetir, na ordem em que aparecem. */
+/**
+ * A chave PRÓPRIA da nota em cada página: a primeira chave válida do texto (com ou sem espaços), sem repetir. Um DANFE ou
+ * um DACTE imprime a chave dele no cabeçalho e a repete em cada página; as que aparecem depois são de notas citadas (a
+ * devolução traz a da nota original, o CT-e traz a das NF-e transportadas) e, se entrassem, fariam a nota citada acusar a
+ * que a cita. Limite: um layout que imprime uma chave citada antes da própria pode perder o casamento por chave.
+ */
 export const extractAccessKeys = (pages: string[]): string[] => {
   const keys = new Set<string>();
 
   // Página por página: um grupo de 4 dígitos não atravessa a quebra de página.
   for (const page of pages) {
-    for (const candidate of page.match(CHAVE_PATTERN) ?? []) {
-      const digits = candidate.replace(/\s/g, '');
+    const own = (page.match(CHAVE_PATTERN) ?? [])
+      .map((candidate) => candidate.replace(/\s/g, ''))
+      .find((digits) => isValidChaveDocumento(digits));
 
-      if (isValidChaveDocumento(digits)) {
-        keys.add(digits);
-      }
+    if (own !== undefined) {
+      keys.add(own);
     }
   }
 

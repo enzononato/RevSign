@@ -32,7 +32,7 @@ import {
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import { isAccountingMember } from '../accounting/members';
 import { isFinanceMember } from '../finance/members';
-import { findDuplicateEnvelopeIds, sentAtOf } from './duplicates';
+import { findDuplicateEnvelopeIdsOrEmpty, sentAtOf } from './duplicates';
 
 export type InvoiceViewer = { userId: number; isAdmin: boolean };
 
@@ -354,7 +354,7 @@ const toRows = async (envelopes: SelectedEnvelope[], viewer: ResolvedViewer): Pr
   // Fase 8: a marca "Possível duplicada" é de quem decide sobre a nota; para os outros nem se consulta.
   const duplicateIds =
     viewer.isFinance || viewer.isAccounting || viewer.isAdmin
-      ? await findDuplicateEnvelopeIds(
+      ? await findDuplicateEnvelopeIdsOrEmpty(
           envelopes.flatMap((envelope) =>
             envelope.revalleInvoice
               ? [

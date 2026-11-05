@@ -116,10 +116,29 @@ describe('extractAccessKeys', () => {
     expect(extractAccessKeys([`${VALID_KEY} e ${spaced(VALID_KEY)}`, `de novo ${VALID_KEY}`])).toEqual([VALID_KEY]);
   });
 
-  it('devolve várias chaves distintas, na ordem em que aparecem, e inclui CT-e', () => {
-    const cte = withModel('57');
+  it('em cada página fica só a primeira chave válida: a própria nota vem antes das citadas', () => {
+    const cited = withCheckDigit(`3524${VALID_KEY.slice(4, 43)}`);
 
-    expect(extractAccessKeys([`${cte} ... ${VALID_KEY}`])).toEqual([cte, VALID_KEY]);
+    expect(cited).not.toBe(VALID_KEY);
+    expect(isValidChaveDocumento(cited)).toBe(true);
+    // Uma devolução traz a chave dela no cabeçalho e, depois, a da nota original.
+    expect(
+      extractAccessKeys([
+        `Chave de Acesso ${spaced(VALID_KEY)}\nInformações complementares: NF-e referenciada ${cited}`,
+      ]),
+    ).toEqual([VALID_KEY]);
+    expect(extractAccessKeys([`${VALID_KEY} ${cited} ${cited}`])).toEqual([VALID_KEY]);
+  });
+
+  it('duas páginas com chaves próprias diferentes guardam as duas (CT-e inclusive), cada uma sem as citadas', () => {
+    const cte = withModel('57');
+    const cited = withCheckDigit(`3524${VALID_KEY.slice(4, 43)}`);
+
+    expect(extractAccessKeys([`${cte} cita ${cited}`, `${VALID_KEY} cita ${cited}`])).toEqual([cte, VALID_KEY]);
+  });
+
+  it('um 44 dígitos inválido antes da chave própria não a esconde', () => {
+    expect(extractAccessKeys([`${WRONG_KEY} e depois ${VALID_KEY}`])).toEqual([VALID_KEY]);
   });
 
   it('ignora 44 dígitos que não são chave: dígito errado, boleto, e dígitos dentro de um número maior', () => {

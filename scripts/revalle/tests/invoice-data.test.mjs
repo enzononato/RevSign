@@ -445,7 +445,11 @@ aiTest(
 
     // O prompt fixo pede os dados e manda responder null em vez de adivinhar.
     assert.ok(call.system.includes('"supplierName": "<razão social do emitente, ou null>"'));
-    assert.ok(call.system.includes('"accessKey": "<chave de acesso de 44 dígitos, só números, ou null>"'));
+    assert.ok(
+      call.system.includes(
+        '"accessKey": "<chave de acesso desta nota, 44 dígitos, só números, não a de notas citadas, ou null>"',
+      ),
+    );
     assert.ok(
       call.system.includes(
         'Copie esses dados do documento. Se um deles não estiver claro, responda null em vez de adivinhar.',

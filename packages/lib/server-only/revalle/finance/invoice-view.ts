@@ -16,7 +16,7 @@ import { costCenterLabel } from '../../../revalle/invoice/cost-centers';
 import { type InvoiceDataSummary, toInvoiceDataSummary } from '../../../revalle/invoice/invoice-data';
 import { isAdmin as isAdminUser } from '../../../utils/is-admin';
 import { isAccountingMember } from '../accounting/members';
-import { findInvoiceDuplicates } from '../invoice/duplicates';
+import { findInvoiceDuplicatesOrEmpty } from '../invoice/duplicates';
 import { isFinanceMember } from './members';
 import { findVisibleSuccessor } from './successor';
 
@@ -241,7 +241,7 @@ export const getInvoiceView = async ({
   const duplicates =
     canOpenOthers || viewer.isOwner
       ? (
-          await findInvoiceDuplicates({
+          await findInvoiceDuplicatesOrEmpty({
             envelopeId: envelope.id,
             accessKeys: invoice.accessKeys,
             fileSha256: invoice.fileSha256,
