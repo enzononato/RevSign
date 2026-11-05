@@ -733,12 +733,15 @@ sessionTest(
         'fornecedor',
         'numero_nf',
         'valor',
+        // Fase 8: a chave de acesso e a marca da duplicada, por último.
+        'chave_acesso',
+        'possivel_duplicada',
       ]);
-      assert.equal(header.length, 22);
+      assert.equal(header.length, 24);
 
       const rowOf = (doc) => rows.find((cells) => cells[1] === doc.title);
 
-      assert.equal(rowOf(waiting).length, 22);
+      assert.equal(rowOf(waiting).length, 24);
       assert.deepEqual(rowOf(waiting).slice(15, 19), ['101', 'Puxada', 'Aguardando validação', '']);
       assert.deepEqual(rowOf(validated).slice(15, 19), ['401', 'Vendas', 'Validado', accountant.name]);
       assert.deepEqual(rowOf(noCenter).slice(15, 19), ['', '', 'Sem centro de custo', '']);
@@ -763,7 +766,7 @@ sessionTest(
       const ownerRows = csvRows((await csv(userCookie, '?contabilidade=todas')).text);
       const outsiderRows = csvRows((await csv(outsider.cookie, '?contabilidade=todas')).text);
 
-      assert.equal(ownerRows[0].length, 22);
+      assert.equal(ownerRows[0].length, 24);
       assert.ok(ownerRows.some((cells) => cells[1] === waiting.title));
       assert.ok(!outsiderRows.some((cells) => cells[1] === waiting.title));
     } finally {

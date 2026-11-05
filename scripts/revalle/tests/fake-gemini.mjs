@@ -7,12 +7,14 @@
 //
 // Rotas:
 //   POST /v1beta/models/{modelo}:generateContent   resposta no formato do Gemini, conforme o modo programado
-//   POST /__program { mode, accountCode?, delayMs?, apiKey?, invoiceData? }
+//   POST /__program { mode, accountCode?, delayMs?, apiKey?, invoiceData?, responseDelayMs? }
 //        modos: ok | unknown-account | garbage | slow (25 s) | error (HTTP 500) | proxy (repassa ao Gemini de verdade
 //        com `apiKey`; perna opcional dos testes, chave só na memória, nunca devolvida nem registrada)
 //        `invoiceData` (Fase 8, só no modo ok): objeto com os campos que a resposta leva no lugar dos padrões
 //        (supplierName 'Fornecedor Falso LTDA', invoiceNumber '12345', totalAmount 1234.56, accessKey null); `null`
 //        omite todos. Sem a chave, vale o padrão.
+//        `responseDelayMs` (Fase 8, só no modo ok): espera esse tanto antes de responder, para o teste abrir o diálogo de
+//        envio com a sugestão ainda em andamento (a chamada já consta em /__calls). Padrão 0.
 //   GET  /__calls                                    chamadas recebidas (modelo, se veio PDF ou texto, tamanhos,
 //                                                    thinkingConfig, códigos da trava, o `responseSchema` inteiro, as
 //                                                    partes da mensagem)
@@ -37,7 +39,14 @@ const DEFAULT_INVOICE_DATA = {
   accessKey: null,
 };
 
-const initialProgram = () => ({ mode: 'ok', accountCode: null, delayMs: 25_000, apiKey: null, invoiceData: undefined });
+const initialProgram = () => ({
+  mode: 'ok',
+  accountCode: null,
+  delayMs: 25_000,
+  apiKey: null,
+  invoiceData: undefined,
+  responseDelayMs: 0,
+});
 const publicProgram = () => ({ ...program, apiKey: program.apiKey ? '(definida)' : null });
 
 let program = initialProgram();
@@ -141,6 +150,10 @@ const handleGenerate = async (req, res, model) => {
 
   switch (program.mode) {
     case 'ok':
+      if (program.responseDelayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, program.responseDelayMs));
+      }
+
       sendJson(
         res,
         200,
@@ -239,6 +252,7 @@ const server = createServer(async (req, res) => {
         delayMs: Number(input.delayMs ?? 25_000),
         apiKey: input.mode === 'proxy' ? (input.apiKey ?? null) : null,
         invoiceData: Object.hasOwn(input, 'invoiceData') ? input.invoiceData : undefined,
+        responseDelayMs: input.mode === 'ok' ? Number(input.responseDelayMs ?? 0) : 0,
       };
       sendJson(res, 200, publicProgram());
 

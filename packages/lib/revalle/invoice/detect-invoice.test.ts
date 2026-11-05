@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { detectInvoice, isValidChaveAcesso } from './detect-invoice';
+import { detectInvoice, extractAccessKeys, isValidChaveAcesso, isValidChaveDocumento } from './detect-invoice';
 
 const checkDigitOf = (first43: string): number => {
   let total = 0;
@@ -63,6 +63,76 @@ describe('isValidChaveAcesso', () => {
   it('recusa tamanho errado e caracteres que não são dígitos', () => {
     expect(isValidChaveAcesso(VALID_KEY.slice(1))).toBe(false);
     expect(isValidChaveAcesso(`${VALID_KEY.slice(0, 43)}x`)).toBe(false);
+  });
+});
+
+// Troca o modelo (posições 20 e 21) e recalcula o dígito verificador.
+const withModel = (model: string) => withCheckDigit(`${VALID_KEY.slice(0, 20)}${model}${VALID_KEY.slice(22, 43)}`);
+
+describe('isValidChaveDocumento', () => {
+  it('aceita uma chave certa de cada modelo: 55, 57, 65 e 67', () => {
+    for (const model of ['55', '57', '65', '67']) {
+      const key = withModel(model);
+
+      expect(key).toHaveLength(44);
+      expect(key.slice(20, 22)).toBe(model);
+      expect(isValidChaveDocumento(key), `modelo ${model}`).toBe(true);
+    }
+  });
+
+  it('recusa o modelo 01 e qualquer outro fora dos quatro, mesmo com o dígito verificador certo', () => {
+    for (const model of ['01', '02', '58', '59', '66', '99']) {
+      expect(isValidChaveDocumento(withModel(model)), `modelo ${model}`).toBe(false);
+    }
+  });
+
+  it('recusa UF fora da lista, mês 13, CNPJ errado e dígito verificador errado', () => {
+    expect(isValidChaveDocumento(withCheckDigit(`99${VALID_KEY.slice(2, 43)}`))).toBe(false);
+    expect(isValidChaveDocumento(withCheckDigit(`${VALID_KEY.slice(0, 4)}13${VALID_KEY.slice(6, 43)}`))).toBe(false);
+    expect(
+      isValidChaveDocumento(withCheckDigit(`${VALID_KEY.slice(0, 6)}12345678000196${VALID_KEY.slice(20, 43)}`)),
+    ).toBe(false);
+    expect(isValidChaveDocumento(WRONG_KEY)).toBe(false);
+    expect(isValidChaveDocumento(VALID_KEY.slice(1))).toBe(false);
+    expect(isValidChaveDocumento(`${VALID_KEY.slice(0, 43)}x`)).toBe(false);
+  });
+
+  it('a detecção não muda: isValidChaveAcesso continua só com 55 e 65', () => {
+    expect(isValidChaveAcesso(withModel('55'))).toBe(true);
+    expect(isValidChaveAcesso(withModel('65'))).toBe(true);
+    expect(isValidChaveAcesso(withModel('57'))).toBe(false);
+    expect(isValidChaveAcesso(withModel('67'))).toBe(false);
+    expect(detectInvoice([`${filler}\nChave de acesso ${withModel('57')}`]).signals).not.toContain('CHAVE_ACESSO');
+  });
+});
+
+describe('extractAccessKeys', () => {
+  it('acha a chave escrita sem espaços e em grupos de 4 dígitos', () => {
+    expect(extractAccessKeys([`${filler} ${VALID_KEY}`])).toEqual([VALID_KEY]);
+    expect(extractAccessKeys([`Chave de acesso\n${spaced(VALID_KEY)}\nOutro texto`])).toEqual([VALID_KEY]);
+  });
+
+  it('não repete a chave que aparece duas vezes, nem a que aparece em páginas diferentes', () => {
+    expect(extractAccessKeys([`${VALID_KEY} e ${spaced(VALID_KEY)}`, `de novo ${VALID_KEY}`])).toEqual([VALID_KEY]);
+  });
+
+  it('devolve várias chaves distintas, na ordem em que aparecem, e inclui CT-e', () => {
+    const cte = withModel('57');
+
+    expect(extractAccessKeys([`${cte} ... ${VALID_KEY}`])).toEqual([cte, VALID_KEY]);
+  });
+
+  it('ignora 44 dígitos que não são chave: dígito errado, boleto, e dígitos dentro de um número maior', () => {
+    expect(extractAccessKeys([`${WRONG_KEY}`, `Boleto 34191790010104351004791020150008291070026000`])).toEqual([]);
+    expect(extractAccessKeys([`${VALID_KEY}9`, `9${VALID_KEY}`])).toEqual([]);
+    expect(extractAccessKeys([])).toEqual([]);
+    expect(extractAccessKeys(['sem chave nenhuma'])).toEqual([]);
+  });
+
+  it('um grupo de 4 dígitos não atravessa a quebra de página', () => {
+    const groups = spaced(VALID_KEY).split(' ');
+
+    expect(extractAccessKeys([groups.slice(0, 6).join(' '), groups.slice(6).join(' ')])).toEqual([]);
   });
 });
 

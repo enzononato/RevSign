@@ -54,7 +54,10 @@ const isValidCnpj = (digits14: string): boolean => {
   return checkDigit(12) === Number(digits14[12]) && checkDigit(13) === Number(digits14[13]);
 };
 
-export const isValidChaveAcesso = (digits44: string): boolean => {
+// Fase 8: a chave da duplicada vale para os quatro modelos de documento fiscal eletrônico: NF-e (55), CT-e (57), NFC-e
+// (65) e CT-e OS (67). A DETECÇÃO de nota fiscal continua só com 55 e 65 (`isValidChaveAcesso`): reconhecer um CT-e
+// sozinho como nota fiscal está fora do escopo.
+const hasValidChaveStructure = (digits44: string, models: readonly string[]): boolean => {
   if (!/^\d{44}$/.test(digits44)) {
     return false;
   }
@@ -66,7 +69,7 @@ export const isValidChaveAcesso = (digits44: string): boolean => {
     return false;
   }
 
-  if ((model !== '55' && model !== '65') || !isValidCnpj(digits44.slice(6, 20))) {
+  if (!models.includes(model) || !isValidCnpj(digits44.slice(6, 20))) {
     return false;
   }
 
@@ -82,6 +85,30 @@ export const isValidChaveAcesso = (digits44: string): boolean => {
   const checkDigit = remainder < 2 ? 0 : 11 - remainder;
 
   return checkDigit === Number(digits44[43]);
+};
+
+export const isValidChaveAcesso = (digits44: string): boolean => hasValidChaveStructure(digits44, ['55', '65']);
+
+/** Chave de NF-e, CT-e, NFC-e ou CT-e OS (modelos 55, 57, 65 e 67): UF, mês, CNPJ e dígito verificador certos. */
+export const isValidChaveDocumento = (digits44: string): boolean =>
+  hasValidChaveStructure(digits44, ['55', '57', '65', '67']);
+
+/** As chaves válidas do texto (escritas com ou sem espaços), sem repetir, na ordem em que aparecem. */
+export const extractAccessKeys = (pages: string[]): string[] => {
+  const keys = new Set<string>();
+
+  // Página por página: um grupo de 4 dígitos não atravessa a quebra de página.
+  for (const page of pages) {
+    for (const candidate of page.match(CHAVE_PATTERN) ?? []) {
+      const digits = candidate.replace(/\s/g, '');
+
+      if (isValidChaveDocumento(digits)) {
+        keys.add(digits);
+      }
+    }
+  }
+
+  return [...keys];
 };
 
 const pageLooksLikeInvoice = (page: string): boolean => {

@@ -63,12 +63,18 @@ const failure = (reason: InvoiceFailureReason): Prisma.InputJsonValue => ({ fail
 
 /**
  * Fase 8: as colunas da linha que espelham os dados lidos pela IA, tiradas da sugestão. Todo lugar que grava `DONE`
- * passa por aqui, para a coluna e o JSON da sugestão nunca discordarem.
+ * passa por aqui, para a coluna e o JSON da sugestão nunca discordarem. A chave de acesso que a IA leu (a de uma NF
+ * escaneada, que não tem texto) soma-se às que a linha já tem, sem repetir, quando passa na conferência do dígito.
  */
-export const invoiceDataColumns = (suggestion: InvoiceSuggestion) => {
-  const { supplierName, invoiceNumber, totalAmountCents } = normalizeInvoiceData(suggestion);
+export const invoiceDataColumns = (suggestion: InvoiceSuggestion, accessKeys: readonly string[]) => {
+  const { supplierName, invoiceNumber, totalAmountCents, accessKey } = normalizeInvoiceData(suggestion);
 
-  return { supplierName, invoiceNumber, totalAmountCents };
+  return {
+    supplierName,
+    invoiceNumber,
+    totalAmountCents,
+    accessKeys: accessKey === null || accessKeys.includes(accessKey) ? [...accessKeys] : [...accessKeys, accessKey],
+  };
 };
 
 /**
@@ -148,7 +154,12 @@ export const startInvoiceSuggestion = async ({
   if (activeCodes.size === 0) {
     await prisma.revalleInvoiceClassification.updateMany({
       where: guard,
-      data: { suggestionStatus: RevalleSuggestionStatus.FAILED, suggestion: failure('NO_ACCOUNTS') },
+      // Sem contas, o "Sugerir de novo" de uma sugestão pronta não deixa os dados da anterior para trás.
+      data: {
+        suggestionStatus: RevalleSuggestionStatus.FAILED,
+        suggestion: failure('NO_ACCOUNTS'),
+        ...NO_INVOICE_DATA_COLUMNS,
+      },
     });
 
     return;
@@ -159,7 +170,11 @@ export const startInvoiceSuggestion = async ({
   if (cached) {
     await prisma.revalleInvoiceClassification.updateMany({
       where: guard,
-      data: { suggestionStatus: RevalleSuggestionStatus.DONE, suggestion: cached, ...invoiceDataColumns(cached) },
+      data: {
+        suggestionStatus: RevalleSuggestionStatus.DONE,
+        suggestion: cached,
+        ...invoiceDataColumns(cached, row.accessKeys),
+      },
     });
 
     return;
@@ -341,6 +356,9 @@ export const runInvoiceSuggestion = async ({
   let input: 'text' | 'pdf' | 'text+pdf' | 'none' = 'none';
   // Só o código HTTP do provedor (429, 403, 404…), nunca a mensagem nem o corpo do erro.
   let providerStatus: number | undefined;
+  // As chaves da linha quando o job começou: a chave lida pela IA soma-se a elas. Só a troca de arquivo as muda, e ela
+  // também muda `fileSha256`, que o `pendingWhere` confere.
+  let storedAccessKeys: string[] = [];
 
   const finish = async (outcome: SuggestionOutcome) => {
     if (outcome.status === 'DONE') {
@@ -351,7 +369,7 @@ export const runInvoiceSuggestion = async ({
         data: {
           suggestionStatus: RevalleSuggestionStatus.DONE,
           suggestion: stored,
-          ...invoiceDataColumns(outcome.suggestion),
+          ...invoiceDataColumns(outcome.suggestion, storedAccessKeys),
         },
       });
 
@@ -404,6 +422,8 @@ export const runInvoiceSuggestion = async ({
     ) {
       return;
     }
+
+    storedAccessKeys = row.accessKeys;
 
     const files = await loadEnvelopeFiles(envelopeId);
 

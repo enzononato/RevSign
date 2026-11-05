@@ -5087,3 +5087,26 @@ msgstr "Número: {invoiceNumber}"
 
 msgid "Valor: {amount}"
 msgstr "Valor: {amount}"
+
+# REVALLE: Fase 8, alerta de nota duplicada (msgids já em pt-BR).
+
+msgid "Possível duplicada"
+msgstr "Possível duplicada"
+
+msgid "Outra nota enviada tem a mesma chave de acesso ou o mesmo arquivo. Confira antes de aprovar."
+msgstr "Outra nota enviada tem a mesma chave de acesso ou o mesmo arquivo. Confira antes de aprovar."
+
+msgid "Esta nota parece já ter sido enviada"
+msgstr "Esta nota parece já ter sido enviada"
+
+msgid "Enviada em {sentAt} por {senderName} · {situation}"
+msgstr "Enviada em {sentAt} por {senderName} · {situation}"
+
+msgid "Enviada por {senderName} · {situation}"
+msgstr "Enviada por {senderName} · {situation}"
+
+msgid "Sei disso e quero enviar mesmo assim"
+msgstr "Sei disso e quero enviar mesmo assim"
+
+msgid "Tem a mesma chave de acesso ou o mesmo arquivo de outra nota enviada. Confira antes de decidir."
+msgstr "Tem a mesma chave de acesso ou o mesmo arquivo de outra nota enviada. Confira antes de decidir."

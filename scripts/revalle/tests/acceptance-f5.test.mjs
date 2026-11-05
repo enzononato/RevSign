@@ -63,8 +63,11 @@ const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}
 const PASSWORD = `Aceite-F5-${RUN}!`;
 const PROMPT = `Prompt do aceite da Fase 5 (${RUN}): fornecedores de mercadoria vão para 4.1.07.`;
 const CHAVE = '29241012345678000195550010000123451123456784';
+// Fase 8: a IA também lê o fornecedor, o número, o valor e a chave de acesso da nota; a frase de antes ("apenas para sugerir
+// a conta contábil") ficou curta e não pode voltar.
 const PRIVACY_SENTENCE =
-  'As notas fiscais enviadas para assinatura são analisadas por um serviço de inteligência artificial (Google Gemini) apenas para sugerir a conta contábil.';
+  'As notas fiscais enviadas para assinatura são analisadas por um serviço de inteligência artificial (Google Gemini) para sugerir a conta contábil e para ler da nota o fornecedor, o número, o valor e a chave de acesso.';
+const PRIVACY_OLD_SENTENCE = 'apenas para sugerir a conta contábil';
 // O que de fato vai ao Gemini: o texto com o CPF mascarado; a NF digitalizada vai como imagem, sem máscara possível.
 const PRIVACY_CPF_SENTENCE =
   'No texto da nota, números de CPF são mascarados antes do envio; uma nota digitalizada (imagem) é enviada como está. Nunca enviamos a data de nascimento nem os dados da verificação de quem assina.';
@@ -80,9 +83,9 @@ const ACCOUNTS_CSV = [
   ...ACCOUNTS.map((a) => `${a.code};${a.name};Conta do aceite da Fase 5;${a.kind}`),
 ].join('\n');
 // Fase 6: `financeiro;aprovado_por` no fim do cabeçalho; Fase 7: depois deles, as quatro colunas do centro de custo;
-// Fase 8: depois delas, `fornecedor;numero_nf;valor` (lidos pela IA).
+// Fase 8: depois delas, `fornecedor;numero_nf;valor` (lidos pela IA) e, por último, `chave_acesso;possivel_duplicada`.
 const HEADER =
-  'id;titulo;remetente;enviado_em;concluido_em;status;conta;nome_conta;tipo;sugestao_ia;confianca;aceitou_sugestao;link;financeiro;aprovado_por;centro_custo;nome_centro_custo;validacao_contabilidade;validado_por;fornecedor;numero_nf;valor';
+  'id;titulo;remetente;enviado_em;concluido_em;status;conta;nome_conta;tipo;sugestao_ia;confianca;aceitou_sugestao;link;financeiro;aprovado_por;centro_custo;nome_centro_custo;validacao_contabilidade;validado_por;fornecedor;numero_nf;valor;chave_acesso;possivel_duplicada';
 
 const tmp = mkdtempSync(path.join(tmpdir(), 'revsign-aceite-f5-'));
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -703,7 +706,7 @@ testStep(
   },
 );
 
-testStep('9. a política de privacidade tem a frase do Gemini (spec §9) e a do CPF, exata', async () => {
+testStep('9. a política de privacidade tem a frase do Gemini (conta e dados da nota) e a do CPF, exata', async () => {
   const html = await fetchIdempotent(`${BASE_URL}/privacidade`, {}, (res) => res.text());
   const text = html
     .replace(/<script[\s\S]*?<\/script>/g, ' ')
@@ -712,7 +715,9 @@ testStep('9. a política de privacidade tem a frase do Gemini (spec §9) e a do 
     .replace(/&quot;/g, '"')
     .replace(/\s+/g, ' ');
 
-  assert.ok(text.includes(PRIVACY_SENTENCE), 'frase da spec §9 ausente');
+  assert.ok(text.includes(PRIVACY_SENTENCE), 'frase do Gemini (conta, fornecedor, número, valor e chave) ausente');
+  assert.ok(!text.includes(PRIVACY_OLD_SENTENCE), 'a política ainda diz que a IA só sugere a conta contábil');
+  assert.ok(text.includes('Versão 1 — 05/11/2026'), 'cabeçalho da política sem a data de 05/11/2026 e a versão 1');
   assert.ok(text.includes(PRIVACY_CPF_SENTENCE), 'frase do CPF (texto mascarado, imagem como está) ausente');
   // A promessa antiga ("nunca enviamos o CPF") não vale para a NF digitalizada.
   assert.ok(!/Nunca enviamos o CPF/i.test(text), 'a política ainda promete nunca enviar o CPF');

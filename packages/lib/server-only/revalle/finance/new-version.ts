@@ -381,7 +381,8 @@ const createNewVersion = async ({
     suggestionStatus: isSuggestionPending ? RevalleSuggestionStatus.SKIPPED : row.suggestionStatus,
     suggestion: isSuggestionPending || row.suggestion === null ? Prisma.DbNull : row.suggestion,
     suggestionAttempts: row.suggestionAttempts,
-    // Fase 8: a cópia tem os mesmos arquivos, então leva o que a IA leu da NF (sem sugestão, sem dados).
+    // Fase 8: a cópia tem os mesmos arquivos, então leva as chaves de acesso e o que a IA leu da NF (sem sugestão, sem dados).
+    accessKeys: row.accessKeys,
     ...(isSuggestionPending
       ? NO_INVOICE_DATA_COLUMNS
       : {

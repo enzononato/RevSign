@@ -9,7 +9,7 @@ import { Card, CardContent } from '@documenso/ui/primitives/card';
 import { msg } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { RecipientRole, SigningStatus } from '@prisma/client';
-import { ChevronLeft, DownloadIcon, ExternalLinkIcon } from 'lucide-react'; // REVALLE: DownloadIcon
+import { ChevronLeft, DownloadIcon, ExternalLinkIcon, TriangleAlertIcon } from 'lucide-react'; // REVALLE: DownloadIcon, Fase 8
 import { isRouteErrorResponse, Link, useRevalidator } from 'react-router';
 
 import { DocumentStatus } from '~/components/general/document/document-status';
@@ -17,6 +17,7 @@ import { GenericErrorLayout } from '~/components/general/generic-error-layout';
 import PDFViewerLazy from '~/components/general/pdf-viewer/pdf-viewer-lazy';
 import { AccountingCard } from '~/components/revalle/accounting/accounting-card';
 import { FinanceCard } from '~/components/revalle/finance/finance-card';
+import { InvoiceDuplicateSentence } from '~/components/revalle/invoice/invoice-duplicate-notice'; // REVALLE: Fase 8
 import { appMetaTags } from '~/utils/meta';
 
 import type { Route } from './+types/notas-fiscais.$envelopeId._index';
@@ -105,6 +106,53 @@ const InvoiceReadData = ({
   );
 };
 
+/**
+ * Fase 8: "Esta nota parece já ter sido enviada". O Financeiro, a Contabilidade e o admin veem o título (com o link para a
+ * outra nota), a data, o remetente e a situação; o dono vê só data, remetente e situação (`id` e `title` vêm nulos).
+ */
+const InvoiceDuplicates = ({
+  duplicates,
+}: {
+  duplicates: Route.ComponentProps['loaderData']['view']['duplicates'];
+}) => (
+  <section
+    className="flex flex-col gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm"
+    data-testid="invoice-view-duplicates"
+  >
+    <h2 className="flex items-start gap-2 font-medium">
+      <TriangleAlertIcon className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" />
+      <Trans>Esta nota parece já ter sido enviada</Trans>
+    </h2>
+    <p className="text-muted-foreground">
+      <Trans>Tem a mesma chave de acesso ou o mesmo arquivo de outra nota enviada. Confira antes de decidir.</Trans>
+    </p>
+    <ul className="flex flex-col gap-2">
+      {duplicates.map((duplicate, index) => {
+        return (
+          <li
+            key={duplicate.id ?? `${duplicate.sentAt?.toISOString() ?? 'sem-data'}-${index}`}
+            className="min-w-0"
+            data-testid="invoice-view-duplicate"
+          >
+            {duplicate.id && duplicate.title && (
+              <Link
+                to={invoiceViewPath(duplicate.id)}
+                className="flex min-h-11 items-center break-words font-medium text-documenso-700 hover:underline"
+                data-testid="invoice-view-duplicate-link"
+              >
+                {duplicate.title}
+              </Link>
+            )}
+            <p className="break-words">
+              <InvoiceDuplicateSentence duplicate={duplicate} />
+            </p>
+          </li>
+        );
+      })}
+    </ul>
+  </section>
+);
+
 export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
   const { view } = loaderData;
   const { finance, invoiceData } = view;
@@ -154,6 +202,8 @@ export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
               )}
             </section>
           )}
+
+          {view.duplicates.length > 0 && <InvoiceDuplicates duplicates={view.duplicates} />}
 
           {(finance.previous || finance.next) && (
             <section className="flex flex-col gap-1 rounded-xl border border-border bg-widget p-4 text-sm dark:bg-background">

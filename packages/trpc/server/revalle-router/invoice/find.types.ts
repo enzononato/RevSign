@@ -24,6 +24,8 @@ export const ZInvoiceListRowSchema = z.object({
   suggestion: z.object({ code: z.string(), confidence: z.string() }).nullable(),
   /** Fase 8: lido pela IA; nulo quando os três estão vazios. */
   invoiceData: ZInvoiceDataSummarySchema.nullable(),
+  /** Fase 8: outra NF viva tem uma chave em comum ou o mesmo arquivo. `false` para quem não é do Financeiro, da Contabilidade nem admin. */
+  isPossibleDuplicate: z.boolean(),
   acceptedSuggestion: z.boolean().nullable(),
   financeStatus: z.enum(FINANCE_STATUSES).nullable(),
   version: z.number(),

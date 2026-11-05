@@ -180,7 +180,54 @@ uma sem abrir o PDF. **Podem estar errados**: a IA lê o documento como uma pess
   novo**) a IA é chamada uma vez e os dados passam a existir. Nota já enviada não é lida de novo sozinha.
 - A **nova versão** de uma nota (troca de conta pelo Financeiro ou correção do centro pela Contabilidade) leva os
   mesmos dados. **Trocar o arquivo** do rascunho, ou marcar **Não é nota fiscal**, apaga os dados.
-- A **chave de acesso** lida fica guardada junto da sugestão (não aparece na tela nesta versão).
+- A **chave de acesso** lida fica guardada junto da sugestão e entra no alerta de nota duplicada (próxima seção). O
+  **fornecedor** sai com os números de CPF escondidos (`***.***.***-**`): o nome de um MEI costuma terminar no CPF do
+  dono, e uma nota escaneada chega à IA sem máscara.
+
+### Alerta de nota duplicada (Fase 8)
+
+O RevSign avisa quando uma nota **parece já ter sido enviada**, para ninguém pagar a mesma nota duas vezes. O aviso é um
+alerta: **ninguém é impedido**. Quem decide é a pessoa (e, depois do envio, o Financeiro e a Contabilidade).
+
+**Quando uma nota é "possível duplicada".** Quando **outra nota** tem **uma chave de acesso em comum** ou **o mesmo
+arquivo**, e essa outra nota:
+
+- já foi enviada (pendente ou concluída);
+- não foi recusada, cancelada nem excluída;
+- não é uma versão substituída (a troca de conta e a correção do centro criam uma nova versão: a nova nunca acusa a
+  anterior, mas continua acusando uma terceira nota).
+
+A própria nota também precisa estar "viva" para mostrar o alerta: uma nota substituída, recusada, cancelada ou excluída
+não mostra. Rascunho de outra pessoa não conta.
+
+**De onde vêm as chaves.** O RevSign guarda as chaves de acesso válidas (44 números, com UF, mês, CNPJ e dígito
+verificador certos, dos modelos 55 NF-e, 57 CT-e, 65 NFC-e e 67 CT-e OS) que acha no texto dos arquivos detectados como
+nota fiscal, e soma a chave que a IA leu, o que cobre o PDF escaneado. Só a nota nova (ou que teve o arquivo trocado)
+guarda chaves; **as notas que já existiam são achadas pelo mesmo arquivo**, não pela chave. Uma nova versão leva as
+chaves da anterior.
+
+**O que o alerta não pega.**
+- Uma NFS-e (nota de serviço) com **arquivo diferente** não é achada: ela não tem chave de 44 números, e o número lido
+  pela IA não é confiável o bastante para acusar.
+- Uma nota que **cita** a chave de outra no texto (por exemplo, uma devolução que traz a chave da nota original) pode
+  acusar a original. Por isso se diz "possível": confira antes de decidir.
+
+**Onde aparece, e para quem.**
+
+| Onde | Quem vê | O que mostra |
+|---|---|---|
+| Diálogo de envio, no bloco da nota | Quem está enviando | Alerta âmbar "Esta nota parece já ter sido enviada", uma linha por nota ("Enviada em 05/11/2026 10:00 por Maria · Pendente"; até 5, da mais antiga para a mais nova) e a caixa **Sei disso e quero enviar mesmo assim**. O botão **Enviar** só libera depois de marcar. **Sem título e sem link**, porque a pessoa pode não ter acesso à outra nota. |
+| Cartão "Conta contábil" do documento já enviado | O dono e o admin | O mesmo aviso, sem a caixa e sem link |
+| Lista **Notas fiscais** | Só Financeiro, Contabilidade e admin | O selo **Possível duplicada** abaixo do título. O colaborador comum não recebe a marca (a consulta nem roda para ele) |
+| Página da nota | Financeiro, Contabilidade e admin | O alerta com o **título**, a data, o remetente, a situação e o **link** de cada outra nota. O dono vê o alerta **sem título e sem link**. Quem só assina não vê |
+| Planilha | Quem exporta | Colunas `chave_acesso` e `possivel_duplicada` (`sim` ou vazio; o `sim` só para Financeiro, Contabilidade e admin) |
+
+- Se a chave da IA chegar **com o diálogo de envio aberto** (nota escaneada), o alerta aparece na hora e o botão
+  **Enviar** volta a ficar travado até a confirmação.
+- O alerta **some** quando a outra nota é recusada, cancelada, excluída ou substituída.
+- **Pela API o envio não é bloqueado**: a confirmação existe só na tela. Aprovar e validar continuam possíveis; o
+  Financeiro e a Contabilidade decidem olhando o alerta.
+- Os dados do alerta (chaves, nomes e datas) **não vão para o log**.
 
 ## 5. Página "Notas fiscais" e planilha
 
@@ -266,9 +313,12 @@ O arquivo abre direto no Excel (separador `;`, UTF-8 com BOM). Colunas:
 | `fornecedor` | Fornecedor lido da nota pela IA (pode estar errado); vazio quando a IA não leu |
 | `numero_nf` | Número da nota lido pela IA; vazio quando a IA não leu |
 | `valor` | Valor total lido pela IA, com vírgula nos centavos e sem símbolo nem ponto (`1234,56`); vazio quando a IA não leu |
+| `chave_acesso` | Chaves de acesso guardadas da nota (as do texto do arquivo e a que a IA leu), separadas por espaço; vazio quando não há |
+| `possivel_duplicada` | `sim` quando outra nota viva tem uma chave em comum ou o mesmo arquivo; vazio nos demais. Só vem preenchida na planilha do Financeiro, da Contabilidade e do admin |
 
-As colunas `financeiro` e `aprovado_por` (Fase 6), as quatro do centro de custo (Fase 7) e as três lidas pela IA
-(Fase 8) ficam **no fim**, nesta ordem: as planilhas que já leem as colunas anteriores continuam funcionando.
+As colunas `financeiro` e `aprovado_por` (Fase 6), as quatro do centro de custo (Fase 7), as três lidas pela IA e, por
+último, `chave_acesso` e `possivel_duplicada` (Fase 8) ficam **no fim**, nesta ordem: as planilhas que já leem as colunas
+anteriores continuam funcionando.
 
 **Para a contabilidade: não lance as linhas com `financeiro` = `Substituída`.** Elas são versões que o Financeiro
 substituiu ao trocar a conta ou que a Contabilidade substituiu ao corrigir o centro de custo (a mesma nota aparece de
@@ -297,8 +347,9 @@ agora há texto lido de um documento qualquer na planilha.
 
 ## 7. Privacidade
 
-- A política de privacidade (`/privacidade`) diz: "As notas fiscais enviadas para assinatura são analisadas por um
-  serviço de inteligência artificial (Google Gemini) apenas para sugerir a conta contábil."
+- A política de privacidade (`/privacidade`, versão 1, de 05/11/2026) diz: "As notas fiscais enviadas para assinatura
+  são analisadas por um serviço de inteligência artificial (Google Gemini) para sugerir a conta contábil e para ler da
+  nota o fornecedor, o número, o valor e a chave de acesso."
 - E também: "No texto da nota, números de CPF são mascarados antes do envio; uma nota digitalizada (imagem) é enviada
   como está. Nunca enviamos a data de nascimento nem os dados da verificação de quem assina."
 - Na prática: no texto, `123.456.789-09`, `123456789-09` e 11 dígitos logo depois de "CPF", "CPF nº" ou "CPF/CNPJ"
@@ -307,12 +358,12 @@ agora há texto lido de um documento qualquer na planilha.
 - O log do servidor registra só o modelo, os tokens, a duração, o resultado e, quando o Google recusa, o código HTTP
   (ex.: 429 = cota, 403 = chave, 404 = modelo retirado); nunca o texto da NF nem a resposta do Google. Os dados lidos da
   nota (fornecedor, número, valor, chave) também não vão para o log.
-- **Atenção à política de privacidade:** a frase de `/privacidade` ("…apenas para sugerir a conta contábil") ficou curta
-  desde a Fase 8, porque a IA também lê o fornecedor, o número, o valor e a chave. O texto da página não foi alterado
-  nesta fase.
+- A frase de antes ("…apenas para sugerir a conta contábil") ficou curta quando a IA passou a ler também o fornecedor, o
+  número, o valor e a chave. O texto foi corrigido e a data do cabeçalho passou para 05/11/2026; a **versão do termo
+  continua a mesma** (`1`): quem já aceitou não precisa aceitar de novo. O jurídico ainda precisa validar a página.
 - **Cache das sugestões:** a tabela `RevalleInvoiceSuggestionCache` guarda, por SHA-256 do arquivo, a conta sugerida,
   a confiança, o modelo, o motivo escrito pela IA (que pode citar o nome do fornecedor ou do tomador) e, desde a Fase 8,
-  o fornecedor, o número, o valor e a chave de acesso lidos da nota. Não tem prazo
+  o fornecedor (com o CPF escondido), o número, o valor e a chave de acesso lidos da nota. Não tem prazo
   e não é apagada quando o documento é excluído. Para limpar (as NFs seguintes voltam a chamar a IA):
   `delete from "RevalleInvoiceSuggestionCache";` no banco.
 - A chave fica só no servidor (EasyPanel).

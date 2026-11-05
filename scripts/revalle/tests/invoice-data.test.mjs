@@ -9,7 +9,8 @@
 //     dado ruim fica vazio;
 //   - cache: o mesmo arquivo em documento novo não chama a IA e preenche os dados; a linha de antes da Fase 8 (sem
 //     `supplierName`) chama a IA uma vez;
-//   - "Sugerir de novo" atualiza os dados, a falha os deixa vazios, "Não"/"Sim" volta pelo cache;
+//   - "Sugerir de novo" atualiza os dados, a falha os deixa vazios (inclusive a falta de contas ativas), "Não"/"Sim" volta
+//     pelo cache;
 //   - nova versão (`finance.changeAccount`) copia os dados; remover um arquivo do rascunho os apaga;
 //   - a tela de assinatura, a prova e o PDF selado não trazem os dados;
 //   - a planilha neutraliza fórmula no título e no fornecedor.
@@ -483,13 +484,14 @@ aiTest(
     const line = lines.find((candidate) => candidate.startsWith(`${fx.main.id};`));
 
     assert.ok(line, 'a planilha não tem a NF');
-    assert.deepEqual(header.slice(-3), ['fornecedor', 'numero_nf', 'valor']);
+    // Os três dados vêm depois de validado_por; a chave e a marca da duplicada (Fase 8, alerta) vêm por último.
+    assert.deepEqual(header.slice(-5, -2), ['fornecedor', 'numero_nf', 'valor']);
     assert.equal(
       header.indexOf('validado_por'),
-      header.length - 4,
+      header.length - 6,
       'as colunas novas têm de vir depois de validado_por',
     );
-    assert.ok(line.endsWith(';Fornecedor Falso LTDA;12345;1234,56'), line);
+    assert.ok(line.includes(';Fornecedor Falso LTDA;12345;1234,56;'), line);
   },
 );
 
@@ -769,6 +771,42 @@ aiTest('nova versão (Financeiro troca a conta) copia os dados, sem chamar a IA'
   assert.ok(flat((await html(adminCookie, `/notas-fiscais/${v2}`)).text).includes('Fornecedor: Fornecedor Falso LTDA'));
 });
 
+aiTest(
+  '"Sugerir de novo" sem nenhuma conta ativa: falha com NO_ACCOUNTS e os dados da sugestão anterior saem',
+  async () => {
+    await program({});
+
+    const { env, state } = await newDoneDraft('sem-contas');
+
+    assert.deepEqual(state.invoiceData, FAKE_DATA);
+    assert.deepEqual(columns(env.id), asColumns(FAKE_DATA));
+
+    // Sem conta ativa na lista, a nova sugestão nem chega à IA: falha na hora. Os dados da anterior não podem ficar.
+    db(`update "RevalleAccountingAccount" set active = false`);
+
+    try {
+      const before = (await calls()).length;
+      const resuggested = await invoice('mutation', 'resuggest', { envelopeId: env.id });
+
+      assert.equal(resuggested.status, 200, resuggested.text);
+
+      const after = await getState(env.id);
+
+      assert.equal(after.suggestionStatus, 'FAILED');
+      assert.equal(after.failureReason, 'NO_ACCOUNTS');
+      assert.equal(after.invoiceData, null, 'os dados da sugestão anterior ficaram na tela');
+      assert.deepEqual(columns(env.id), NO_DATA, 'os dados da sugestão anterior ficaram no banco');
+      assert.equal((await calls()).length, before, 'a falha por falta de contas chamou a IA');
+    } finally {
+      const imported = await trpcAs(adminCookie, 'mutation', 'revalle.invoice.adminImportAccounts', {
+        csv: ACCOUNTS_CSV,
+      });
+
+      assert.equal(imported.status, 200, imported.text);
+    }
+  },
+);
+
 aiTest('remover um arquivo do rascunho apaga os dados', async () => {
   await program({});
 
@@ -837,7 +875,7 @@ aiTest('planilha baixada: título e fornecedor que parecem fórmula saem neutral
   assert.ok(line, 'a planilha não tem a NF');
   // Título e fornecedor têm aspas, então a célula inteira fica entre aspas, com o apóstrofo na frente da fórmula.
   assert.ok(line.startsWith(`${env.id};"'=HYPERLINK(""x"")";`), line);
-  assert.ok(line.endsWith(`;"'=HYPERLINK(""y"")";'+55;10,00`), line);
+  assert.ok(line.includes(`;"'=HYPERLINK(""y"")";'+55;10,00;`), line);
   assert.ok(!line.includes(';=HYPERLINK') && !line.includes(';"=HYPERLINK'), 'sobrou uma célula começando com =');
 });
 

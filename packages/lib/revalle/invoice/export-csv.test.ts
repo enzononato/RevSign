@@ -25,6 +25,8 @@ const baseRow: InvoiceExportRow = {
   supplierName: null,
   invoiceNumber: null,
   totalAmountCents: null,
+  accessKeys: [],
+  isPossibleDuplicate: false,
 };
 
 const lines = (csv: string) => csv.split('\r\n');
@@ -35,7 +37,7 @@ describe('buildInvoiceExportCsv', () => {
 
     expect(csv.startsWith('﻿')).toBe(true);
     expect(lines(csv)[0]).toBe(
-      '﻿id;titulo;remetente;enviado_em;concluido_em;status;conta;nome_conta;tipo;sugestao_ia;confianca;aceitou_sugestao;link;financeiro;aprovado_por;centro_custo;nome_centro_custo;validacao_contabilidade;validado_por;fornecedor;numero_nf;valor',
+      '﻿id;titulo;remetente;enviado_em;concluido_em;status;conta;nome_conta;tipo;sugestao_ia;confianca;aceitou_sugestao;link;financeiro;aprovado_por;centro_custo;nome_centro_custo;validacao_contabilidade;validado_por;fornecedor;numero_nf;valor;chave_acesso;possivel_duplicada',
     );
   });
 
@@ -75,11 +77,11 @@ describe('buildInvoiceExportCsv', () => {
       { ...baseRow, costCenterCode: null, costCenterName: null, accountingStatus: 'Sem centro de custo' },
     ]);
 
-    expect(lines(validated)[1]?.endsWith(";;101;Puxada;Validado;'=Contabilidade Ana;;;")).toBe(true);
-    expect(lines(withoutCenter)[1]?.endsWith(';Aguardando aprovação;;;;Sem centro de custo;;;;')).toBe(true);
+    expect(lines(validated)[1]?.endsWith(";;101;Puxada;Validado;'=Contabilidade Ana;;;;;")).toBe(true);
+    expect(lines(withoutCenter)[1]?.endsWith(';Aguardando aprovação;;;;Sem centro de custo;;;;;;')).toBe(true);
     expect(
       lines(buildInvoiceExportCsv([baseRow]))[1]?.endsWith(
-        ';Aguardando aprovação;;101;Puxada;Aguardando validação;;;;',
+        ';Aguardando aprovação;;101;Puxada;Aguardando validação;;;;;;',
       ),
     ).toBe(true);
   });
@@ -88,7 +90,7 @@ describe('buildInvoiceExportCsv', () => {
     const csv = buildInvoiceExportCsv([baseRow]);
 
     expect(lines(csv)[1]).toBe(
-      '42;NF 123;Maria;29/10/2026 14:30;;Pendente;2.1.03;Fornecedores;pagar;2.1.03;alta;sim;https://assinaturas.example/documents/42;Aguardando aprovação;;101;Puxada;Aguardando validação;;;;',
+      '42;NF 123;Maria;29/10/2026 14:30;;Pendente;2.1.03;Fornecedores;pagar;2.1.03;alta;sim;https://assinaturas.example/documents/42;Aguardando aprovação;;101;Puxada;Aguardando validação;;;;;;',
     );
   });
 
@@ -135,7 +137,7 @@ describe('buildInvoiceExportCsv', () => {
     expect(first).toContain(';2.1.03;');
     expect(
       first?.endsWith(
-        ';https://assinaturas.example/documents/42;Aguardando aprovação;;101;Puxada;Aguardando validação;;;;',
+        ';https://assinaturas.example/documents/42;Aguardando aprovação;;101;Puxada;Aguardando validação;;;;;;',
       ),
     ).toBe(true);
   });
@@ -154,21 +156,21 @@ describe('buildInvoiceExportCsv', () => {
     ]);
 
     expect(lines(csv)[1]).toBe(
-      '42;NF 123;Maria;29/10/2026 14:30;;Pendente;;;;;;;https://assinaturas.example/documents/42;Aguardando aprovação;;101;Puxada;Aguardando validação;;;;',
+      '42;NF 123;Maria;29/10/2026 14:30;;Pendente;;;;;;;https://assinaturas.example/documents/42;Aguardando aprovação;;101;Puxada;Aguardando validação;;;;;;',
     );
   });
 
   it('Fase 8: fornecedor, número da NF e valor vêm depois de validado_por e as anteriores não mudam de posição', () => {
     const header = lines(buildInvoiceExportCsv([]))[0]?.replace('﻿', '').split(';') ?? [];
 
-    expect(header).toHaveLength(22);
+    expect(header).toHaveLength(24);
     expect(header.slice(15, 19)).toEqual([
       'centro_custo',
       'nome_centro_custo',
       'validacao_contabilidade',
       'validado_por',
     ]);
-    expect(header.slice(19)).toEqual(['fornecedor', 'numero_nf', 'valor']);
+    expect(header.slice(19, 22)).toEqual(['fornecedor', 'numero_nf', 'valor']);
   });
 
   it('Fase 8: escreve o fornecedor, o número e o valor lidos da NF, com vírgula nos centavos', () => {
@@ -176,14 +178,14 @@ describe('buildInvoiceExportCsv', () => {
       { ...baseRow, supplierName: 'ACME LTDA', invoiceNumber: '12345', totalAmountCents: 123456 },
     ]);
 
-    expect(lines(csv)[1]?.endsWith(';Aguardando validação;;ACME LTDA;12345;1234,56')).toBe(true);
-    expect(lines(csv)[1]?.split(';')).toHaveLength(22);
+    expect(lines(csv)[1]?.endsWith(';Aguardando validação;;ACME LTDA;12345;1234,56;;')).toBe(true);
+    expect(lines(csv)[1]?.split(';')).toHaveLength(24);
   });
 
   it('Fase 8: texto lido do documento com ponto e vírgula fica entre aspas', () => {
     const csv = buildInvoiceExportCsv([{ ...baseRow, supplierName: 'Comércio; "Bom" Ltda' }]);
 
-    expect(lines(csv)[1]?.endsWith(';"Comércio; ""Bom"" Ltda";;')).toBe(true);
+    expect(lines(csv)[1]?.endsWith(';"Comércio; ""Bom"" Ltda";;;;')).toBe(true);
   });
 
   it('Fase 8: célula de texto que começa com =, +, - ou @ sai com apóstrofo, em todas as colunas de texto', () => {
@@ -239,7 +241,39 @@ describe('buildInvoiceExportCsv', () => {
     const csv = buildInvoiceExportCsv([{ ...baseRow, totalAmountCents: 5, invoiceNumber: '000123' }]);
 
     expect(lines(csv)[1]?.startsWith('42;')).toBe(true);
-    expect(lines(csv)[1]?.endsWith(';;000123;0,05')).toBe(true);
+    expect(lines(csv)[1]?.endsWith(';;000123;0,05;;')).toBe(true);
     expect(lines(csv)[1]).toContain(';29/10/2026 14:30;');
+  });
+
+  it('Fase 8: chave_acesso e possivel_duplicada vêm por último e as anteriores não mudam de posição', () => {
+    const header = lines(buildInvoiceExportCsv([]))[0]?.replace('﻿', '').split(';') ?? [];
+
+    expect(header).toHaveLength(24);
+    expect(header.slice(19, 22)).toEqual(['fornecedor', 'numero_nf', 'valor']);
+    expect(header.slice(22)).toEqual(['chave_acesso', 'possivel_duplicada']);
+  });
+
+  it('Fase 8: a chave de acesso e o "sim" da possível duplicada; várias chaves separadas por espaço', () => {
+    const one = '29241012345678000195550010000123451123456784';
+    const other = '35241012345678000195550010000123461123456781';
+    const csv = buildInvoiceExportCsv([
+      { ...baseRow, accessKeys: [one], isPossibleDuplicate: true },
+      { ...baseRow, id: 43, accessKeys: [one, other], isPossibleDuplicate: false },
+      { ...baseRow, id: 44 },
+    ]);
+    const cells = lines(csv)
+      .slice(1, 4)
+      .map((line) => line.split(';').slice(22));
+
+    expect(cells[0]).toEqual([one, 'sim']);
+    expect(cells[1]).toEqual([`${one} ${other}`, '']);
+    expect(cells[2]).toEqual(['', '']);
+  });
+
+  it('Fase 8: possivel_duplicada nunca escreve "não": é "sim" ou vazio', () => {
+    const csv = buildInvoiceExportCsv([baseRow]);
+
+    expect(lines(csv)[1]?.endsWith(';;')).toBe(true);
+    expect(lines(csv)[1]).not.toContain('não');
   });
 });

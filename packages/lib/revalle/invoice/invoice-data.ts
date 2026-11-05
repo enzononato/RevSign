@@ -1,4 +1,5 @@
-import { isValidChaveAcesso } from './detect-invoice';
+import { isValidChaveDocumento } from './detect-invoice';
+import { CPF_MASK, maskCpf } from './mask-cpf';
 
 /**
  * Fase 8: o que a IA leu da nota fiscal junto com a sugestão de conta. É texto tirado de um documento qualquer, então
@@ -33,8 +34,11 @@ export const INVOICE_AMOUNT_MAX_CENTS = 2_147_483_647;
 const SPACING = /[\p{White_Space}]+/gu;
 const INVISIBLE = /[\p{Cc}\p{Cf}\p{Cs}]/gu;
 
-const cleanText = (value: string, maxLength: number): string | null => {
-  const cleaned = Array.from(value.replace(SPACING, ' ').replace(INVISIBLE, '').replace(/ {2,}/g, ' ').trim())
+// `transform` roda depois da limpeza e ANTES do corte: um CPF perto do limite não deixa dígitos para trás.
+const cleanText = (value: string, maxLength: number, transform: (text: string) => string = (text) => text) => {
+  const cleaned = Array.from(
+    transform(value.replace(SPACING, ' ').replace(INVISIBLE, '').replace(/ {2,}/g, ' ').trim()),
+  )
     .slice(0, maxLength)
     .join('')
     .trim();
@@ -42,8 +46,15 @@ const cleanText = (value: string, maxLength: number): string | null => {
   return cleaned || null;
 };
 
+// O nome empresarial de um MEI é o nome do dono seguido do CPF, só com dígitos ("MARIA SOUZA 12345678909"), e uma NF
+// escaneada chega ao modelo sem mascarar. `maskCpf` cobre o CPF pontuado e o que vem depois de "CPF"; os 11 dígitos
+// soltos (sem estar dentro de um CNPJ ou de um número maior) também saem.
+const BARE_CPF = /(?<![\d.])\d{11}(?!\d)/g;
+
+const maskSupplierCpf = (text: string) => maskCpf(text).replace(BARE_CPF, CPF_MASK);
+
 const readSupplierName = (value: unknown) =>
-  typeof value === 'string' ? cleanText(value, INVOICE_SUPPLIER_MAX_LENGTH) : null;
+  typeof value === 'string' ? cleanText(value, INVOICE_SUPPLIER_MAX_LENGTH, maskSupplierCpf) : null;
 
 // O número da nota é número na maioria dos documentos: a IA pode devolver 123 em vez de "123".
 const readInvoiceNumber = (value: unknown) => {
@@ -72,7 +83,7 @@ const readAccessKey = (value: unknown) => {
 
   const digits = value.replace(/\s/g, '');
 
-  return isValidChaveAcesso(digits) ? digits : null;
+  return isValidChaveDocumento(digits) ? digits : null;
 };
 
 /** Os quatro campos da resposta da IA (`supplierName`, `invoiceNumber`, `totalAmount` em reais, `accessKey`). */

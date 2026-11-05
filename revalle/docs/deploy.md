@@ -326,6 +326,30 @@ Vale para quem atualiza uma instalação que já está em uso. A Fase 7 tira a o
 8. **Cadastro só para colaborador.** A migração `20261104160000_revalle_signup_identity` só cria a tabela `RevalleSignupIdentity` (o CPF do cadastro, de lado, até a pessoa confirmar o e-mail): nada se perde. Depois de atualizar, **Criar conta** passa a pedir CPF e data de nascimento, conferidos na base de colaboradores; sem a base no ar, o cadastro não passa (`Não foi possível conferir seus dados agora...`). **`COLABORADORES_DATABASE_URL`, que antes só valia para a assinatura, agora também vale para o cadastro:** confira antes que está certa. Sem a base (homologação), defina `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK=disabled`, que esconde os campos; senão, ninguém consegue criar conta. A conta de `NEXT_PRIVATE_REVALLE_ADMIN_EMAIL` e os e-mails que já têm vínculo ou estão na base se cadastram sem CPF. Contas que já existem não mudam. Pela API, o cadastro (`POST /api/auth/email-password/signup`) aceita `revalleCpf` e `revalleBirthDate` (dd/mm/aaaa) e devolve **400** com `SIGNUP_IDENTITY_REQUIRED`, `SIGNUP_IDENTITY_INVALID` ou `SIGNUP_IDENTITY_CONFLICT`, ou **503** com `SIGNUP_IDENTITY_UNAVAILABLE`. O cadastro também tem um limite por CPF, 10 conferências a cada 24 horas (`revalle.signup-identity`, ajustável em `NEXT_PRIVATE_REVALLE_RATE_LIMITS`): passou disso, `SIGNUP_IDENTITY_LIMITED` (**429**). Confira que o login por Google, Microsoft e OIDC continua desligado (tabela de variáveis). Detalhes em `verificacao.md`, "Cadastro: só colaborador cria conta".
 9. **Tela mais simples.** Saem de vista a IA do Documenso, marca, e-mail e preferências de documento nas configurações, certificado e log de auditoria nas configurações, perfil público, link direto de modelo, modelos e envio em lote (a API de modelos continua), o papel Assistente, Idioma e Suporte. O endereço direto dessas telas redireciona. **Tokens de API e webhooks** agora só o ADMIN cria, na tela e no servidor (**403** para os outros); os tokens que já existem continuam valendo. Nada é apagado.
 
+## Antes de atualizar (Fase 8)
+
+Vale para quem atualiza uma instalação que já está em uso. A Fase 8 faz a IA ler da nota o fornecedor, o número, o valor
+e a chave de acesso, e avisa quando uma nota **parece já ter sido enviada** (seção "Alerta de nota duplicada" de
+`notas-fiscais.md`). Nada muda no que as pessoas assinam.
+
+1. **Backup antes** (seção "Backup antes de atualizar"). As duas migrações abaixo rodam sozinhas na subida e só
+   ACRESCENTAM colunas e índices; nada se apaga e a tabela de classificações **não é reescrita**:
+   - `20261105100000_revalle_invoice_data` (fornecedor, número e valor lidos pela IA);
+   - `20261105110000_revalle_invoice_access_keys` (as chaves de acesso de cada nota, com um índice para a busca de
+     "alguma chave em comum", e um índice no hash do arquivo). A coluna nova tem valor padrão fixo (vazio), então a subida
+     não demora, mesmo com muitas notas.
+2. **Notas que já existem não têm chaves guardadas** (não há preenchimento): o alerta as acha só pelo **mesmo arquivo**.
+   Nota nova, ou com o arquivo trocado, guarda as chaves.
+3. **A sugestão guardada de antes não tem os dados novos.** O cache daquele arquivo deixa de ser reaproveitado: a próxima
+   sugestão chama a IA **uma vez** (cerca de US$ 0,004 por arquivo) e passa a ter o fornecedor, o número, o valor e a chave.
+4. **Política de privacidade.** O texto de `/privacidade` agora diz que a IA também lê o fornecedor, o número, o valor e a
+   chave de acesso, e a data do cabeçalho passou para 05/11/2026. A **versão do termo continua `1`**: ninguém precisa
+   aceitar de novo. O jurídico ainda precisa validar a página.
+5. **Avise o Financeiro e a Contabilidade.** A lista **Notas fiscais** ganha o selo **Possível duplicada**, a página da
+   nota ganha o alerta com o título e o link da outra nota, e a planilha ganha as colunas `chave_acesso` e
+   `possivel_duplicada` no fim. O alerta não impede nada: aprovar e validar continuam possíveis. No envio, a pessoa marca
+   **Sei disso e quero enviar mesmo assim**; pela API o envio não é bloqueado.
+
 ## Notas fiscais enviadas pela API ou por modelo (Fase 5)
 
 Uma nota fiscal só é enviada para assinatura com a conta contábil escolhida. A escolha é feita na tela, no diálogo **Enviar documento** (ou pela rota `revalle.invoice.setChoice` da sessão). Por isso:

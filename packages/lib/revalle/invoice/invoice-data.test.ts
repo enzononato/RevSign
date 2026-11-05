@@ -11,6 +11,20 @@ import {
 // Chave fictícia de 44 dígitos com UF, mês, CNPJ, modelo 55 e dígito verificador certos.
 const VALID_KEY = '29241012345678000195550010000123451123456784';
 
+// Troca o modelo (posições 20 e 21) e recalcula o dígito verificador.
+const withModel = (model: string) => {
+  const first43 = `${VALID_KEY.slice(0, 20)}${model}${VALID_KEY.slice(22, 43)}`;
+  let total = 0;
+
+  for (let position = 0; position < 43; position++) {
+    total += Number(first43[position]) * (2 + ((42 - position) % 8));
+  }
+
+  const rest = total % 11;
+
+  return `${first43}${rest < 2 ? 0 : 11 - rest}`;
+};
+
 describe('normalizeInvoiceData', () => {
   it('aparam o texto, aceitam o número da nota como número e guardam o valor em centavos', () => {
     expect(
@@ -72,6 +86,45 @@ describe('normalizeInvoiceData', () => {
     expect(normalizeInvoiceData({ accessKey: `${VALID_KEY.slice(0, 43)}0` }).accessKey).toBeNull();
     expect(normalizeInvoiceData({ accessKey: VALID_KEY }).accessKey).toBe(VALID_KEY);
     expect(normalizeInvoiceData({ accessKey: VALID_KEY.replace(/(\d{4})(?=\d)/g, '$1 ') }).accessKey).toBe(VALID_KEY);
+  });
+
+  it('a chave aceita também CT-e (modelos 57 e 67) e continua recusando os outros modelos', () => {
+    for (const model of ['57', '67']) {
+      const key = withModel(model);
+
+      expect(normalizeInvoiceData({ accessKey: key }).accessKey, `modelo ${model}`).toBe(key);
+    }
+
+    expect(normalizeInvoiceData({ accessKey: withModel('01') }).accessKey).toBeNull();
+  });
+
+  it('CPF no nome do fornecedor sai mascarado: o nome da empresa de um MEI termina no CPF do dono', () => {
+    const masked = '***.***.***-**';
+
+    for (const [raw, expected] of [
+      ['JOAO DA SILVA 123.456.789-09', `JOAO DA SILVA ${masked}`],
+      ['MARIA SOUZA 12345678909', `MARIA SOUZA ${masked}`],
+      ['PEDRO LIMA CPF 12345678909', `PEDRO LIMA CPF ${masked}`],
+      ['ANA 123\u200B45678909 ME', `ANA ${masked} ME`],
+    ] as const) {
+      expect(normalizeInvoiceData({ supplierName: raw }).supplierName, raw).toBe(expected);
+    }
+  });
+
+  it('o CPF perto do corte de 200 caracteres não deixa dígito para trás', () => {
+    const cut = normalizeInvoiceData({ supplierName: `${'A'.repeat(195)} 12345678909` }).supplierName ?? '';
+
+    expect(cut).toHaveLength(200);
+    expect(cut).not.toMatch(/\d/);
+  });
+
+  it('CNPJ, número de nota e outros números do nome do fornecedor ficam como estão', () => {
+    expect(normalizeInvoiceData({ supplierName: 'ACME 12.345.678/0001-95' }).supplierName).toBe(
+      'ACME 12.345.678/0001-95',
+    );
+    expect(normalizeInvoiceData({ supplierName: 'ACME 12345678000195' }).supplierName).toBe('ACME 12345678000195');
+    expect(normalizeInvoiceData({ supplierName: 'Loja 24 Horas 2000' }).supplierName).toBe('Loja 24 Horas 2000');
+    expect(normalizeInvoiceData({ invoiceNumber: '12345678909' }).invoiceNumber).toBe('12345678909');
   });
 
   it('nunca lança, seja qual for a entrada', () => {

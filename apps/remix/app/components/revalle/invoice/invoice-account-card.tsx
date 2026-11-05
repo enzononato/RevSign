@@ -12,6 +12,7 @@ import { Link } from 'react-router';
 
 import { AccountCombobox } from './account-combobox';
 import { CostCenterSelect } from './cost-center-select';
+import { InvoiceDuplicateNotice } from './invoice-duplicate-notice';
 
 export type InvoiceAccountCardProps = {
   envelope: { id: string; userId: number; status: DocumentStatus };
@@ -164,6 +165,9 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
       <p className="break-words text-sm">
         {state.choice ? `${choiceCode} · ${choiceName}` : <Trans>Nenhuma conta escolhida.</Trans>}
       </p>
+
+      {/* REVALLE (Fase 8): depois do envio o aviso é só informação, sem a confirmação do diálogo de envio. */}
+      <InvoiceDuplicateNotice duplicates={state.duplicates} />
 
       {state.financeStatus === 'PENDING_APPROVAL' && state.choice && (
         <p className="text-muted-foreground text-sm">

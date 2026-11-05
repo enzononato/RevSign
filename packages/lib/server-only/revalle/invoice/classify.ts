@@ -13,6 +13,7 @@ import {
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { isNewVersionDraftRow } from '../../../revalle/finance/finance-status';
 import { REVALLE_COST_CENTERS } from '../../../revalle/invoice/cost-centers';
+import { extractAccessKeys } from '../../../revalle/invoice/detect-invoice';
 import {
   type InvoiceDataSummary,
   NO_INVOICE_DATA_COLUMNS,
@@ -21,6 +22,8 @@ import {
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { findNewVersionKind, findVisibleSuccessor } from '../finance/successor';
+import type { InvoiceDuplicate } from './duplicates';
+import { findInvoiceDuplicates } from './duplicates';
 import { filesKey, loadEnvelopeFiles, readFilesContent } from './envelope-files';
 import { getRevalleInvoiceAiConfig } from './settings';
 import type { InvoiceFailureReason, InvoiceRequester } from './suggest';
@@ -43,6 +46,12 @@ export type InvoiceState = {
    * IA) e não entram na assinatura. Nulo quando os três estão vazios.
    */
   invoiceData: InvoiceDataSummary | null;
+  /**
+   * Fase 8: outras NFs vivas com uma chave em comum ou o mesmo arquivo (a tela avisa "Esta nota parece já ter sido
+   * enviada"). Só data, remetente e situação: quem vê o estado pode não ter acesso à outra nota, então nada de título nem
+   * id. Vazio quando esta NF não está viva (substituída, recusada, cancelada ou excluída) ou não é NF.
+   */
+  duplicates: Pick<InvoiceDuplicate, 'sentAt' | 'senderName' | 'status'>[];
   choice: { code: string; name?: string } | null;
   /** Fase 7: centro de custo escolhido (lista fixa); a conta e o centro são exigidos juntos no primeiro envio. */
   costCenter: { code: string; name: string } | null;
@@ -143,6 +152,10 @@ export const toInvoiceState = async (row: RevalleInvoiceClassification): Promise
           (stored.failure as InvoiceFailureReason)
         : null,
     invoiceData: toInvoiceDataSummary(row),
+    duplicates:
+      row.isInvoice === RevalleInvoiceStatus.YES
+        ? (await findInvoiceDuplicates(row)).map(({ sentAt, senderName, status }) => ({ sentAt, senderName, status }))
+        : [],
     choice,
     costCenter: row.costCenterCode
       ? {
@@ -211,6 +224,7 @@ const unclassifiedState = (): InvoiceState => ({
   suggestion: null,
   failureReason: null,
   invoiceData: null,
+  duplicates: [],
   choice: null,
   costCenter: null,
   financeStatus: null,
@@ -290,11 +304,23 @@ export const classifyEnvelope = async (
           ? RevalleInvoiceStatus.UNKNOWN
           : RevalleInvoiceStatus.NO;
 
+    // Fase 8: as chaves de acesso do alerta de duplicada vêm do texto dos arquivos da NF; sem nenhum arquivo detectado, de
+    // todos os que têm texto (se o remetente marcar "É nota fiscal" depois, as chaves já estão lá). Trocar o arquivo
+    // refaz a lista, e a chave que a IA leu da outra versão do arquivo sai junto.
+    const accessKeys = [
+      ...new Set(
+        (invoiceFiles.length > 0 ? invoiceFiles : contents.filter((content) => !content.isSparse)).flatMap((content) =>
+          extractAccessKeys(content.pages),
+        ),
+      ),
+    ];
+
     const data = {
       isInvoice,
       detectedBy: RevalleInvoiceDetectedBy.TEXT,
       signals: [...new Set(invoiceFiles.flatMap((content) => content.detection.signals))],
       fileSha256: key,
+      accessKeys,
       suggestionStatus: RevalleSuggestionStatus.SKIPPED,
       suggestion: Prisma.DbNull,
       ...CLEARED_CHOICE,

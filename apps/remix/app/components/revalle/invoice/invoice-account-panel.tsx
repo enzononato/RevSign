@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { AccountCombobox } from './account-combobox';
 import { CostCenterSelect } from './cost-center-select';
+import { InvoiceDuplicateNotice } from './invoice-duplicate-notice';
 
 export type InvoiceAccountPanelProps = {
   envelopeId: string;
@@ -43,6 +44,8 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
   const [isClassified, setIsClassified] = useState(false);
   const [hasGivenUp, setHasGivenUp] = useState(false);
   const [isChanging, setIsChanging] = useState(false);
+  // Fase 8: "Sei disso e quero enviar mesmo assim", diante do aviso de nota duplicada.
+  const [isDuplicateAcknowledged, setIsDuplicateAcknowledged] = useState(false);
   const pendingSince = useRef<number | null>(null);
 
   const { mutateAsync: classify } = trpc.revalle.invoice.classify.useMutation();
@@ -105,6 +108,19 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
   }, [isPending, hasGivenUp]);
 
   const isInvoice = state?.isInvoice === 'YES';
+  // O aviso pode aparecer depois do diálogo aberto (a chave que a IA leu numa NF escaneada chega com a sugestão).
+  const duplicates = isInvoice ? (state?.duplicates ?? []) : [];
+
+  // A confirmação vale para este documento e para este aviso: ao trocar de documento, ou quando o aviso some, zera.
+  useEffect(() => {
+    setIsDuplicateAcknowledged(false);
+  }, [envelopeId]);
+
+  useEffect(() => {
+    if (duplicates.length === 0) {
+      setIsDuplicateAcknowledged(false);
+    }
+  }, [duplicates.length]);
 
   const { data: accountsData } = trpc.revalle.invoice.findAccounts.useQuery(undefined, {
     ...DO_NOT_INVALIDATE_QUERY_ON_MUTATION,
@@ -129,6 +145,7 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
     hasNoAccounts,
     requiresChoice: !isReleased,
     requiresCostCenter: !isReleased,
+    duplicateAcknowledged: isDuplicateAcknowledged,
     state,
   });
 
@@ -195,6 +212,12 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
   }
 
   const isBusy = isSavingChoice || isSavingCostCenter || isSavingFlag || isResuggesting;
+  const duplicateNotice = (
+    <InvoiceDuplicateNotice
+      duplicates={duplicates}
+      acknowledgement={{ checked: isDuplicateAcknowledged, onChange: setIsDuplicateAcknowledged }}
+    />
+  );
 
   if (state.isInvoice === 'NO') {
     // Só quem marcou "Não é nota fiscal" vê o desfazer; documento comum não muda em nada.
@@ -255,6 +278,7 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
         <h3 className="font-medium text-sm">
           <Trans>Nota fiscal · Conta contábil</Trans>
         </h3>
+        {duplicateNotice}
         <p className="text-sm">
           {state.choice?.name ? `${state.choice.code} – ${state.choice.name}` : (state.choice?.code ?? '-')}
         </p>
@@ -315,6 +339,8 @@ export const InvoiceAccountPanel = ({ envelopeId, onReadyChange }: InvoiceAccoun
           <Trans>Não é nota fiscal</Trans>
         </Button>
       </div>
+
+      {duplicateNotice}
 
       {isPending && !hasGivenUp && (
         <p className="flex items-center gap-2 text-muted-foreground text-sm">

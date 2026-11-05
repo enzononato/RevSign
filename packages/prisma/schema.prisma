@@ -1472,6 +1472,9 @@ model RevalleInvoiceClassification {
   supplierName              String?
   invoiceNumber             String?
   totalAmountCents          Int?
+  /// Fase 8: chaves de acesso válidas (44 dígitos, modelos 55, 57, 65 e 67) achadas no texto dos arquivos da NF e, na NF
+  /// escaneada, a que a IA leu. Duas NFs com uma chave em comum são a mesma nota. Vazio quando o arquivo não tem chave.
+  accessKeys                String[]                 @default([])
   choiceCode                String?
   choiceById                Int?
   choiceAt                  DateTime?
@@ -1505,6 +1508,10 @@ model RevalleInvoiceClassification {
   version                   Int                      @default(1)
   createdAt                 DateTime                 @default(now())
   updatedAt                 DateTime                 @updatedAt
+
+  // Fase 8: a busca da nota duplicada (mesma chave ou mesmo arquivo).
+  @@index([accessKeys], type: Gin)
+  @@index([fileSha256])
 }
 
 /// REVALLE: sugestão da IA por SHA-256 do arquivo (o mesmo arquivo nunca é enviado ao Gemini duas vezes).

@@ -111,6 +111,18 @@ for (const viewport of VIEWPORTS) {
       await chooseCenter(page, panel);
     }
 
+    // Fase 8: a nota fictícia repete notas enviadas por execuções anteriores, então o alerta de nota duplicada aparece e o
+    // Enviar espera pela confirmação, como para a pessoa. Sem o alerta (banco novo), o Enviar já está livre.
+    const acknowledge = dialog.getByTestId('invoice-duplicate-ack');
+
+    if (await acknowledge.isVisible()) {
+      report(
+        await waitSubmit(submit, false),
+        `${width} px: com a conta e o centro, o alerta de nota duplicada ainda segura o Enviar`,
+      );
+      await acknowledge.click();
+    }
+
     report(!(await waitSubmit(submit, true)), `${width} px: com a conta e o centro, Enviar habilita`);
     await assertFits(panel, width, `${width} px, bloco da NF preenchido`);
     await submit.scrollIntoViewIfNeeded();

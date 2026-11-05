@@ -459,6 +459,16 @@ const InvoiceTableRow = ({ row }: { row: InvoiceRow }) => {
             {invoiceDataLine}
           </p>
         )}
+        {/* REVALLE (Fase 8): só vem verdadeiro para o Financeiro, a Contabilidade e o admin. */}
+        {row.isPossibleDuplicate && (
+          <span
+            className="mt-1 inline-block whitespace-nowrap rounded-full bg-amber-500/15 px-2 py-0.5 font-normal text-amber-800 text-xs dark:text-amber-300"
+            title={t`Outra nota enviada tem a mesma chave de acesso ou o mesmo arquivo. Confira antes de aprovar.`}
+            data-testid="invoice-row-duplicate"
+          >
+            <Trans>Possível duplicada</Trans>
+          </span>
+        )}
       </TableCell>
       <TableCell className="min-w-[8rem]">{row.senderName}</TableCell>
       <TableCell className="whitespace-nowrap">

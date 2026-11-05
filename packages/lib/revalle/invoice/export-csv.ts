@@ -27,6 +27,9 @@ export type InvoiceExportRow = {
   supplierName: string | null;
   invoiceNumber: string | null;
   totalAmountCents: number | null;
+  /** Fase 8: chaves de acesso guardadas da NF (várias saem separadas por espaço) e se parece já ter sido enviada. */
+  accessKeys: readonly string[];
+  isPossibleDuplicate: boolean;
 };
 
 const HEADER = [
@@ -55,6 +58,9 @@ const HEADER = [
   'fornecedor',
   'numero_nf',
   'valor',
+  // Fase 8: a chave e a marca da duplicada, por último.
+  'chave_acesso',
+  'possivel_duplicada',
 ];
 
 const BOM = '﻿';
@@ -113,6 +119,8 @@ export const buildInvoiceExportCsv = (rows: InvoiceExportRow[]): string => {
       row.supplierName ?? '',
       row.invoiceNumber ?? '',
       row.totalAmountCents === null ? '' : formatInvoiceAmountCsv(row.totalAmountCents),
+      row.accessKeys.join(' '),
+      row.isPossibleDuplicate ? 'sim' : '',
     ]
       .map(escapeCell)
       .join(';');
