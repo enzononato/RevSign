@@ -37,7 +37,16 @@ export type RevalleProofLookup = {
    * do arquivo, da mais antiga para a mais nova (a reselagem acrescenta; cópias antigas continuam conferindo).
    */
   items: { title: string; finalSha256: string | null; sealedVersions: { sha256: string; sealedAt: Date }[] }[];
-  signers: { nome: string; cpfMasked: string | null; signedAt: Date; role: RecipientRole }[];
+  /** `factors`, `termVersion` e `termAcceptedAt` como gravados na prova (o certificado mostra os mesmos). */
+  signers: {
+    nome: string;
+    cpfMasked: string | null;
+    signedAt: Date;
+    role: RecipientRole;
+    factors: unknown;
+    termVersion: string | null;
+    termAcceptedAt: Date | null;
+  }[];
   /**
    * Fase 6, só em NF que passou pelo Financeiro: a conta desta versão, a aprovação (nome de quem aprovou, nunca o
    * e-mail) e, se a conta foi trocada ou o centro corrigido, quando e por quê esta versão foi substituída. Nada da nova
@@ -103,7 +112,9 @@ export const findRevalleProofByCode = async (code: string): Promise<RevalleProof
                   role: true,
                   signingStatus: true,
                   signedAt: true,
-                  revalleProof: { select: { signedAt: true, employee: true } },
+                  revalleProof: {
+                    select: { signedAt: true, employee: true, factors: true, termVersion: true, termAcceptedAt: true },
+                  },
                 },
               },
               revalleInvoice: {
@@ -173,6 +184,9 @@ export const findRevalleProofByCode = async (code: string): Promise<RevalleProof
         cpfMasked: typeof employee?.cpfMasked === 'string' ? employee.cpfMasked : null,
         signedAt: p.signedAt,
         role: p.role,
+        factors: p.factors,
+        termVersion: p.termVersion,
+        termAcceptedAt: p.termAcceptedAt,
       };
     })
     .sort((a, b) => a.signedAt.getTime() - b.signedAt.getTime());
