@@ -105,7 +105,7 @@ const SIGNATURE_KIND_LABELS: Record<string, string> = {
 
 const orEmpty = (value: string | null | undefined) => value?.trim() || EMPTY;
 
-const formatFactors = (factors: unknown) => {
+export const formatRevalleProofFactors = (factors: unknown) => {
   const parsed = ZFactors.safeParse(factors);
 
   if (!parsed.success) {
@@ -119,7 +119,7 @@ const formatFactors = (factors: unknown) => {
   return parts.length > 0 ? parts.join(' · ') : EMPTY;
 };
 
-const formatTerm = (version: string | null, acceptedAt: Date | string | null) => {
+export const formatRevalleProofTerm = (version: string | null, acceptedAt: Date | string | null) => {
   if (!version) {
     return EMPTY;
   }
@@ -199,8 +199,8 @@ export const buildRevalleCertificateRows = (
     { label: 'Setor', value: orEmpty(hr?.setor) },
     { label: 'Unidade', value: orEmpty(hr?.unidade) },
     { label: 'Situação', value: orEmpty(hr?.situacao) },
-    { label: 'Verificação', value: formatFactors(proof.factors) },
-    { label: 'Termo aceito', value: formatTerm(proof.termVersion, proof.termAcceptedAt) },
+    { label: 'Verificação', value: formatRevalleProofFactors(proof.factors) },
+    { label: 'Termo aceito', value: formatRevalleProofTerm(proof.termVersion, proof.termAcceptedAt) },
     // REVALLE: spec §7.3, posição na ordem de assinatura quando sequencial (o certificado do upstream não a mostra).
     ...(signingPosition
       ? [{ label: 'Ordem de assinatura', value: `${signingPosition.position}º de ${signingPosition.total}` }]

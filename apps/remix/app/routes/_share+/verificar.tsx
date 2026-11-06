@@ -1,5 +1,6 @@
 // REVALLE: página pública de verificação de documento assinado (Fase 4).
 
+import { formatRevalleProofFactors, formatRevalleProofTerm } from '@documenso/lib/revalle/certificate-rows';
 import { formatRevalleDateTime } from '@documenso/lib/revalle/date-format';
 import { costCenterLabel } from '@documenso/lib/revalle/invoice/cost-centers';
 import { revalleRoleVerb } from '@documenso/lib/revalle/role-verbs';
@@ -17,6 +18,7 @@ import { revalleRateLimitIpKey } from '@documenso/lib/server-only/revalle/rate-l
 import { getIpAddress } from '@documenso/lib/universal/get-ip-address';
 import { Button } from '@documenso/ui/primitives/button';
 import { Input } from '@documenso/ui/primitives/input';
+import { CheckIcon, CopyIcon, ShieldCheckIcon } from 'lucide-react';
 import { useState } from 'react';
 import { data, Form, useLoaderData } from 'react-router';
 
@@ -42,7 +44,15 @@ type LoaderData =
       completedAtLabel: string | null;
       /** `versions`: todas as selagens do arquivo, da mais antiga para a atual (a última é `finalSha256`). */
       items: { title: string; finalSha256: string | null; versions: RevalleSealedVersion[] }[];
-      signers: { nome: string; cpfMasked: string | null; showCpf: boolean; signedAtLabel: string; verb: string }[];
+      signers: {
+        nome: string;
+        cpfMasked: string | null;
+        showCpf: boolean;
+        signedAtLabel: string;
+        verb: string;
+        factorsLabel: string;
+        termLabel: string;
+      }[];
       /** Fase 6, NF que passou pelo Financeiro: conta, aprovação e substituição (nada da nova versão). */
       invoice: {
         accountLabel: string | null;
@@ -116,6 +126,8 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
       showCpf: s.role !== 'VIEWER' && s.role !== 'CC',
       signedAtLabel: formatRevalleDateTime(s.signedAt),
       verb: revalleRoleVerb(s.role),
+      factorsLabel: formatRevalleProofFactors(s.factors),
+      termLabel: formatRevalleProofTerm(s.termVersion, s.termAcceptedAt),
     })),
     invoice: result.invoice && {
       accountLabel: result.invoice.account
@@ -209,6 +221,29 @@ const FileChecker = ({ items }: { items: { versions: RevalleSealedVersion[] }[] 
   );
 };
 
+const CopyLinkButton = ({ codigo }: { codigo: string }) => {
+  const [isCopied, setIsCopied] = useState(false);
+
+  const onCopy = async () => {
+    const url = `${window.location.origin}/verificar?codigo=${encodeURIComponent(codigo)}`;
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setIsCopied(true);
+      window.setTimeout(() => setIsCopied(false), 2000);
+    } catch {
+      window.prompt('Copie o link desta verificação:', url);
+    }
+  };
+
+  return (
+    <Button className="min-h-11" onClick={() => void onCopy()} type="button" variant="outline">
+      {isCopied ? <CheckIcon className="mr-2 h-4 w-4" /> : <CopyIcon className="mr-2 h-4 w-4" />}
+      {isCopied ? 'Link copiado' : 'Copiar link desta verificação'}
+    </Button>
+  );
+};
+
 export default function VerificarPage() {
   const result = useLoaderData<typeof loader>() as LoaderData;
   const initial = result.state === 'found' || result.state === 'not-found' ? result.codigo : '';
@@ -248,6 +283,33 @@ export default function VerificarPage() {
 
       {result.state === 'found' && (
         <>
+          <section
+            className={`flex gap-3 rounded-lg border p-4 ${
+              result.status === 'COMPLETED' && !result.invoice?.supersededLabel
+                ? 'border-green-300 bg-green-50 dark:border-green-500/30 dark:bg-green-500/10'
+                : 'border-border bg-muted/40'
+            }`}
+            data-testid="verify-authentic"
+          >
+            <ShieldCheckIcon
+              aria-hidden
+              className={`mt-0.5 h-6 w-6 flex-shrink-0 ${
+                result.status === 'COMPLETED' && !result.invoice?.supersededLabel
+                  ? 'text-green-700 dark:text-green-400'
+                  : 'text-muted-foreground'
+              }`}
+            />
+            <div className="space-y-1 text-sm">
+              <p className="font-semibold text-base">Código {result.codigo} encontrado no RevSign</p>
+              <p className="text-muted-foreground">
+                Este documento foi assinado eletronicamente no RevSign, o sistema de assinaturas da Revalle. Cada
+                participante foi identificado, aceitou o termo de assinatura eletrônica e confirmou a assinatura com um
+                código enviado ao seu e-mail. A integridade do arquivo é garantida pelo SHA-256 abaixo (MP 2.200-2/2001,
+                art. 10, § 2º).
+              </p>
+            </div>
+          </section>
+
           <section className="space-y-4 rounded-lg border p-4">
             <div>
               <p className="text-muted-foreground text-sm">Documento</p>
@@ -286,6 +348,10 @@ export default function VerificarPage() {
                     <p>
                       {s.verb} {s.signedAtLabel} (horário de Brasília)
                     </p>
+                    {s.factorsLabel !== '—' && <p className="text-muted-foreground">Identificação: {s.factorsLabel}</p>}
+                    {s.termLabel !== '—' && (
+                      <p className="text-muted-foreground">Termo de assinatura eletrônica: {s.termLabel}</p>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -317,6 +383,8 @@ export default function VerificarPage() {
           </section>
 
           {hasSealedVersions && <FileChecker items={result.items} />}
+
+          <CopyLinkButton codigo={result.codigo} />
         </>
       )}
     </div>
