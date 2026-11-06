@@ -71,8 +71,9 @@ export const InvoiceRowCard = ({ row, viewer }: InvoiceRowCardProps) => {
             )}
           </h3>
 
-          <div className="mt-1.5 flex min-w-0 items-center gap-2">
-            <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+          {/* REVALLE: as etiquetas quebram linha em vez de cortar o nome da conta (é o que o Financeiro aprova). */}
+          <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
               {row.account ? (
                 <Tag code={row.account.code}>{row.account.name}</Tag>
               ) : (
