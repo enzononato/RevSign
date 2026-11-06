@@ -2,10 +2,12 @@ import { useCurrentOrganisation } from '@documenso/lib/client-only/providers/org
 import { formatDocumentsPath, formatTemplatesPath } from '@documenso/lib/utils/teams';
 import { trpc } from '@documenso/trpc/react';
 import type { TFolderWithSubfolders } from '@documenso/trpc/server/folder-router/schema';
+import { cn } from '@documenso/ui/lib/utils';
+import { Button } from '@documenso/ui/primitives/button';
 import { Skeleton } from '@documenso/ui/primitives/skeleton';
 import { Trans } from '@lingui/react/macro';
 import { FolderType } from '@prisma/client';
-import { FolderIcon, HomeIcon } from 'lucide-react';
+import { FolderIcon, FolderPlusIcon, HomeIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 
@@ -22,9 +24,38 @@ import { EnvelopeUploadButton } from '../envelope/envelope-upload-button';
 export type FolderGridProps = {
   type: FolderType;
   parentId: string | null;
+  /**
+   * REVALLE v3: a página de Documentos põe "Enviar documento" e "Criar pasta" no cabeçalho (`FolderGridActions`); aqui
+   * some a linha de botões, o "Início" sozinho na raiz e o cartão vazio "Criar pasta".
+   */
+  withActions?: boolean;
 };
 
-export const FolderGrid = ({ type, parentId }: FolderGridProps) => {
+/** REVALLE v3: os botões do topo da grade (enviar, enviar no editor antigo, criar pasta), para o cabeçalho da página. */
+export const FolderGridActions = ({ type, parentId }: Pick<FolderGridProps, 'type' | 'parentId'>) => {
+  const organisation = useCurrentOrganisation();
+
+  return (
+    <div className="flex flex-wrap gap-2 sm:justify-end">
+      <EnvelopeUploadButton type={type} folderId={parentId || undefined} />
+
+      {/* If you delete this, delete the component as well. */}
+      {organisation.organisationClaim.flags.allowLegacyEnvelopes && <DocumentUploadButtonLegacy type={type} />}
+
+      <FolderCreateDialog
+        type={type}
+        trigger={
+          <Button variant="outline" data-testid="folder-create-button">
+            <FolderPlusIcon className="mr-2 h-4 w-4" />
+            <Trans>Create folder</Trans>
+          </Button>
+        }
+      />
+    </div>
+  );
+};
+
+export const FolderGrid = ({ type, parentId, withActions = true }: FolderGridProps) => {
   const team = useCurrentTeam();
   const organisation = useCurrentOrganisation();
 
@@ -63,9 +94,18 @@ export const FolderGrid = ({ type, parentId }: FolderGridProps) => {
   const pinnedFolders = foldersData?.folders.filter((folder) => folder.pinned) || [];
   const unpinnedFolders = foldersData?.folders.filter((folder) => !folder.pinned) || [];
 
+  // REVALLE v3: sem os botões, a raiz não precisa da trilha ("Início" sozinho) nem do cartão vazio.
+  const showTopRow = withActions || Boolean(parentId);
+
+  if (!withActions && !isPending && foldersData && foldersData.folders.length === 0 && !parentId) {
+    return null;
+  }
+
   return (
     <div>
-      <div className="mb-4 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <div
+        className={cn('mb-4 flex flex-col gap-4 md:flex-row md:items-end md:justify-between', !showTopRow && 'hidden')}
+      >
         <div
           className="flex flex-1 items-center font-medium text-muted-foreground text-sm hover:text-muted-foreground/80"
           data-testid="folder-grid-breadcrumbs"
@@ -94,20 +134,22 @@ export const FolderGrid = ({ type, parentId }: FolderGridProps) => {
           )}
         </div>
 
-        <div className="flex gap-4 sm:flex-row sm:justify-end">
-          <EnvelopeUploadButton type={type} folderId={parentId || undefined} />
+        {withActions && (
+          <div className="flex gap-4 sm:flex-row sm:justify-end">
+            <EnvelopeUploadButton type={type} folderId={parentId || undefined} />
 
-          {/* If you delete this, delete the component as well. */}
-          {organisation.organisationClaim.flags.allowLegacyEnvelopes && <DocumentUploadButtonLegacy type={type} />}
+            {/* If you delete this, delete the component as well. */}
+            {organisation.organisationClaim.flags.allowLegacyEnvelopes && <DocumentUploadButtonLegacy type={type} />}
 
-          <FolderCreateDialog type={type} />
-        </div>
+            <FolderCreateDialog type={type} />
+          </div>
+        )}
       </div>
 
       {isPending ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="h-full rounded-lg border border-border bg-card px-4 py-5">
+            <div key={index} className="h-full rounded-card bg-card px-4 py-5 shadow-card">
               <div className="flex items-center gap-3">
                 <Skeleton className="h-8 w-8 rounded" />
                 <div className="flex w-full items-center justify-between">
@@ -126,16 +168,18 @@ export const FolderGrid = ({ type, parentId }: FolderGridProps) => {
           ))}
         </div>
       ) : foldersData && foldersData.folders.length === 0 ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          <FolderCreateDialog
-            type={type}
-            trigger={
-              <button>
-                <FolderCardEmpty type={type} />
-              </button>
-            }
-          />
-        </div>
+        withActions && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            <FolderCreateDialog
+              type={type}
+              trigger={
+                <button>
+                  <FolderCardEmpty type={type} />
+                </button>
+              }
+            />
+          </div>
+        )
       ) : (
         foldersData && (
           <div key="content" className="space-y-4">

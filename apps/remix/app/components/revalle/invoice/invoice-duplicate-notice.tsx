@@ -45,12 +45,13 @@ export const InvoiceDuplicateNotice = ({ duplicates, acknowledgement }: InvoiceD
   }
 
   return (
+    // REVALLE v3: aviso âmbar dos tokens (warning-bg / warning-text), sem borda
     <div
-      className="flex flex-col gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm"
+      className="flex flex-col gap-2 rounded-lg bg-warning-bg p-3 text-foreground text-sm"
       data-testid="invoice-duplicate-alert"
     >
-      <p className="flex items-start gap-2 font-medium">
-        <TriangleAlertIcon className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" />
+      <p className="flex items-start gap-2 font-semibold text-warning-text">
+        <TriangleAlertIcon className="mt-0.5 h-4 w-4 shrink-0" />
         <Trans>Esta nota parece já ter sido enviada</Trans>
       </p>
 

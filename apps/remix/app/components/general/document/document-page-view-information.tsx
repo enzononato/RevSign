@@ -44,16 +44,17 @@ export const DocumentPageViewInformation = ({ envelope, userId }: DocumentPageVi
   }, [isMounted, envelope, userId]);
 
   return (
-    <section className="flex flex-col rounded-xl border border-border bg-widget text-foreground dark:bg-background">
-      <h1 className="px-4 py-3 font-medium">
+    // REVALLE v3: cartão macio, rótulo à esquerda e valor à direita
+    <section className="flex flex-col rounded-card bg-card text-foreground shadow-card dark:shadow-[0_0_0_1px_hsl(var(--border))]">
+      <h2 className="px-5 pt-4 pb-2 font-display font-extrabold text-[17px]">
         <Trans>Information</Trans>
-      </h1>
+      </h2>
 
-      <ul className="divide-y border-t">
+      <ul className="divide-y px-5 pb-2">
         {documentInformation.map((item, i) => (
-          <li key={i} className="flex items-center justify-between px-4 py-2.5 text-sm last:border-b">
-            <span className="text-muted-foreground">{_(item.description)}</span>
-            <span>{item.value}</span>
+          <li key={i} className="flex items-baseline justify-between gap-4 py-2.5 text-sm">
+            <span className="shrink-0 text-muted-foreground">{_(item.description)}</span>
+            <span className="min-w-0 break-words text-right font-semibold">{item.value}</span>
           </li>
         ))}
       </ul>

@@ -1,10 +1,10 @@
+import { useSession } from '@documenso/lib/client-only/providers/session';
 import { RECIPIENT_ROLES_DESCRIPTION } from '@documenso/lib/constants/recipient-roles';
 import type { TEnvelope } from '@documenso/lib/types/envelope';
 import { isDocumentCompleted } from '@documenso/lib/utils/document';
 import { formatSigningLink, isRecipientExpired } from '@documenso/lib/utils/recipients';
 import { CopyTextButton } from '@documenso/ui/components/common/copy-text-button';
 import { SignatureIcon } from '@documenso/ui/icons/signature';
-import { AvatarWithText } from '@documenso/ui/primitives/avatar';
 import { Badge } from '@documenso/ui/primitives/badge';
 import { PopoverHover } from '@documenso/ui/primitives/popover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@documenso/ui/primitives/tooltip';
@@ -30,6 +30,8 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { match } from 'ts-pattern';
 
+import { RecipientSignerSlots, toSignerSlots } from '~/components/tables/recipient-signer-slots';
+
 export type DocumentPageViewRecipientsProps = {
   envelope: TEnvelope;
   documentRootPath: string;
@@ -37,6 +39,7 @@ export type DocumentPageViewRecipientsProps = {
 
 export const DocumentPageViewRecipients = ({ envelope, documentRootPath }: DocumentPageViewRecipientsProps) => {
   const { _, i18n } = useLingui();
+  const { user } = useSession();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -58,22 +61,34 @@ export const DocumentPageViewRecipients = ({ envelope, documentRootPath }: Docum
   }, [searchParams, setSearchParams]);
 
   return (
-    <section className="flex flex-col rounded-xl border border-border bg-widget dark:bg-background">
-      <div className="flex flex-row items-center justify-between px-4 py-3">
-        <h1 className="font-medium text-foreground">
+    // REVALLE v3: cartão macio com os encaixes de quem assina em cima e a situação de cada um em pílula
+    <section className="flex flex-col rounded-card bg-card shadow-card dark:shadow-[0_0_0_1px_hsl(var(--border))]">
+      <div className="flex flex-row items-center justify-between px-5 pt-4 pb-3">
+        <h2 className="font-display font-extrabold text-[17px] text-foreground">
           <Trans>Recipients</Trans>
-        </h1>
+        </h2>
 
         {!isDocumentCompleted(envelope.status) && (
           <Link
             to={`${documentRootPath}/${envelope.id}/edit?step=signers`}
             title={_(msg`Modify recipients`)}
-            className="flex flex-row items-center justify-between"
+            aria-label={_(msg`Modify recipients`)}
+            className="-mr-2 inline-flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           >
-            {recipients.length === 0 ? <PlusIcon className="ml-2 h-4 w-4" /> : <PenIcon className="ml-2 h-3 w-3" />}
+            {recipients.length === 0 ? <PlusIcon className="h-4 w-4" /> : <PenIcon className="h-3.5 w-3.5" />}
           </Link>
         )}
       </div>
+
+      {envelope.status !== DocumentStatus.DRAFT && toSignerSlots(recipients, user.email).length > 0 && (
+        <div className="px-5 pb-4">
+          <RecipientSignerSlots
+            recipients={recipients}
+            documentStatus={envelope.status}
+            currentUserEmail={user.email}
+          />
+        </div>
+      )}
 
       <ul className="divide-y border-t text-muted-foreground">
         {recipients.length === 0 && (
@@ -83,18 +98,16 @@ export const DocumentPageViewRecipients = ({ envelope, documentRootPath }: Docum
         )}
 
         {recipients.map((recipient, i) => (
-          <li key={recipient.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
-            <AvatarWithText
-              avatarFallback={recipient.email.slice(0, 1).toUpperCase()}
-              primaryText={<p className="text-muted-foreground text-sm">{recipient.email}</p>}
-              secondaryText={
-                <p className="text-muted-foreground/70 text-xs">
-                  {_(RECIPIENT_ROLES_DESCRIPTION[recipient.role].roleName)}
-                </p>
-              }
-            />
+          <li key={recipient.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
+            <div className="min-w-0">
+              <p className="break-words font-semibold text-foreground">{recipient.name || recipient.email}</p>
+              <p className="break-all text-muted-foreground text-xs">
+                {recipient.name ? `${recipient.email} · ` : ''}
+                {_(RECIPIENT_ROLES_DESCRIPTION[recipient.role].roleName)}
+              </p>
+            </div>
 
-            <div className="flex flex-row items-center">
+            <div className="flex shrink-0 flex-row items-center gap-1">
               {envelope.status !== DocumentStatus.DRAFT && recipient.signingStatus === SigningStatus.SIGNED && (
                 <Badge variant="default">
                   {match(recipient.role)
@@ -155,7 +168,7 @@ export const DocumentPageViewRecipients = ({ envelope, documentRootPath }: Docum
                 (recipient.expiresAt ? (
                   <PopoverHover
                     trigger={
-                      <Badge variant="secondary">
+                      <Badge variant="warning">
                         <Clock className="mr-1 h-3 w-3" />
                         <Trans>Pending</Trans>
                       </Badge>
@@ -168,7 +181,7 @@ export const DocumentPageViewRecipients = ({ envelope, documentRootPath }: Docum
                     </p>
                   </PopoverHover>
                 ) : (
-                  <Badge variant="secondary">
+                  <Badge variant="warning">
                     <Clock className="mr-1 h-3 w-3" />
                     <Trans>Pending</Trans>
                   </Badge>

@@ -29,6 +29,7 @@ import { Link, useNavigate } from 'react-router';
 
 import { ConfirmDialog } from '../finance/finance-card';
 import { CostCenterSelect } from '../invoice/cost-center-select';
+import { InvoiceCard, InvoiceCode, InvoiceRow, InvoiceRows, InvoiceStatePill } from '../invoice/invoice-ui';
 
 type Card = TGetAccountingCardResponse;
 
@@ -59,6 +60,8 @@ export type AccountingCardProps = {
   envelopeId: string;
   /** Depois de uma ação (a página recarrega os dados dela: estado, versões). */
   onChanged?: () => void;
+  /** REVALLE v3: com `false`, não repete o centro que a página já mostra em "O que foi assinado". */
+  showSignedValues?: boolean;
 };
 
 /**
@@ -67,7 +70,7 @@ export type AccountingCardProps = {
  * centro de custo" (NF enviada sem centro) e "Enviar de novo" (nova versão cujo envio falhou). Toda ação que grava ou
  * envia pede confirmação.
  */
-export const AccountingCard = ({ envelopeId, onChanged }: AccountingCardProps) => {
+export const AccountingCard = ({ envelopeId, onChanged, showSignedValues = true }: AccountingCardProps) => {
   const { t } = useLingui();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -99,16 +102,15 @@ export const AccountingCard = ({ envelopeId, onChanged }: AccountingCardProps) =
 
   if (!card) {
     return (
-      <section
-        className="rounded-xl border border-border bg-widget p-4 text-muted-foreground text-sm dark:bg-background"
-        data-testid="accounting-card"
-      >
-        {isError ? (
-          <Trans>Não foi possível carregar a Contabilidade. Tente de novo.</Trans>
-        ) : (
-          <Trans>Carregando…</Trans>
-        )}
-      </section>
+      <InvoiceCard title={<Trans>Contabilidade</Trans>} testId="accounting-card">
+        <p className="text-muted-foreground">
+          {isError ? (
+            <Trans>Não foi possível carregar a Contabilidade. Tente de novo.</Trans>
+          ) : (
+            <Trans>Carregando…</Trans>
+          )}
+        </p>
+      </InvoiceCard>
     );
   }
 
@@ -229,30 +231,21 @@ export const AccountingCard = ({ envelopeId, onChanged }: AccountingCardProps) =
     deleted: false,
   });
 
+  // REVALLE v3: cartão macio, linhas "rótulo à esquerda, valor à direita", ações em pílula na largura toda.
   return (
-    <section
-      className="flex flex-col gap-3 rounded-xl border border-border bg-widget p-4 text-foreground text-sm dark:bg-background"
-      data-testid="accounting-card"
-    >
-      <h2 className="font-medium text-base">
-        <Trans>Contabilidade</Trans>
-      </h2>
+    <InvoiceCard title={<Trans>Contabilidade</Trans>} testId="accounting-card">
+      <InvoiceRows>
+        {showSignedValues && (
+          <InvoiceRow label={<Trans>Centro de custo</Trans>} testId="accounting-card-center">
+            {card.costCenter ? <InvoiceCode code={card.costCenter.code} name={card.costCenter.name} /> : '-'}
+          </InvoiceRow>
+        )}
 
-      <dl className="grid grid-cols-1 gap-2">
-        <div>
-          <dt className="text-muted-foreground">
-            <Trans>Centro de custo</Trans>
-          </dt>
-          <dd className="break-words" data-testid="accounting-card-center">
-            {center ?? '-'}
-          </dd>
-        </div>
-
-        <div>
-          <dt className="text-muted-foreground">
-            <Trans>Situação</Trans>
-          </dt>
-          <dd className="break-words font-medium" data-testid="accounting-card-situation">
+        <InvoiceRow label={<Trans>Situação</Trans>}>
+          <InvoiceStatePill
+            tone={validation === 'VALIDATED' ? 'success' : validation === 'WAITING' ? 'warning' : 'neutral'}
+            testId="accounting-card-situation"
+          >
             {validation === 'NO_COST_CENTER' && <Trans>Sem centro de custo</Trans>}
             {validation === 'NO_VALIDATION' && <Trans>Sem validação</Trans>}
             {validation === 'WAITING' && <Trans>Aguardando validação</Trans>}
@@ -261,31 +254,29 @@ export const AccountingCard = ({ envelopeId, onChanged }: AccountingCardProps) =
                 Validado por {validatedBy} em {validatedAt}
               </Trans>
             )}
-          </dd>
-        </div>
+          </InvoiceStatePill>
+        </InvoiceRow>
 
         {card.financeStatus === 'SUPERSEDED' && card.supersedeReason && (
-          <div>
-            <dt className="text-muted-foreground">
-              {card.supersedeKind === 'COST_CENTER' ? (
-                <Trans>Motivo da correção</Trans>
-              ) : (
-                <Trans>Motivo da troca</Trans>
-              )}
-            </dt>
-            <dd className="break-words">{card.supersedeReason}</dd>
-          </div>
+          <InvoiceRow
+            stacked
+            label={
+              card.supersedeKind === 'COST_CENTER' ? <Trans>Motivo da correção</Trans> : <Trans>Motivo da troca</Trans>
+            }
+          >
+            {card.supersedeReason}
+          </InvoiceRow>
         )}
-      </dl>
+      </InvoiceRows>
 
       {card.financeStatus === 'SUPERSEDED' && card.canRetakeChange && (
-        <p className="text-amber-700 dark:text-amber-400" data-testid="accounting-card-retake">
+        <p className="rounded-lg bg-warning-bg px-3 py-2 text-warning-text" data-testid="accounting-card-retake">
           <Trans>A nova versão não existe mais: corrija o centro de custo de novo.</Trans>
         </p>
       )}
 
       {card.financeStatus === 'SUPERSEDED' && card.supersededByEnvelopeId && (
-        <Button asChild variant="outline" className="h-11 w-full whitespace-normal sm:w-auto sm:self-start">
+        <Button asChild variant="outline" className="w-full whitespace-normal">
           <Link to={invoiceViewPath(card.supersededByEnvelopeId)}>
             <Trans>Abrir a nova versão</Trans>
           </Link>
@@ -303,7 +294,7 @@ export const AccountingCard = ({ envelopeId, onChanged }: AccountingCardProps) =
           <Button
             type="button"
             variant="outline"
-            className="h-11 w-full whitespace-normal sm:w-auto sm:self-start"
+            className="w-full whitespace-normal"
             disabled={isBusy}
             loading={resend.isPending}
             onClick={() => setDialog('resend')}
@@ -324,7 +315,7 @@ export const AccountingCard = ({ envelopeId, onChanged }: AccountingCardProps) =
           <CostCenterSelect value={definedCode} disabled={isBusy} onSelect={setDefinedCode} />
           <Button
             type="button"
-            className="h-11 w-full whitespace-normal sm:w-auto sm:self-start"
+            className="w-full whitespace-normal"
             disabled={!definedCode || isBusy}
             loading={define.isPending}
             onClick={() => setDialog('define')}
@@ -335,11 +326,11 @@ export const AccountingCard = ({ envelopeId, onChanged }: AccountingCardProps) =
       )}
 
       {(actions.validate || actions.change) && (
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        <div className="flex flex-col gap-2">
           {actions.validate && (
             <Button
               type="button"
-              className="h-11 w-full whitespace-normal sm:w-auto"
+              className="w-full whitespace-normal"
               disabled={isBusy}
               onClick={() => setDialog('validate')}
             >
@@ -350,7 +341,7 @@ export const AccountingCard = ({ envelopeId, onChanged }: AccountingCardProps) =
             <Button
               type="button"
               variant="outline"
-              className="h-11 w-full whitespace-normal sm:w-auto"
+              className="w-full whitespace-normal"
               disabled={isBusy}
               onClick={openChange}
             >
@@ -484,6 +475,6 @@ export const AccountingCard = ({ envelopeId, onChanged }: AccountingCardProps) =
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </section>
+    </InvoiceCard>
   );
 };

@@ -30,6 +30,15 @@ import { type ReactNode, useId, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 
 import { AccountCombobox } from '../invoice/account-combobox';
+import {
+  financeTone,
+  InvoiceCard,
+  InvoiceCode,
+  InvoiceRow,
+  InvoiceRows,
+  InvoiceStatePill,
+  splitCodeLabel,
+} from '../invoice/invoice-ui';
 
 type Card = TGetFinanceCardResponse;
 
@@ -66,6 +75,11 @@ export type FinanceCardProps = {
   envelopeId: string;
   /** Depois de uma ação (a página recarrega os dados dela: estado, versões). */
   onChanged?: () => void;
+  /**
+   * REVALLE v3: a página da NF já mostra a conta e o centro no cartão "O que foi assinado"; com `false`, o cartão não
+   * repete as duas linhas.
+   */
+  showSignedValues?: boolean;
 };
 
 /**
@@ -74,7 +88,7 @@ export type FinanceCardProps = {
  * assinam de novo uma nova versão) e "Enviar de novo" (nova versão cujo envio falhou). Toda ação que grava ou envia pede
  * confirmação.
  */
-export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
+export const FinanceCard = ({ envelopeId, onChanged, showSignedValues = true }: FinanceCardProps) => {
   const { t } = useLingui();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -114,12 +128,11 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
 
   if (!card || !actions) {
     return (
-      <section
-        className="rounded-xl border border-border bg-widget p-4 text-muted-foreground text-sm dark:bg-background"
-        data-testid="finance-card"
-      >
-        {isError ? <Trans>Não foi possível carregar o Financeiro. Tente de novo.</Trans> : <Trans>Carregando…</Trans>}
-      </section>
+      <InvoiceCard title={<Trans>Financeiro</Trans>} testId="finance-card">
+        <p className="text-muted-foreground">
+          {isError ? <Trans>Não foi possível carregar o Financeiro. Tente de novo.</Trans> : <Trans>Carregando…</Trans>}
+        </p>
+      </InvoiceCard>
     );
   }
 
@@ -219,108 +232,79 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
   const definedLabel = formatAccount(definedAccount ?? null) ?? '-';
   const accountLabel = account ?? '-';
 
+  // REVALLE v3: cartão macio, linhas "rótulo à esquerda, valor à direita", códigos em azul, ações em pílula na largura
+  // toda (a coluna da direita é estreita); as regras e as confirmações não mudam.
   return (
-    <section
-      className="flex flex-col gap-3 rounded-xl border border-border bg-widget p-4 text-foreground text-sm dark:bg-background"
-      data-testid="finance-card"
-    >
-      <h2 className="font-medium text-base">
-        <Trans>Financeiro</Trans>
-      </h2>
-
-      <dl className="grid grid-cols-1 gap-2">
-        <div>
-          <dt className="text-muted-foreground">
-            <Trans>Situação</Trans>
-          </dt>
-          <dd className="font-medium" data-testid="finance-card-situation">
+    <InvoiceCard title={<Trans>Financeiro</Trans>} testId="finance-card">
+      <InvoiceRows>
+        <InvoiceRow label={<Trans>Situação</Trans>}>
+          <InvoiceStatePill tone={financeTone(card.financeStatus, card.envelopeStatus)} testId="finance-card-situation">
             {situation || '-'}
-          </dd>
-        </div>
+          </InvoiceStatePill>
+        </InvoiceRow>
 
-        <div>
-          <dt className="text-muted-foreground">
-            <Trans>Conta contábil</Trans>
-          </dt>
-          <dd className="break-words" data-testid="finance-card-account">
-            {account ?? '-'}
-          </dd>
-        </div>
+        {showSignedValues && (
+          <>
+            <InvoiceRow label={<Trans>Conta contábil</Trans>} testId="finance-card-account">
+              {card.account ? <InvoiceCode code={card.account.code} name={card.account.name} /> : '-'}
+            </InvoiceRow>
 
-        <div>
-          <dt className="text-muted-foreground">
-            <Trans>Centro de custo</Trans>
-          </dt>
-          <dd className="break-words" data-testid="finance-card-cost-center">
-            {card.costCenterLabel ?? '-'}
-          </dd>
-        </div>
-
-        {card.choiceBy && (
-          <div>
-            <dt className="text-muted-foreground">
-              <Trans>Quem escolheu</Trans>
-            </dt>
-            <dd className="break-words">
-              {card.choiceAt ? `${card.choiceBy} · ${formatRevalleDateTime(card.choiceAt)}` : card.choiceBy}
-            </dd>
-          </div>
+            <InvoiceRow label={<Trans>Centro de custo</Trans>} testId="finance-card-cost-center">
+              {card.costCenterLabel ? <InvoiceCode {...splitCodeLabel(card.costCenterLabel)} /> : '-'}
+            </InvoiceRow>
+          </>
         )}
 
-        <div>
-          <dt className="text-muted-foreground">
-            <Trans>Sugestão da IA</Trans>
-          </dt>
-          <dd className="break-words">
-            {card.suggestion ? (
-              <>
-                {formatAccount(card.suggestion)}{' '}
-                <span className="text-muted-foreground">
-                  <Trans>(confiança {card.suggestion.confidence})</Trans>
-                </span>
-                {card.suggestion.reason && (
-                  <span className="block text-muted-foreground">{card.suggestion.reason}</span>
-                )}
-              </>
-            ) : (
-              <span className="text-muted-foreground">
-                <Trans>Sem sugestão</Trans>
+        {card.choiceBy && (
+          <InvoiceRow label={<Trans>Quem escolheu</Trans>} stacked>
+            {card.choiceAt ? `${card.choiceBy} · ${formatRevalleDateTime(card.choiceAt)}` : card.choiceBy}
+          </InvoiceRow>
+        )}
+
+        <InvoiceRow label={<Trans>Sugestão da IA</Trans>} stacked>
+          {card.suggestion ? (
+            <>
+              <InvoiceCode code={card.suggestion.code} name={card.suggestion.name} />{' '}
+              <span className="font-normal text-muted-foreground">
+                <Trans>(confiança {card.suggestion.confidence})</Trans>
               </span>
-            )}
-          </dd>
-        </div>
+              {card.suggestion.reason && (
+                <span className="mt-0.5 block font-normal text-muted-foreground">{card.suggestion.reason}</span>
+              )}
+            </>
+          ) : (
+            <span className="font-normal text-muted-foreground">
+              <Trans>Sem sugestão</Trans>
+            </span>
+          )}
+        </InvoiceRow>
 
         {card.approvedBy && card.approvedAt && card.financeStatus !== 'PENDING_APPROVAL' && (
-          <div>
-            <dt className="text-muted-foreground">
-              <Trans>Aprovada por</Trans>
-            </dt>
-            <dd className="break-words">{`${card.approvedBy} · ${formatRevalleDateTime(card.approvedAt)}`}</dd>
-          </div>
+          <InvoiceRow label={<Trans>Aprovada por</Trans>}>
+            {`${card.approvedBy} · ${formatRevalleDateTime(card.approvedAt)}`}
+          </InvoiceRow>
         )}
 
         {card.financeStatus === 'SUPERSEDED' && card.supersedeReason && (
-          <div>
-            <dt className="text-muted-foreground">
-              {card.supersedeKind === 'COST_CENTER' ? (
-                <Trans>Motivo da correção</Trans>
-              ) : (
-                <Trans>Motivo da troca</Trans>
-              )}
-            </dt>
-            <dd className="break-words">{card.supersedeReason}</dd>
-          </div>
+          <InvoiceRow
+            stacked
+            label={
+              card.supersedeKind === 'COST_CENTER' ? <Trans>Motivo da correção</Trans> : <Trans>Motivo da troca</Trans>
+            }
+          >
+            {card.supersedeReason}
+          </InvoiceRow>
         )}
-      </dl>
+      </InvoiceRows>
 
       {card.financeStatus === 'SUPERSEDED' && card.canRetakeChange && (
-        <p className="text-amber-700 dark:text-amber-400" data-testid="finance-card-retake">
+        <p className="rounded-lg bg-warning-bg px-3 py-2 text-warning-text" data-testid="finance-card-retake">
           <Trans>A nova versão não existe mais: troque a conta de novo.</Trans>
         </p>
       )}
 
       {card.financeStatus === 'SUPERSEDED' && card.supersededByEnvelopeId && (
-        <Button asChild variant="outline" className="h-11 w-full whitespace-normal sm:w-auto sm:self-start">
+        <Button asChild variant="outline" className="w-full whitespace-normal">
           <Link to={invoiceViewPath(card.supersededByEnvelopeId)}>
             <Trans>Abrir a nova versão</Trans>
           </Link>
@@ -344,8 +328,7 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
           </p>
           <Button
             type="button"
-            variant="outline"
-            className="h-11 w-full whitespace-normal sm:w-auto sm:self-start"
+            className="w-full whitespace-normal"
             disabled={isBusy}
             loading={resend.isPending}
             onClick={() => setDialog('resend')}
@@ -378,7 +361,7 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
           )}
           <Button
             type="button"
-            className="h-11 w-full whitespace-normal sm:w-auto sm:self-start"
+            className="w-full whitespace-normal"
             disabled={!definedCode || isBusy}
             loading={approve.isPending}
             onClick={() => setDialog('define-approve')}
@@ -389,11 +372,11 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
       )}
 
       {(actions.approve || actions.change) && (
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        <div className="flex flex-col gap-2">
           {actions.approve && (
             <Button
               type="button"
-              className="h-11 w-full whitespace-normal sm:w-auto"
+              className="w-full whitespace-normal"
               disabled={isBusy}
               onClick={() => setDialog('approve')}
             >
@@ -404,7 +387,7 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
             <Button
               type="button"
               variant="outline"
-              className="h-11 w-full whitespace-normal sm:w-auto"
+              className="w-full whitespace-normal"
               disabled={isBusy}
               onClick={openChange}
             >
@@ -581,7 +564,7 @@ export const FinanceCard = ({ envelopeId, onChanged }: FinanceCardProps) => {
           )}
         </DialogContent>
       </Dialog>
-    </section>
+    </InvoiceCard>
   );
 };
 

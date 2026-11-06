@@ -25,12 +25,19 @@ import { useOptionalCurrentTeam } from '~/providers/team';
 import { inboxSearchParams, resolveInboxStatus } from '~/utils/inbox-search-params';
 
 import { EnvelopeDownloadDialog } from '../dialogs/envelope-download-dialog';
-import { StackAvatarsWithTooltip } from '../general/stack-avatars-with-tooltip';
+import {
+  DocumentRowCard,
+  DocumentRowCardError,
+  DocumentRowCardList,
+  DocumentRowCardSkeletons,
+} from './document-row-card';
+import { RecipientSignerSlots } from './recipient-signer-slots';
 
 type DocumentsTableRow = TFindInboxResponse['data'][number];
 
 export const InboxTable = () => {
   const { _, i18n } = useLingui();
+  const { user } = useSession();
 
   const team = useOptionalCurrentTeam();
   const [isPending, startTransition] = useTransition();
@@ -67,9 +74,7 @@ export const InboxTable = () => {
       },
       {
         header: _(msg`Title`),
-        cell: ({ row }) => (
-          <span className="block max-w-[10rem] truncate font-medium md:max-w-[20rem]">{row.original.title}</span>
-        ),
+        cell: ({ row }) => <span className="block max-w-[20rem] truncate font-bold">{row.original.title}</span>,
       },
       {
         id: 'sender',
@@ -79,14 +84,19 @@ export const InboxTable = () => {
       {
         header: _(msg`Recipient`),
         accessorKey: 'recipient',
+        // REVALLE v3: encaixes de quem assina no lugar da pilha de avatares
         cell: ({ row }) => (
-          <StackAvatarsWithTooltip recipients={row.original.recipients} documentStatus={row.original.status} />
+          <RecipientSignerSlots
+            recipients={row.original.recipients}
+            documentStatus={row.original.status}
+            currentUserEmail={user.email}
+          />
         ),
       },
       {
         header: _(msg`Status`),
         accessorKey: 'status',
-        cell: ({ row }) => <DocumentStatus status={row.original.status} />,
+        cell: ({ row }) => <DocumentStatus pill status={row.original.status} />,
         size: 140,
       },
       {
@@ -94,7 +104,7 @@ export const InboxTable = () => {
         cell: ({ row }) => <InboxTableActionButton row={row.original} />,
       },
     ] satisfies DataTableColumnDef<DocumentsTableRow>[];
-  }, [team]);
+  }, [team, user.email]);
 
   const onPaginationChange = (page: number, perPage: number) => {
     startTransition(() => {
@@ -104,6 +114,28 @@ export const InboxTable = () => {
       });
     });
   };
+
+  // REVALLE v3: frase simples, sem o cinza apagado (legível no claro e no escuro)
+  const emptyState = (
+    <div className="flex h-48 flex-col items-center justify-center gap-y-4 text-muted-foreground">
+      <p>
+        {match({ hasSearchQuery, status })
+          .with({ hasSearchQuery: true }, () => <Trans>No documents match your search</Trans>)
+          .with({ status: DocumentStatusEnum.COMPLETED }, () => (
+            <Trans>Documents that you have completed will appear here</Trans>
+          ))
+          .with({ status: DocumentStatusEnum.REJECTED }, () => (
+            <Trans>Documents that have been rejected will appear here</Trans>
+          ))
+          .with({ status: DocumentStatusEnum.CANCELLED }, () => (
+            <Trans>Documents that have been cancelled will appear here</Trans>
+          ))
+          .otherwise(() => (
+            <Trans>Documents that require your attention will appear here</Trans>
+          ))}
+      </p>
+    </div>
+  );
 
   const results = data ?? {
     data: [],
@@ -127,26 +159,8 @@ export const InboxTable = () => {
         error={{
           enable: isLoadingError || false,
         }}
-        emptyState={
-          <div className="flex h-60 flex-col items-center justify-center gap-y-4 text-muted-foreground/60">
-            <p>
-              {match({ hasSearchQuery, status })
-                .with({ hasSearchQuery: true }, () => <Trans>No documents match your search</Trans>)
-                .with({ status: DocumentStatusEnum.COMPLETED }, () => (
-                  <Trans>Documents that you have completed will appear here</Trans>
-                ))
-                .with({ status: DocumentStatusEnum.REJECTED }, () => (
-                  <Trans>Documents that have been rejected will appear here</Trans>
-                ))
-                .with({ status: DocumentStatusEnum.CANCELLED }, () => (
-                  <Trans>Documents that have been cancelled will appear here</Trans>
-                ))
-                .otherwise(() => (
-                  <Trans>Documents that require your attention will appear here</Trans>
-                ))}
-            </p>
-          </div>
-        }
+        className="hidden md:block"
+        emptyState={emptyState}
         skeleton={{
           enable: isLoading || false,
           rows: 5,
@@ -173,9 +187,45 @@ export const InboxTable = () => {
           ),
         }}
       >
-        {(table) =>
-          results.totalPages > 1 && <DataTablePagination additionalInformation="VisibleCount" table={table} />
-        }
+        {(table) => (
+          <>
+            {/* REVALLE v3: no celular, cartões no lugar da tabela */}
+            <div className="-mt-8 md:hidden">
+              {isLoadingError ? (
+                <DocumentRowCardError />
+              ) : isLoading && results.data.length === 0 ? (
+                <DocumentRowCardSkeletons />
+              ) : results.data.length === 0 ? (
+                <div className="rounded-card bg-card px-6 text-center shadow-card">{emptyState}</div>
+              ) : (
+                <DocumentRowCardList>
+                  {table.getRowModel().rows.map((row) => (
+                    <DocumentRowCard
+                      key={row.id}
+                      title={row.original.title}
+                      meta={`${i18n.date(row.original.createdAt, DateTime.DATETIME_SHORT)} · ${row.original.user.name ?? row.original.user.email}`}
+                      slots={
+                        <RecipientSignerSlots
+                          recipients={row.original.recipients}
+                          documentStatus={row.original.status}
+                          currentUserEmail={user.email}
+                        />
+                      }
+                      status={<DocumentStatus pill status={row.original.status} />}
+                      action={<InboxTableActionButton row={row.original} />}
+                    />
+                  ))}
+                </DocumentRowCardList>
+              )}
+            </div>
+
+            {results.totalPages > 1 && (
+              <div className="mt-6 md:mt-0">
+                <DataTablePagination additionalInformation="VisibleCount" table={table} />
+              </div>
+            )}
+          </>
+        )}
       </DataTable>
 
       {isPending && (
@@ -213,57 +263,60 @@ export const InboxTableActionButton = ({ row }: InboxTableActionButtonProps) => 
   }
 
   // REVALLE: depois de assinar, o botão "View" continua ativo e abre a página de conclusão (que tem "Ver documento")
-  return match({
-    isPending,
-    isComplete,
-    isSigned,
-    internalVersion: row.internalVersion,
-  })
-    .with({ isPending: true, isSigned: false }, () => (
-      <Button className="w-32" asChild>
-        <a href={`/sign/${recipient?.token}`}>
-          {match(role)
-            .with(RecipientRole.SIGNER, () => (
-              <>
-                <PencilIcon className="mr-2 -ml-1 h-4 w-4" />
-                <Trans>Sign</Trans>
-              </>
-            ))
-            .with(RecipientRole.APPROVER, () => (
-              <>
-                <CheckCircleIcon className="mr-2 -ml-1 h-4 w-4" />
-                <Trans>Approve</Trans>
-              </>
-            ))
-            .otherwise(() => (
-              <>
-                <EyeIcon className="mr-2 -ml-1 h-4 w-4" />
-                <Trans>View</Trans>
-              </>
-            ))}
-        </a>
-      </Button>
-    ))
-    .with({ isPending: true, isSigned: true }, () => (
-      <Button className="w-32" asChild>
-        <a href={`/sign/${recipient.token}`}>
-          <EyeIcon className="mr-2 -ml-1 h-4 w-4" />
-          <Trans>View</Trans>
-        </a>
-      </Button>
-    ))
-    .with({ isComplete: true }, () => (
-      <EnvelopeDownloadDialog
-        envelopeId={row.envelopeId}
-        envelopeStatus={row.status}
-        token={recipient?.token}
-        trigger={
-          <Button className="w-32">
-            <DownloadIcon className="mr-2 -ml-1 inline h-4 w-4" />
-            <Trans>Download</Trans>
-          </Button>
-        }
-      />
-    ))
-    .otherwise(() => <div></div>);
+  return (
+    match({
+      isPending,
+      isComplete,
+      isSigned,
+      internalVersion: row.internalVersion,
+    })
+      .with({ isPending: true, isSigned: false }, () => (
+        <Button className="min-w-[8rem]" asChild>
+          <a href={`/sign/${recipient?.token}`}>
+            {match(role)
+              .with(RecipientRole.SIGNER, () => (
+                <>
+                  <PencilIcon className="mr-2 -ml-1 h-4 w-4" />
+                  <Trans>Sign</Trans>
+                </>
+              ))
+              .with(RecipientRole.APPROVER, () => (
+                <>
+                  <CheckCircleIcon className="mr-2 -ml-1 h-4 w-4" />
+                  <Trans>Approve</Trans>
+                </>
+              ))
+              .otherwise(() => (
+                <>
+                  <EyeIcon className="mr-2 -ml-1 h-4 w-4" />
+                  <Trans>View</Trans>
+                </>
+              ))}
+          </a>
+        </Button>
+      ))
+      // REVALLE v3: só "Assinar"/"Aprovar" é azul; ver e baixar ficam em contorno
+      .with({ isPending: true, isSigned: true }, () => (
+        <Button variant="outline" className="min-w-[8rem]" asChild>
+          <a href={`/sign/${recipient.token}`}>
+            <EyeIcon className="mr-2 -ml-1 h-4 w-4" />
+            <Trans>View</Trans>
+          </a>
+        </Button>
+      ))
+      .with({ isComplete: true }, () => (
+        <EnvelopeDownloadDialog
+          envelopeId={row.envelopeId}
+          envelopeStatus={row.status}
+          token={recipient?.token}
+          trigger={
+            <Button variant="outline" className="min-w-[8rem]">
+              <DownloadIcon className="mr-2 -ml-1 inline h-4 w-4" />
+              <Trans>Download</Trans>
+            </Button>
+          }
+        />
+      ))
+      .otherwise(() => null)
+  );
 };

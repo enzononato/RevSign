@@ -36,9 +36,10 @@ export const DocumentPageViewRecentActivity = ({ documentId, userId }: DocumentP
   const documentAuditLogs = useMemo(() => (data?.pages ?? []).flatMap((page) => page.data), [data]);
 
   return (
-    <section className="flex flex-col rounded-xl border border-border bg-widget dark:bg-background">
-      <div className="flex flex-row items-center justify-between border-b px-4 py-3">
-        <h1 className="font-medium text-foreground">
+    // REVALLE v3: cartão macio
+    <section className="flex flex-col rounded-card bg-card shadow-card dark:shadow-[0_0_0_1px_hsl(var(--border))]">
+      <div className="flex flex-row items-center justify-between border-b px-5 py-3">
+        <h1 className="font-display font-extrabold text-[17px] text-foreground">
           <Trans>Recent activity</Trans>
         </h1>
 
@@ -74,8 +75,8 @@ export const DocumentPageViewRecentActivity = ({ documentId, userId }: DocumentP
                   <div className="w-px bg-border" />
                 </div>
 
-                <div className="relative flex h-6 w-6 flex-none items-center justify-center bg-widget">
-                  <div className="h-1.5 w-1.5 rounded-full bg-widget ring-1 ring-gray-300 dark:ring-neutral-600" />
+                <div className="relative flex h-6 w-6 flex-none items-center justify-center bg-card">
+                  <div className="h-1.5 w-1.5 rounded-full bg-card ring-1 ring-border" />
                 </div>
 
                 <button
@@ -89,7 +90,7 @@ export const DocumentPageViewRecentActivity = ({ documentId, userId }: DocumentP
 
             {documentAuditLogs.length === 0 && (
               <div className="flex items-center justify-center py-4">
-                <p className="text-muted-foreground/70 text-sm">
+                <p className="text-muted-foreground text-sm">
                   <Trans>No recent activity</Trans>
                 </p>
               </div>
@@ -106,41 +107,41 @@ export const DocumentPageViewRecentActivity = ({ documentId, userId }: DocumentP
                   <div className="w-px bg-border" />
                 </div>
 
-                <div className="relative flex h-6 w-6 flex-none items-center justify-center bg-widget text-foreground/40">
+                <div className="relative flex h-6 w-6 flex-none items-center justify-center bg-card text-foreground/40">
                   {match(auditLog.type)
                     .with(DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_COMPLETED, () => (
-                      <div className="rounded-full border border-gray-300 bg-widget p-1 dark:border-neutral-600">
+                      <div className="rounded-full border border-border bg-card p-1">
                         <CheckCheckIcon className="h-3 w-3" aria-hidden="true" />
                       </div>
                     ))
                     .with(DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_RECIPIENT_COMPLETED, () => (
-                      <div className="rounded-full border border-gray-300 bg-widget p-1 dark:border-neutral-600">
+                      <div className="rounded-full border border-border bg-card p-1">
                         <CheckIcon className="h-3 w-3" aria-hidden="true" />
                       </div>
                     ))
                     .with(DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_RECIPIENT_REJECTED, () => (
-                      <div className="rounded-full border border-gray-300 bg-widget p-1 dark:border-neutral-600">
+                      <div className="rounded-full border border-border bg-card p-1">
                         <AlertTriangle className="h-3 w-3" aria-hidden="true" />
                       </div>
                     ))
                     .with(DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_OPENED, () => (
-                      <div className="rounded-full border border-gray-300 bg-widget p-1 dark:border-neutral-600">
+                      <div className="rounded-full border border-border bg-card p-1">
                         <MailOpen className="h-3 w-3" aria-hidden="true" />
                       </div>
                     ))
                     .otherwise(() => (
-                      <div className="h-1.5 w-1.5 rounded-full bg-widget ring-1 ring-gray-300 dark:ring-neutral-600" />
+                      <div className="h-1.5 w-1.5 rounded-full bg-card ring-1 ring-border" />
                     ))}
                 </div>
 
                 <p
-                  className="flex-auto truncate py-0.5 text-muted-foreground text-xs leading-5 dark:text-muted-foreground/70"
+                  className="flex-auto truncate py-0.5 text-muted-foreground text-xs leading-5"
                   title={formatDocumentAuditLogAction(i18n, auditLog, userId).description}
                 >
                   {formatDocumentAuditLogAction(i18n, auditLog, userId).description}
                 </p>
 
-                <time className="flex-none py-0.5 text-muted-foreground text-xs leading-5 dark:text-muted-foreground/70">
+                <time className="flex-none py-0.5 text-muted-foreground text-xs leading-5">
                   {DateTime.fromJSDate(auditLog.createdAt).toRelative({ style: 'short' })}
                 </time>
               </li>

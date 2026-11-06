@@ -21,9 +21,15 @@ import { match } from 'ts-pattern';
 import { DocumentStatus } from '~/components/general/document/document-status';
 import { useCurrentTeam } from '~/providers/team';
 
-import { StackAvatarsWithTooltip } from '../general/stack-avatars-with-tooltip';
+import {
+  DocumentRowCard,
+  DocumentRowCardError,
+  DocumentRowCardList,
+  DocumentRowCardSkeletons,
+} from './document-row-card';
 import { DocumentsTableActionButton } from './documents-table-action-button';
 import { DocumentsTableActionDropdown } from './documents-table-action-dropdown';
+import { RecipientSignerSlots } from './recipient-signer-slots';
 
 export type DocumentsTableProps = {
   data?: TFindDocumentsResponse;
@@ -47,6 +53,7 @@ export const DocumentsTable = ({
   onRowSelectionChange,
 }: DocumentsTableProps) => {
   const { _, i18n } = useLingui();
+  const { user } = useSession();
 
   const team = useCurrentTeam();
   const [isPending, startTransition] = useTransition();
@@ -99,14 +106,19 @@ export const DocumentsTable = ({
       {
         header: _(msg`Recipient`),
         accessorKey: 'recipient',
+        // REVALLE v3: encaixes de quem assina no lugar da pilha de avatares
         cell: ({ row }) => (
-          <StackAvatarsWithTooltip recipients={row.original.recipients} documentStatus={row.original.status} />
+          <RecipientSignerSlots
+            recipients={row.original.recipients}
+            documentStatus={row.original.status}
+            currentUserEmail={user.email}
+          />
         ),
       },
       {
         header: _(msg`Status`),
         accessorKey: 'status',
-        cell: ({ row }) => <DocumentStatus status={row.original.status} />,
+        cell: ({ row }) => <DocumentStatus pill status={row.original.status} />,
         size: 140,
       },
       {
@@ -125,7 +137,7 @@ export const DocumentsTable = ({
     );
 
     return cols;
-  }, [team, onMoveDocument, enableSelection]);
+  }, [team, onMoveDocument, enableSelection, user.email]);
 
   const onPaginationChange = (page: number, perPage: number) => {
     startTransition(() => {
@@ -145,7 +157,9 @@ export const DocumentsTable = ({
 
   return (
     <div className="relative">
+      {/* REVALLE v3: tabela no computador; no celular, cartões (abaixo, junto da paginação) */}
       <DataTable
+        className="hidden md:block"
         columns={columns}
         data={results.data}
         perPage={results.perPage}
@@ -193,7 +207,63 @@ export const DocumentsTable = ({
         onRowSelectionChange={onRowSelectionChange}
         getRowId={(row) => row.envelopeId}
       >
-        {(table) => <DataTablePagination additionalInformation="VisibleCount" table={table} />}
+        {(table) => (
+          <>
+            <div className="-mt-8 md:hidden">
+              {isLoadingError ? (
+                <DocumentRowCardError />
+              ) : isLoading && results.data.length === 0 ? (
+                <DocumentRowCardSkeletons />
+              ) : (
+                <DocumentRowCardList>
+                  {table.getRowModel().rows.map((row) => {
+                    const document = row.original;
+                    const canAct = !document.deletedAt || isDocumentCompleted(document.status);
+
+                    return (
+                      <DocumentRowCard
+                        key={row.id}
+                        isSelected={row.getIsSelected()}
+                        select={
+                          enableSelection && (
+                            <Checkbox
+                              checked={row.getIsSelected()}
+                              onCheckedChange={(value) => row.toggleSelected(!!value)}
+                              aria-label={_(msg`Select row`)}
+                            />
+                          )
+                        }
+                        title={<DataTableTitle row={document} teamUrl={team?.url} teamEmail={team?.teamEmail?.email} />}
+                        meta={`${i18n.date(document.createdAt, DateTime.DATETIME_SHORT)} · ${document.user.name ?? document.user.email}`}
+                        slots={
+                          <RecipientSignerSlots
+                            recipients={document.recipients}
+                            documentStatus={document.status}
+                            currentUserEmail={user.email}
+                          />
+                        }
+                        status={<DocumentStatus pill status={document.status} />}
+                        menu={
+                          canAct && (
+                            <DocumentsTableActionDropdown
+                              row={document}
+                              onMoveDocument={onMoveDocument ? () => onMoveDocument(document.envelopeId) : undefined}
+                            />
+                          )
+                        }
+                        action={canAct && <DocumentsTableActionButton row={document} />}
+                      />
+                    );
+                  })}
+                </DocumentRowCardList>
+              )}
+            </div>
+
+            <div className="mt-6 md:mt-0">
+              <DataTablePagination additionalInformation="VisibleCount" table={table} />
+            </div>
+          </>
+        )}
       </DataTable>
 
       {isPending && (
@@ -236,7 +306,7 @@ const DataTableTitle = ({ row, teamUrl, teamEmail }: DataTableTitleProps) => {
       <Link
         to={formatPath}
         title={row.title}
-        className="block max-w-[10rem] truncate font-medium hover:underline md:max-w-[20rem]"
+        className="block max-w-full font-bold hover:underline md:max-w-[20rem] md:truncate"
       >
         {row.title}
       </Link>
@@ -245,12 +315,12 @@ const DataTableTitle = ({ row, teamUrl, teamEmail }: DataTableTitleProps) => {
       <Link
         to={`/sign/${recipient?.token}`}
         title={row.title}
-        className="block max-w-[10rem] truncate font-medium hover:underline md:max-w-[20rem]"
+        className="block max-w-full font-bold hover:underline md:max-w-[20rem] md:truncate"
       >
         {row.title}
       </Link>
     ))
     .otherwise(() => (
-      <span className="block max-w-[10rem] truncate font-medium hover:underline md:max-w-[20rem]">{row.title}</span>
+      <span className="block max-w-full font-bold hover:underline md:max-w-[20rem] md:truncate">{row.title}</span>
     ));
 };
