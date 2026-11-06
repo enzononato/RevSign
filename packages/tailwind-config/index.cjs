@@ -10,8 +10,13 @@ module.exports = {
     extend: {
       fontFamily: {
         sans: ['var(--font-sans)', ...fontFamily.sans],
+        display: ['var(--font-display)', ...fontFamily.sans],
         signature: ['var(--font-signature)'],
         noto: ['var(--font-noto)'],
+      },
+      boxShadow: {
+        card: '0 1px 2px rgba(20,27,46,.05), 0 0 0 1px rgba(20,27,46,.04)',
+        ridge: '0 2px 0 hsl(var(--brand-deep))',
       },
       zIndex: {
         9999: '9999',
@@ -35,8 +40,31 @@ module.exports = {
           DEFAULT: 'hsl(var(--secondary))',
           foreground: 'hsl(var(--secondary-foreground))',
         },
+        // REVALLE v3: tokens de status e casca
         warning: {
           DEFAULT: 'hsl(var(--warning))',
+          text: 'hsl(var(--warning-text))',
+          bg: 'hsl(var(--warning-bg))',
+        },
+        success: {
+          DEFAULT: 'hsl(var(--success))',
+          bg: 'hsl(var(--success-bg))',
+        },
+        danger: {
+          bg: 'hsl(var(--danger-bg))',
+        },
+        brand: {
+          deep: 'hsl(var(--brand-deep))',
+          text: 'hsl(var(--brand-text))',
+        },
+        shell: {
+          DEFAULT: 'hsl(var(--shell))',
+          foreground: 'hsl(var(--shell-foreground))',
+          muted: 'hsl(var(--shell-muted))',
+        },
+        counter: {
+          DEFAULT: 'hsl(var(--counter))',
+          foreground: 'hsl(var(--counter-foreground))',
         },
         destructive: {
           DEFAULT: 'hsl(var(--destructive))',
@@ -125,6 +153,7 @@ module.exports = {
         'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
       },
       borderRadius: {
+        card: '20px',
         DEFAULT: 'calc(var(--radius) - 3px)',
         '2xl': 'calc(var(--radius) + 4px)',
         xl: 'calc(var(--radius) + 2px)',

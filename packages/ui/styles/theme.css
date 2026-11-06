@@ -5,49 +5,66 @@
 @layer base {
   :root,
   .dark-mode-disabled {
-    /* REVALLE: cor da marca RevSign (#1F4E79, HSL 209 59% 30%) em --primary, --ring, --field-card* e --new-primary-*.
-       Branco sobre a primária: 8,6:1. */
-    --background: 0 0% 100%;
-    --foreground: 222.2 47.4% 11.2%;
+    /* REVALLE redesign v3: paleta "Engradado" (ver docs/superpowers/plans/2026-11-06-redesign-v3.md).
+       Marca #1D3F94; branco sobre ela 10,6:1; texto #141B2E sobre o chão #F5F4F0 15,5:1; muted #5E6678 sobre o card 5,9:1. */
+    --background: 48 20% 95%;
+    --foreground: 224 39% 13%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 48 14% 92%;
+    --muted-foreground: 222 12% 38%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 47.4% 11.2%;
+    --popover-foreground: 224 39% 13%;
 
     --card: 0 0% 100%;
-    --card-border: 214.3 31.8% 91.4%;
+    --card-border: 42 17% 88%;
     --card-border-tint: 112 205 159;
-    --card-foreground: 222.2 47.4% 11.2%;
+    --card-foreground: 224 39% 13%;
 
-    --field-card: 209 59% 92%;
-    --field-card-border: 209 59% 30%;
-    --field-card-foreground: 222.2 47.4% 11.2%;
+    --field-card: 221 57% 95%;
+    --field-card-border: 223 67% 35%;
+    --field-card-foreground: 224 39% 13%;
 
-    --widget: 0 0% 97%;
-    --widget-foreground: 0 0% 95%;
+    --widget: 48 20% 95%;
+    --widget-foreground: 48 14% 90%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --border: 42 17% 88%;
+    --input: 42 17% 88%;
 
-    --primary: 209 59% 30%;
+    --primary: 223 67% 35%;
     --primary-foreground: 0 0% 100%;
+    --brand-deep: 223 68% 26%;
+    --brand-text: 223 67% 35%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 221 57% 95%;
+    --secondary-foreground: 223 67% 35%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 221 57% 95%;
+    --accent-foreground: 223 67% 35%;
 
-    --destructive: 0 100% 50%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 4 76% 40%;
+    --destructive-foreground: 0 0% 100%;
+    --danger-bg: 6 83% 95%;
 
-    --ring: 209 59% 30%;
+    --success: 152 62% 31%;
+    --success-bg: 143 37% 93%;
 
-    --radius: 0.5rem;
+    /* --warning segue sendo o amarelo de preenchimento do upstream; texto e fundo de status vão nos tokens novos */
+    --warning: 45 96% 48%;
+    --warning-text: 41 100% 28%;
+    --warning-bg: 43 100% 93%;
 
-    --warning: 54 96% 45%;
+    --counter: 45 96% 48%;
+    --counter-foreground: 43 100% 8%;
+
+    --shell: 223 67% 35%;
+    --shell-foreground: 0 0% 100%;
+    --shell-muted: 222 70% 88%;
+
+    --ring: 223 67% 35%;
+
+    /* rounded-lg = 13px (campos, filtros); rounded-card = 20px; botões e chips usam rounded-full */
+    --radius: 13px;
 
     --gold: 47.9 95.8% 53.1%;
 
@@ -140,58 +157,73 @@
     --new-surface-black: 0, 0%, 0%;
     --new-surface-white: 0, 0%, 91%;
 
-    --envelope-editor-background: 210 40% 98.04%;
+    --envelope-editor-background: 48 20% 95%;
   }
 
   .dark:not(.dark-mode-disabled) {
-    /* REVALLE: mesma matiz, um pouco mais clara (45%): branco sobre a primária 4,8:1 (AA) e a primária sobre o fundo
-       escuro 3,1:1 (AA para texto grande e elementos de interface). Textos secundários/acento em 70% (6,9:1). */
-    --background: 0 0% 14.9%;
-    --foreground: 0 0% 97%;
+    /* REVALLE redesign v3 (escuro): chão #0E1424, card #161E33, texto #E9EDF6 (15:1), muted #A3ACC2 (7,9:1 no card),
+       texto de marca #7EA6FF (7,6:1) e preenchimento #2A55C4 (branco 6,6:1). */
+    --background: 224 44% 10%;
+    --foreground: 222 42% 94%;
 
-    --muted: 0 0% 23.4%;
-    --muted-foreground: 0 0% 85%;
+    --muted: 223 36% 18%;
+    --muted-foreground: 223 20% 70%;
 
-    --popover: 0 0% 14.9%;
-    --popover-foreground: 0 0% 90%;
+    --popover: 223 40% 14%;
+    --popover-foreground: 222 42% 94%;
 
-    --card: 0 0% 14.9%;
-    --card-border: 0 0% 27.9%;
+    --card: 223 40% 14%;
+    --card-border: 223 32% 22%;
     --card-border-tint: 112 205 159;
-    --card-foreground: 0 0% 95%;
+    --card-foreground: 222 42% 94%;
 
-    --widget: 0 0% 14.9%;
-    --widget-foreground: 0 0% 18%;
+    --widget: 223 40% 14%;
+    --widget-foreground: 223 36% 18%;
 
-    --border: 0 0% 27.9%;
-    --input: 0 0% 27.9%;
+    --border: 223 32% 22%;
+    --input: 223 32% 22%;
 
-    --field-border: 214.3 31.8% 91.4%;
+    --field-border: 223 32% 40%;
 
     /* REVALLE: borda dos campos clara o bastante para aparecer no fundo escuro */
-    --field-card-border: 209 59% 60%;
+    --field-card-border: 221 100% 75%;
 
-    --primary: 209 59% 45%;
+    --primary: 223 65% 47%;
     --primary-foreground: 0 0% 100%;
+    --brand-deep: 225 68% 37%;
+    --brand-text: 221 100% 75%;
 
-    --secondary: 0 0% 23.4%;
-    --secondary-foreground: 209 59% 70%;
+    --secondary: 225 50% 21%;
+    --secondary-foreground: 221 100% 82%;
 
-    --accent: 0 0% 27.9%;
-    --accent-foreground: 209 59% 70%;
+    --accent: 225 50% 21%;
+    --accent-foreground: 221 100% 82%;
 
-    --destructive: 0 87% 62%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 4 90% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --danger-bg: 0 36% 17%;
 
-    --ring: 209 59% 45%;
+    --success: 150 55% 59%;
+    --success-bg: 158 47% 13%;
 
-    --radius: 0.5rem;
+    --warning: 45 96% 48%;
+    --warning-text: 42 89% 64%;
+    --warning-bg: 42 65% 12%;
 
-    --warning: 54 96% 45%;
+    --counter: 45 96% 48%;
+    --counter-foreground: 43 100% 8%;
+
+    --shell: 223 66% 26%;
+    --shell-foreground: 0 0% 100%;
+    --shell-muted: 222 70% 85%;
+
+    --ring: 221 100% 75%;
+
+    --radius: 13px;
 
     --gold: 47.9 95.8% 53.1%;
 
-    --envelope-editor-background: 0 0% 14.9%;
+    --envelope-editor-background: 224 44% 10%;
   }
 }
 
@@ -200,11 +232,64 @@
     @apply border-border;
   }
 
+  html {
+    font-size: 100%;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
+    font-size: 15px;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
     font-feature-settings:
       "rlig" 1,
       "calt" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* REVALLE v3: títulos em Nunito Sans 800/900 com tracking -0.03em */
+  h1,
+  h2 {
+    font-family: var(--font-display), var(--font-sans), sans-serif;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+  }
+
+  /* Escuro: --primary (#2A55C4) é para preenchimento; texto/links na cor de marca clara (#7EA6FF, 7,6:1) */
+  .dark:not(.dark-mode-disabled) .text-primary {
+    color: hsl(var(--brand-text));
+  }
+
+  /* Superfícies do navegador */
+  ::selection {
+    background: hsl(223 67% 35%);
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.45) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground) / 0.4);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    border-radius: 999px;
   }
 }
 

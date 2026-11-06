@@ -3,6 +3,8 @@ import * as React from 'react';
 
 import { cn } from '../lib/utils';
 
+// REVALLE v3: redesign visual (tokens, pílula, raios); ver CHANGES.md
+
 const Switch = React.forwardRef<
   React.ElementRef<typeof SwitchPrimitives.Root>,
   React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>

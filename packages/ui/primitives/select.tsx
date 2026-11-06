@@ -7,6 +7,8 @@ import * as React from 'react';
 
 import { cn } from '../lib/utils';
 
+// REVALLE v3: redesign visual (tokens, pílula, raios); ver CHANGES.md
+
 const Select = SelectPrimitive.Root;
 
 const SelectGroup = SelectPrimitive.Group;
@@ -22,7 +24,7 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      'flex h-10 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+      'flex h-11 w-full items-center justify-between rounded-lg border-[1.5px] border-input bg-card px-3.5 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
       className,
     )}
     disabled={loading || props.disabled}
@@ -55,7 +57,7 @@ const SelectContent = React.forwardRef<
     <SelectPrimitive.Content
       ref={ref}
       className={cn(
-        'fade-in-80 relative z-[1001] min-w-[8rem] animate-in overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md',
+        'fade-in-80 relative z-[1001] min-w-[8rem] animate-in overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-lg',
         position === 'popper' && 'translate-y-1',
         className,
       )}
@@ -93,7 +95,7 @@ const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pr-2 pl-8 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'relative flex min-h-9 w-full cursor-default select-none items-center rounded-md py-1.5 pr-2 pl-8 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
       className,
     )}
     {...props}

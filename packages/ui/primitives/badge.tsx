@@ -4,24 +4,23 @@ import type * as React from 'react';
 
 import { cn } from '../lib/utils';
 
-const badgeVariants = cva('inline-flex items-center rounded-md text-xs font-medium ring-1 ring-inset w-fit', {
+// REVALLE v3: redesign visual (tokens, pílula, raios); ver CHANGES.md
+
+// REVALLE v3: pílula com cores de status vindas dos tokens (texto ≥ 4,5:1 sobre o fundo)
+const badgeVariants = cva('inline-flex items-center rounded-full text-xs font-semibold w-fit', {
   variants: {
     variant: {
-      neutral: 'bg-gray-50 text-gray-600 ring-gray-500/10 dark:bg-gray-400/10 dark:text-gray-400 dark:ring-gray-400/20',
-      destructive: 'bg-red-50 text-red-700 ring-red-600/10 dark:bg-red-400/10 dark:text-red-400 dark:ring-red-400/20',
-      warning:
-        'bg-yellow-50 text-yellow-800 ring-yellow-600/20 dark:bg-yellow-400/10 dark:text-yellow-500 dark:ring-yellow-400/20',
-      default:
-        'bg-green-50 text-green-700 ring-green-600/20 dark:bg-green-500/10 dark:text-green-400 dark:ring-green-500/20',
-      secondary:
-        'bg-blue-50 text-blue-700 ring-blue-700/10 dark:bg-blue-400/10 dark:text-blue-400 dark:ring-blue-400/30',
-      orange:
-        'bg-orange-50 text-orange-700 ring-orange-700/10 dark:bg-orange-400/10 dark:text-orange-400 dark:ring-orange-400/30',
+      neutral: 'bg-muted text-muted-foreground',
+      destructive: 'bg-danger-bg text-destructive',
+      warning: 'bg-warning-bg text-warning-text',
+      default: 'bg-success-bg text-success',
+      secondary: 'bg-accent text-accent-foreground',
+      orange: 'bg-warning-bg text-warning-text',
     },
     size: {
-      small: 'px-1.5 py-0.5 text-xs',
-      default: 'px-2 py-1.5 text-xs',
-      large: 'px-3 py-2 text-sm',
+      small: 'px-2 py-0.5 text-xs',
+      default: 'px-2.5 py-1 text-xs',
+      large: 'px-3.5 py-1.5 text-sm',
     },
   },
   defaultVariants: {

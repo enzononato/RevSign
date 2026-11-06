@@ -3,6 +3,8 @@ import * as React from 'react';
 
 import { cn } from '../lib/utils';
 
+// REVALLE v3: redesign visual (tokens, pílula, raios); ver CHANGES.md
+
 const TooltipProvider = TooltipPrimitive.Provider;
 
 const Tooltip = TooltipPrimitive.Root;
@@ -23,7 +25,7 @@ const TooltipContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        'fade-in-50 data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1 z-9999 animate-in overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-popover-foreground text-sm shadow-md',
+        'fade-in-50 data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1 z-9999 animate-in overflow-hidden rounded-lg border bg-popover px-3 py-1.5 text-popover-foreground text-sm shadow-md',
         className,
       )}
       {...props}
