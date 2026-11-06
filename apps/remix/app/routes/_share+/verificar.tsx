@@ -16,13 +16,16 @@ import {
 } from '@documenso/lib/server-only/revalle/proof/find-proof-by-code';
 import { revalleRateLimitIpKey } from '@documenso/lib/server-only/revalle/rate-limit-ip-key';
 import { getIpAddress } from '@documenso/lib/universal/get-ip-address';
+import { prisma } from '@documenso/prisma'; // REVALLE: redesign v3, contagem de quem assina (só leitura)
 import { Button } from '@documenso/ui/primitives/button';
 import { Input } from '@documenso/ui/primitives/input';
+import { RecipientRole, SigningStatus } from '@prisma/client';
 import { CheckIcon, CopyIcon, FileUpIcon, ShieldCheckIcon, TriangleAlertIcon } from 'lucide-react';
 import { useState } from 'react';
 import { data, Form, useLoaderData } from 'react-router';
 import { BrandBand } from '~/components/general/background';
 import { RevsignWordmark } from '~/components/revalle/shell/revsign-wordmark';
+import { type SignerSlot, SignerSlots } from '~/components/revalle/shell/signer-slots';
 
 import type { Route } from './+types/verificar';
 
@@ -55,6 +58,12 @@ type LoaderData =
         factorsLabel: string;
         termLabel: string;
       }[];
+      /**
+       * REVALLE (redesign v3): os encaixes do engradado, só de quem assina ou aprova (leitor não é encaixe). Quem já
+       * assinou vem com o nome da prova (o mesmo da lista abaixo); quem falta ou recusou vem sem nome, porque a página é
+       * pública e a lista também não mostra essas pessoas.
+       */
+      slots: { name: string; state: 'signed' | 'pending' | 'rejected' }[];
       /** Fase 6, NF que passou pelo Financeiro: conta, aprovação e substituição (nada da nova versão). */
       invoice: {
         accountLabel: string | null;
@@ -107,8 +116,43 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
     return data<LoaderData>({ state: 'not-found', codigo });
   }
 
+  // REVALLE (redesign v3): só o estado de cada destinatário que assina ou aprova, para "N de N assinaram".
+  const signerStates = await prisma.revalleSignatureProof
+    .findUnique({
+      where: { verificationCode: codigo },
+      select: {
+        recipient: {
+          select: {
+            envelope: {
+              select: {
+                recipients: {
+                  where: { role: { in: [RecipientRole.SIGNER, RecipientRole.APPROVER] } },
+                  select: { signingStatus: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    })
+    .then((row) => row?.recipient.envelope.recipients.map((r) => r.signingStatus) ?? []);
+
+  const signedNames = result.signers
+    .filter((s) => s.role === RecipientRole.SIGNER || s.role === RecipientRole.APPROVER)
+    .map((s) => s.nome);
+  const signedTotal = Math.max(signedNames.length, signerStates.filter((st) => st === SigningStatus.SIGNED).length);
+  const rejectedTotal = signerStates.filter((st) => st === SigningStatus.REJECTED).length;
+  const pendingTotal = Math.max(0, signerStates.length - signedTotal - rejectedTotal);
+
+  const slots: { name: string; state: 'signed' | 'pending' | 'rejected' }[] = [
+    ...Array.from({ length: signedTotal }, (_, i) => ({ name: signedNames[i] ?? '', state: 'signed' as const })),
+    ...Array.from({ length: rejectedTotal }, () => ({ name: '', state: 'rejected' as const })),
+    ...Array.from({ length: pendingTotal }, () => ({ name: '', state: 'pending' as const })),
+  ];
+
   return data<LoaderData>({
     state: 'found',
+    slots,
     codigo,
     documentTitle: result.documentTitle,
     status: result.status,
@@ -145,6 +189,12 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
     },
     costCenterLabel: result.costCenter ? `Centro de custo: ${costCenterLabel(result.costCenter.code)}` : null,
   });
+};
+
+const signedSlotsCaption = (slots: { state: string }[]) => {
+  const signed = slots.filter((slot) => slot.state === 'signed').length;
+
+  return `${signed} de ${slots.length} ${signed === 1 ? 'assinou' : 'assinaram'}`;
 };
 
 const toHex = (buffer: ArrayBuffer) =>
@@ -378,6 +428,15 @@ export default function VerificarPage() {
 
             <section className="rounded-card bg-card p-5 shadow-card sm:p-6">
               <h3 className="mb-3 font-semibold">Participantes</h3>
+              {/* REVALLE: redesign v3. O engradado de quem assina, acima da lista (leitor não entra). */}
+              {result.slots.length > 0 && (
+                <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="verify-slots">
+                  <SignerSlots slots={result.slots satisfies SignerSlot[]} max={10} />
+                  <p className="font-semibold text-muted-foreground text-sm tabular-nums">
+                    {signedSlotsCaption(result.slots)}
+                  </p>
+                </div>
+              )}
               <ul className="space-y-2">
                 {result.signers.map((s, index) => (
                   <li className="rounded-[13px] bg-muted/60 p-4 text-sm" key={`${s.nome}-${index}`}>

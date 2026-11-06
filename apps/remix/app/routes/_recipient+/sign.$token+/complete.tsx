@@ -15,6 +15,7 @@ import {
 import { getUserByEmail } from '@documenso/lib/server-only/user/get-user-by-email';
 import { isDocumentCompleted } from '@documenso/lib/utils/document';
 import { getEnvelopeItemPdfUrl } from '@documenso/lib/utils/envelope-download'; // REVALLE:
+import { prisma } from '@documenso/prisma'; // REVALLE: encaixes de quem assina (só leitura)
 import { trpc } from '@documenso/trpc/react';
 import { SigningCard } from '@documenso/ui/components/signing-card'; // REVALLE: cartão 2D, sem a imagem de comemoração
 import { cn } from '@documenso/ui/lib/utils';
@@ -22,7 +23,7 @@ import { Button } from '@documenso/ui/primitives/button';
 import { Card } from '@documenso/ui/primitives/card'; // REVALLE:
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
-import { DocumentStatus, FieldType, RecipientRole } from '@prisma/client';
+import { DocumentStatus, FieldType, RecipientRole, SigningStatus } from '@prisma/client'; // REVALLE: SigningStatus
 import { CheckCircle2, Clock8, DownloadIcon, EyeIcon, Loader2 } from 'lucide-react'; // REVALLE: EyeIcon
 import { Link, redirect } from 'react-router'; // REVALLE: redirect
 import { getOptionalLoaderContext } from 'server/utils/get-loader-session'; // REVALLE:
@@ -31,6 +32,7 @@ import { EnvelopeDownloadDialog } from '~/components/dialogs/envelope-download-d
 import { ClaimAccount } from '~/components/general/claim-account';
 import { DocumentSigningAuthPageView } from '~/components/general/document-signing/document-signing-auth-page';
 import { RecipientBranding } from '~/components/general/recipient-branding';
+import { type SignerSlot, SignerSlots } from '~/components/revalle/shell/signer-slots'; // REVALLE:
 import { GateStatusIcon } from '~/components/revalle/signing-gate/gate-status-icon'; // REVALLE:
 import { SigningPageFrame } from '~/components/revalle/signing-gate/signing-band'; // REVALLE:
 import { useCspNonce } from '~/utils/nonce';
@@ -106,6 +108,20 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 
   const returnToHomePath = canRedirectToFolder ? `/t/${document.team.url}/documents/f/${document.folderId}` : '/';
 
+  // REVALLE (redesign v3): os encaixes do engradado na tela de concluído. Quem assina ou aprova, na ordem de assinatura
+  // (a mesma regra da tela de assinatura); só nome e estado, nada de e-mail se houver nome.
+  const revalleSigners = await prisma.recipient.findMany({
+    where: { envelopeId: document.envelopeId, role: { in: [RecipientRole.SIGNER, RecipientRole.APPROVER] } },
+    select: { id: true, name: true, email: true, signingStatus: true, signingOrder: true },
+  });
+
+  const revalleSignerSlots = revalleSigners
+    .sort(
+      (a, b) =>
+        (a.signingOrder ?? Number.MAX_SAFE_INTEGER) - (b.signingOrder ?? Number.MAX_SAFE_INTEGER) || a.id - b.id,
+    )
+    .map((r) => ({ name: r.name || r.email, signingStatus: r.signingStatus, isYou: r.id === recipient.id }));
+
   return {
     isDocumentAccessValid: true,
     canSignUp,
@@ -117,6 +133,12 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     returnToHomePath,
     branding,
     revalleAwaitingFinance: await isWaitingForFinanceApproval(document.envelopeId), // REVALLE:
+    revalleSignerSlots, // REVALLE:
+    // REVALLE: o encaixe de quem assinou só anima logo depois da assinatura (voltar ao link dias depois não repete).
+    revalleJustSigned:
+      recipient.signingStatus === SigningStatus.SIGNED &&
+      !!recipient.signedAt &&
+      Date.now() - recipient.signedAt.getTime() < 10 * 60 * 1000,
   };
 }
 
@@ -138,6 +160,8 @@ export default function CompletedSigningPage({ loaderData }: Route.ComponentProp
     returnToHomePath,
     branding,
     revalleAwaitingFinance, // REVALLE:
+    revalleSignerSlots, // REVALLE:
+    revalleJustSigned, // REVALLE:
   } = loaderData;
 
   // Poll signing status every few seconds
@@ -212,6 +236,28 @@ export default function CompletedSigningPage({ loaderData }: Route.ComponentProp
 
   const StatusIcon = status.icon;
 
+  // REVALLE (redesign v3): o engradado com o encaixe de quem assinou já cheio. Concluído ou processando = todos
+  // assinaram, então os encaixes acompanham a consulta de status (quem enche agora anima uma vez).
+  const everyoneSigned = signingStatus === 'COMPLETED' || signingStatus === 'PROCESSING';
+  const isSlotRecipient = recipient.role === RecipientRole.SIGNER || recipient.role === RecipientRole.APPROVER;
+  const slots: SignerSlot[] = revalleSignerSlots.map((s) => ({
+    name: s.name,
+    isYou: s.isYou,
+    justFilled: s.isYou && revalleJustSigned,
+    state:
+      s.signingStatus === SigningStatus.SIGNED || (everyoneSigned && s.signingStatus !== SigningStatus.REJECTED)
+        ? 'signed'
+        : s.signingStatus === SigningStatus.REJECTED
+          ? 'rejected'
+          : s.isYou
+            ? 'you'
+            : 'pending',
+  }));
+  // Nomes fixos: são os placeholders do msgid já traduzido da tela de assinatura.
+  const signedCount = slots.filter((s) => s.state === 'signed').length;
+  const totalCount = slots.length;
+  const showSlots = isSlotRecipient && slots.length > 0;
+
   return (
     <>
       <RecipientBranding branding={branding} cspNonce={cspNonce} />
@@ -235,13 +281,38 @@ export default function CompletedSigningPage({ loaderData }: Route.ComponentProp
         }
       >
         <div className="flex flex-col items-center text-center">
-          <GateStatusIcon icon={CheckCircle2} tone={status.tone === 'danger' ? 'danger' : 'success'} />
+          {/* REVALLE: quem assina vê o engradado no lugar do selo genérico; leitor continua com o selo */}
+          {showSlots ? (
+            <SignerSlots slots={slots} max={8} size="lg" className="justify-center" />
+          ) : (
+            <GateStatusIcon icon={CheckCircle2} tone={status.tone === 'danger' ? 'danger' : 'success'} />
+          )}
 
           <h1 className="mt-4 font-black font-display text-[26px] leading-tight tracking-[-0.02em]">
             {recipient.role === RecipientRole.SIGNER && <Trans>Document Signed</Trans>}
             {recipient.role === RecipientRole.VIEWER && <Trans>Document Viewed</Trans>}
             {recipient.role === RecipientRole.APPROVER && <Trans>Document Approved</Trans>}
           </h1>
+
+          {/* REVALLE: o que o engradado mostra, em texto (os encaixes têm só iniciais) */}
+          {showSlots && (
+            <p className="mt-1.5 font-semibold text-[13.5px] text-muted-foreground tabular-nums">
+              {/* Cada parte inteira numa linha: no celular quebra no "·", não no meio da contagem */}
+              <span className="whitespace-nowrap">
+                {recipient.role === RecipientRole.APPROVER ? (
+                  <Trans>Your approval has been recorded</Trans>
+                ) : (
+                  <Trans>Your signature has been recorded</Trans>
+                )}
+                <span aria-hidden> ·</span>
+              </span>{' '}
+              <span className="whitespace-nowrap">
+                <Trans>
+                  {signedCount} of {totalCount} have signed
+                </Trans>
+              </span>
+            </p>
+          )}
 
           <span
             className={cn(
