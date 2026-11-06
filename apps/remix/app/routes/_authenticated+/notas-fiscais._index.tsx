@@ -1,23 +1,9 @@
 import { useSession } from '@documenso/lib/client-only/providers/session';
-import {
-  ACCOUNTING_FILTER_LABELS,
-  ACCOUNTING_FILTERS,
-  type AccountingFilter,
-  accountingStatusLabel,
-  invoicesDefaultFilters,
-} from '@documenso/lib/revalle/accounting/accounting-status'; // REVALLE:
-import { formatRevalleDateTime } from '@documenso/lib/revalle/date-format';
-import {
-  FINANCE_FILTER_LABELS,
-  FINANCE_FILTERS,
-  type FinanceFilter,
-  financeStatusLabel,
-} from '@documenso/lib/revalle/finance/finance-status';
+import { type AccountingFilter, invoicesDefaultFilters } from '@documenso/lib/revalle/accounting/accounting-status'; // REVALLE:
+import type { FinanceFilter } from '@documenso/lib/revalle/finance/finance-status';
 import { formatInvoiceDataLine } from '@documenso/lib/revalle/invoice/invoice-data'; // REVALLE: Fase 8
 import {
   INVOICE_EXPORT_LIMIT_MESSAGE,
-  INVOICE_LIST_STATUSES,
-  type InvoiceListStatus,
   invoiceFiltersError,
   invoiceFiltersToParams,
   isOverInvoiceExportLimit,
@@ -26,27 +12,20 @@ import {
 } from '@documenso/lib/revalle/invoice/invoice-filters';
 import { isAdmin } from '@documenso/lib/utils/is-admin';
 import { trpc } from '@documenso/trpc/react';
-import type { TFindInvoicesResponse } from '@documenso/trpc/server/revalle-router/invoice/find.types';
 import { Button } from '@documenso/ui/primitives/button';
-import { Input } from '@documenso/ui/primitives/input';
-import { Label } from '@documenso/ui/primitives/label';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@documenso/ui/primitives/table';
-import { msg } from '@lingui/core/macro';
+import { msg, plural } from '@lingui/core/macro';
 import { Trans, useLingui } from '@lingui/react/macro';
-import { DownloadIcon, ReceiptTextIcon } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 
-import { DocumentStatus } from '~/components/general/document/document-status';
+// REVALLE (redesign v3): a lista virou cartões, com a barra de filtros e a coluna das filas em componentes próprios.
+import { InvoiceFilterBar } from '~/components/revalle/invoice/list/invoice-filter-bar';
+import { type InvoiceQueueKind, InvoiceQueues } from '~/components/revalle/invoice/list/invoice-queues';
+import { InvoiceRowCard } from '~/components/revalle/invoice/list/invoice-row-card';
 import { appMetaTags } from '~/utils/meta';
 
 const PER_PAGE = 20;
 const PAGE_PARAM = 'pagina';
-
-const FIELD_CLASS =
-  'flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:text-sm';
-
-type InvoiceRow = TFindInvoicesResponse['data'][number];
 
 export function meta() {
   return appMetaTags(msg`Notas fiscais`);
@@ -54,7 +33,7 @@ export function meta() {
 
 export default function InvoicesPage() {
   const { t } = useLingui();
-  const { user } = useSession();
+  const { user, organisations } = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const urlFilters = useMemo(() => readInvoiceFilterParams(searchParams), [searchParams]);
@@ -155,361 +134,246 @@ export default function InvoicesPage() {
   // Fase 8: a legenda explica a linha curta de cada nota (no toque não há `title`); só aparece se alguma linha tem os dados.
   const hasInvoiceData = Boolean(data?.data.some((row) => formatInvoiceDataLine(row.invoiceData) !== null));
 
-  const statusLabels: Record<InvoiceListStatus, string> = {
-    PENDING: t`Pendente`,
-    COMPLETED: t`Concluído`,
-    REJECTED: t`Recusado`,
-    CANCELLED: t`Cancelado`,
+  // REVALLE (redesign v3): os números das filas são os do contador do menu (mesma consulta, mesmo cache).
+  const { data: pendingCounts } = trpc.revalle.invoice.pendingCounts.useQuery(undefined, { refetchInterval: 60_000 });
+
+  const activeQueue: InvoiceQueueKind | null =
+    financeFilter === 'pendentes' ? 'finance' : accountingFilter === 'pendentes' ? 'accounting' : null;
+
+  // Escolher uma fila solta a outra (como no filtro); os demais filtros ficam.
+  const queueHref = (queue: InvoiceQueueKind) => {
+    const next = { ...urlFilters };
+
+    delete next.finance;
+    delete next.accounting;
+
+    const params = invoiceFiltersToParams(
+      queue === 'finance' ? { ...next, finance: 'pendentes' } : { ...next, accounting: 'pendentes' },
+    );
+
+    return `/notas-fiscais?${params.toString()}`;
+  };
+
+  // O envio de documentos fica na página "Documentos" do time pessoal (a NF é reconhecida no envio).
+  const teamUrl = organisations.flatMap((organisation) => organisation.teams)[0]?.url ?? null;
+  const sendHref = teamUrl ? `/t/${teamUrl}/documents` : null;
+
+  const exportBlockedMessage = dateError
+    ? t`A data inicial é depois da data final.`
+    : isOverLimit
+      ? INVOICE_EXPORT_LIMIT_MESSAGE
+      : null;
+
+  const viewer = { isFinance, isAccounting };
+
+  // A fila escolhida pela coluna "Suas filas" vai para a URL; sozinha, ainda conta como "fila vazia" e não "filtro sem nota".
+  const isOnlyQueueFilter = Object.keys(urlFilters).every(
+    (key) => (activeQueue === 'finance' && key === 'finance') || (activeQueue === 'accounting' && key === 'accounting'),
+  );
+
+  const queueProps = {
+    counts: pendingCounts,
+    activeQueue,
+    queueHref,
+    sendHref,
+    exportHref,
+    exportBlockedMessage,
   };
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-screen-xl px-4 md:px-8" data-testid="invoices-page">
-      <div className="mb-6">
-        <h1 className="flex flex-row items-center gap-2 font-bold text-3xl">
-          <ReceiptTextIcon className="h-8 w-8 text-muted-foreground" />
-          <Trans>Notas fiscais</Trans>
-        </h1>
-        <p className="mt-1 text-muted-foreground">
-          {isAdmin(user) ? (
-            <Trans>Todas as notas fiscais enviadas para assinatura (você é administrador).</Trans>
-          ) : isFinance && isAccounting ? (
-            <Trans>Todas as notas fiscais enviadas para assinatura (você é do Financeiro e da Contabilidade).</Trans>
-          ) : isFinance ? (
-            <Trans>Todas as notas fiscais enviadas para assinatura (você é do Financeiro).</Trans>
-          ) : isAccounting ? (
-            <Trans>Todas as notas fiscais enviadas para assinatura (você é da Contabilidade).</Trans>
-          ) : (
-            <Trans>As notas fiscais que você enviou ou que chegaram para você assinar.</Trans>
-          )}
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
-        <div className="space-y-1">
-          <Label htmlFor="invoices-from">
-            <Trans>Enviadas de</Trans>
-          </Label>
-          <Input
-            id="invoices-from"
-            type="date"
-            className="h-11"
-            value={filters.from ?? ''}
-            onChange={(event) => setFilter('from', event.target.value || undefined)}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="invoices-to">
-            <Trans>até</Trans>
-          </Label>
-          <Input
-            id="invoices-to"
-            type="date"
-            className="h-11"
-            value={filters.to ?? ''}
-            onChange={(event) => setFilter('to', event.target.value || undefined)}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="invoices-status">
-            <Trans>Status</Trans>
-          </Label>
-          <select
-            id="invoices-status"
-            className={FIELD_CLASS}
-            value={filters.status ?? ''}
-            onChange={(event) => setFilter('status', (event.target.value || undefined) as InvoiceListStatus)}
-          >
-            <option value="">{t`Todos`}</option>
-            {INVOICE_LIST_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {statusLabels[status]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="invoices-finance">
-            <Trans>Situação no Financeiro</Trans>
-          </Label>
-          <select
-            id="invoices-finance"
-            className={FIELD_CLASS}
-            value={financeFilter ?? (isFinance ? 'todas' : '')}
-            onChange={(event) =>
-              setFilter('finance', (event.target.value || (isFinance ? 'todas' : undefined)) as FinanceFilter)
-            }
-          >
-            {!isFinance && <option value="">{FINANCE_FILTER_LABELS.todas}</option>}
-            {FINANCE_FILTERS.filter((value) => isFinance || value !== 'todas').map((value) => (
-              <option key={value} value={value}>
-                {FINANCE_FILTER_LABELS[value]}
-              </option>
-            ))}
-          </select>
-        </div>
-        {/* REVALLE: validação do centro de custo pela Contabilidade (Fase 7) */}
-        <div className="space-y-1">
-          <Label htmlFor="invoices-accounting">
-            <Trans>Validação da Contabilidade</Trans>
-          </Label>
-          <select
-            id="invoices-accounting"
-            className={FIELD_CLASS}
-            value={accountingFilter ?? (isAccounting ? 'todas' : '')}
-            onChange={(event) =>
-              setFilter('accounting', (event.target.value || (isAccounting ? 'todas' : undefined)) as AccountingFilter)
-            }
-          >
-            {!isAccounting && <option value="">{ACCOUNTING_FILTER_LABELS.todas}</option>}
-            {ACCOUNTING_FILTERS.filter((value) => isAccounting || value !== 'todas').map((value) => (
-              <option key={value} value={value}>
-                {ACCOUNTING_FILTER_LABELS[value]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="invoices-account">
-            <Trans>Conta (número)</Trans>
-          </Label>
-          <Input
-            id="invoices-account"
-            className="h-11"
-            inputMode="decimal"
-            placeholder={t`Ex.: 2.1.03`}
-            value={accountInput}
-            onChange={(event) => setAccountInput(event.target.value)}
-          />
-        </div>
-      </div>
-
-      {hasFilters && (
-        <div className="mt-4">
-          <Button
-            variant="ghost"
-            className="h-11"
-            onClick={() => {
-              setAccountInput('');
-              applyFilters({});
-            }}
-          >
-            <Trans>Limpar filtros</Trans>
-          </Button>
-        </div>
-      )}
-
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
-        <p className="text-muted-foreground text-sm">
-          {data && (count === 1 ? <Trans>1 nota fiscal</Trans> : <Trans>{count} notas fiscais</Trans>)}
-        </p>
-
-        {dateError ? (
-          <p className="text-destructive text-sm" role="alert">
-            <Trans>A data inicial é depois da data final.</Trans>
+      <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_316px] xl:items-start xl:gap-7">
+        <section className="min-w-0">
+          <h1 className="font-black font-display text-[30px] leading-[1.05] tracking-[-0.03em] md:text-[36px]">
+            <Trans>Notas fiscais</Trans>
+          </h1>
+          <p className="mt-2 text-muted-foreground">
+            <WaitingSentence counts={pendingCounts} />
+            {isAdmin(user) ? (
+              <Trans>Todas as notas fiscais enviadas para assinatura (você é administrador).</Trans>
+            ) : isFinance && isAccounting ? (
+              <Trans>Todas as notas fiscais enviadas para assinatura (você é do Financeiro e da Contabilidade).</Trans>
+            ) : isFinance ? (
+              <Trans>Todas as notas fiscais enviadas para assinatura (você é do Financeiro).</Trans>
+            ) : isAccounting ? (
+              <Trans>Todas as notas fiscais enviadas para assinatura (você é da Contabilidade).</Trans>
+            ) : (
+              <Trans>As notas fiscais que você enviou ou que chegaram para você assinar.</Trans>
+            )}
           </p>
-        ) : isOverLimit ? (
-          <p className="text-destructive text-sm">{INVOICE_EXPORT_LIMIT_MESSAGE}</p>
-        ) : (
-          <Button asChild variant="outline" className="h-11">
-            <a href={exportHref} download>
-              <DownloadIcon className="mr-2 h-4 w-4" />
-              <Trans>Exportar planilha</Trans>
-            </a>
-          </Button>
-        )}
-      </div>
 
-      {hasInvoiceData && (
-        <p className="mt-2 text-muted-foreground text-xs" data-testid="invoice-data-legend">
-          <Trans>Fornecedor, número e valor: lidos pela IA, confira no PDF.</Trans>
-        </p>
-      )}
+          <InvoiceQueues variant="strip" className="mt-5 xl:hidden" {...queueProps} />
 
-      <div className="mt-4 min-w-0 rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>
-                <Trans>Título</Trans>
-              </TableHead>
-              <TableHead>
-                <Trans>Remetente</Trans>
-              </TableHead>
-              <TableHead className="whitespace-nowrap">
-                <Trans>Enviado em</Trans>
-              </TableHead>
-              <TableHead>
-                <Trans>Status</Trans>
-              </TableHead>
-              <TableHead>
-                <Trans>Conta</Trans>
-              </TableHead>
-              <TableHead className="whitespace-nowrap">
-                <Trans>Centro de custo</Trans>
-              </TableHead>
-              <TableHead className="whitespace-nowrap">
-                <Trans>Sugestão aceita?</Trans>
-              </TableHead>
-              <TableHead className="whitespace-nowrap">
-                <Trans>Situação no Financeiro</Trans>
-              </TableHead>
-              <TableHead className="whitespace-nowrap">
-                <Trans>Validação da Contabilidade</Trans>
-              </TableHead>
-              <TableHead>
-                <Trans>Versão</Trans>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+          <div className="mt-5">
+            <InvoiceFilterBar
+              urlFilters={urlFilters}
+              filters={filters}
+              financeFilter={financeFilter}
+              accountingFilter={accountingFilter}
+              isFinance={isFinance}
+              isAccounting={isAccounting}
+              accountInput={accountInput}
+              onAccountInputChange={setAccountInput}
+              setFilter={setFilter}
+              onClear={() => {
+                setAccountInput('');
+                applyFilters({});
+              }}
+            />
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <p className="font-semibold text-muted-foreground text-sm">
+              {data && (count === 1 ? <Trans>1 nota fiscal</Trans> : <Trans>{count} notas fiscais</Trans>)}
+            </p>
+            {hasInvoiceData && (
+              <p className="text-muted-foreground text-xs" data-testid="invoice-data-legend">
+                <Trans>Fornecedor, número e valor: lidos pela IA, confira no PDF.</Trans>
+              </p>
+            )}
+          </div>
+
+          {dateError && (
+            <p className="mt-3 text-destructive text-sm" role="alert">
+              <Trans>A data inicial é depois da data final.</Trans>
+            </p>
+          )}
+
+          <div className="mt-3 flex flex-col gap-2.5" data-testid="invoice-list">
             {data?.data.map((row) => (
-              <InvoiceTableRow key={row.id} row={row} />
+              <InvoiceRowCard key={row.id} row={row} viewer={viewer} />
             ))}
 
             {data && data.data.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={10} className="h-32 text-center text-muted-foreground">
-                  {financeFilter === 'pendentes' && !hasFilters ? (
-                    <Trans>Nenhuma nota fiscal aguardando o Financeiro.</Trans>
-                  ) : accountingFilter === 'pendentes' && !hasFilters ? (
-                    <Trans>Nenhuma nota fiscal aguardando a Contabilidade.</Trans>
-                  ) : hasFilters ? (
-                    <Trans>Nenhuma nota fiscal com esses filtros.</Trans>
-                  ) : (
-                    <Trans>Nenhuma nota fiscal ainda. As notas fiscais que você enviar ou assinar aparecem aqui.</Trans>
-                  )}
-                </TableCell>
-              </TableRow>
+              <EmptyState>
+                {activeQueue === 'finance' && isOnlyQueueFilter ? (
+                  <>
+                    <p>
+                      <Trans>Nenhuma nota fiscal aguardando o Financeiro.</Trans>
+                    </p>
+                    <Button variant="outline" onClick={() => setFilter('finance', 'todas')}>
+                      <Trans>See all invoices</Trans>
+                    </Button>
+                  </>
+                ) : activeQueue === 'accounting' && isOnlyQueueFilter ? (
+                  <>
+                    <p>
+                      <Trans>Nenhuma nota fiscal aguardando a Contabilidade.</Trans>
+                    </p>
+                    <Button variant="outline" onClick={() => setFilter('accounting', 'todas')}>
+                      <Trans>See all invoices</Trans>
+                    </Button>
+                  </>
+                ) : hasFilters ? (
+                  <>
+                    <p>
+                      <Trans>Nenhuma nota fiscal com esses filtros.</Trans>
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setAccountInput('');
+                        applyFilters({});
+                      }}
+                    >
+                      <Trans>Limpar filtros</Trans>
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p>
+                      <Trans>
+                        Nenhuma nota fiscal ainda. As notas fiscais que você enviar ou assinar aparecem aqui.
+                      </Trans>
+                    </p>
+                    {sendHref && (
+                      <Button asChild>
+                        <Link to={sendHref}>
+                          <Trans>Send an invoice</Trans>
+                        </Link>
+                      </Button>
+                    )}
+                  </>
+                )}
+              </EmptyState>
             )}
 
             {!data && !dateError && (
-              <TableRow>
-                <TableCell colSpan={10} className="h-32 text-center text-muted-foreground">
+              <EmptyState>
+                <p>
                   {isError && !isPending ? (
                     <Trans>Não foi possível carregar as notas fiscais. Tente de novo.</Trans>
                   ) : (
                     <Trans>Carregando…</Trans>
                   )}
-                </TableCell>
-              </TableRow>
+                </p>
+              </EmptyState>
             )}
-          </TableBody>
-        </Table>
-      </div>
-
-      {data && data.totalPages > 1 && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-muted-foreground text-sm">
-            <Trans>
-              Página {data.currentPage} de {data.totalPages}
-            </Trans>
-          </p>
-          <div className="flex gap-2">
-            <Button variant="outline" className="h-11" disabled={page <= 1} onClick={() => goToPage(page - 1)}>
-              <Trans>Anterior</Trans>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-11"
-              disabled={page >= data.totalPages}
-              onClick={() => goToPage(page + 1)}
-            >
-              <Trans>Próxima</Trans>
-            </Button>
           </div>
-        </div>
-      )}
+
+          {data && data.totalPages > 1 && (
+            <nav className="mt-5 flex flex-wrap items-center justify-between gap-3" aria-label={t`Pagination`}>
+              <p className="font-semibold text-muted-foreground text-sm">
+                <Trans>
+                  Página {data.currentPage} de {data.totalPages}
+                </Trans>
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" disabled={page <= 1} onClick={() => goToPage(page - 1)}>
+                  <Trans>Anterior</Trans>
+                </Button>
+                <Button variant="outline" disabled={page >= data.totalPages} onClick={() => goToPage(page + 1)}>
+                  <Trans>Próxima</Trans>
+                </Button>
+              </div>
+            </nav>
+          )}
+        </section>
+
+        <InvoiceQueues variant="card" className="hidden xl:sticky xl:top-6 xl:flex" {...queueProps} />
+      </div>
     </div>
   );
 }
 
-const InvoiceTableRow = ({ row }: { row: InvoiceRow }) => {
+const EmptyState = ({ children }: { children: ReactNode }) => (
+  <div className="flex flex-col items-center gap-4 rounded-card bg-card px-6 py-10 text-center text-muted-foreground shadow-card">
+    {children}
+  </div>
+);
+
+/** Quantas notas esperam a pessoa, antes da frase de quem vê o quê; nada para quem não tem perfil. */
+const WaitingSentence = ({ counts }: { counts: { finance: number | null; accounting: number | null } | undefined }) => {
   const { t } = useLingui();
-  // Fase 8: o que a IA leu da NF, em texto menor abaixo do título (pode estar errado; o texto de ajuda avisa).
-  const invoiceDataLine = formatInvoiceDataLine(row.invoiceData);
 
-  const account = row.account ? (
-    <span>
-      <span className="font-mono">{row.account.code}</span>
-      {row.account.name ? ` · ${row.account.name}` : ''}
-    </span>
-  ) : (
-    '—'
-  );
+  if (!counts || (counts.finance === null && counts.accounting === null)) {
+    return null;
+  }
 
-  const accepted =
-    row.acceptedSuggestion === null ? (
-      <span className="text-muted-foreground">
-        <Trans>sem sugestão</Trans>
-      </span>
-    ) : row.acceptedSuggestion ? (
-      <Trans>Sim</Trans>
-    ) : (
-      <Trans>Não</Trans>
+  const { finance, accounting } = counts;
+
+  // Com os dois perfis, uma nota pode esperar as duas filas: somar contaria duas vezes.
+  if (finance !== null && accounting !== null) {
+    return (
+      <>
+        <Trans>
+          {finance} waiting for Financeiro and {accounting} waiting for Contabilidade.
+        </Trans>{' '}
+      </>
     );
+  }
+
+  const waiting = finance ?? accounting ?? 0;
+
+  if (waiting === 0) {
+    return (
+      <>
+        <Trans>No invoice is waiting for you.</Trans>{' '}
+      </>
+    );
+  }
 
   return (
-    <TableRow>
-      <TableCell className="min-w-[10rem] max-w-[20rem] font-medium">
-        {row.link ? (
-          <Link to={row.link} className="break-words hover:underline">
-            {row.title}
-          </Link>
-        ) : (
-          <span className="break-words">{row.title}</span>
-        )}
-        {invoiceDataLine && (
-          <p
-            className="mt-0.5 break-words font-normal text-muted-foreground text-xs"
-            title={t`Lidos pela IA, confira no PDF`}
-            data-testid="invoice-row-data"
-          >
-            {invoiceDataLine}
-          </p>
-        )}
-        {/* REVALLE (Fase 8): só vem verdadeiro para o Financeiro, a Contabilidade e o admin. */}
-        {row.isPossibleDuplicate && (
-          <span
-            className="mt-1 inline-block whitespace-nowrap rounded-full bg-amber-500/15 px-2 py-0.5 font-normal text-amber-800 text-xs dark:text-amber-300"
-            title={t`Outra nota enviada tem a mesma chave de acesso ou o mesmo arquivo. Confira antes de aprovar.`}
-            data-testid="invoice-row-duplicate"
-          >
-            <Trans>Possível duplicada</Trans>
-          </span>
-        )}
-      </TableCell>
-      <TableCell className="min-w-[8rem]">{row.senderName}</TableCell>
-      <TableCell className="whitespace-nowrap">
-        {row.sentAt ? (
-          formatRevalleDateTime(row.sentAt)
-        ) : (
-          <span className="text-muted-foreground">
-            <Trans>não enviada</Trans>
-          </span>
-        )}
-      </TableCell>
-      <TableCell>
-        <div className="flex flex-col items-start gap-1">
-          <DocumentStatus status={row.status} />
-          {row.deleted && (
-            <span className="whitespace-nowrap rounded-full bg-destructive/10 px-2 py-0.5 text-destructive text-xs">
-              <Trans>excluído pelo remetente</Trans>
-            </span>
-          )}
-        </div>
-      </TableCell>
-      <TableCell className="min-w-[10rem]">{account}</TableCell>
-      <TableCell className="min-w-[8rem]" data-testid="invoice-row-cost-center">
-        {row.costCenterLabel ?? '-'}
-      </TableCell>
-      <TableCell className="whitespace-nowrap">{accepted}</TableCell>
-      <TableCell className="min-w-[9rem]" data-testid="invoice-row-finance">
-        {financeStatusLabel(row.financeStatus, row.status) || '-'}
-      </TableCell>
-      <TableCell className="min-w-[9rem]" data-testid="invoice-row-accounting">
-        {accountingStatusLabel(row)}
-      </TableCell>
-      <TableCell className="whitespace-nowrap">{`v${row.version}`}</TableCell>
-    </TableRow>
+    <>{t`${plural(waiting, { one: '# invoice is waiting for you.', other: '# invoices are waiting for you.' })}`} </>
   );
 };
