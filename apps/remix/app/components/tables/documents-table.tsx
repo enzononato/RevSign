@@ -4,6 +4,7 @@ import { formatRevalleDateTime } from '@documenso/lib/revalle/date-format';
 import { isDocumentCompleted } from '@documenso/lib/utils/document';
 import { findRecipientByEmail } from '@documenso/lib/utils/recipients';
 import { formatDocumentsPath } from '@documenso/lib/utils/teams';
+import { trpc } from '@documenso/trpc/react';
 import type { TFindDocumentsResponse } from '@documenso/trpc/server/document-router/find-documents.types';
 import { Checkbox } from '@documenso/ui/primitives/checkbox';
 import type { DataTableColumnDef, RowSelectionState } from '@documenso/ui/primitives/data-table';
@@ -18,6 +19,7 @@ import { useMemo, useTransition } from 'react';
 import { Link } from 'react-router';
 import { match } from 'ts-pattern';
 
+import { InvoiceDocumentTags } from '~/components/revalle/invoice/invoice-document-tags'; // REVALLE:
 import { useCurrentTeam } from '~/providers/team';
 
 import {
@@ -63,6 +65,17 @@ export const DocumentsTable = ({
 
   // REVALLE v3 (finish review 1, #1 e #7): cada linha é um cartão no padrão das NF (título; remetente · data em 24h;
   // encaixes; uma pílula de ação ou de situação; menu "…"). A seleção em massa continua numa coluna própria.
+  // REVALLE: conta e centro de custo das NFs desta página (uma consulta só, só leitura).
+  const envelopeIds = useMemo(() => (data?.data ?? []).map((document) => document.envelopeId), [data]);
+  const { data: invoiceTags } = trpc.revalle.invoice.documentTags.useQuery(
+    { teamId: team?.id ?? 0, envelopeIds },
+    { enabled: Boolean(team?.id) && envelopeIds.length > 0 },
+  );
+  const invoiceTagsByEnvelope = useMemo(
+    () => new Map((invoiceTags ?? []).map((tags) => [tags.envelopeId, tags])),
+    [invoiceTags],
+  );
+
   const columns = useMemo(() => {
     const cols: DataTableColumnDef<DocumentsTableRow>[] = [];
 
@@ -107,6 +120,7 @@ export const DocumentsTable = ({
         return (
           <DocumentRowCardBody
             title={<DataTableTitle row={document} teamUrl={team?.url} teamEmail={team?.teamEmail?.email} />}
+            tags={<InvoiceDocumentTags tags={invoiceTagsByEnvelope.get(document.envelopeId)} />}
             meta={`${document.user.name ?? document.user.email} · ${formatRevalleDateTime(document.createdAt)}`}
             slots={
               <RecipientSignerSlots
@@ -133,7 +147,7 @@ export const DocumentsTable = ({
     });
 
     return cols;
-  }, [team, onMoveDocument, enableSelection, user.email]);
+  }, [team, onMoveDocument, enableSelection, user.email, invoiceTagsByEnvelope]);
 
   const onPaginationChange = (page: number, perPage: number) => {
     startTransition(() => {

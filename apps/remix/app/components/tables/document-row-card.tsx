@@ -51,6 +51,8 @@ export const DOCUMENT_ROW_SLOTS_CLASS_NAME =
 
 export type DocumentRowCardBodyProps = {
   title: ReactNode;
+  /** REVALLE: conta e centro de custo, quando o documento é uma NF que já tem. */
+  tags?: ReactNode;
   meta?: ReactNode;
   slots?: ReactNode;
   /** Uma pílula: a ação da linha (azul ou em contorno) ou, sem ação, a pílula de situação. */
@@ -58,7 +60,7 @@ export type DocumentRowCardBodyProps = {
   menu?: ReactNode;
 };
 
-export const DocumentRowCardBody = ({ title, meta, slots, action, menu }: DocumentRowCardBodyProps) => {
+export const DocumentRowCardBody = ({ title, tags, meta, slots, action, menu }: DocumentRowCardBodyProps) => {
   const hasMenu = menu !== undefined && menu !== null && menu !== false;
 
   return (
@@ -73,6 +75,7 @@ export const DocumentRowCardBody = ({ title, meta, slots, action, menu }: Docume
     >
       <div className="min-w-0 [grid-area:doc]">
         <div className="line-clamp-2 break-words font-bold font-sans text-base leading-snug">{title}</div>
+        {tags}
         {meta && <div className="mt-1 truncate text-[13px] text-muted-foreground">{meta}</div>}
       </div>
 
