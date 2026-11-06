@@ -44,19 +44,27 @@ await section('lista', async () => {
 
   await page.goto(`${baseUrl}/notas-fiscais`, { waitUntil: 'networkidle' });
 
-  const row = page.getByRole('row').filter({ hasText: sentTitle });
-  const dataLine = row.getByTestId('invoice-row-data');
+  // Redesign v3: cada NF é um cartão. O número e o fornecedor lidos pela IA viram o título ("NF 12345 · Fornecedor"),
+  // o valor fica no fim da linha das etiquetas e o título do documento vai para a linha de baixo.
+  const row = page.getByTestId('invoice-row').filter({ hasText: sentTitle });
+  const heading = row.getByRole('heading').first();
+  const amount = row.locator('[title="Lidos pela IA, confira no PDF"]').filter({ hasText: 'R$' });
 
-  await dataLine.waitFor();
+  await heading.waitFor();
 
-  const text = (await dataLine.innerText()).trim();
-  const title = await dataLine.getAttribute('title');
+  const headingText = (await heading.innerText()).trim();
+  const headingTitle = await heading.locator('[title]').first().getAttribute('title');
+  const amountText = (await amount.innerText()).trim().replace(/\s/g, ' ');
 
-  report(text === line, `a lista mostra "${line}" abaixo do título (veio "${text}")`);
-  report(!text.includes('Lido pela IA'), 'a lista não repete o prefixo');
   report(
-    title === 'Lidos pela IA, confira no PDF',
-    'a linha da lista avisa que foi lida pela IA (ajuda ao passar o mouse)',
+    headingText === 'NF 12345 · Fornecedor Falso LTDA',
+    `o título do cartão traz número e fornecedor (veio "${headingText}")`,
+  );
+  report(amountText === 'R$ 1.234,56', `o cartão mostra o valor (veio "${amountText}")`);
+  report(!headingText.includes('Lido pela IA'), 'a lista não repete o prefixo');
+  report(
+    headingTitle === 'Lidos pela IA, confira no PDF',
+    'o título do cartão avisa que foi lido pela IA (ajuda ao passar o mouse)',
   );
 
   // No toque não há `title`: a legenda visível, acima da tabela, diz de onde vêm os dados da linha curta.
@@ -64,7 +72,7 @@ await section('lista', async () => {
   const legendText = (await legend.innerText()).trim();
   const legendBox = await legend.boundingBox();
   const legendBottom = legendBox ? legendBox.y + legendBox.height : Number.POSITIVE_INFINITY;
-  const tableTop = (await page.getByRole('table').boundingBox())?.y ?? 0;
+  const tableTop = (await page.getByTestId('invoice-row').first().boundingBox())?.y ?? 0;
 
   report(
     legendText === 'Fornecedor, número e valor: lidos pela IA, confira no PDF.',

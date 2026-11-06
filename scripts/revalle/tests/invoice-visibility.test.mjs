@@ -695,7 +695,9 @@ sessionTest('lista: centro, validação e quem validou; filtro da Contabilidade 
 
   assert.equal(page.status, 200);
   assert.ok(page.text.includes('Validação da Contabilidade'), 'coluna e filtro da Contabilidade ausentes');
-  assert.ok(page.text.includes('Centro de custo'), 'coluna do centro de custo ausente');
+  // Redesign v3: o centro de custo é uma etiqueta no cartão de cada NF (carregada no navegador; o teste de navegador
+  // do fim confere "101 Puxada").
+  assert.ok(page.text.includes('invoices-page'), 'a página da lista não abriu');
 });
 
 sessionTest(

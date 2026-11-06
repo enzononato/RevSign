@@ -108,33 +108,30 @@ if (phase === 'main') {
 
     // A fila tem as notas sem validação e a nova versão com o envio parado ("não enviada"), que a Contabilidade também
     // envia de novo: essa pode vir validada (a correção do centro a valida).
+    // Redesign v3: cada NF é um cartão; a etiqueta da Contabilidade só aparece quando o centro já foi validado
+    // ("Centro validado"). Pendente ou sem centro não tem etiqueta: a pendência está na pílula de ação.
     const queueRows = await page
       .getByTestId('invoices-page')
-      .locator('tbody tr')
+      .getByTestId('invoice-row')
       .evaluateAll((rows) =>
         rows.map((row) => ({
           state: row.querySelector('[data-testid="invoice-row-accounting"]')?.textContent?.trim() ?? '',
           isUnsent: (row.textContent ?? '').includes('não enviada'),
         })),
       );
-    const states = queueRows.map((row) => row.state);
+    const states = queueRows.map((row) => row.state || '(sem etiqueta)');
 
     report(
       queueRows.length > 0 &&
-        queueRows.every(
-          (row) =>
-            row.state === 'Aguardando validação' ||
-            row.state === 'Sem centro de custo' ||
-            (row.isUnsent && row.state === 'Validado'),
-        ),
+        queueRows.every((row) => row.state === '' || (row.isUnsent && row.state === 'Centro validado')),
       `a fila só tem notas sem validação e versões não enviadas (${[...new Set(states)].join(', ')})`,
     );
 
     const centers = await page.getByTestId('invoice-row-cost-center').allTextContents();
 
     report(
-      centers.length === states.length && centers.some((text) => text === '101 – Puxada'),
-      'a coluna Centro de custo mostra "101 – Puxada"',
+      centers.length === states.length && centers.some((text) => text.replace(/\s+/g, '') === '101Puxada'),
+      'a etiqueta do centro de custo mostra "101 Puxada"',
     );
     await badge(page)
       .first()
@@ -161,12 +158,12 @@ if (phase === 'main') {
     try {
       await page
         .getByTestId('invoice-row-accounting')
-        .filter({ hasText: /^Validado$/ })
+        .filter({ hasText: /^Centro validado$/ })
         .first()
         .waitFor({ timeout: 20_000 });
-      report(true, '"Todas" mostra uma nota com "Validado"');
+      report(true, '"Todas" mostra uma nota com "Centro validado"');
     } catch {
-      report(false, '"Todas" mostra uma nota com "Validado"');
+      report(false, '"Todas" mostra uma nota com "Centro validado"');
     }
 
     await shot(page, '02-contabilidade-todas');

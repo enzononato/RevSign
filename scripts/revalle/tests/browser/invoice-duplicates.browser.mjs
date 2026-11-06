@@ -241,7 +241,7 @@ for (const [name, viewport] of [
     await finance.page.goto(`${baseUrl}/notas-fiscais`, { waitUntil: 'networkidle' });
 
     const badgeOf = (page, title) =>
-      page.getByRole('row').filter({ hasText: title }).first().getByTestId('invoice-row-duplicate');
+      page.getByTestId('invoice-row').filter({ hasText: title }).first().getByTestId('invoice-row-duplicate');
 
     await badgeOf(finance.page, sentTitle).waitFor();
 
@@ -257,7 +257,7 @@ for (const [name, viewport] of [
     const owner = await openAs(ownerCookie, viewport);
 
     await owner.page.goto(`${baseUrl}/notas-fiscais`, { waitUntil: 'networkidle' });
-    await owner.page.getByRole('row').filter({ hasText: sentTitle }).first().waitFor();
+    await owner.page.getByTestId('invoice-row').filter({ hasText: sentTitle }).first().waitFor();
     report((await badgeOf(owner.page, sentTitle).count()) === 0, 'o colaborador comum não vê a marca na própria nota');
     await owner.context.close();
   });

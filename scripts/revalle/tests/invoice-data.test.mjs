@@ -77,6 +77,13 @@ const tmp = mkdtempSync(path.join(tmpdir(), 'revsign-dados-nf-'));
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const flat = (text) => text.replace(/<!-- -->/g, '').replace(/\s+/g, ' ');
 
+// O bloco "Lidos pela IA" da página da NF (do data-testid até o fim do bloco).
+const dataBlock = (text) => {
+  const start = text.indexOf('data-testid="invoice-view-data"');
+
+  return start < 0 ? '' : text.slice(start, start + 4000);
+};
+
 const fx = {};
 let userCookie;
 let adminCookie;
@@ -480,9 +487,11 @@ aiTest(
 
     assert.equal(page.status, 200);
     assert.ok(text.includes('data-testid="invoice-view-data"'), 'a página da NF sem o bloco dos dados lidos');
-    assert.ok(text.includes('Fornecedor: Fornecedor Falso LTDA'), 'página sem o fornecedor');
-    assert.ok(text.includes('Número: 12345'), 'página sem o número');
-    assert.ok(text.includes('Valor: R$ 1.234,56'), 'página sem o valor');
+    // Redesign v3: o bloco mostra rótulo e valor em linhas (Valor, Fornecedor, Número), não "Rótulo: valor".
+    const block = dataBlock(text);
+    assert.ok(block.includes('>Fornecedor Falso LTDA<'), 'página sem o fornecedor');
+    assert.ok(block.includes('>12345<'), 'página sem o número');
+    assert.ok(/>R\$\s1\.234,56</.test(block), 'página sem o valor');
     assert.ok(text.includes('Lidos pela IA, confira no PDF'), 'a página não diz que foram lidos pela IA');
 
     const lines = await csvLines(adminCookie);
@@ -790,7 +799,9 @@ aiTest('nova versão (Financeiro troca a conta) copia os dados, sem chamar a IA'
   const row = await findRow(adminCookie, v2);
 
   assert.deepEqual(row?.invoiceData, FAKE_DATA);
-  assert.ok(flat((await html(adminCookie, `/notas-fiscais/${v2}`)).text).includes('Fornecedor: Fornecedor Falso LTDA'));
+  assert.ok(
+    dataBlock(flat((await html(adminCookie, `/notas-fiscais/${v2}`)).text)).includes('>Fornecedor Falso LTDA<'),
+  );
 });
 
 aiTest(

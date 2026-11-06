@@ -80,14 +80,18 @@ await section('menu do computador', async () => {
   await visit(page, `/t/${teamUrl}/documents`);
   await page.getByTestId('menu-switcher').waitFor();
 
+  // Redesign v3: o menu do computador é a barra lateral azul.
   const links = await page
-    .locator('header a[href]')
+    .locator('[data-testid="app-sidebar"] a[href]')
     .evaluateAll((anchors) => anchors.map((a) => a.getAttribute('href')));
 
   report(links.includes(`/t/${teamUrl}/documents`), 'o menu do computador tem Documentos');
   report(links.includes('/notas-fiscais'), 'o menu do computador tem Notas fiscais');
   report(!links.some((href) => /\/templates/.test(href ?? '')), 'o menu do computador não tem Modelos');
-  report(!TEMPLATES.test(await page.locator('header').innerText()), 'o cabeçalho não escreve Modelos/Templates');
+  report(
+    !TEMPLATES.test(await page.getByTestId('app-sidebar').innerText()),
+    'a barra lateral não escreve Modelos/Templates',
+  );
   await shot(page, '01-menu-computador');
 
   // Menu da conta: Idioma e Suporte saem; Configurações, Conta e Sair ficam; criar organização fica.
