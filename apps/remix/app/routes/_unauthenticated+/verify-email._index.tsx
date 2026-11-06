@@ -12,14 +12,14 @@ export function meta() {
 
 export default function EmailVerificationWithoutTokenPage() {
   return (
-    <div className="w-screen max-w-lg px-4">
-      <div className="flex w-full items-start">
-        <div className="mt-1 mr-4 hidden md:block">
+    <div className="w-full">
+      <div className="flex w-full flex-col">
+        <div className="mb-4">
           <XCircle className="h-10 w-10 text-destructive" strokeWidth={2} />
         </div>
 
         <div>
-          <h2 className="font-bold text-2xl md:text-4xl">
+          <h2 className="text-[30px] leading-tight">
             <Trans>Uh oh! Looks like you're missing a token</Trans>
           </h2>
 

@@ -5,13 +5,13 @@ import { SendConfirmationEmailForm } from '~/components/forms/send-confirmation-
 
 export default function UnverifiedAccount() {
   return (
-    <div className="w-screen max-w-lg px-4">
-      <div className="flex items-start">
-        <div className="mt-1 mr-4 hidden md:block">
+    <div className="w-full">
+      <div className="flex flex-col">
+        <div className="mb-4">
           <Mails className="h-10 w-10 text-primary" strokeWidth={2} />
         </div>
         <div className="">
-          <h2 className="font-bold text-2xl md:text-4xl">
+          <h2 className="text-[30px] leading-tight">
             <Trans>Confirm email</Trans>
           </h2>
 

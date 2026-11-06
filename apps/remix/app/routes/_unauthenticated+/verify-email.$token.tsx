@@ -75,14 +75,14 @@ export default function VerifyEmailPage({ loaderData }: Route.ComponentProps) {
 
   return match(state)
     .with(EMAIL_VERIFICATION_STATE.NOT_FOUND, () => (
-      <div className="w-screen max-w-lg px-4">
-        <div className="flex w-full items-start">
-          <div className="mt-1 mr-4 hidden md:block">
+      <div className="w-full">
+        <div className="flex w-full flex-col">
+          <div className="mb-4">
             <AlertTriangle className="h-10 w-10 text-yellow-500" strokeWidth={2} />
           </div>
 
           <div>
-            <h2 className="font-bold text-2xl md:text-4xl">
+            <h2 className="text-[30px] leading-tight">
               <Trans>Something went wrong</Trans>
             </h2>
 
@@ -102,14 +102,14 @@ export default function VerifyEmailPage({ loaderData }: Route.ComponentProps) {
       </div>
     ))
     .with(EMAIL_VERIFICATION_STATE.EXPIRED, () => (
-      <div className="w-screen max-w-lg px-4">
-        <div className="flex w-full items-start">
-          <div className="mt-1 mr-4 hidden md:block">
+      <div className="w-full">
+        <div className="flex w-full flex-col">
+          <div className="mb-4">
             <XCircle className="h-10 w-10 text-destructive" strokeWidth={2} />
           </div>
 
           <div>
-            <h2 className="font-bold text-2xl md:text-4xl">
+            <h2 className="text-[30px] leading-tight">
               <Trans>Your token has expired!</Trans>
             </h2>
 
@@ -130,14 +130,14 @@ export default function VerifyEmailPage({ loaderData }: Route.ComponentProps) {
       </div>
     ))
     .with(EMAIL_VERIFICATION_STATE.VERIFIED, () => (
-      <div className="w-screen max-w-lg px-4">
-        <div className="flex w-full items-start">
-          <div className="mt-1 mr-4 hidden md:block">
+      <div className="w-full">
+        <div className="flex w-full flex-col">
+          <div className="mb-4">
             <CheckCircle2 className="h-10 w-10 text-green-500" strokeWidth={2} />
           </div>
 
           <div>
-            <h2 className="font-bold text-2xl md:text-4xl">
+            <h2 className="text-[30px] leading-tight">
               <Trans>Email Confirmed!</Trans>
             </h2>
 
@@ -155,14 +155,14 @@ export default function VerifyEmailPage({ loaderData }: Route.ComponentProps) {
       </div>
     ))
     .with(EMAIL_VERIFICATION_STATE.ALREADY_VERIFIED, () => (
-      <div className="w-screen max-w-lg px-4">
-        <div className="flex w-full items-start">
-          <div className="mt-1 mr-4 hidden md:block">
+      <div className="w-full">
+        <div className="flex w-full flex-col">
+          <div className="mb-4">
             <CheckCircle2 className="h-10 w-10 text-green-500" strokeWidth={2} />
           </div>
 
           <div>
-            <h2 className="font-bold text-2xl md:text-4xl">
+            <h2 className="text-[30px] leading-tight">
               <Trans>Email already confirmed</Trans>
             </h2>
 

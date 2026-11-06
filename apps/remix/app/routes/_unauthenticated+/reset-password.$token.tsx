@@ -35,9 +35,9 @@ export default function ResetPasswordPage({ loaderData }: Route.ComponentProps) 
   const { token } = loaderData;
 
   return (
-    <div className="w-screen max-w-lg px-4">
+    <div className="w-full">
       <div className="w-full">
-        <h1 className="font-semibold text-4xl">
+        <h1 className="text-[30px] leading-tight">
           <Trans>Reset Password</Trans>
         </h1>
 
@@ -50,7 +50,7 @@ export default function ResetPasswordPage({ loaderData }: Route.ComponentProps) 
         <p className="mt-6 text-center text-muted-foreground text-sm">
           <Trans>
             Don't have an account?{' '}
-            <Link to="/signup" className="text-primary duration-200 hover:opacity-70">
+            <Link to="/signup" className="font-semibold text-brand-text duration-200 hover:opacity-70">
               Sign up
             </Link>
           </Trans>

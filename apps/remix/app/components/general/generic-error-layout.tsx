@@ -1,12 +1,13 @@
-import backgroundPattern from '@documenso/assets/images/background-pattern.png';
 import { Button } from '@documenso/ui/primitives/button';
 import type { MessageDescriptor } from '@lingui/core';
 import { msg } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
-import { motion } from 'framer-motion';
 import { ChevronLeft } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
+
+import { BrandBand } from '~/components/general/background';
+import { RevsignWordmark } from '~/components/revalle/shell/revsign-wordmark';
 
 type ErrorCodeMap = Record<
   number,
@@ -57,55 +58,45 @@ export const GenericErrorLayout = ({
 
   const { subHeading, heading, message } = errorCodeMap[errorCode || 500] ?? defaultErrorCodeMap[500];
 
+  // REVALLE: redesign v3. Faixa azul + um cartão com código, mensagem e botões (sem o padrão de fundo do Documenso).
   return (
-    <div className="fixed inset-0 z-0 flex h-screen w-screen items-center justify-center">
-      <div className="absolute -inset-24 -z-10">
-        <motion.div
-          className="flex h-full w-full items-center justify-center"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 0.8, transition: { duration: 0.5, delay: 0.5 } }}
-        >
-          <img
-            src={backgroundPattern}
-            alt="background pattern"
-            className="-mt-[15vh] -ml-[50vw] h-full scale-100 object-cover md:scale-100 lg:scale-[100%] dark:contrast-[70%] dark:invert dark:sepia"
-            style={{
-              mask: 'radial-gradient(rgba(255, 255, 255, 1) 0%, transparent 80%)',
-              WebkitMask: 'radial-gradient(rgba(255, 255, 255, 1) 0%, transparent 80%)',
-            }}
-          />
-        </motion.div>
-      </div>
+    <div className="fixed inset-0 z-0 flex flex-col overflow-auto bg-background">
+      <BrandBand className="flex-none">
+        <div className="mx-auto w-full max-w-[440px]">
+          <RevsignWordmark variant="onBrand" size="lg" withTagline />
+        </div>
+      </BrandBand>
 
-      <div className="inset-0 mx-auto flex h-full flex-grow items-center justify-center px-6 py-32">
-        <div>
-          <p className="font-semibold text-muted-foreground">{_(subHeading)}</p>
+      <div className="-mt-8 flex flex-1 items-start justify-center px-4 pb-12">
+        <div className="w-full max-w-[440px] rounded-[24px] bg-card p-6 shadow-card sm:p-8">
+          <p className="font-black font-display text-[28px] text-brand-text leading-tight tracking-[-0.035em]">
+            {_(subHeading)}
+          </p>
 
-          <h1 className="mt-3 font-bold text-2xl md:text-3xl">{_(heading)}</h1>
+          <h1 className="mt-4 text-[24px] leading-tight">{_(heading)}</h1>
 
-          <p className="mt-4 text-muted-foreground text-sm">{_(message)}</p>
+          <p className="mt-3 text-muted-foreground text-sm">{_(message)}</p>
 
-          <div className="mt-6 flex gap-x-2.5 gap-y-4 md:items-center">
-            {secondaryButton ||
-              (secondaryButton !== null && (
-                <Button
-                  variant="ghost"
-                  className="w-32"
-                  onClick={() => {
-                    void navigate(-1);
-                  }}
-                >
-                  <ChevronLeft className="mr-2 h-4 w-4" />
-                  <Trans>Go Back</Trans>
-                </Button>
-              ))}
-
+          <div className="mt-6 flex flex-wrap gap-x-2.5 gap-y-3 md:items-center">
             {primaryButton ||
               (primaryButton !== null && (
                 <Button asChild>
                   <Link to={'/'}>
                     <Trans>Home</Trans>
                   </Link>
+                </Button>
+              ))}
+
+            {secondaryButton ||
+              (secondaryButton !== null && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    void navigate(-1);
+                  }}
+                >
+                  <ChevronLeft className="mr-2 h-4 w-4" />
+                  <Trans>Go Back</Trans>
                 </Button>
               ))}
 

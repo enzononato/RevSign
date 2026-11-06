@@ -278,11 +278,11 @@ export const SignUpForm = ({
   }, [form]);
 
   return (
-    <div className={cn('flex justify-center gap-x-12', className)}>
+    <div className={cn('flex justify-center', className)}>
       {/* REVALLE: sem o painel de divulgação do Documenso (perfil do fundador, "User profiles are here!") */}
-      <div className="relative z-10 flex min-h-[min(850px,80vh)] w-full max-w-lg flex-col rounded-xl border border-border bg-neutral-100 p-6 dark:bg-background">
-        <div className="h-20">
-          <h1 className="font-semibold text-xl md:text-2xl">
+      <div className="relative z-10 flex w-full flex-col">
+        <div>
+          <h1 className="text-[30px] leading-tight">
             <Trans>Create a new account</Trans>
           </h1>
 
@@ -294,7 +294,7 @@ export const SignUpForm = ({
           </p>
         </div>
 
-        <hr className="-mx-6 my-4" />
+        <div className="my-5" />
 
         <Form {...form}>
           <form className="flex w-full flex-1 flex-col gap-y-4" onSubmit={form.handleSubmit(onFormSubmit)}>
@@ -501,7 +501,7 @@ export const SignUpForm = ({
               <p className="mt-4 text-muted-foreground text-sm">
                 <Trans>
                   Already have an account?{' '}
-                  <Link to="/signin" className="text-documenso-700 duration-200 hover:opacity-70">
+                  <Link to="/signin" className="text-brand-text duration-200 hover:opacity-70">
                     Sign in instead
                   </Link>
                 </Trans>
@@ -531,7 +531,7 @@ export const SignUpForm = ({
                     to={link.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-documenso-700 duration-200 hover:opacity-70"
+                    className="text-brand-text duration-200 hover:opacity-70"
                   >
                     {link.label}
                   </Link>

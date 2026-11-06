@@ -20,9 +20,9 @@ export async function loader() {
 
 export default function ResetPasswordPage() {
   return (
-    <div className="w-screen max-w-lg px-4">
+    <div className="w-full">
       <div className="w-full">
-        <h1 className="font-semibold text-3xl">
+        <h1 className="text-[30px] leading-tight">
           <Trans>Unable to reset password</Trans>
         </h1>
 

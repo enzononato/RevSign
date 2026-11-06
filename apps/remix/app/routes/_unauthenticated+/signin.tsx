@@ -104,7 +104,7 @@ export default function SignIn({ loaderData }: Route.ComponentProps) {
 
   if (shouldAutoRedirectToOIDC) {
     return (
-      <div className="w-screen max-w-lg px-4">
+      <div className="w-full">
         <div className="flex flex-col items-center justify-center gap-y-4 py-12">
           <Loader2Icon className="h-8 w-8 animate-spin text-muted-foreground" />
           <p className="text-muted-foreground text-sm">
@@ -116,22 +116,22 @@ export default function SignIn({ loaderData }: Route.ComponentProps) {
   }
 
   return (
-    <div className="w-screen max-w-lg px-4">
-      <div className="z-10 rounded-xl border border-border bg-neutral-100 p-6 dark:bg-background">
+    <div className="w-full">
+      <div className="z-10">
         {signupError && (
           <Alert variant="destructive" className="mb-4">
             <AlertDescription>{_(signupError)}</AlertDescription>
           </Alert>
         )}
 
-        <h1 className="font-semibold text-2xl">
+        <h1 className="text-[30px] leading-tight">
           <Trans>Sign in to your account</Trans>
         </h1>
 
         <p className="mt-2 text-muted-foreground text-sm">
           <Trans>Welcome back, we are lucky to have you.</Trans>
         </p>
-        <hr className="-mx-6 my-4" />
+        <div className="my-5" />
 
         <SignInForm
           isEmailPasswordSigninEnabled={isEmailPasswordSigninEnabled}
@@ -148,7 +148,7 @@ export default function SignIn({ loaderData }: Route.ComponentProps) {
               Don't have an account?{' '}
               <Link
                 to={returnTo ? `/signup?returnTo=${encodeURIComponent(returnTo)}` : '/signup'}
-                className="text-documenso-700 duration-200 hover:opacity-70"
+                className="text-brand-text duration-200 hover:opacity-70"
               >
                 Sign up
               </Link>

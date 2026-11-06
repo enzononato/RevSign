@@ -86,9 +86,9 @@ export default function AcceptInvitationPage({ loaderData }: Route.ComponentProp
 
   if (data.state === 'InvalidLink') {
     return (
-      <div className="w-screen max-w-lg px-4">
+      <div className="w-full">
         <div className="w-full">
-          <h1 className="font-semibold text-4xl">
+          <h1 className="text-[30px] leading-tight">
             <Trans>Invalid token</Trans>
           </h1>
 
@@ -108,9 +108,9 @@ export default function AcceptInvitationPage({ loaderData }: Route.ComponentProp
 
   if (data.state === 'AlreadyAccepted') {
     return (
-      <div className="w-screen max-w-lg px-4">
+      <div className="w-full">
         <div className="w-full">
-          <h1 className="font-semibold text-4xl">
+          <h1 className="text-[30px] leading-tight">
             <Trans>Invitation already accepted</Trans>
           </h1>
 
@@ -210,9 +210,9 @@ const PendingInvitation = ({
 
   if (result === 'accepted') {
     return (
-      <div className="w-screen max-w-lg px-4">
+      <div className="w-full">
         <div className="w-full">
-          <h1 className="font-semibold text-4xl">
+          <h1 className="text-[30px] leading-tight">
             <Trans>Invitation accepted!</Trans>
           </h1>
 
@@ -248,9 +248,9 @@ const PendingInvitation = ({
   // Declining does not, so we only gate account creation on the accept flow.
   if (!actionIsDecline && !userExists) {
     return (
-      <div className="w-screen max-w-lg px-4">
+      <div className="w-full">
         <div className="w-full">
-          <h1 className="font-semibold text-4xl">
+          <h1 className="text-[30px] leading-tight">
             <Trans>Organisation invitation</Trans>
           </h1>
 
@@ -277,9 +277,9 @@ const PendingInvitation = ({
   const isPending = acceptInvitation.isPending || declineInvitation.isPending;
 
   return (
-    <div className="w-screen max-w-lg px-4">
+    <div className="w-full">
       <div className="w-full">
-        <h1 className="font-semibold text-4xl">
+        <h1 className="text-[30px] leading-tight">
           <Trans>Organisation invitation</Trans>
         </h1>
 
@@ -341,9 +341,9 @@ const PendingInvitation = ({
 
 const InvitationDeclined = ({ organisationName }: { organisationName: string }) => {
   return (
-    <div className="w-screen max-w-lg px-4">
+    <div className="w-full">
       <div className="w-full">
-        <h1 className="font-semibold text-4xl">
+        <h1 className="text-[30px] leading-tight">
           <Trans>Invitation declined</Trans>
         </h1>
 

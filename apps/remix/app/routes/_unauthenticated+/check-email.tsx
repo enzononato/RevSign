@@ -11,9 +11,9 @@ export function meta() {
 
 export default function ForgotPasswordPage() {
   return (
-    <div className="w-screen max-w-lg px-4">
+    <div className="w-full">
       <div className="w-full">
-        <h1 className="font-semibold text-4xl">
+        <h1 className="text-[30px] leading-tight">
           <Trans>Email sent!</Trans>
         </h1>
 
