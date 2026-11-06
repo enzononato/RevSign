@@ -36,7 +36,8 @@ export const DocumentRowCard = ({
       {select && <div className="flex h-6 shrink-0 items-center">{select}</div>}
 
       <div className="min-w-0 flex-1">
-        <div className="break-words font-bold text-[15.5px] leading-snug">{title}</div>
+        {/* REVALLE: título longo para em 3 linhas (o completo está na página do documento). */}
+        <div className="line-clamp-3 break-words font-bold text-[15.5px] leading-snug">{title}</div>
         {meta && <p className="mt-1 break-words text-[13px] text-muted-foreground">{meta}</p>}
       </div>
 

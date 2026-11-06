@@ -11,7 +11,8 @@ export const PdfViewerLoadingState = () => {
 
 export const PdfViewerErrorState = () => {
   return (
-    <div className="flex h-[80vh] max-h-[60rem] flex-col items-center justify-center bg-white/50 dark:bg-background">
+    // REVALLE: token
+    <div className="flex h-[80vh] max-h-[60rem] flex-col items-center justify-center bg-background/50">
       <div className="text-center text-muted-foreground">
         <p>
           <Trans>Something went wrong while loading the document.</Trans>

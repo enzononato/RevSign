@@ -277,30 +277,31 @@ export const DocumentSigningNumberField = ({ field, onSignField, onUnsignField }
             />
           </div>
 
+          {/* REVALLE: erros em text-destructive (o red-500 fixo ficava fraco no escuro). */}
           {userInputHasErrors && (
             <div>
               {errors.isNumber?.map((error, index) => (
-                <p key={index} className="mt-2 text-red-500 text-sm">
+                <p key={index} className="mt-2 text-destructive text-sm">
                   {error}
                 </p>
               ))}
               {errors.required?.map((error, index) => (
-                <p key={index} className="mt-2 text-red-500 text-sm">
+                <p key={index} className="mt-2 text-destructive text-sm">
                   {error}
                 </p>
               ))}
               {errors.minValue?.map((error, index) => (
-                <p key={index} className="mt-2 text-red-500 text-sm">
+                <p key={index} className="mt-2 text-destructive text-sm">
                   {error}
                 </p>
               ))}
               {errors.maxValue?.map((error, index) => (
-                <p key={index} className="mt-2 text-red-500 text-sm">
+                <p key={index} className="mt-2 text-destructive text-sm">
                   {error}
                 </p>
               ))}
               {errors.numberFormat?.map((error, index) => (
-                <p key={index} className="mt-2 text-red-500 text-sm">
+                <p key={index} className="mt-2 text-destructive text-sm">
                   {error}
                 </p>
               ))}

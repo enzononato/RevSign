@@ -136,7 +136,7 @@ export default function DocumentsLogsPage({ loaderData }: Route.ComponentProps) 
     <div className="mx-auto -mt-4 w-full max-w-screen-xl px-4 md:px-8">
       <Link
         to={`${documentRootPath}/${document.envelopeId}`}
-        className="flex items-center text-documenso-700 hover:opacity-80"
+        className="flex items-center text-brand-text hover:opacity-80"
       >
         <ChevronLeft className="mr-2 inline-block h-5 w-5" />
         <Trans>Document</Trans>
@@ -144,8 +144,9 @@ export default function DocumentsLogsPage({ loaderData }: Route.ComponentProps) 
 
       <div className="flex flex-col">
         <div>
+          {/* REVALLE: redesign v3. Título no tipo de display, até 2 linhas (cortava em 30rem); cartão sem a borda em gradiente. */}
           <h1
-            className="mt-4 block max-w-[20rem] truncate font-semibold text-2xl md:max-w-[30rem] md:text-3xl"
+            className="mt-4 line-clamp-2 break-words font-display font-extrabold text-2xl tracking-[-0.03em] md:text-3xl"
             title={document.title}
           >
             {document.title}
@@ -168,7 +169,7 @@ export default function DocumentsLogsPage({ loaderData }: Route.ComponentProps) 
       </div>
 
       <section className="mt-6">
-        <Card className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2" degrees={45} gradient>
+        <Card className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
           {documentInformation.map((info, i) => (
             <div className="text-foreground text-sm" key={i}>
               <h3 className="font-semibold">{_(info.description)}</h3>

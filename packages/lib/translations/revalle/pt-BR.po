@@ -5261,3 +5261,15 @@ msgstr "Assinatura {position} de {totalCount}"
 
 msgid "{signedCount} of {totalCount} have signed"
 msgstr "{signedCount} de {totalCount} já assinaram"
+
+msgid "No fields"
+msgstr "Nenhum campo"
+
+msgid "No characters remaining"
+msgstr "Nenhum caractere restante"
+
+msgid "No matching fields"
+msgstr "Nenhum campo correspondente"
+
+msgid "No documents match your search and filters."
+msgstr "Nenhum documento combina com a busca e os filtros."

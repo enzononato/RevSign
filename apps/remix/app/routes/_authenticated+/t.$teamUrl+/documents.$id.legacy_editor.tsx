@@ -89,7 +89,7 @@ export default function DocumentEditPage() {
 
   return (
     <div className="mx-auto -mt-4 w-full max-w-screen-xl px-4 md:px-8">
-      <Link to={documentRootPath} className="flex items-center text-documenso-700 hover:opacity-80">
+      <Link to={documentRootPath} className="flex items-center text-brand-text hover:opacity-80">
         <ChevronLeft className="mr-2 inline-block h-5 w-5" />
         <Trans>Documents</Trans>
       </Link>
@@ -112,7 +112,12 @@ export default function DocumentEditPage() {
 
                 <StackAvatarsWithTooltip recipients={recipients} documentStatus={document.status} position="bottom">
                   <span>
-                    <Plural one="1 Recipient" other="# Recipients" value={recipients.length} />
+                    {/* REVALLE: no pt-BR o plural "one" pega o 0 ("1 destinatário" com zero). */}
+                    {recipients.length === 0 ? (
+                      <Trans>No recipients</Trans>
+                    ) : (
+                      <Plural one="1 Recipient" other="# Recipients" value={recipients.length} />
+                    )}
                   </span>
                 </StackAvatarsWithTooltip>
               </div>

@@ -27,21 +27,22 @@ export const StackAvatar = ({ first, zIndex, fallbackText = '', type, className 
     zIndexClass = ZIndexes[zIndex] ?? '';
   }
 
+  // REVALLE: redesign v3. Cores de status pelos tokens (funcionam no tema escuro); status nunca é azul.
   switch (type) {
     case RecipientStatusType.UNSIGNED:
-      classes = 'bg-dawn-200 text-dawn-900';
+      classes = 'bg-muted text-muted-foreground';
       break;
     case RecipientStatusType.OPENED:
-      classes = 'bg-yellow-200 text-yellow-700';
+      classes = 'bg-warning-bg text-warning-text';
       break;
     case RecipientStatusType.WAITING:
-      classes = 'bg-water text-water-700';
+      classes = 'bg-warning-bg text-warning-text';
       break;
     case RecipientStatusType.COMPLETED:
-      classes = 'bg-documenso-200 text-documenso-800';
+      classes = 'bg-success-bg text-success';
       break;
     case RecipientStatusType.REJECTED:
-      classes = 'bg-red-200 text-red-800';
+      classes = 'bg-danger-bg text-destructive';
       break;
     default:
       break;
@@ -52,7 +53,7 @@ export const StackAvatar = ({ first, zIndex, fallbackText = '', type, className 
       className={cn(
         zIndexClass,
         firstClass,
-        'h-10 w-10 border-2 border-white border-solid dark:border-border',
+        'h-10 w-10 border-2 border-card border-solid font-semibold', // REVALLE: borda na cor do cartão
         className,
       )}
     >

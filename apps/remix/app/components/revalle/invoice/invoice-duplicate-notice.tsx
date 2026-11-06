@@ -47,7 +47,7 @@ export const InvoiceDuplicateNotice = ({ duplicates, acknowledgement }: InvoiceD
   return (
     // REVALLE v3: aviso âmbar dos tokens (warning-bg / warning-text), sem borda
     <div
-      className="flex flex-col gap-2 rounded-lg bg-warning-bg p-3 text-foreground text-sm"
+      className="flex flex-col gap-2 rounded-[13px] bg-warning-bg p-3 text-foreground text-sm"
       data-testid="invoice-duplicate-alert"
     >
       <p className="flex items-start gap-2 font-semibold text-warning-text">

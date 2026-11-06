@@ -40,6 +40,8 @@ export type RecipientSignerSlotsProps = {
   /** Linha curta embaixo dos encaixes ("Falta 1 assinatura", "Todos assinaram"). */
   withSummary?: boolean;
   size?: 'sm' | 'md';
+  /** REVALLE: quantos encaixes mostrar antes do "+N" (padrão do SignerSlots: 6). */
+  max?: number;
   className?: string;
 };
 
@@ -53,6 +55,7 @@ export const RecipientSignerSlots = ({
   currentUserEmail,
   withSummary = true,
   size = 'md',
+  max,
   className,
 }: RecipientSignerSlotsProps) => {
   const slots = toSignerSlots(recipients, currentUserEmail);
@@ -65,7 +68,7 @@ export const RecipientSignerSlots = ({
 
   return (
     <div className={cn('min-w-0', className)}>
-      <SignerSlots slots={slots} size={size} />
+      <SignerSlots slots={slots} size={size} max={max} />
 
       {withSummary && documentStatus === DocumentStatus.PENDING && missing > 0 && (
         <p className="mt-1 font-semibold text-[12.5px] text-muted-foreground">

@@ -24,6 +24,7 @@ export const AppNavDesktop = ({ className, setIsCommandMenuOpen, ...props }: App
         className,
       )}
       style={SHELL_GRID_STYLE}
+      data-testid="app-sidebar" // REVALLE: usado pelo e2e de settings (geometria do shell v3)
       {...props}
     >
       <div className="flex flex-col gap-5">

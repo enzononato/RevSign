@@ -9,6 +9,7 @@ const DEFAULT_SOURCE_URL = 'https://github.com/enzononato/RevSign';
 export type SourceCodeLinkProps = {
   /** `footer` is the page footer from root; `shell` is the last line of the blue sidebar and mobile sheet. */
   variant?: 'footer' | 'shell';
+  className?: string;
 };
 
 /**
@@ -17,13 +18,16 @@ export type SourceCodeLinkProps = {
  * Fica fora das rotas internas (ex.: o HTML que vira o certificado em PDF).
  * Nas telas de destinatário, o padding extra evita que o widget fixo de
  * assinatura no celular cubra o link. Dentro do shell azul, no computador o
- * link mora na barra lateral, então o rodapé só aparece no celular.
+ * link mora na barra lateral, então o rodapé só aparece no celular. Nas telas
+ * de acesso, no computador, ele mora no painel azul da esquerda.
  */
-export const SourceCodeLink = ({ variant = 'footer' }: SourceCodeLinkProps) => {
+export const SourceCodeLink = ({ variant = 'footer', className }: SourceCodeLinkProps) => {
   const matches = useMatches();
 
   const isInternalRoute = matches.some((match) => match.id?.startsWith('routes/_internal+'));
   const isRecipientRoute = matches.some((match) => match.id?.startsWith('routes/_recipient+'));
+  // REVALLE: redesign v3. Nas telas de acesso, no computador, o link mora no painel azul da esquerda.
+  const isAuthRoute = matches.some((match) => match.id?.startsWith('routes/_unauthenticated+'));
 
   if (isInternalRoute) {
     return null;
@@ -37,7 +41,10 @@ export const SourceCodeLink = ({ variant = 'footer' }: SourceCodeLinkProps) => {
         href={sourceUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="self-start rounded-md px-2.5 text-[11.5px] text-shell-muted underline-offset-4 hover:text-white hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        className={cn(
+          'self-start rounded-md px-2.5 text-[11.5px] text-shell-muted underline-offset-4 hover:text-white hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
+          className,
+        )}
       >
         Código-fonte (AGPL-3.0)
       </a>
@@ -50,6 +57,7 @@ export const SourceCodeLink = ({ variant = 'footer' }: SourceCodeLinkProps) => {
         'py-4 text-center text-muted-foreground text-xs',
         isRecipientRoute && 'pb-32 lg:pb-4',
         isInsideAppShell(matches) && 'md:hidden',
+        isAuthRoute && 'lg:hidden',
       )}
     >
       <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="underline-offset-4 hover:underline">

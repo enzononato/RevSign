@@ -106,12 +106,15 @@ export const DocumentsTable = ({
       {
         header: _(msg`Recipient`),
         accessorKey: 'recipient',
-        // REVALLE v3: encaixes de quem assina no lugar da pilha de avatares
+        // REVALLE v3: encaixes de quem assina no lugar da pilha de avatares. Na tabela, 3 encaixes + "+N" numa linha só
+        // (com 6 a coluna estreita quebrava em três linhas).
         cell: ({ row }) => (
           <RecipientSignerSlots
             recipients={row.original.recipients}
             documentStatus={row.original.status}
             currentUserEmail={user.email}
+            max={3}
+            className="[&>div:first-child]:flex-nowrap"
           />
         ),
       },
@@ -297,6 +300,8 @@ const DataTableTitle = ({ row, teamUrl, teamEmail }: DataTableTitleProps) => {
   const documentsPath = formatDocumentsPath(teamUrl);
   const formatPath = `${documentsPath}/${row.envelopeId}`;
 
+  // REVALLE: redesign v3. Com a barra lateral de 244px, o título de 20rem fixos fazia a tabela rolar na horizontal em
+  // 1440px (o "Baixar" ficava cortado). O título encolhe com a tela até 10rem e volta a 20rem nas telas largas.
   return match({
     isOwner,
     isRecipient,
@@ -306,7 +311,7 @@ const DataTableTitle = ({ row, teamUrl, teamEmail }: DataTableTitleProps) => {
       <Link
         to={formatPath}
         title={row.title}
-        className="block max-w-full font-bold hover:underline md:max-w-[20rem] md:truncate"
+        className="block max-w-full font-bold hover:underline md:max-w-[clamp(10rem,calc(100vw_-_1194px),20rem)] md:truncate"
       >
         {row.title}
       </Link>
@@ -315,12 +320,14 @@ const DataTableTitle = ({ row, teamUrl, teamEmail }: DataTableTitleProps) => {
       <Link
         to={`/sign/${recipient?.token}`}
         title={row.title}
-        className="block max-w-full font-bold hover:underline md:max-w-[20rem] md:truncate"
+        className="block max-w-full font-bold hover:underline md:max-w-[clamp(10rem,calc(100vw_-_1194px),20rem)] md:truncate"
       >
         {row.title}
       </Link>
     ))
     .otherwise(() => (
-      <span className="block max-w-full font-bold hover:underline md:max-w-[20rem] md:truncate">{row.title}</span>
+      <span className="block max-w-full font-bold hover:underline md:max-w-[clamp(10rem,calc(100vw_-_1194px),20rem)] md:truncate">
+        {row.title}
+      </span>
     ));
 };

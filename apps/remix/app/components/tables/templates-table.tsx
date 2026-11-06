@@ -122,7 +122,7 @@ export const TemplatesTable = ({
                 <ul className="space-y-0.5 divide-y text-muted-foreground [&>li]:p-4">
                   <li>
                     <h2 className="mb-2 flex flex-row items-center font-semibold">
-                      <Globe2Icon className="mr-2 h-5 w-5 text-green-500 dark:text-green-300" />
+                      <Globe2Icon className="mr-2 h-5 w-5 text-muted-foreground" />
                       <Trans>Public</Trans>
                     </h2>
 
@@ -134,7 +134,7 @@ export const TemplatesTable = ({
                     </p>
                   </li>
                   <li>
-                    <div className="mb-2 flex w-fit flex-row items-center rounded border border-neutral-300 bg-neutral-200 px-1.5 py-0.5 text-xs dark:border-neutral-500 dark:bg-neutral-600">
+                    <div className="mb-2 flex w-fit flex-row items-center rounded-full bg-muted px-2 py-0.5 text-foreground text-xs">
                       <Link2Icon className="mr-1 h-3 w-3" />
                       <Trans>direct link</Trans>
                     </div>
@@ -148,7 +148,7 @@ export const TemplatesTable = ({
                   </li>
                   <li>
                     <h2 className="mb-2 flex flex-row items-center font-semibold">
-                      <LockIcon className="mr-2 h-5 w-5 text-blue-600 dark:text-blue-300" />
+                      <LockIcon className="mr-2 h-5 w-5 text-muted-foreground" />
                       {team?.id ? <Trans>Team Only</Trans> : <Trans>Private</Trans>}
                     </h2>
 
@@ -162,7 +162,7 @@ export const TemplatesTable = ({
                   </li>
                   <li>
                     <h2 className="mb-2 flex flex-row items-center font-semibold">
-                      <Building2Icon className="mr-2 h-5 w-5 text-orange-500 dark:text-orange-300" />
+                      <Building2Icon className="mr-2 h-5 w-5 text-muted-foreground" />
                       <Trans>Organisation</Trans>
                     </h2>
 
@@ -309,9 +309,10 @@ export const TemplatesTable = ({
         {(table) => <DataTablePagination additionalInformation="VisibleCount" table={table} />}
       </DataTable>
 
+      {/* REVALLE: redesign v3. Ícones, selo e carregamento pelos tokens (no escuro eram caixas brancas). */}
       {isPending && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/50">
-          <Loader className="h-8 w-8 animate-spin text-gray-500" />
+        <div className="absolute inset-0 flex items-center justify-center bg-background/50">
+          <Loader className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       )}
     </div>

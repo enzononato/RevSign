@@ -278,23 +278,29 @@ export const DocumentSigningTextField = ({ field, onSignField, onUnsignField }: 
             parsedFieldMeta?.characterLimit > 0 &&
             !userInputHasErrors && (
               <div className="text-muted-foreground text-sm">
-                <Plural
-                  value={charactersRemaining}
-                  one="1 character remaining"
-                  other={`${charactersRemaining} characters remaining`}
-                />
+                {/* REVALLE: no pt-BR o plural "one" pega o 0 ("1 caractere restante" com zero); o zero tem frase própria. */}
+                {charactersRemaining === 0 ? (
+                  <Trans>No characters remaining</Trans>
+                ) : (
+                  <Plural
+                    value={charactersRemaining}
+                    one="1 character remaining"
+                    other={`${charactersRemaining} characters remaining`}
+                  />
+                )}
               </div>
             )}
 
+          {/* REVALLE: erros em text-destructive (o red-500 fixo ficava fraco no escuro). */}
           {userInputHasErrors && (
             <div className="text-sm">
               {errors.required.map((error, index) => (
-                <p key={index} className="text-red-500">
+                <p key={index} className="text-destructive">
                   {error}
                 </p>
               ))}
               {errors.characterLimit.map((error, index) => (
-                <p key={index} className="text-red-500">
+                <p key={index} className="text-destructive">
                   {error}{' '}
                   {charactersRemaining < 0 && (
                     <Plural

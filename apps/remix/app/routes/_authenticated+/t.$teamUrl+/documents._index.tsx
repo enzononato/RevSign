@@ -56,6 +56,8 @@ export default function DocumentsPage() {
 
   const [isMovingDocument, setIsMovingDocument] = useState(false);
   const [documentToMove, setDocumentToMove] = useState<string | null>(null);
+  // REVALLE: a caixa de busca guarda o texto digitado; ao limpar pelo estado vazio ela remonta já vazia.
+  const [searchResetKey, setSearchResetKey] = useState(0);
 
   // Scoped by team so selections made in one team never leak into another.
   const [rowSelection, setRowSelection] = useSessionStorage<RowSelectionState>(
@@ -197,7 +199,7 @@ export default function DocumentsPage() {
         </div>
 
         <div className="mt-6 flex flex-col gap-2">
-          <DocumentSearch className="w-full" />
+          <DocumentSearch key={searchResetKey} className="w-full" />
 
           <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0">
             <DocumentsTableStatusFilter stats={stats} />
@@ -222,7 +224,21 @@ export default function DocumentsPage() {
         <div className="mt-6">
           <div>
             {data && data.count === 0 ? (
-              <DocumentsTableEmptyState status={findDocumentSearchParams.status ?? ExtendedDocumentStatus.ALL} />
+              // REVALLE: com busca ou filtro ativo, o vazio diz que nada combina e oferece limpar (busca inclusa).
+              <DocumentsTableEmptyState
+                status={findDocumentSearchParams.status ?? ExtendedDocumentStatus.ALL}
+                isFiltered={hasActiveFilters || Boolean(findDocumentSearchParams.query)}
+                onClearFilters={() => {
+                  setSearchResetKey((key) => key + 1);
+                  void setFindDocumentSearchParams({
+                    status: null,
+                    senderIds: null,
+                    period: null,
+                    query: null,
+                    page: null,
+                  });
+                }}
+              />
             ) : (
               <DocumentsTable
                 data={data}

@@ -18,7 +18,7 @@ import { revalleRateLimitIpKey } from '@documenso/lib/server-only/revalle/rate-l
 import { getIpAddress } from '@documenso/lib/universal/get-ip-address';
 import { Button } from '@documenso/ui/primitives/button';
 import { Input } from '@documenso/ui/primitives/input';
-import { CheckIcon, CopyIcon, ShieldCheckIcon, TriangleAlertIcon } from 'lucide-react';
+import { CheckIcon, CopyIcon, FileUpIcon, ShieldCheckIcon, TriangleAlertIcon } from 'lucide-react';
 import { useState } from 'react';
 import { data, Form, useLoaderData } from 'react-router';
 import { BrandBand } from '~/components/general/background';
@@ -158,9 +158,12 @@ type FileCheck =
 
 const FileChecker = ({ items }: { items: { versions: RevalleSealedVersion[] }[] }) => {
   const [check, setCheck] = useState<FileCheck>({ kind: 'idle' });
+  const [fileName, setFileName] = useState<string | null>(null);
 
   const onChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+
+    setFileName(file?.name ?? null);
 
     if (!file) {
       setCheck({ kind: 'idle' });
@@ -192,13 +195,30 @@ const FileChecker = ({ items }: { items: { versions: RevalleSealedVersion[] }[] 
         Escolha o PDF que você recebeu para saber se ele é exatamente o documento assinado. O arquivo não sai do seu
         aparelho: a conferência é feita aqui, no navegador.
       </p>
-      <input
-        accept="application/pdf,.pdf"
-        className="block w-full rounded-[13px] border border-input bg-background p-2 text-sm file:mr-3 file:rounded-full file:border-0 file:bg-accent file:px-4 file:py-2 file:font-semibold file:text-accent-foreground"
-        data-testid="verify-file"
-        onChange={(e) => void onChange(e)}
-        type="file"
-      />
+      {/* REVALLE: redesign v3. O seletor nativo dizia "Choose File / No file chosen" em inglês; o input continua o mesmo, escondido atrás de um botão em português. */}
+      <div className="flex min-w-0 flex-wrap items-center gap-3 rounded-[13px] border border-input bg-background p-2">
+        <input
+          accept="application/pdf,.pdf"
+          className="peer sr-only"
+          data-testid="verify-file"
+          id="verify-file"
+          onChange={(e) => void onChange(e)}
+          type="file"
+        />
+        <label
+          className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full bg-accent px-4 font-semibold text-accent-foreground text-sm transition-colors hover:bg-accent/80 peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background"
+          htmlFor="verify-file"
+        >
+          <FileUpIcon aria-hidden className="h-4 w-4" />
+          Escolher PDF
+        </label>
+        <span
+          className="line-clamp-2 min-w-0 flex-1 text-muted-foreground text-sm [overflow-wrap:anywhere]"
+          title={fileName ?? undefined}
+        >
+          {fileName ?? 'Nenhum arquivo escolhido'}
+        </span>
+      </div>
       <div aria-live="polite" role="status">
         {check.kind === 'working' && <p className="text-sm">Conferindo…</p>}
         {check.kind === 'error' && <p className="text-destructive text-sm">{check.message}</p>}

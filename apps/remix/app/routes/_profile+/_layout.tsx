@@ -1,4 +1,3 @@
-import LogoIcon from '@documenso/assets/logo_icon.png';
 import { useOptionalSession } from '@documenso/lib/client-only/providers/session';
 import { cn } from '@documenso/ui/lib/utils';
 import { Button } from '@documenso/ui/primitives/button';
@@ -9,8 +8,8 @@ import { useEffect, useState } from 'react';
 import { isRouteErrorResponse, Link, Outlet } from 'react-router';
 
 import { Header as AuthenticatedHeader } from '~/components/general/app-header';
-import { BrandingLogo } from '~/components/general/branding-logo';
 import { GenericErrorLayout } from '~/components/general/generic-error-layout';
+import { RevsignWordmark } from '~/components/revalle/shell/revsign-wordmark';
 import { appMetaTags } from '~/utils/meta';
 
 import type { Route } from './+types/_layout';
@@ -50,10 +49,8 @@ export default function PublicProfileLayout() {
               to="/"
               className="rounded-md ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:inline"
             >
-              <BrandingLogo className="hidden h-6 w-auto sm:block" />
-
-              {/* REVALLE: alt RevSign; sem dark:invert (o ícone tem fundo próprio) */}
-              <img src={LogoIcon} alt="RevSign" width={48} height={48} className="h-10 w-auto sm:hidden" />
+              {/* REVALLE: redesign v3. Marca em texto (RevsignWordmark) no lugar do SVG antigo e do ícone. */}
+              <RevsignWordmark size="sm" />
             </Link>
 
             <div className="flex flex-row items-center justify-center">

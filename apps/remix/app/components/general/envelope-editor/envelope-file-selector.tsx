@@ -1,6 +1,6 @@
 import { useCurrentEnvelopeRender } from '@documenso/lib/client-only/providers/envelope-render-provider';
 import { cn } from '@documenso/ui/lib/utils';
-import { Plural } from '@lingui/react/macro';
+import { Plural, Trans } from '@lingui/react/macro';
 
 type EnvelopeItemSelectorProps = {
   number: number;
@@ -19,31 +19,30 @@ export const EnvelopeItemSelector = ({
   buttonProps,
   actionSlot,
 }: EnvelopeItemSelectorProps) => {
+  // REVALLE: redesign v3. Arquivo selecionado na tinta azul da marca (era verde); cores por token, raio 13px.
   return (
     <button
       title={typeof primaryText === 'string' ? primaryText : undefined}
-      className={`group flex h-fit max-w-72 flex-shrink-0 cursor-pointer items-center space-x-3 rounded-lg border px-4 py-3 transition-colors ${
-        isSelected
-          ? 'border-green-200 bg-green-50 text-green-900 dark:border-green-400/30 dark:bg-green-400/10 dark:text-green-400'
-          : 'border-border bg-muted/50 hover:bg-muted/70'
+      className={`group flex h-fit max-w-72 flex-shrink-0 cursor-pointer items-center space-x-3 rounded-[13px] border px-4 py-3 transition-colors ${
+        isSelected ? 'border-primary/25 bg-accent text-brand-text' : 'border-border bg-muted/50 hover:bg-muted/70'
       }`}
       {...buttonProps}
     >
       <div
         className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full font-medium text-xs ${
-          isSelected ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-600'
+          isSelected ? 'bg-card text-brand-text' : 'bg-background text-muted-foreground'
         }`}
       >
         {number}
       </div>
       <div className="min-w-0 text-left">
         <div className="truncate font-medium text-sm">{primaryText}</div>
-        <div className="text-gray-500 text-xs">{secondaryText}</div>
+        <div className="text-muted-foreground text-xs">{secondaryText}</div>
       </div>
       {actionSlot ?? (
         <div
           className={cn('h-2 w-2 flex-shrink-0 rounded-full', {
-            'bg-green-500': isSelected,
+            'bg-primary': isSelected,
           })}
         />
       )}
@@ -74,13 +73,17 @@ export const EnvelopeRendererFileSelector = ({
           number={i + 1}
           primaryText={doc.title}
           secondaryText={
-            secondaryOverride ?? (
+            secondaryOverride ??
+            // REVALLE: no pt-BR o plural "one" pega o 0 ("1 campo" com zero); o zero tem frase própria.
+            (fields.some((field) => field.envelopeItemId === doc.id) ? (
               <Plural
                 one="1 Field"
                 other="# Fields"
                 value={fields.filter((field) => field.envelopeItemId === doc.id).length}
               />
-            )
+            ) : (
+              <Trans>No fields</Trans>
+            ))
           }
           isSelected={currentEnvelopeItem?.id === doc.id}
           buttonProps={{

@@ -280,11 +280,16 @@ export const DocumentSigningPageViewV2 = () => {
                     number={i + 1}
                     primaryText={doc.title}
                     secondaryText={
-                      <Plural
-                        one="1 Field"
-                        other="# Fields"
-                        value={remainingFields.filter((field) => field.envelopeItemId === doc.id).length}
-                      />
+                      // REVALLE: no pt-BR o plural "one" pega o 0 ("1 campo" com zero); o zero tem frase própria.
+                      remainingFields.some((field) => field.envelopeItemId === doc.id) ? (
+                        <Plural
+                          one="1 Field"
+                          other="# Fields"
+                          value={remainingFields.filter((field) => field.envelopeItemId === doc.id).length}
+                        />
+                      ) : (
+                        <Trans>No fields</Trans>
+                      )
                     }
                     isSelected={currentEnvelopeItem?.id === doc.id}
                     buttonProps={{ onClick: () => setCurrentEnvelopeItem(doc.id) }}

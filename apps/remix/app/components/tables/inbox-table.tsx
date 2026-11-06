@@ -84,12 +84,15 @@ export const InboxTable = () => {
       {
         header: _(msg`Recipient`),
         accessorKey: 'recipient',
-        // REVALLE v3: encaixes de quem assina no lugar da pilha de avatares
+        // REVALLE v3: encaixes de quem assina no lugar da pilha de avatares. Na tabela, 3 encaixes + "+N" numa linha só
+        // (com 6 a coluna estreita quebrava em três linhas).
         cell: ({ row }) => (
           <RecipientSignerSlots
             recipients={row.original.recipients}
             documentStatus={row.original.status}
             currentUserEmail={user.email}
+            max={3}
+            className="[&>div:first-child]:flex-nowrap"
           />
         ),
       },

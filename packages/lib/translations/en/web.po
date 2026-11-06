@@ -3290,6 +3290,7 @@ msgstr "Claims"
 msgid "Clear"
 msgstr "Clear"
 
+#: apps/remix/app/components/tables/documents-table-empty-state.tsx
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/documents._index.tsx
 #: packages/ui/primitives/data-table.tsx
 msgid "Clear filters"
@@ -8896,6 +8897,10 @@ msgstr "No activity in the last 90 days."
 msgid "No activity in the selected range."
 msgstr "No activity in the selected range."
 
+#: apps/remix/app/components/general/document-signing/document-signing-text-field.tsx
+msgid "No characters remaining"
+msgstr "No characters remaining"
+
 #: apps/remix/app/components/general/pdf-viewer/envelope-pdf-viewer.tsx
 #: apps/remix/app/components/general/pdf-viewer/pdf-viewer.tsx
 msgid "No document found"
@@ -8911,6 +8916,7 @@ msgstr "No documents created in this period"
 
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-fields-page.tsx
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-preview-page.tsx
+#: apps/remix/app/components/tables/documents-table-empty-state.tsx
 msgid "No documents found"
 msgstr "No documents found"
 
@@ -8922,6 +8928,10 @@ msgstr "No documents in this period"
 #: apps/remix/app/components/tables/inbox-table.tsx
 msgid "No documents match your search"
 msgstr "No documents match your search"
+
+#: apps/remix/app/components/tables/documents-table-empty-state.tsx
+msgid "No documents match your search and filters."
+msgstr "No documents match your search and filters."
 
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/documents._index.tsx
 msgid "No documents waiting for signatures."
@@ -8950,6 +8960,11 @@ msgstr "No features enabled"
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-fields-page-renderer.tsx
 msgid "No field type matching this description was found."
 msgstr "No field type matching this description was found."
+
+#: apps/remix/app/components/general/document-signing/document-signing-page-view-v2.tsx
+#: apps/remix/app/components/general/envelope-editor/envelope-file-selector.tsx
+msgid "No fields"
+msgstr "No fields"
 
 #: apps/remix/app/components/dialogs/envelopes-bulk-move-dialog.tsx
 msgid "No folders found"
@@ -8989,6 +9004,10 @@ msgstr "No invoice is waiting for you."
 #: apps/remix/app/components/general/admin-license-card.tsx
 msgid "No License Configured"
 msgstr "No License Configured"
+
+#: apps/remix/app/components/general/document-signing/document-signing-auto-sign.tsx
+msgid "No matching fields"
+msgstr "No matching fields"
 
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/analytics._index.tsx
 msgid "No members"
@@ -9048,6 +9067,7 @@ msgstr "No recipient matching this description was found."
 #: apps/remix/app/components/general/document/document-recipient-link-copy-dialog.tsx
 #: apps/remix/app/components/general/template/template-page-view-recipients.tsx
 #: apps/remix/app/components/tables/admin-document-recipients-table.tsx
+#: apps/remix/app/routes/_authenticated+/t.$teamUrl+/documents.$id.legacy_editor.tsx
 #: packages/ui/primitives/document-flow/add-subject.tsx
 msgid "No recipients"
 msgstr "No recipients"

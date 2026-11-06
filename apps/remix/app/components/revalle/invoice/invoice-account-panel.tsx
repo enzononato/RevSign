@@ -252,7 +252,7 @@ export const InvoiceAccountPanel = ({
 
   if (state.isInvoice === 'UNKNOWN') {
     return (
-      <section className="mb-4 rounded-lg border p-3" data-testid="invoice-question">
+      <section className="mb-4 rounded-[13px] border p-3" data-testid="invoice-question">
         <p className="font-medium text-sm">
           <Trans>Este documento é uma nota fiscal?</Trans>
         </p>
@@ -278,7 +278,7 @@ export const InvoiceAccountPanel = ({
           </Button>
         </div>
 
-        <p className="mt-2 text-amber-700 text-sm dark:text-amber-400">
+        <p className="mt-2 text-sm text-warning-text">
           <Trans>Responda para enviar</Trans>
         </p>
       </section>
@@ -287,7 +287,7 @@ export const InvoiceAccountPanel = ({
 
   if (isReleased) {
     return (
-      <section className="mb-4 flex flex-col gap-1 rounded-lg border p-3" data-testid="invoice-account-panel">
+      <section className="mb-4 flex flex-col gap-1 rounded-[13px] border p-3" data-testid="invoice-account-panel">
         <h3 className="font-medium text-sm">
           <Trans>Nota fiscal · Conta contábil</Trans>
         </h3>
@@ -313,7 +313,7 @@ export const InvoiceAccountPanel = ({
 
   if (isHeld) {
     return (
-      <section className="mb-4 flex flex-col gap-1 rounded-lg border p-3" data-testid="invoice-account-panel">
+      <section className="mb-4 flex flex-col gap-1 rounded-[13px] border p-3" data-testid="invoice-account-panel">
         <h3 className="font-medium text-sm">
           <Trans>Nota fiscal · Conta contábil</Trans>
         </h3>
@@ -343,7 +343,7 @@ export const InvoiceAccountPanel = ({
   const invoiceDataLine = formatInvoiceDataLine(state.invoiceData);
 
   return (
-    <section className="mb-4 flex flex-col gap-3 rounded-lg border p-3" data-testid="invoice-account-panel">
+    <section className="mb-4 flex flex-col gap-3 rounded-[13px] border p-3" data-testid="invoice-account-panel">
       <div className="flex flex-wrap items-center justify-between gap-x-2">
         <h3 className="font-medium text-sm">
           <Trans>Nota fiscal · Conta contábil</Trans>
@@ -363,7 +363,7 @@ export const InvoiceAccountPanel = ({
       )}
 
       {suggestion && (
-        <div className="rounded-md bg-muted/50 p-3 text-sm">
+        <div className="rounded-[10px] bg-muted/60 p-3 text-sm">
           <p className="font-medium">
             <Trans>
               Sugestão da IA: {suggestionCode} · {suggestionName} (confira)
@@ -431,7 +431,7 @@ export const InvoiceAccountPanel = ({
       )}
 
       {hasNoAccounts && (
-        <p className="text-amber-700 text-sm dark:text-amber-400">
+        <p className="text-sm text-warning-text">
           <Trans>Nenhuma conta contábil cadastrada. Fale com o administrador.</Trans>
         </p>
       )}
@@ -446,7 +446,7 @@ export const InvoiceAccountPanel = ({
       )}
 
       {!choice && !hasNoAccounts && (
-        <p className="text-amber-700 text-sm dark:text-amber-400">
+        <p className="text-sm text-warning-text">
           <Trans>Escolha a conta contábil.</Trans>
         </p>
       )}
@@ -458,7 +458,7 @@ export const InvoiceAccountPanel = ({
       />
 
       {!state.costCenter && (
-        <p className="text-amber-700 text-sm dark:text-amber-400">
+        <p className="text-sm text-warning-text">
           <Trans>Escolha o centro de custo.</Trans>
         </p>
       )}

@@ -213,7 +213,7 @@ export const EditorFieldRadioForm = ({
                   <button
                     type="button"
                     data-testid={`field-form-values-${index}-remove`}
-                    className="flex h-10 w-10 items-center justify-center text-slate-500 hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex h-10 w-10 items-center justify-center text-muted-foreground hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50" // REVALLE: token
                     onClick={() => removeValue(index)}
                   >
                     <Trash className="h-5 w-5" />

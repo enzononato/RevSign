@@ -52,7 +52,7 @@ export const AccountCombobox = ({ accounts, value, onSelect, disabled = false }:
         }}
       />
 
-      <ul id={listId} className="max-h-48 overflow-y-auto rounded-md border">
+      <ul id={listId} className="max-h-48 overflow-y-auto rounded-[13px] border">
         {visible.map((account) => (
           <li key={account.code}>
             <button
@@ -66,7 +66,7 @@ export const AccountCombobox = ({ accounts, value, onSelect, disabled = false }:
               onClick={() => onSelect(account.code)}
             >
               <CheckIcon className={cn('h-4 w-4 shrink-0', account.code === value ? 'opacity-100' : 'opacity-0')} />
-              <span className="shrink-0 font-mono">{account.code}</span>
+              <span className="shrink-0 font-display font-extrabold text-brand-text tabular-nums">{account.code}</span>
               <span className="min-w-0 flex-1 break-words">{account.name}</span>
             </button>
           </li>

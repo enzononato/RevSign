@@ -176,7 +176,8 @@ export const EnvelopesBulkMoveDialog = ({
                   </FormLabel>
 
                   <FormControl>
-                    <div className="max-h-96 space-y-2 overflow-y-auto">
+                    {/* REVALLE: folga para a sombra/borda dos botões-pílula não ser cortada pela rolagem. */}
+                    <div className="-m-1 max-h-96 space-y-2 overflow-y-auto p-1">
                       {isFoldersLoading ? (
                         <div className="flex h-10 items-center justify-center">
                           <Loader2 className="h-4 w-4 animate-spin" />

@@ -62,7 +62,10 @@ export default function ReportSenderPage({ loaderData }: Route.ComponentProps) {
           <Trans>
             Thank you for letting us know, we have flagged this sender for review. If you have any concerns please feel
             free to reach out to our{' '}
-            <a className="text-documenso-700 underline" href={`mailto:${SUPPORT_EMAIL}`}>
+            <a
+              className="text-brand-text underline" // REVALLE: token
+              href={`mailto:${SUPPORT_EMAIL}`}
+            >
               support team
             </a>
             .

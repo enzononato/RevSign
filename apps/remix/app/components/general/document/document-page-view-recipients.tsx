@@ -101,9 +101,17 @@ export const DocumentPageViewRecipients = ({ envelope, documentRootPath }: Docum
           <li key={recipient.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
             <div className="min-w-0">
               <p className="break-words font-semibold text-foreground">{recipient.name || recipient.email}</p>
-              <p className="break-all text-muted-foreground text-xs">
-                {recipient.name ? `${recipient.email} · ` : ''}
-                {_(RECIPIENT_ROLES_DESCRIPTION[recipient.role].roleName)}
+              {/* REVALLE: e-mail longo corta com reticências em vez de quebrar letra a letra; o papel fica inteiro. */}
+              <p className="flex min-w-0 text-muted-foreground text-xs">
+                {recipient.name && (
+                  <span className="min-w-0 truncate" title={recipient.email}>
+                    {recipient.email}
+                  </span>
+                )}
+                <span className="shrink-0 whitespace-pre">
+                  {recipient.name ? ' · ' : ''}
+                  {_(RECIPIENT_ROLES_DESCRIPTION[recipient.role].roleName)}
+                </span>
               </p>
             </div>
 
