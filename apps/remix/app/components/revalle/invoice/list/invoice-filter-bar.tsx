@@ -108,7 +108,7 @@ export const InvoiceFilterBar = ({
         />
       </div>
 
-      <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 py-0.5 [scrollbar-width:none] md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
+      <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap md:items-center">
         <FilterSelectBox
           id="invoices-finance"
           label={<Trans>Financeiro</Trans>}
@@ -150,7 +150,7 @@ export const InvoiceFilterBar = ({
         {hasUrlFilters && (
           <button
             type="button"
-            className="inline-flex h-11 shrink-0 items-center rounded-full px-2 font-bold text-brand-text text-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="col-span-2 inline-flex h-11 shrink-0 items-center justify-center rounded-full px-2 font-bold text-brand-text text-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:col-span-1 md:justify-start"
             onClick={onClear}
           >
             <Trans>Limpar filtros</Trans>

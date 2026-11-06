@@ -70,117 +70,120 @@ export default function SettingsSecurity({ loaderData }: Route.ComponentProps) {
         </Alert>
       )}
 
-      <Alert className="mt-6 flex flex-col justify-between p-6 sm:flex-row sm:items-center" variant="neutral">
-        <div className="mb-4 sm:mb-0">
-          <AlertTitle>
-            <Trans>Two factor authentication</Trans>
-          </AlertTitle>
+      {/* REVALLE: redesign v3. Linhas separadas por divisor em vez de cartões cinza dentro do cartão branco. */}
+      <div className="mt-6 divide-y divide-border border-t">
+        <div className="flex flex-col justify-between gap-4 py-6 sm:flex-row sm:items-center">
+          <div className="min-w-0">
+            <h3 className="font-semibold text-sm">
+              <Trans>Two factor authentication</Trans>
+            </h3>
 
-          <AlertDescription className="mr-4">
-            {hasEmailPasswordAccount ? (
-              <Trans>
-                Add an authenticator to serve as a secondary authentication method when signing in, or when signing
-                documents.
-              </Trans>
-            ) : (
-              <Trans>Add an authenticator to serve as a secondary authentication method for signing documents.</Trans>
-            )}
-          </AlertDescription>
-        </div>
-
-        {user.twoFactorEnabled ? <DisableAuthenticatorAppDialog /> : <EnableAuthenticatorAppDialog />}
-      </Alert>
-
-      {user.twoFactorEnabled && (
-        <Alert className="mt-6 flex flex-col justify-between p-6 sm:flex-row sm:items-center" variant="neutral">
-          <div className="mb-4 sm:mb-0">
-            <AlertTitle>
-              <Trans>Recovery codes</Trans>
-            </AlertTitle>
-
-            <AlertDescription className="mr-4">
-              <Trans>
-                Two factor authentication recovery codes are used to access your account in the event that you lose
-                access to your authenticator app.
-              </Trans>
-            </AlertDescription>
+            <p className="mt-1 text-muted-foreground text-sm">
+              {hasEmailPasswordAccount ? (
+                <Trans>
+                  Add an authenticator to serve as a secondary authentication method when signing in, or when signing
+                  documents.
+                </Trans>
+              ) : (
+                <Trans>Add an authenticator to serve as a secondary authentication method for signing documents.</Trans>
+              )}
+            </p>
           </div>
 
-          <ViewRecoveryCodesDialog />
-        </Alert>
-      )}
-
-      <Alert className="mt-6 flex flex-col justify-between p-6 sm:flex-row sm:items-center" variant="neutral">
-        <div className="mb-4 sm:mb-0">
-          <AlertTitle>
-            <Trans>Passkeys</Trans>
-          </AlertTitle>
-
-          <AlertDescription className="mr-4">
-            <Trans>Allows authenticating using biometrics, password managers, hardware keys, etc.</Trans>
-          </AlertDescription>
+          {user.twoFactorEnabled ? <DisableAuthenticatorAppDialog /> : <EnableAuthenticatorAppDialog />}
         </div>
 
-        <Button asChild variant="outline" className="bg-background">
-          <Link to="/settings/security/passkeys">
-            <Trans>Manage passkeys</Trans>
-          </Link>
-        </Button>
-      </Alert>
+        {user.twoFactorEnabled && (
+          <div className="flex flex-col justify-between gap-4 py-6 sm:flex-row sm:items-center">
+            <div className="min-w-0">
+              <h3 className="font-semibold text-sm">
+                <Trans>Recovery codes</Trans>
+              </h3>
 
-      <Alert className="mt-6 flex flex-col justify-between p-6 sm:flex-row sm:items-center" variant="neutral">
-        <div className="mr-4 mb-4 sm:mb-0">
-          <AlertTitle>
-            <Trans>Recent activity</Trans>
-          </AlertTitle>
+              <p className="mt-1 text-muted-foreground text-sm">
+                <Trans>
+                  Two factor authentication recovery codes are used to access your account in the event that you lose
+                  access to your authenticator app.
+                </Trans>
+              </p>
+            </div>
 
-          <AlertDescription className="mr-2">
-            <Trans>View all recent security activity related to your account.</Trans>
-          </AlertDescription>
+            <ViewRecoveryCodesDialog />
+          </div>
+        )}
+
+        <div className="flex flex-col justify-between gap-4 py-6 sm:flex-row sm:items-center">
+          <div className="min-w-0">
+            <h3 className="font-semibold text-sm">
+              <Trans>Passkeys</Trans>
+            </h3>
+
+            <p className="mt-1 text-muted-foreground text-sm">
+              <Trans>Allows authenticating using biometrics, password managers, hardware keys, etc.</Trans>
+            </p>
+          </div>
+
+          <Button asChild variant="outline" className="shrink-0 whitespace-nowrap">
+            <Link to="/settings/security/passkeys">
+              <Trans>Manage passkeys</Trans>
+            </Link>
+          </Button>
         </div>
 
-        <Button asChild variant="outline" className="bg-background">
-          <Link to="/settings/security/activity">
-            <Trans>View activity</Trans>
-          </Link>
-        </Button>
-      </Alert>
+        <div className="flex flex-col justify-between gap-4 py-6 sm:flex-row sm:items-center">
+          <div className="min-w-0">
+            <h3 className="font-semibold text-sm">
+              <Trans>Recent activity</Trans>
+            </h3>
 
-      <Alert className="mt-6 flex flex-col justify-between p-6 sm:flex-row sm:items-center" variant="neutral">
-        <div className="mr-4 mb-4 sm:mb-0">
-          <AlertTitle>
-            <Trans>Active sessions</Trans>
-          </AlertTitle>
+            <p className="mt-1 text-muted-foreground text-sm">
+              <Trans>View all recent security activity related to your account.</Trans>
+            </p>
+          </div>
 
-          <AlertDescription className="mr-2">
-            <Trans>View and manage all active sessions for your account.</Trans>
-          </AlertDescription>
+          <Button asChild variant="outline" className="shrink-0 whitespace-nowrap">
+            <Link to="/settings/security/activity">
+              <Trans>View activity</Trans>
+            </Link>
+          </Button>
         </div>
 
-        <Button asChild variant="outline" className="bg-background">
-          <Link to="/settings/security/sessions">
-            <Trans>Manage sessions</Trans>
-          </Link>
-        </Button>
-      </Alert>
+        <div className="flex flex-col justify-between gap-4 py-6 sm:flex-row sm:items-center">
+          <div className="min-w-0">
+            <h3 className="font-semibold text-sm">
+              <Trans>Active sessions</Trans>
+            </h3>
 
-      <Alert className="mt-6 flex flex-col justify-between p-6 sm:flex-row sm:items-center" variant="neutral">
-        <div className="mr-4 mb-4 sm:mb-0">
-          <AlertTitle>
-            <Trans>Linked Accounts</Trans>
-          </AlertTitle>
+            <p className="mt-1 text-muted-foreground text-sm">
+              <Trans>View and manage all active sessions for your account.</Trans>
+            </p>
+          </div>
 
-          <AlertDescription className="mr-2">
-            <Trans>View and manage all login methods linked to your account.</Trans>
-          </AlertDescription>
+          <Button asChild variant="outline" className="shrink-0 whitespace-nowrap">
+            <Link to="/settings/security/sessions">
+              <Trans>Manage sessions</Trans>
+            </Link>
+          </Button>
         </div>
 
-        <Button asChild variant="outline" className="bg-background">
-          <Link to="/settings/security/linked-accounts">
-            <Trans>Manage linked accounts</Trans>
-          </Link>
-        </Button>
-      </Alert>
+        <div className="flex flex-col justify-between gap-4 py-6 sm:flex-row sm:items-center">
+          <div className="min-w-0">
+            <h3 className="font-semibold text-sm">
+              <Trans>Linked Accounts</Trans>
+            </h3>
+
+            <p className="mt-1 text-muted-foreground text-sm">
+              <Trans>View and manage all login methods linked to your account.</Trans>
+            </p>
+          </div>
+
+          <Button asChild variant="outline" className="shrink-0 whitespace-nowrap">
+            <Link to="/settings/security/linked-accounts">
+              <Trans>Manage linked accounts</Trans>
+            </Link>
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

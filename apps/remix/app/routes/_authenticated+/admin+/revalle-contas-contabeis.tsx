@@ -6,6 +6,7 @@ import { Label } from '@documenso/ui/primitives/label';
 import { Textarea } from '@documenso/ui/primitives/textarea';
 import { useToast } from '@documenso/ui/primitives/use-toast';
 import { Trans, useLingui } from '@lingui/react/macro';
+import { FileUpIcon } from 'lucide-react';
 import { DateTime } from 'luxon';
 import { type ChangeEvent, useEffect, useState } from 'react';
 
@@ -159,15 +160,31 @@ const ImportSection = ({ onApplied }: { onApplied: () => void }) => {
         <Label htmlFor="revalle-accounts-file">
           <Trans>Enviar arquivo CSV</Trans>
         </Label>
-        <Input
-          key={fileKey}
-          id="revalle-accounts-file"
-          type="file"
-          accept=".csv,text/csv"
-          className="max-w-sm"
-          disabled={isPreviewing || isImporting}
-          onChange={(event) => void onFile(event)}
-        />
+        {/* REVALLE: redesign v3. Mesmo input e mesmo handler; o seletor nativo (inglês) fica escondido atrás de um botão em português, como em /verificar. */}
+        <div className="flex min-w-0 max-w-md flex-wrap items-center gap-3 rounded-[13px] border border-input bg-background p-2">
+          <input
+            key={fileKey}
+            id="revalle-accounts-file"
+            type="file"
+            accept=".csv,text/csv"
+            className="peer sr-only"
+            disabled={isPreviewing || isImporting}
+            onChange={(event) => void onFile(event)}
+          />
+          <label
+            htmlFor="revalle-accounts-file"
+            className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full bg-accent px-4 font-semibold text-accent-foreground text-sm transition-colors hover:bg-accent/80 peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background peer-disabled:cursor-not-allowed peer-disabled:opacity-50"
+          >
+            <FileUpIcon aria-hidden className="h-4 w-4" />
+            <Trans>Escolher arquivo CSV</Trans>
+          </label>
+          <span
+            className="line-clamp-2 min-w-0 flex-1 text-muted-foreground text-sm [overflow-wrap:anywhere]"
+            title={fileName ?? undefined}
+          >
+            {fileName ?? <Trans>Nenhum arquivo escolhido</Trans>}
+          </span>
+        </div>
       </div>
 
       <div className="mt-4 space-y-2">

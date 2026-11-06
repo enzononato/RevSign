@@ -133,6 +133,24 @@ export default function AdminRevallePerfisPage() {
             </tr>
           </thead>
           <tbody>
+            {/* REVALLE: redesign v3. Linhas de esqueleto enquanto carrega. */}
+            {isPending &&
+              Array.from({ length: 6 }, (_, index) => (
+                <tr key={`skeleton-${index}`} className="border-t" aria-hidden>
+                  <td className="p-3">
+                    <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+                  </td>
+                  <td className="p-3">
+                    <div className="h-4 w-48 animate-pulse rounded bg-muted" />
+                  </td>
+                  <td className="p-3">
+                    <div className="h-6 w-11 animate-pulse rounded-full bg-muted" />
+                  </td>
+                  <td className="p-3">
+                    <div className="h-6 w-11 animate-pulse rounded-full bg-muted" />
+                  </td>
+                </tr>
+              ))}
             {users.map((user) => (
               <tr key={user.id} className="border-t hover:bg-accent/60">
                 <td className="p-3">{user.name?.trim() || '-'}</td>

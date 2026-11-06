@@ -5,7 +5,7 @@ import { forwardRef, type ReactNode } from 'react';
 /** Caixa de filtro do redesign v3: rótulo + valor atual; azul quando o filtro restringe a lista. */
 export const filterBoxClassName = (isSet: boolean) =>
   cn(
-    'relative inline-flex h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[13px] bg-card pl-3.5 pr-3 font-semibold text-muted-foreground text-sm transition-colors',
+    'relative inline-flex h-11 min-w-0 w-full md:w-auto md:shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[13px] bg-card pl-3 pr-2.5 font-semibold text-[13px] text-muted-foreground md:pl-3.5 md:pr-3 md:text-sm transition-colors',
     'ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2',
     isSet
       ? 'bg-accent shadow-[inset_0_0_0_2px_hsl(var(--brand-text))]'
@@ -15,7 +15,11 @@ export const filterBoxClassName = (isSet: boolean) =>
 const FilterBoxValue = ({ label, value, isSet }: { label: ReactNode; value: ReactNode; isSet: boolean }) => (
   <>
     <span>{label}</span>
-    <span className={cn('font-bold', isSet ? 'text-brand-text' : 'text-foreground')}>{value}</span>
+    <span
+      className={cn('min-w-0 flex-1 truncate font-bold md:flex-none', isSet ? 'text-brand-text' : 'text-foreground')}
+    >
+      {value}
+    </span>
     <ChevronDownIcon className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
   </>
 );

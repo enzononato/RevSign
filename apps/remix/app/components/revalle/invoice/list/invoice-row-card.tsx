@@ -50,105 +50,106 @@ export const InvoiceRowCard = ({ row, viewer }: InvoiceRowCardProps) => {
 
   return (
     <article
-      className="@container rounded-card bg-card px-4 py-4 shadow-card sm:pr-[18px] sm:pl-[22px]"
+      className="@container rounded-card bg-card px-4 py-3.5 shadow-card sm:pr-[18px] sm:pl-[22px]"
       data-testid="invoice-row"
     >
-      <div className="flex @2xl:grid @2xl:grid-cols-[minmax(0,1fr)_150px_168px] flex-col @2xl:items-center @2xl:gap-[18px] gap-4">
+      <div className="flex @2xl:grid @2xl:grid-cols-[minmax(0,1fr)_132px_152px] flex-col @2xl:items-center @2xl:gap-[18px] gap-3">
         <div className="min-w-0">
           <h3 className="min-w-0 font-bold font-sans text-base leading-snug tracking-normal">
             {row.link ? (
               <Link
                 to={row.link}
-                className="line-clamp-2 break-words rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="block truncate rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 title={aiTitle ? t`Lidos pela IA, confira no PDF` : undefined}
               >
                 {title}
               </Link>
             ) : (
-              <span className="line-clamp-2 break-words" title={aiTitle ? t`Lidos pela IA, confira no PDF` : undefined}>
+              <span className="block truncate" title={aiTitle ? t`Lidos pela IA, confira no PDF` : undefined}>
                 {title}
               </span>
             )}
           </h3>
 
-          {aiTitle && (
-            <p
-              className="mt-0.5 truncate text-muted-foreground text-xs"
-              data-testid="invoice-row-data"
-              title={row.title}
-            >
-              {row.title}
-            </p>
-          )}
-
-          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
-            {row.account ? (
-              <Tag code={row.account.code}>{row.account.name}</Tag>
-            ) : (
-              <Tag>
-                <Trans>No account</Trans>
-              </Tag>
-            )}
-
-            <span data-testid="invoice-row-cost-center" className="contents">
-              {row.costCenterCode ? (
-                <Tag code={row.costCenterCode}>{costCenterName(row.costCenterCode)}</Tag>
+          <div className="mt-1.5 flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+              {row.account ? (
+                <Tag code={row.account.code}>{row.account.name}</Tag>
               ) : (
                 <Tag>
-                  <Trans>Sem centro de custo</Trans>
+                  <Trans>No account</Trans>
                 </Tag>
               )}
-            </span>
 
-            {/* REVALLE (Fase 8): só vem verdadeiro para o Financeiro, a Contabilidade e o admin. */}
-            {row.isPossibleDuplicate && (
-              <span
-                className="inline-flex h-[26px] items-center whitespace-nowrap rounded-full bg-warning-bg px-2.5 font-semibold text-[13px] text-warning-text"
-                title={t`Outra nota enviada tem a mesma chave de acesso ou o mesmo arquivo. Confira antes de aprovar.`}
-                data-testid="invoice-row-duplicate"
-              >
-                <Trans>Possível duplicada</Trans>
+              <span data-testid="invoice-row-cost-center" className="contents">
+                {row.costCenterCode ? (
+                  <Tag code={row.costCenterCode}>{costCenterName(row.costCenterCode)}</Tag>
+                ) : (
+                  <Tag>
+                    <Trans>Sem centro de custo</Trans>
+                  </Tag>
+                )}
               </span>
-            )}
 
-            {row.deleted && (
-              <span className="inline-flex h-[26px] items-center whitespace-nowrap rounded-full bg-danger-bg px-2.5 font-semibold text-[13px] text-destructive">
-                <Trans>excluído pelo remetente</Trans>
-              </span>
-            )}
+              {/* REVALLE (Fase 8): só vem verdadeiro para o Financeiro, a Contabilidade e o admin. */}
+              {row.isPossibleDuplicate && (
+                <span
+                  className="inline-flex h-[26px] shrink-0 items-center whitespace-nowrap rounded-full bg-warning-bg px-2.5 font-semibold text-[13px] text-warning-text"
+                  title={t`Outra nota enviada tem a mesma chave de acesso ou o mesmo arquivo. Confira antes de aprovar.`}
+                  data-testid="invoice-row-duplicate"
+                >
+                  <Trans>Possível duplicada</Trans>
+                </span>
+              )}
 
-            {/* Pendência já aparece na pílula; aqui só o que já foi resolvido. */}
-            {row.financeStatus === 'APPROVED' && (
-              <DoneTag testId="invoice-row-finance" title={`${t`Situação no Financeiro`}: ${financeLabel}`}>
-                <Trans>Account approved</Trans>
-              </DoneTag>
-            )}
+              {row.deleted && (
+                <span className="inline-flex h-[26px] shrink-0 items-center whitespace-nowrap rounded-full bg-danger-bg px-2.5 font-semibold text-[13px] text-destructive">
+                  <Trans>excluído pelo remetente</Trans>
+                </span>
+              )}
 
-            {row.costCenterValidatedAt && (
-              <DoneTag
-                testId="invoice-row-accounting"
-                title={`${t`Validação da Contabilidade`}: ${accountingStatusLabel(row)}`}
-              >
-                <Trans>Cost center validated</Trans>
-              </DoneTag>
-            )}
+              {/* Pendência já aparece na pílula; aqui só o que já foi resolvido. */}
+              {row.financeStatus === 'APPROVED' && (
+                <DoneTag testId="invoice-row-finance" title={`${t`Situação no Financeiro`}: ${financeLabel}`}>
+                  <Trans>Account approved</Trans>
+                </DoneTag>
+              )}
 
+              {row.costCenterValidatedAt && (
+                <DoneTag
+                  testId="invoice-row-accounting"
+                  title={`${t`Validação da Contabilidade`}: ${accountingStatusLabel(row)}`}
+                >
+                  <Trans>Cost center validated</Trans>
+                </DoneTag>
+              )}
+            </div>
             {row.invoiceData?.totalAmountCents != null && (
-              <span className="ml-1 whitespace-nowrap font-extrabold text-sm" title={t`Lidos pela IA, confira no PDF`}>
+              <span
+                className="ml-auto shrink-0 whitespace-nowrap pl-1 font-extrabold text-sm"
+                title={t`Lidos pela IA, confira no PDF`}
+              >
                 {formatInvoiceAmount(row.invoiceData.totalAmountCents)}
               </span>
             )}
           </div>
 
-          <p className="mt-1.5 break-words text-[13px] text-muted-foreground">
-            {sentAtLabel ? (
-              <Trans>
-                Sent by {sender} · {sentAtLabel}
-              </Trans>
-            ) : (
-              <Trans>From {sender} · not sent yet</Trans>
+          <p className="mt-1 flex min-w-0 gap-1 text-[13px] text-muted-foreground">
+            <span className="shrink-0 whitespace-nowrap">
+              {sentAtLabel ? (
+                <Trans>
+                  Sent by {sender} · {sentAtLabel}
+                </Trans>
+              ) : (
+                <Trans>From {sender} · not sent yet</Trans>
+              )}
+              {row.version > 1 && ` · v${row.version}`}
+            </span>
+            {aiTitle && (
+              <span className="min-w-0 truncate" data-testid="invoice-row-data" title={row.title}>
+                · {row.title}
+              </span>
             )}
-            {row.version > 1 && ` · v${row.version}`}
           </p>
         </div>
 
@@ -166,7 +167,7 @@ export const InvoiceRowCard = ({ row, viewer }: InvoiceRowCardProps) => {
 };
 
 const Tag = ({ code, children }: { code?: string; children?: ReactNode }) => (
-  <span className="inline-flex h-[26px] min-w-0 max-w-full items-center gap-1.5 rounded-full bg-muted px-2.5 font-semibold text-[13px]">
+  <span className="inline-flex h-[26px] min-w-[5rem] max-w-[12rem] items-center gap-1.5 rounded-full bg-muted px-2.5 font-semibold text-[13px]">
     {code && <em className="shrink-0 font-display font-extrabold text-[12.5px] text-brand-text not-italic">{code}</em>}
     {children && <span className="min-w-0 truncate">{children}</span>}
   </span>
@@ -174,7 +175,7 @@ const Tag = ({ code, children }: { code?: string; children?: ReactNode }) => (
 
 const DoneTag = ({ children, title, testId }: { children: ReactNode; title: string; testId: string }) => (
   <span
-    className="inline-flex h-[26px] items-center gap-1 whitespace-nowrap rounded-full bg-success-bg px-2.5 font-semibold text-[13px] text-success"
+    className="inline-flex h-[26px] shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-success-bg px-2.5 font-semibold text-[13px] text-success"
     title={title}
     data-testid={testId}
   >
