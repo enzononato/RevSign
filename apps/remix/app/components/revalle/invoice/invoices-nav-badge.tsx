@@ -24,7 +24,7 @@ export const InvoicesNavBadge = ({ className }: { className?: string }) => {
       aria-label={total === 1 ? t`1 nota fiscal aguardando você` : t`${total} notas fiscais aguardando você`}
       data-testid="invoices-nav-badge"
       className={cn(
-        'inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-primary px-1.5 font-semibold text-primary-foreground text-xs leading-none',
+        'inline-flex h-6 min-w-[24px] items-center justify-center rounded-full bg-counter px-[7px] font-display font-extrabold text-[12.5px] text-counter-foreground tabular-nums leading-none',
         className,
       )}
     >

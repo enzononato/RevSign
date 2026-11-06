@@ -13,9 +13,9 @@ import {
 } from '@documenso/lib/utils/organisations';
 import { extractInitials } from '@documenso/lib/utils/recipient-formatter';
 import { canExecuteTeamAction, formatAnalyticsPath } from '@documenso/lib/utils/teams';
+import { trpc } from '@documenso/trpc/react';
 import { AnimateGenericFadeInOut } from '@documenso/ui/components/animate/animate-generic-fade-in-out';
 import { cn } from '@documenso/ui/lib/utils';
-import { AvatarWithText } from '@documenso/ui/primitives/avatar';
 import { Button } from '@documenso/ui/primitives/button';
 import {
   DropdownMenu,
@@ -32,7 +32,14 @@ import { Link, useLocation } from 'react-router';
 
 import { useOptionalCurrentTeam } from '~/providers/team';
 
-export const OrgMenuSwitcher = () => {
+// REVALLE: redesign v3. The trigger is the user card at the bottom of the blue shell; the menu content is upstream.
+export type OrgMenuSwitcherProps = {
+  /** Where the menu opens: to the right of the card in the desktop sidebar, above it in the mobile sheet. */
+  side?: 'right' | 'top';
+  contentClassName?: string;
+};
+
+export const OrgMenuSwitcher = ({ side = 'right', contentClassName }: OrgMenuSwitcherProps) => {
   const { _ } = useLingui();
 
   const { user, organisations } = useSession();
@@ -111,6 +118,27 @@ export const OrgMenuSwitcher = () => {
     };
   }, [currentTeam, currentOrganisation, user]);
 
+  // REVALLE: the card's second line is the person's NF profile; the query is the one the sidebar counter already runs.
+  const { data: invoiceCounts } = trpc.revalle.invoice.pendingCounts.useQuery(undefined, { refetchInterval: 60_000 });
+
+  const isFinance = invoiceCounts?.finance !== null && invoiceCounts?.finance !== undefined;
+  const isAccounting = invoiceCounts?.accounting !== null && invoiceCounts?.accounting !== undefined;
+
+  const userCardName = user.name || user.email;
+  const userCardInitials = user.name ? extractInitials(user.name) : user.email.slice(0, 1).toUpperCase();
+  const userCardAvatarSrc = formatAvatarUrl(user.avatarImageId);
+
+  const userCardLine =
+    isFinance && isAccounting
+      ? _(msg`Finance and Accounting`)
+      : isFinance
+        ? _(msg`Financeiro`)
+        : isAccounting
+          ? _(msg`Contabilidade`)
+          : currentTeam || currentOrganisation
+            ? dropdownMenuAvatarText.primaryText
+            : dropdownMenuAvatarText.secondaryText;
+
   const handleOpenChange = (open: boolean) => {
     if (open) {
       setHoveredOrgId(currentOrganisation?.id || null);
@@ -122,25 +150,37 @@ export const OrgMenuSwitcher = () => {
   return (
     <DropdownMenu open={isOpen} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
-        <Button
+        {/* REVALLE: user card (avatar tile, name, profile line) */}
+        <button
+          type="button"
           data-testid="menu-switcher"
-          variant="none"
-          className="relative flex h-12 flex-row items-center px-0 py-2 ring-0 focus:outline-none focus-visible:border-0 focus-visible:ring-0 focus-visible:ring-transparent md:px-2"
+          className="flex w-full min-w-0 items-center gap-[11px] rounded-2xl bg-white/[.09] p-2.5 text-left text-shell-foreground transition-colors duration-150 hover:bg-white/[.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white data-[state=open]:bg-white/[.14]"
         >
-          <AvatarWithText
-            avatarSrc={dropdownMenuAvatarText.avatarSrc}
-            avatarFallback={dropdownMenuAvatarText.avatarFallback}
-            primaryText={dropdownMenuAvatarText.primaryText}
-            secondaryText={dropdownMenuAvatarText.secondaryText}
-            rightSideComponent={<ChevronsUpDown className="ml-auto h-4 w-4 text-muted-foreground" />}
-            textSectionClassName="hidden lg:flex"
-          />
-        </Button>
+          {userCardAvatarSrc ? (
+            <img src={userCardAvatarSrc} alt="" className="h-[38px] w-[38px] shrink-0 rounded-xl object-cover" />
+          ) : (
+            <span
+              aria-hidden
+              className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-xl bg-white font-display font-extrabold text-[14px] text-shell"
+            >
+              {userCardInitials}
+            </span>
+          )}
+
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate font-bold text-[14px] leading-snug">{userCardName}</span>
+            <span className="truncate text-[12.5px] text-shell-muted leading-snug">{userCardLine}</span>
+          </span>
+
+          <ChevronsUpDown className="h-4 w-4 shrink-0 text-shell-muted" aria-hidden />
+        </button>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
-        className={cn('z-[60] ml-6 flex w-full divide-x divide-border p-0 md:ml-0 md:min-w-[40rem]')}
-        align="end"
+        className={cn('z-[60] flex w-full divide-x divide-border p-0 md:min-w-[40rem]', contentClassName)}
+        side={side}
+        align={side === 'right' ? 'end' : 'start'}
+        sideOffset={side === 'right' ? 14 : 8}
         forceMount
       >
         <div className="flex h-[400px] w-full divide-x">

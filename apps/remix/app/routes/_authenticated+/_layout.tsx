@@ -3,18 +3,18 @@ import { OrganisationProvider } from '@documenso/lib/client-only/providers/organ
 import { useSession } from '@documenso/lib/client-only/providers/session';
 import { getSiteSettings } from '@documenso/lib/server-only/site-settings/get-site-settings';
 import { SITE_SETTINGS_BANNER_ID } from '@documenso/lib/server-only/site-settings/schemas/banner';
-import { cn } from '@documenso/ui/lib/utils';
 import { Button } from '@documenso/ui/primitives/button';
 import { msg } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { Link, Outlet } from 'react-router';
 
 import { AppBanner } from '~/components/general/app-banner';
-import { Header } from '~/components/general/app-header';
 import { GenericErrorLayout } from '~/components/general/generic-error-layout';
 import { OrganisationBillingBanner } from '~/components/general/organisations/organisation-billing-banner';
 import { OrganisationQuotaBanner } from '~/components/general/organisations/organisation-quota-banner';
 import { VerifyEmailBanner } from '~/components/general/verify-email-banner';
+import { AppShell } from '~/components/revalle/shell/app-shell'; // REVALLE:
+import { isEditorRoute } from '~/components/revalle/shell/shell-routes'; // REVALLE:
 import { authenticatedMiddleware } from '~/middleware/authenticated';
 import { TeamProvider } from '~/providers/team';
 
@@ -71,11 +71,7 @@ export default function Layout({ loaderData, params, matches }: Route.ComponentP
   const teamNotFound = params.teamUrl && !currentTeam;
 
   // Hide the header for editor routes.
-  const hideHeader = matches.some(
-    (match) =>
-      match?.id === 'routes/_authenticated+/t.$teamUrl+/documents.$id.edit' ||
-      match?.id === 'routes/_authenticated+/t.$teamUrl+/templates.$id.edit',
-  );
+  const hideHeader = isEditorRoute(matches); // REVALLE: the editor also hides the sidebar shell
 
   if (orgNotFound || teamNotFound) {
     return (
@@ -108,26 +104,37 @@ export default function Layout({ loaderData, params, matches }: Route.ComponentP
   return (
     <OrganisationProvider organisation={currentOrganisation}>
       <TeamProvider team={currentTeam || null}>
-        <div className={cn({ 'md:flex md:h-dvh md:flex-col md:overflow-hidden': layoutMode === 'settings' })}>
-          <OrganisationBillingBanner />
+        {/* REVALLE: redesign v3. Blue sidebar shell (top bar + sheet on mobile); banners sit in the main column. */}
+        {hideHeader ? (
+          <div>
+            <OrganisationBillingBanner />
 
-          <OrganisationQuotaBanner />
+            <OrganisationQuotaBanner />
 
-          {!user.emailVerified && <VerifyEmailBanner email={user.email} />}
+            {!user.emailVerified && <VerifyEmailBanner email={user.email} />}
 
-          {banner && !hideHeader && <AppBanner banner={banner} />}
+            <main>
+              <Outlet />
+            </main>
+          </div>
+        ) : (
+          <AppShell
+            isSettingsLayout={layoutMode === 'settings'}
+            banners={
+              <>
+                <OrganisationBillingBanner />
 
-          {!hideHeader && <Header fullWidth={layoutMode === 'settings'} />}
+                <OrganisationQuotaBanner />
 
-          <main
-            className={cn({
-              'mt-8 pb-8 md:mt-12 md:pb-12': !hideHeader && layoutMode !== 'settings',
-              'md:flex md:min-h-0 md:flex-1 md:flex-col': layoutMode === 'settings',
-            })}
+                {!user.emailVerified && <VerifyEmailBanner email={user.email} />}
+
+                {banner && <AppBanner banner={banner} />}
+              </>
+            }
           >
             <Outlet />
-          </main>
-        </div>
+          </AppShell>
+        )}
       </TeamProvider>
     </OrganisationProvider>
   );

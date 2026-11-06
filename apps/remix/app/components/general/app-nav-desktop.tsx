@@ -1,112 +1,49 @@
-import { useSession } from '@documenso/lib/client-only/providers/session';
+import { getRootHref } from '@documenso/lib/utils/params';
 import { cn } from '@documenso/ui/lib/utils';
-import { Button } from '@documenso/ui/primitives/button';
-import { msg } from '@lingui/core/macro';
-import { useLingui } from '@lingui/react';
-import { Trans } from '@lingui/react/macro';
-import { AnimatePresence, motion } from 'framer-motion';
-import { Search } from 'lucide-react';
 import type { HTMLAttributes } from 'react';
-import { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router';
+import { Link, useParams } from 'react-router';
+import { RevsignWordmark } from '~/components/revalle/shell/revsign-wordmark';
+import { ShellNavList, ShellSearchButton } from '~/components/revalle/shell/shell-nav';
+import { SHELL_GRID_STYLE } from '~/components/revalle/shell/shell-routes';
+import { SourceCodeLink } from '~/components/revalle/source-code-link';
 
-import { InvoicesNavBadge } from '~/components/revalle/invoice/invoices-nav-badge'; // REVALLE:
-import { useOptionalCurrentTeam } from '~/providers/team';
+import { OrgMenuSwitcher } from './org-menu-switcher';
 
-export type AppNavDesktopProps = HTMLAttributes<HTMLDivElement> & {
+export type AppNavDesktopProps = HTMLAttributes<HTMLElement> & {
   setIsCommandMenuOpen: (value: boolean) => void;
 };
 
+// REVALLE: redesign v3. The top header nav became the fixed 244px blue sidebar (wordmark, search, nav, user card, AGPL).
 export const AppNavDesktop = ({ className, setIsCommandMenuOpen, ...props }: AppNavDesktopProps) => {
-  const { _ } = useLingui();
-  const { organisations } = useSession();
-
-  const { pathname } = useLocation();
-
-  const [modifierKey, setModifierKey] = useState(() => 'Ctrl');
-
-  const currentTeam = useOptionalCurrentTeam();
-
-  useEffect(() => {
-    const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown';
-    const isMacOS = /Macintosh|Mac\s+OS\s+X/i.test(userAgent);
-
-    setModifierKey(isMacOS ? '⌘' : 'Ctrl');
-  }, []);
-
-  const menuNavigationLinks = useMemo(() => {
-    let teamUrl = currentTeam?.url || null;
-
-    if (!teamUrl && organisations.length === 1 && organisations[0].teams.length === 1) {
-      teamUrl = organisations[0].teams[0].url;
-    }
-
-    // REVALLE: "Notas fiscais" para todo usuário logado, com ou sem time no contexto.
-    const invoicesLink = { href: '/notas-fiscais', label: msg`Notas fiscais` };
-
-    if (!teamUrl) {
-      return [invoicesLink];
-    }
-
-    return [
-      {
-        href: `/t/${teamUrl}/documents`,
-        label: msg`Documents`,
-      },
-      // REVALLE: Modelos saem do menu (Fase 7, spec §6).
-      invoicesLink, // REVALLE:
-    ];
-  }, [currentTeam, organisations]);
+  const params = useParams();
 
   return (
-    <div className={cn('ml-8 hidden flex-1 items-center gap-x-12 md:flex md:justify-between', className)} {...props}>
-      <div>
-        <AnimatePresence>
-          {menuNavigationLinks.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex items-baseline gap-x-6"
-            >
-              {menuNavigationLinks.map(({ href, label }) => (
-                <Link
-                  key={href}
-                  to={href}
-                  className={cn(
-                    // REVALLE: whitespace-nowrap (com o contador, "Notas fiscais" quebrava em duas linhas)
-                    'whitespace-nowrap rounded-md font-medium text-muted-foreground leading-5 ring-offset-background hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-muted-foreground/60',
-                    {
-                      'text-foreground dark:text-muted-foreground': pathname?.startsWith(href),
-                    },
-                  )}
-                >
-                  {_(label)}
-                  {/* REVALLE: contador de notas fiscais aguardando o Financeiro ou a Contabilidade */}
-                  {href === '/notas-fiscais' && <InvoicesNavBadge className="ml-2" />}
-                </Link>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
+    <aside
+      className={cn(
+        'sticky top-0 hidden h-dvh w-[244px] shrink-0 flex-col gap-[30px] overflow-y-auto bg-shell px-[18px] pt-7 pb-5 text-shell-foreground md:flex',
+        className,
+      )}
+      style={SHELL_GRID_STYLE}
+      {...props}
+    >
+      <div className="flex flex-col gap-5">
+        <Link
+          to={getRootHref(params)}
+          className="self-start rounded-xl px-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        >
+          <RevsignWordmark variant="onBrand" size="lg" withTagline />
+        </Link>
+
+        <ShellSearchButton onClick={() => setIsCommandMenuOpen(true)} />
       </div>
 
-      <Button
-        variant="outline"
-        className="flex w-full max-w-96 items-center justify-between rounded-lg text-muted-foreground"
-        onClick={() => setIsCommandMenuOpen(true)}
-      >
-        <div className="flex items-center">
-          <Search className="mr-2 h-5 w-5" />
-          <Trans>Search</Trans>
-        </div>
+      <ShellNavList />
 
-        <div>
-          <div className="flex items-center rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground text-xs tracking-wider">
-            {modifierKey}+K
-          </div>
-        </div>
-      </Button>
-    </div>
+      <div className="mt-auto flex flex-col gap-[22px]">
+        <OrgMenuSwitcher />
+
+        <SourceCodeLink variant="shell" />
+      </div>
+    </aside>
   );
 };
