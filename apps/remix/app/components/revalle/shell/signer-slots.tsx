@@ -44,6 +44,8 @@ export const SignerSlots = ({ slots, max = 6, size = 'md', className }: SignerSl
               aria-label={`${slot.name}: ${slot.detail ?? STATE_LABEL[slot.state]}`}
               className={cn(
                 'relative inline-grid place-items-center rounded-[10px] font-black font-display leading-none',
+                // Área de toque de 44px sem mudar o desenho (o encaixe tem 26–30px).
+                "before:absolute before:-inset-[7px] before:content-['']",
                 size === 'sm' ? 'h-[26px] min-w-[26px] px-1 text-[10px]' : 'h-[30px] min-w-[30px] px-1.5 text-[11px]',
                 slot.state === 'signed' &&
                   'bg-primary text-primary-foreground shadow-[inset_0_-3px_0_hsl(var(--brand-deep))]',
