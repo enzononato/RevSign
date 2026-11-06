@@ -389,7 +389,10 @@ Legenda de "segredo?": **sim** = nunca no repositório, só no EasyPanel e no co
 | `NEXT_PUBLIC_SUPPORT_EMAIL` | E-mail de suporte mostrado nas telas (Suporte, avisos) e nos e-mails | `projetos.ti@revalle.com.br` | não |
 | `NEXT_PRIVATE_REVALLE_ADMIN_EMAIL` | Conta promovida a ADMIN quando o app sobe. Também é o e-mail que se cadastra sem CPF e data de nascimento mesmo sem estar na base (os e-mails que já têm vínculo ou estão na base de colaboradores também se cadastram sem CPF) | `projetos.ti@revalle.com.br` | não |
 | `NEXT_PRIVATE_REVALLE_IDENTITY_CHECK` | Confere CPF e data de nascimento na base de colaboradores no cadastro e na primeira assinatura. `required` (padrão) ou `disabled` (pula a etapa; só homologação sem a base, nunca em produção) | não definir (vale `required`) ou `disabled` enquanto não houver base | não |
-| `COLABORADORES_DATABASE_URL` | Conexão SÓ DE LEITURA com a view `vw_colaboradores_assinatura` da base de colaboradores (`postgres://revsign_leitura:<senha>@<host>:5432/<banco>`; ver `verificacao.md`) | URL da base real, ou da base fictícia de ensaio | sim |
+| `COLABORADORES_DATABASE_URL` | Conexão com a base de colaboradores. O RevSign só consulta: a sessão abre em modo leitura e o banco recusa qualquer gravação (ver `verificacao.md`) | `postgres://<usuário>:<senha>@agente_revalle_postgres:5432/agente_revalle` | sim |
+| `COLABORADORES_TABLE` | Tabela (ou view) lida. As colunas são descobertas sozinhas pelo nome | `colaboradores-revalle` (padrão: `vw_colaboradores_assinatura`) | sim, na Revalle |
+| `COLABORADORES_SCHEMA` | Schema da tabela | não definir (vale `public`) | não |
+| `COLABORADORES_COLUMNS` | (Opcional) só se a detecção errar: `campo=coluna,campo=coluna`, com os campos `cpf`, `nome`, `data_nascimento`, `cargo`, `setor`, `unidade`, `matricula`, `email`, `telefone`, `situacao` | `data_nascimento=dt_nasc` | não |
 | `NEXT_PRIVATE_DATABASE_URL` | Conexão com o banco | Internal Connection URL do passo 2 | sim |
 | `NEXT_PRIVATE_DIRECT_DATABASE_URL` | Conexão direta com o banco (igual à anterior) | o mesmo valor | sim |
 | `NEXT_PUBLIC_WEBAPP_URL` | Endereço público do site (links dos e-mails). A linha 5 do carimbo ("Confira em …/verificar") usa o valor no momento da selagem: trocar o endereço depois só muda PDFs selados ou reselados a partir daí | `https://assinatura-hml.revalle.com.br` | não |
