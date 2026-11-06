@@ -5273,3 +5273,21 @@ msgstr "Nenhum campo correspondente"
 
 msgid "No documents match your search and filters."
 msgstr "Nenhum documento combina com a busca e os filtros."
+
+msgid "Welcome back, we are lucky to have you."
+msgstr "Entre para assinar e acompanhar seus documentos."
+
+msgid "Waiting for completion"
+msgstr "Aguardando conclusão"
+
+msgid "Your signature has been recorded"
+msgstr "Sua assinatura foi registrada"
+
+msgid "Your approval has been recorded"
+msgstr "Sua aprovação foi registrada"
+
+msgid "Escolher arquivo CSV"
+msgstr "Escolher arquivo CSV"
+
+msgid "Nenhum arquivo escolhido"
+msgstr "Nenhum arquivo escolhido"

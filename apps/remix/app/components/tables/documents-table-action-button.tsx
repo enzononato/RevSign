@@ -7,6 +7,7 @@ import { Button } from '@documenso/ui/primitives/button';
 import { Trans } from '@lingui/react/macro';
 import { DocumentStatus, RecipientRole, SigningStatus } from '@prisma/client';
 import { CheckCircle, Download, Edit, EyeIcon, Pencil } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { match } from 'ts-pattern';
 
@@ -16,9 +17,11 @@ import { EnvelopeDownloadDialog } from '../dialogs/envelope-download-dialog';
 
 export type DocumentsTableActionButtonProps = {
   row: TDocumentRow;
+  /** REVALLE v3: o que mostrar quando a linha não tem ação para você (a pílula de situação do cartão). */
+  fallback?: ReactNode;
 };
 
-export const DocumentsTableActionButton = ({ row }: DocumentsTableActionButtonProps) => {
+export const DocumentsTableActionButton = ({ row, fallback = null }: DocumentsTableActionButtonProps) => {
   const { user } = useSession();
 
   const team = useCurrentTeam();
@@ -43,7 +46,7 @@ export const DocumentsTableActionButton = ({ row }: DocumentsTableActionButtonPr
 
   // TODO: Consider if want to keep this logic for hiding viewing for CC'ers
   if (recipient?.role === RecipientRole.CC && isComplete === false) {
-    return null;
+    return fallback;
   }
 
   // REVALLE: depois de assinar, o botão "View" continua ativo (a nota fiscal pode esperar dias o Financeiro): abre a página
@@ -121,6 +124,6 @@ export const DocumentsTableActionButton = ({ row }: DocumentsTableActionButtonPr
           }
         />
       ))
-      .otherwise(() => null)
+      .otherwise(() => fallback)
   );
 };

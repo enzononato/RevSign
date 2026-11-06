@@ -479,6 +479,7 @@ msgid "{name} agora é do Financeiro."
 msgstr ""
 
 #: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+#: apps/remix/app/components/tables/recipient-signer-slots.tsx
 msgid "{name} rejected"
 msgstr ""
 
@@ -567,6 +568,7 @@ msgid "{selectedCount} selected"
 msgstr "{selectedCount} 件選択済み"
 
 #: apps/remix/app/components/general/envelope-signing/envelope-signer-slots.tsx
+#: apps/remix/app/routes/_recipient+/sign.$token+/complete.tsx
 msgid "{signedCount} of {totalCount} have signed"
 msgstr ""
 
@@ -1435,8 +1437,6 @@ msgstr "操作"
 #: apps/remix/app/components/tables/admin-email-transports-table.tsx
 #: apps/remix/app/components/tables/admin-organisations-table.tsx
 #: apps/remix/app/components/tables/documents-table-action-dropdown.tsx
-#: apps/remix/app/components/tables/documents-table.tsx
-#: apps/remix/app/components/tables/inbox-table.tsx
 #: apps/remix/app/components/tables/organisation-email-domains-table.tsx
 #: apps/remix/app/components/tables/organisation-groups-table.tsx
 #: apps/remix/app/components/tables/organisation-member-invites-table.tsx
@@ -4233,8 +4233,6 @@ msgstr "アカウントを作成して、最先端の文書署名を今すぐ始
 #: apps/remix/app/components/general/template/template-page-view-information.tsx
 #: apps/remix/app/components/tables/admin-email-transports-table.tsx
 #: apps/remix/app/components/tables/admin-organisation-overview-table.tsx
-#: apps/remix/app/components/tables/documents-table.tsx
-#: apps/remix/app/components/tables/inbox-table.tsx
 #: apps/remix/app/components/tables/organisation-insights-table.tsx
 #: apps/remix/app/components/tables/organisation-insights-table.tsx
 #: apps/remix/app/components/tables/organisation-teams-table.tsx
@@ -4967,6 +4965,8 @@ msgid "Documenso will delete <0>all of your documents</0>, along with all of you
 msgstr "Documenso は<0>すべての文書</0>と、完了済み文書・署名・アカウントに紐づくその他すべてのリソースを削除します。"
 
 #: apps/remix/app/components/general/template/template-page-view-documents-table.tsx
+#: apps/remix/app/components/tables/documents-table.tsx
+#: apps/remix/app/components/tables/inbox-table.tsx
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/documents.$id.logs.tsx
 msgid "Document"
 msgstr "文書"
@@ -5605,6 +5605,7 @@ msgstr ""
 #: apps/remix/app/components/general/document/document-status.tsx
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-header.tsx
 #: apps/remix/app/components/general/template/template-page-view-documents-table.tsx
+#: apps/remix/app/components/tables/recipient-signer-slots.tsx
 #: packages/lib/constants/document.ts
 msgid "Draft"
 msgstr "下書き"
@@ -6493,6 +6494,10 @@ msgstr ""
 
 #: apps/remix/app/components/revalle/accounting/accounting-card.tsx
 msgid "Escolha um centro de custo diferente do atual."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Escolher arquivo CSV"
 msgstr ""
 
 #: apps/remix/app/components/revalle/accounting/accounting-card.tsx
@@ -8775,6 +8780,10 @@ msgstr "署名が必要"
 msgid "Needs to view"
 msgstr "閲覧が必要"
 
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Nenhum arquivo escolhido"
+msgstr ""
+
 #: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
 msgid "Nenhum destinatário."
 msgstr ""
@@ -10612,8 +10621,6 @@ msgstr "最近の文書"
 
 #: apps/remix/app/components/dialogs/template-direct-link-dialog.tsx
 #: apps/remix/app/components/general/template/template-page-view-documents-table.tsx
-#: apps/remix/app/components/tables/documents-table.tsx
-#: apps/remix/app/components/tables/inbox-table.tsx
 msgid "Recipient"
 msgstr "受信者"
 
@@ -11593,6 +11600,7 @@ msgid "Select access methods"
 msgstr "アクセス方法を選択"
 
 #: apps/remix/app/components/tables/documents-table.tsx
+#: apps/remix/app/components/tables/documents-table.tsx
 #: apps/remix/app/components/tables/templates-table.tsx
 msgid "Select all"
 msgstr "すべて選択"
@@ -11685,7 +11693,6 @@ msgstr "メールアドレスを選択または入力"
 msgid "Select passkey"
 msgstr "パスキーを選択"
 
-#: apps/remix/app/components/tables/documents-table.tsx
 #: apps/remix/app/components/tables/documents-table.tsx
 #: apps/remix/app/components/tables/templates-table.tsx
 msgid "Select row"
@@ -11875,8 +11882,6 @@ msgid "Send Test Email"
 msgstr "テストメールを送信"
 
 #: apps/remix/app/components/tables/documents-table-sender-filter.tsx
-#: apps/remix/app/components/tables/documents-table.tsx
-#: apps/remix/app/components/tables/inbox-table.tsx
 #: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
 msgid "Sender"
 msgstr "送信者"
@@ -12563,7 +12568,6 @@ msgstr "ファイルのアップロード中に問題が発生しました"
 msgid "Something went wrong!"
 msgstr "問題が発生しました。"
 
-#: apps/remix/app/components/tables/document-row-card.tsx
 #: packages/ui/primitives/data-table.tsx
 msgid "Something went wrong."
 msgstr "問題が発生しました。"
@@ -12625,8 +12629,6 @@ msgstr "統計"
 #: apps/remix/app/components/tables/admin-document-jobs-table.tsx
 #: apps/remix/app/components/tables/admin-organisations-table.tsx
 #: apps/remix/app/components/tables/documents-table-status-filter.tsx
-#: apps/remix/app/components/tables/documents-table.tsx
-#: apps/remix/app/components/tables/inbox-table.tsx
 #: apps/remix/app/components/tables/organisation-billing-invoices-table.tsx
 #: apps/remix/app/components/tables/organisation-email-domains-table.tsx
 #: apps/remix/app/components/tables/organisation-insights-table.tsx
@@ -14253,8 +14255,6 @@ msgstr ""
 #: apps/remix/app/components/dialogs/envelope-rename-dialog.tsx
 #: apps/remix/app/components/embed/authoring/configure-document-view.tsx
 #: apps/remix/app/components/general/template/template-page-view-documents-table.tsx
-#: apps/remix/app/components/tables/documents-table.tsx
-#: apps/remix/app/components/tables/inbox-table.tsx
 #: apps/remix/app/components/tables/organisation-insights-table.tsx
 #: apps/remix/app/components/tables/templates-table.tsx
 #: apps/remix/app/routes/_authenticated+/admin+/documents._index.tsx
@@ -15594,7 +15594,12 @@ msgid "Waiting"
 msgstr "保留中"
 
 #: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+#: apps/remix/app/components/tables/document-row-card.tsx
 msgid "Waiting for {name}"
+msgstr ""
+
+#: apps/remix/app/components/tables/recipient-signer-slots.tsx
+msgid "Waiting for completion"
 msgstr ""
 
 #: packages/email/template-components/template-document-pending.tsx
@@ -17040,6 +17045,10 @@ msgstr ""
 msgid "Your account has no password. Add one to sign in with your email and to sign documents that require it. We'll email you a link."
 msgstr ""
 
+#: apps/remix/app/routes/_recipient+/sign.$token+/complete.tsx
+msgid "Your approval has been recorded"
+msgstr ""
+
 #: apps/remix/app/components/forms/avatar-image.tsx
 msgid "Your avatar has been updated successfully."
 msgstr "アバターは正常に更新されました。"
@@ -17379,6 +17388,10 @@ msgstr ""
 #: packages/lib/utils/document-audit-logs.ts
 msgid "Your remote signature was applied"
 msgstr "リモート署名が適用されました"
+
+#: apps/remix/app/routes/_recipient+/sign.$token+/complete.tsx
+msgid "Your signature has been recorded"
+msgstr ""
 
 #: apps/remix/app/components/general/document-signing/csc-recipient-signing-in-progress-page.tsx
 #: apps/remix/app/components/general/envelope-signing/envelope-signing-csc-status.tsx

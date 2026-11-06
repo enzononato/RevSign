@@ -1,5 +1,6 @@
 import { useUpdateSearchParams } from '@documenso/lib/client-only/hooks/use-update-search-params';
 import { useSession } from '@documenso/lib/client-only/providers/session';
+import { formatRevalleDateTime } from '@documenso/lib/revalle/date-format';
 import { isDocumentCompleted } from '@documenso/lib/utils/document';
 import { findRecipientByEmail } from '@documenso/lib/utils/recipients';
 import { formatDocumentsPath } from '@documenso/lib/utils/teams';
@@ -13,19 +14,19 @@ import { TableCell } from '@documenso/ui/primitives/table';
 import { msg } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Loader } from 'lucide-react';
-import { DateTime } from 'luxon';
 import { useMemo, useTransition } from 'react';
 import { Link } from 'react-router';
 import { match } from 'ts-pattern';
 
-import { DocumentStatus } from '~/components/general/document/document-status';
 import { useCurrentTeam } from '~/providers/team';
 
 import {
-  DocumentRowCard,
-  DocumentRowCardError,
-  DocumentRowCardList,
-  DocumentRowCardSkeletons,
+  DOCUMENT_ROW_SLOTS_CLASS_NAME,
+  DocumentRowCardBody,
+  DocumentRowCardSelect,
+  DocumentRowCardSkeletonBody,
+  DocumentRowState,
+  documentRowCardTableClassName,
 } from './document-row-card';
 import { DocumentsTableActionButton } from './documents-table-action-button';
 import { DocumentsTableActionDropdown } from './documents-table-action-dropdown';
@@ -52,7 +53,7 @@ export const DocumentsTable = ({
   rowSelection,
   onRowSelectionChange,
 }: DocumentsTableProps) => {
-  const { _, i18n } = useLingui();
+  const { _ } = useLingui();
   const { user } = useSession();
 
   const team = useCurrentTeam();
@@ -60,6 +61,8 @@ export const DocumentsTable = ({
 
   const updateSearchParams = useUpdateSearchParams();
 
+  // REVALLE v3 (finish review 1, #1 e #7): cada linha é um cartão no padrão das NF (título; remetente · data em 24h;
+  // encaixes; uma pílula de ação ou de situação; menu "…"). A seleção em massa continua numa coluna própria.
   const columns = useMemo(() => {
     const cols: DataTableColumnDef<DocumentsTableRow>[] = [];
 
@@ -67,20 +70,25 @@ export const DocumentsTable = ({
       cols.push({
         id: 'select',
         header: ({ table }) => (
-          <Checkbox
-            checked={table.getIsAllPageRowsSelected()}
-            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-            aria-label={_(msg`Select all`)}
-            onClick={(e) => e.stopPropagation()}
-          />
+          <label className="flex h-11 cursor-pointer items-center gap-3.5 text-muted-foreground">
+            <Checkbox
+              checked={table.getIsAllPageRowsSelected()}
+              onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+              aria-label={_(msg`Select all`)}
+              onClick={(e) => e.stopPropagation()}
+            />
+            <span aria-hidden>{_(msg`Select all`)}</span>
+          </label>
         ),
         cell: ({ row }) => (
-          <Checkbox
-            checked={row.getIsSelected()}
-            onCheckedChange={(value) => row.toggleSelected(!!value)}
-            aria-label={_(msg`Select row`)}
-            onClick={(e) => e.stopPropagation()}
-          />
+          <DocumentRowCardSelect>
+            <Checkbox
+              checked={row.getIsSelected()}
+              onCheckedChange={(value) => row.toggleSelected(!!value)}
+              aria-label={_(msg`Select row`)}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </DocumentRowCardSelect>
         ),
         enableSorting: false,
         enableHiding: false,
@@ -88,56 +96,41 @@ export const DocumentsTable = ({
       });
     }
 
-    cols.push(
-      {
-        header: _(msg`Created`),
-        accessorKey: 'createdAt',
-        cell: ({ row }) => i18n.date(row.original.createdAt, { ...DateTime.DATETIME_SHORT, hourCycle: 'h12' }),
-      },
-      {
-        header: _(msg`Title`),
-        cell: ({ row }) => <DataTableTitle row={row.original} teamUrl={team?.url} teamEmail={team?.teamEmail?.email} />,
-      },
-      {
-        id: 'sender',
-        header: _(msg`Sender`),
-        cell: ({ row }) => row.original.user.name ?? row.original.user.email,
-      },
-      {
-        header: _(msg`Recipient`),
-        accessorKey: 'recipient',
-        // REVALLE v3: encaixes de quem assina no lugar da pilha de avatares. Na tabela, 3 encaixes + "+N" numa linha só
-        // (com 6 a coluna estreita quebrava em três linhas).
-        cell: ({ row }) => (
-          <RecipientSignerSlots
-            recipients={row.original.recipients}
-            documentStatus={row.original.status}
-            currentUserEmail={user.email}
-            max={3}
-            className="[&>div:first-child]:flex-nowrap"
-          />
-        ),
-      },
-      {
-        header: _(msg`Status`),
-        accessorKey: 'status',
-        cell: ({ row }) => <DocumentStatus pill status={row.original.status} />,
-        size: 140,
-      },
-      {
-        header: _(msg`Actions`),
-        cell: ({ row }) =>
-          (!row.original.deletedAt || isDocumentCompleted(row.original.status)) && (
-            <div className="flex items-center gap-x-4">
-              <DocumentsTableActionButton row={row.original} />
-              <DocumentsTableActionDropdown
-                row={row.original}
-                onMoveDocument={onMoveDocument ? () => onMoveDocument(row.original.envelopeId) : undefined}
+    cols.push({
+      id: 'document',
+      header: () => <span className="sr-only">{_(msg`Document`)}</span>,
+      cell: ({ row }) => {
+        const document = row.original;
+        const canAct = !document.deletedAt || isDocumentCompleted(document.status);
+        const statePill = <DocumentRowState status={document.status} recipients={document.recipients} />;
+
+        return (
+          <DocumentRowCardBody
+            title={<DataTableTitle row={document} teamUrl={team?.url} teamEmail={team?.teamEmail?.email} />}
+            meta={`${document.user.name ?? document.user.email} · ${formatRevalleDateTime(document.createdAt)}`}
+            slots={
+              <RecipientSignerSlots
+                recipients={document.recipients}
+                documentStatus={document.status}
+                currentUserEmail={user.email}
+                max={3}
+                withStatusSummary
+                className={DOCUMENT_ROW_SLOTS_CLASS_NAME}
               />
-            </div>
-          ),
+            }
+            action={canAct ? <DocumentsTableActionButton row={document} fallback={statePill} /> : statePill}
+            menu={
+              canAct && (
+                <DocumentsTableActionDropdown
+                  row={document}
+                  onMoveDocument={onMoveDocument ? () => onMoveDocument(document.envelopeId) : undefined}
+                />
+              )
+            }
+          />
+        );
       },
-    );
+    });
 
     return cols;
   }, [team, onMoveDocument, enableSelection, user.email]);
@@ -160,18 +153,14 @@ export const DocumentsTable = ({
 
   return (
     <div className="relative">
-      {/* REVALLE v3: tabela no computador; no celular, cartões (abaixo, junto da paginação) */}
       <DataTable
-        className="hidden md:block"
+        className={documentRowCardTableClassName({ withHeader: Boolean(enableSelection) })}
         columns={columns}
         data={results.data}
         perPage={results.perPage}
         currentPage={results.currentPage}
         totalPages={results.totalPages}
         onPaginationChange={onPaginationChange}
-        columnVisibility={{
-          sender: team !== undefined,
-        }}
         error={{
           enable: isLoadingError || false,
         }}
@@ -182,25 +171,13 @@ export const DocumentsTable = ({
             <>
               {enableSelection && (
                 <TableCell>
-                  <Skeleton className="h-4 w-4 rounded" />
+                  <DocumentRowCardSelect>
+                    <Skeleton className="h-4 w-4 rounded" />
+                  </DocumentRowCardSelect>
                 </TableCell>
               )}
               <TableCell>
-                <Skeleton className="h-4 w-40 rounded-full" />
-              </TableCell>
-              <TableCell>
-                <Skeleton className="h-4 w-20 rounded-full" />
-              </TableCell>
-              <TableCell className="py-4">
-                <div className="flex w-full flex-row items-center">
-                  <Skeleton className="h-10 w-10 flex-shrink-0 rounded-full" />
-                </div>
-              </TableCell>
-              <TableCell>
-                <Skeleton className="h-4 w-20 rounded-full" />
-              </TableCell>
-              <TableCell>
-                <Skeleton className="h-10 w-24 rounded" />
+                <DocumentRowCardSkeletonBody withMenu />
               </TableCell>
             </>
           ),
@@ -210,63 +187,7 @@ export const DocumentsTable = ({
         onRowSelectionChange={onRowSelectionChange}
         getRowId={(row) => row.envelopeId}
       >
-        {(table) => (
-          <>
-            <div className="-mt-8 md:hidden">
-              {isLoadingError ? (
-                <DocumentRowCardError />
-              ) : isLoading && results.data.length === 0 ? (
-                <DocumentRowCardSkeletons />
-              ) : (
-                <DocumentRowCardList>
-                  {table.getRowModel().rows.map((row) => {
-                    const document = row.original;
-                    const canAct = !document.deletedAt || isDocumentCompleted(document.status);
-
-                    return (
-                      <DocumentRowCard
-                        key={row.id}
-                        isSelected={row.getIsSelected()}
-                        select={
-                          enableSelection && (
-                            <Checkbox
-                              checked={row.getIsSelected()}
-                              onCheckedChange={(value) => row.toggleSelected(!!value)}
-                              aria-label={_(msg`Select row`)}
-                            />
-                          )
-                        }
-                        title={<DataTableTitle row={document} teamUrl={team?.url} teamEmail={team?.teamEmail?.email} />}
-                        meta={`${i18n.date(document.createdAt, DateTime.DATETIME_SHORT)} · ${document.user.name ?? document.user.email}`}
-                        slots={
-                          <RecipientSignerSlots
-                            recipients={document.recipients}
-                            documentStatus={document.status}
-                            currentUserEmail={user.email}
-                          />
-                        }
-                        status={<DocumentStatus pill status={document.status} />}
-                        menu={
-                          canAct && (
-                            <DocumentsTableActionDropdown
-                              row={document}
-                              onMoveDocument={onMoveDocument ? () => onMoveDocument(document.envelopeId) : undefined}
-                            />
-                          )
-                        }
-                        action={canAct && <DocumentsTableActionButton row={document} />}
-                      />
-                    );
-                  })}
-                </DocumentRowCardList>
-              )}
-            </div>
-
-            <div className="mt-6 md:mt-0">
-              <DataTablePagination additionalInformation="VisibleCount" table={table} />
-            </div>
-          </>
-        )}
+        {(table) => <DataTablePagination additionalInformation="VisibleCount" table={table} />}
       </DataTable>
 
       {isPending && (
@@ -277,6 +198,9 @@ export const DocumentsTable = ({
     </div>
   );
 };
+
+const TITLE_LINK_CLASS_NAME =
+  'rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 type DataTableTitleProps = {
   row: DocumentsTableRow;
@@ -300,34 +224,21 @@ const DataTableTitle = ({ row, teamUrl, teamEmail }: DataTableTitleProps) => {
   const documentsPath = formatDocumentsPath(teamUrl);
   const formatPath = `${documentsPath}/${row.envelopeId}`;
 
-  // REVALLE: redesign v3. Com a barra lateral de 244px, o título de 20rem fixos fazia a tabela rolar na horizontal em
-  // 1440px (o "Baixar" ficava cortado). O título encolhe com a tela até 10rem e volta a 20rem nas telas largas.
+  // REVALLE v3: o título é a primeira linha do cartão (até 2 linhas, cortadas pelo cartão); o completo fica no `title`.
   return match({
     isOwner,
     isRecipient,
     isCurrentTeamDocument,
   })
     .with({ isOwner: true }, { isCurrentTeamDocument: true }, () => (
-      <Link
-        to={formatPath}
-        title={row.title}
-        className="block max-w-full font-bold hover:underline md:max-w-[clamp(10rem,calc(100vw_-_1194px),20rem)] md:truncate"
-      >
+      <Link to={formatPath} title={row.title} className={TITLE_LINK_CLASS_NAME}>
         {row.title}
       </Link>
     ))
     .with({ isRecipient: true }, () => (
-      <Link
-        to={`/sign/${recipient?.token}`}
-        title={row.title}
-        className="block max-w-full font-bold hover:underline md:max-w-[clamp(10rem,calc(100vw_-_1194px),20rem)] md:truncate"
-      >
+      <Link to={`/sign/${recipient?.token}`} title={row.title} className={TITLE_LINK_CLASS_NAME}>
         {row.title}
       </Link>
     ))
-    .otherwise(() => (
-      <span className="block max-w-full font-bold hover:underline md:max-w-[clamp(10rem,calc(100vw_-_1194px),20rem)] md:truncate">
-        {row.title}
-      </span>
-    ));
+    .otherwise(() => <span title={row.title}>{row.title}</span>);
 };

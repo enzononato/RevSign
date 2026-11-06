@@ -474,6 +474,7 @@ msgid "{name} agora é do Financeiro."
 msgstr "{name} agora é do Financeiro."
 
 #: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+#: apps/remix/app/components/tables/recipient-signer-slots.tsx
 msgid "{name} rejected"
 msgstr "{name} rejected"
 
@@ -562,6 +563,7 @@ msgid "{selectedCount} selected"
 msgstr "{selectedCount} selected"
 
 #: apps/remix/app/components/general/envelope-signing/envelope-signer-slots.tsx
+#: apps/remix/app/routes/_recipient+/sign.$token+/complete.tsx
 msgid "{signedCount} of {totalCount} have signed"
 msgstr "{signedCount} of {totalCount} have signed"
 
@@ -1430,8 +1432,6 @@ msgstr "Action"
 #: apps/remix/app/components/tables/admin-email-transports-table.tsx
 #: apps/remix/app/components/tables/admin-organisations-table.tsx
 #: apps/remix/app/components/tables/documents-table-action-dropdown.tsx
-#: apps/remix/app/components/tables/documents-table.tsx
-#: apps/remix/app/components/tables/inbox-table.tsx
 #: apps/remix/app/components/tables/organisation-email-domains-table.tsx
 #: apps/remix/app/components/tables/organisation-groups-table.tsx
 #: apps/remix/app/components/tables/organisation-member-invites-table.tsx
@@ -4228,8 +4228,6 @@ msgstr "Create your account and start using state-of-the-art document signing. O
 #: apps/remix/app/components/general/template/template-page-view-information.tsx
 #: apps/remix/app/components/tables/admin-email-transports-table.tsx
 #: apps/remix/app/components/tables/admin-organisation-overview-table.tsx
-#: apps/remix/app/components/tables/documents-table.tsx
-#: apps/remix/app/components/tables/inbox-table.tsx
 #: apps/remix/app/components/tables/organisation-insights-table.tsx
 #: apps/remix/app/components/tables/organisation-insights-table.tsx
 #: apps/remix/app/components/tables/organisation-teams-table.tsx
@@ -4962,6 +4960,8 @@ msgid "Documenso will delete <0>all of your documents</0>, along with all of you
 msgstr "Documenso will delete <0>all of your documents</0>, along with all of your completed documents, signatures, and all other resources belonging to your Account."
 
 #: apps/remix/app/components/general/template/template-page-view-documents-table.tsx
+#: apps/remix/app/components/tables/documents-table.tsx
+#: apps/remix/app/components/tables/inbox-table.tsx
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/documents.$id.logs.tsx
 msgid "Document"
 msgstr "Document"
@@ -5600,6 +5600,7 @@ msgstr "Downloading {progress} / {0}..."
 #: apps/remix/app/components/general/document/document-status.tsx
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-header.tsx
 #: apps/remix/app/components/general/template/template-page-view-documents-table.tsx
+#: apps/remix/app/components/tables/recipient-signer-slots.tsx
 #: packages/lib/constants/document.ts
 msgid "Draft"
 msgstr "Draft"
@@ -6489,6 +6490,10 @@ msgstr "Escolha o centro de custo. Depois, quem corrige é a Contabilidade."
 #: apps/remix/app/components/revalle/accounting/accounting-card.tsx
 msgid "Escolha um centro de custo diferente do atual."
 msgstr "Escolha um centro de custo diferente do atual."
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Escolher arquivo CSV"
+msgstr "Escolher arquivo CSV"
 
 #: apps/remix/app/components/revalle/accounting/accounting-card.tsx
 msgid "Esta nota fiscal foi enviada sem centro de custo. Escolha o centro: ele fica validado na hora, sem nova versão (ninguém viu centro ao assinar)."
@@ -8770,6 +8775,10 @@ msgstr "Needs to sign"
 msgid "Needs to view"
 msgstr "Needs to view"
 
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Nenhum arquivo escolhido"
+msgstr "Nenhum arquivo escolhido"
+
 #: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
 msgid "Nenhum destinatário."
 msgstr "Nenhum destinatário."
@@ -10607,8 +10616,6 @@ msgstr "Recent documents"
 
 #: apps/remix/app/components/dialogs/template-direct-link-dialog.tsx
 #: apps/remix/app/components/general/template/template-page-view-documents-table.tsx
-#: apps/remix/app/components/tables/documents-table.tsx
-#: apps/remix/app/components/tables/inbox-table.tsx
 msgid "Recipient"
 msgstr "Recipient"
 
@@ -11588,6 +11595,7 @@ msgid "Select access methods"
 msgstr "Select access methods"
 
 #: apps/remix/app/components/tables/documents-table.tsx
+#: apps/remix/app/components/tables/documents-table.tsx
 #: apps/remix/app/components/tables/templates-table.tsx
 msgid "Select all"
 msgstr "Select all"
@@ -11680,7 +11688,6 @@ msgstr "Select or enter email address"
 msgid "Select passkey"
 msgstr "Select passkey"
 
-#: apps/remix/app/components/tables/documents-table.tsx
 #: apps/remix/app/components/tables/documents-table.tsx
 #: apps/remix/app/components/tables/templates-table.tsx
 msgid "Select row"
@@ -11870,8 +11877,6 @@ msgid "Send Test Email"
 msgstr "Send Test Email"
 
 #: apps/remix/app/components/tables/documents-table-sender-filter.tsx
-#: apps/remix/app/components/tables/documents-table.tsx
-#: apps/remix/app/components/tables/inbox-table.tsx
 #: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
 msgid "Sender"
 msgstr "Sender"
@@ -12558,7 +12563,6 @@ msgstr "Something went wrong while uploading this file"
 msgid "Something went wrong!"
 msgstr "Something went wrong!"
 
-#: apps/remix/app/components/tables/document-row-card.tsx
 #: packages/ui/primitives/data-table.tsx
 msgid "Something went wrong."
 msgstr "Something went wrong."
@@ -12620,8 +12624,6 @@ msgstr "Stats"
 #: apps/remix/app/components/tables/admin-document-jobs-table.tsx
 #: apps/remix/app/components/tables/admin-organisations-table.tsx
 #: apps/remix/app/components/tables/documents-table-status-filter.tsx
-#: apps/remix/app/components/tables/documents-table.tsx
-#: apps/remix/app/components/tables/inbox-table.tsx
 #: apps/remix/app/components/tables/organisation-billing-invoices-table.tsx
 #: apps/remix/app/components/tables/organisation-email-domains-table.tsx
 #: apps/remix/app/components/tables/organisation-insights-table.tsx
@@ -14248,8 +14250,6 @@ msgstr "Tipo"
 #: apps/remix/app/components/dialogs/envelope-rename-dialog.tsx
 #: apps/remix/app/components/embed/authoring/configure-document-view.tsx
 #: apps/remix/app/components/general/template/template-page-view-documents-table.tsx
-#: apps/remix/app/components/tables/documents-table.tsx
-#: apps/remix/app/components/tables/inbox-table.tsx
 #: apps/remix/app/components/tables/organisation-insights-table.tsx
 #: apps/remix/app/components/tables/templates-table.tsx
 #: apps/remix/app/routes/_authenticated+/admin+/documents._index.tsx
@@ -15589,8 +15589,13 @@ msgid "Waiting"
 msgstr "Waiting"
 
 #: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+#: apps/remix/app/components/tables/document-row-card.tsx
 msgid "Waiting for {name}"
 msgstr "Waiting for {name}"
+
+#: apps/remix/app/components/tables/recipient-signer-slots.tsx
+msgid "Waiting for completion"
+msgstr "Waiting for completion"
 
 #: packages/email/template-components/template-document-pending.tsx
 msgid "Waiting for others"
@@ -17035,6 +17040,10 @@ msgstr "Your account has been disabled"
 msgid "Your account has no password. Add one to sign in with your email and to sign documents that require it. We'll email you a link."
 msgstr "Your account has no password. Add one to sign in with your email and to sign documents that require it. We'll email you a link."
 
+#: apps/remix/app/routes/_recipient+/sign.$token+/complete.tsx
+msgid "Your approval has been recorded"
+msgstr "Your approval has been recorded"
+
 #: apps/remix/app/components/forms/avatar-image.tsx
 msgid "Your avatar has been updated successfully."
 msgstr "Your avatar has been updated successfully."
@@ -17374,6 +17383,10 @@ msgstr "Your reminder preferences have been updated"
 #: packages/lib/utils/document-audit-logs.ts
 msgid "Your remote signature was applied"
 msgstr "Your remote signature was applied"
+
+#: apps/remix/app/routes/_recipient+/sign.$token+/complete.tsx
+msgid "Your signature has been recorded"
+msgstr "Your signature has been recorded"
 
 #: apps/remix/app/components/general/document-signing/csc-recipient-signing-in-progress-page.tsx
 #: apps/remix/app/components/general/envelope-signing/envelope-signing-csc-status.tsx

@@ -201,7 +201,7 @@ export default function DocumentsPage() {
         <div className="mt-6 flex flex-col gap-2">
           <DocumentSearch key={searchResetKey} className="w-full" />
 
-          <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0">
+          <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap md:items-center">
             <DocumentsTableStatusFilter stats={stats} />
 
             {team && <DocumentsTableSenderFilter teamId={team.id} />}
