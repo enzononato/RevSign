@@ -267,6 +267,14 @@ node --test --test-concurrency=1 scripts/revalle/tests/acceptance-f7.test.mjs
 - Sem a imagem do Playwright no Docker, o passo 4b (o **View**) aparece como `skipped` no resultado, nunca como verde.
 - Rode com e sem o `compose.test.yml`: sem IA, o passo 2 confere a escolha na lista.
 
+## Conta e centro de custo no PDF final
+
+`scripts/revalle/tests/invoice-pdf-annotation.test.mjs` confere o texto azul `Conta: … - …` e `CC: … - …` escrito na selagem da NF, com `pdftotext` (texto e `-bbox`) e `pdftoppm` (a cor e a posição do azul) na imagem `revsign-test-poppler:local`, e a função de layout no Vitest (`packages/lib/revalle/invoice/pdf-annotation.test.ts`). Cobre: NF de 2 signatários com o campo do 2º mais acima (o texto aparece uma vez só, em azul, logo acima do carimbo de cima e dentro da página); prévia e original sem o texto e SHA-256 do original igual ao do arquivo enviado; assinatura digital válida (`verify-signed-pdf.sh`) e o hash do original no certificado; reselagem sem duplicar; correção do centro e troca de conta (a v2 sem o valor antigo, a v1 como foi selada); NF sem centro, NF `LEGACY` (sem conta), documento comum e NF recusada; nome longo (quebra na margem), nome médio com campo à direita (recua), campo no alto (texto abaixo), página com rotação de 90 graus e documento V1; e a falha ao desenhar, provocada de verdade: o teste **tira por instantes a fonte** (`noto-sans.ttf`) do container do app com `docker exec -u root`, aprova a NF e confere que ela é selada sem o texto e que o log tem `revalle invoice annotation` sem dados da nota (a fonte volta no `finally`).
+
+- Usa as sessões do `finance-proof.test.mjs` (`REVSIGN_USER_*` e `REVSIGN_ADMIN_*`); marca o rsadmin como Financeiro e como Contabilidade e **substitui a lista de contas** (as duas de sempre e duas de nomes longos); no fim, tira a marca de Contabilidade e devolve a lista das duas contas.
+- `REVSIGN_UI_PDF_DIR` (opcional): pasta onde grava as imagens da página 1 (`v2-conta-cc.png`, `campo-no-alto.png`, `rotacao-90.png`); sem ela, uma pasta temporária. A imagem do poppler não tem a Helvetica nem a Times, então o texto impresso de PDFs de exemplo pode sumir só na imagem (o texto azul usa Noto Sans embutida e aparece).
+- Rode com e sem o `compose.test.yml`.
+
 ## Conferência de tela da Fase 7
 
 `scripts/revalle/ui-check-f7.mjs` abre as telas novas num navegador de verdade (`tests/browser/ui-check-f7.browser.mjs`, na imagem do Playwright, como o `mobile-check`), em **390 px e 1280 px**:

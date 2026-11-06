@@ -442,6 +442,21 @@ Legenda de "segredo?": **sim** = nunca no repositório, só no EasyPanel e no co
 
 Variáveis só do ensaio local (não use no EasyPanel): `REVSIGN_IMAGE`, `REVSIGN_BACKUP_IMAGE`.
 
+## Antes de atualizar (conta e centro no PDF)
+
+Vale para quem atualiza uma instalação que já está em uso. A selagem passa a escrever, em azul, a conta e o centro de
+custo no PDF final da nota fiscal (seção "A conta e o centro de custo no PDF final" de `notas-fiscais.md`). Não há
+migração, variável nova nem mudança no que as pessoas assinam.
+
+1. **Notas já seladas não mudam.** O texto entra só nas selagens feitas depois da atualização. Se quiser o texto numa nota
+   já concluída, use **Resselar** (admin): ela parte do PDF original e escreve o texto, sem duplicar (o PDF selado
+   ganha um SHA-256 novo, e o `/verificar` lista o anterior como versão selada anterior).
+2. **A fonte `noto-sans.ttf` precisa estar acessível** em `<endereço interno do app>/fonts/noto-sans.ttf` (já está na
+   imagem, e é a mesma do carimbo). Sem ela a nota é selada **sem** o texto, e o log do app traz
+   `revalle invoice annotation`; depois de corrigir, resselar escreve o texto.
+3. Depois de atualizar, selar uma nota de teste e conferir no PDF final que `Conta: …` e `CC: …` aparecem uma vez só,
+   acima do carimbo da primeira assinatura.
+
 ## Atualizar a versão depois
 
 0. Antes de trocar a versão, confirme que as DUAS imagens existem para a tag nova: `ghcr.io/enzononato/revsign:<tag>` e `ghcr.io/enzononato/revsign-backup:<tag>` (GitHub → Packages; os dois jobs de publicação são independentes e um pode falhar sozinho).
