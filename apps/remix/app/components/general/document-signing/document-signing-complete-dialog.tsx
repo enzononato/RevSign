@@ -3,6 +3,7 @@ import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
 import { type TRecipientAccessAuth, ZDocumentAccessAuthSchema } from '@documenso/lib/types/document-auth';
 import { fieldsContainUnsignedRequiredField } from '@documenso/lib/utils/advanced-fields-helpers';
 import { zEmail } from '@documenso/lib/utils/zod';
+import { cn } from '@documenso/ui/lib/utils'; // REVALLE:
 import { Button } from '@documenso/ui/primitives/button';
 import {
   Dialog,
@@ -58,6 +59,8 @@ export type DocumentSigningCompleteDialogProps = {
     email: string;
   };
   buttonSize?: 'sm' | 'lg';
+  /** REVALLE (redesign v3): classes extras do botão que abre o diálogo (ex.: pílula branca sobre a faixa azul). */
+  revalleTriggerClassName?: string;
   position?: 'start' | 'end' | 'center';
   disableNameInput?: boolean;
 
@@ -95,6 +98,7 @@ export const DocumentSigningCompleteDialog = ({
   recipientPayload,
   defaultNextSigner,
   buttonSize = 'lg',
+  revalleTriggerClassName, // REVALLE:
   position,
   disableNameInput = false,
   children,
@@ -233,7 +237,7 @@ export const DocumentSigningCompleteDialog = ({
     <Dialog open={showDialog} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button
-          className="min-h-11 w-full lg:min-h-0" // REVALLE: min-h-11 (44 px de área de toque) abaixo de lg
+          className={cn('min-h-11 w-full lg:min-h-0', revalleTriggerClassName)} // REVALLE: min-h-11 (44 px de área de toque) abaixo de lg; classes extras do redesign v3
           type="button"
           size={buttonSize}
           onClick={fieldsValidated}
@@ -283,8 +287,9 @@ export const DocumentSigningCompleteDialog = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="rounded-lg border border-border bg-muted/50 p-4 text-center">
-          <p className="font-medium text-muted-foreground text-sm">{documentTitle}</p>
+        {/* REVALLE: redesign v3, título do documento na caixa do fundo (raio 13, sem borda dura) */}
+        <div className="rounded-[13px] bg-background px-4 py-3 text-center shadow-[inset_0_0_0_1px_hsl(var(--border))]">
+          <p className="break-words font-semibold text-[14.5px] text-foreground">{documentTitle}</p>
         </div>
 
         {/* REVALLE: aviso antes do pedido de localização do navegador (feito ao enviar a conclusão) */}

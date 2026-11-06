@@ -1,4 +1,3 @@
-import signingCelebration from '@documenso/assets/images/signing-celebration.png';
 import { getOptionalSession } from '@documenso/auth/server/lib/utils/get-session';
 import {
   expiredCscBlockingErrorCookieHeader,
@@ -32,7 +31,7 @@ import { isTspEnvelope } from '@documenso/lib/types/signature-level';
 import { extractDocumentAuthMethods } from '@documenso/lib/utils/document-auth';
 import { isRecipientExpired } from '@documenso/lib/utils/recipients';
 import { prisma } from '@documenso/prisma';
-import { SigningCard3D } from '@documenso/ui/components/signing-card';
+import { Button } from '@documenso/ui/primitives/button'; // REVALLE:
 import { Trans } from '@lingui/react/macro';
 import { DocumentSigningOrder, DocumentStatus, RecipientRole, SigningStatus } from '@prisma/client';
 import { Clock8 } from 'lucide-react';
@@ -52,6 +51,8 @@ import { DocumentSigningSenderDisabledPage } from '~/components/general/document
 import { EnvelopeSigningProvider } from '~/components/general/document-signing/envelope-signing-provider';
 import { RecipientBranding } from '~/components/general/recipient-branding';
 import { SigningInvoiceAccountProvider } from '~/components/revalle/invoice/signing-invoice-account'; // REVALLE:
+import { GateStatusIcon } from '~/components/revalle/signing-gate/gate-status-icon'; // REVALLE:
+import { SigningPageFrame } from '~/components/revalle/signing-gate/signing-band'; // REVALLE:
 import { RevalleSigningGate } from '~/components/revalle/signing-gate/signing-gate'; // REVALLE:
 import { useCspNonce } from '~/utils/nonce';
 import { superLoaderJson, useSuperLoaderData } from '~/utils/super-json-loader';
@@ -470,7 +471,6 @@ const SigningPageV1 = ({ data }: { data: Awaited<ReturnType<typeof handleV1Loade
     fields,
     recipient,
     completedFields,
-    recipientSignature,
     isRecipientsTurn,
     allRecipients,
     nextRecipient,
@@ -480,41 +480,7 @@ const SigningPageV1 = ({ data }: { data: Awaited<ReturnType<typeof handleV1Loade
   } = data;
 
   if (document.deletedAt || document.status === DocumentStatus.REJECTED) {
-    return (
-      <div className="-mx-4 flex max-w-[100vw] flex-col items-center overflow-x-hidden px-4 pt-16 md:-mx-8 md:px-8 lg:pt-16 xl:pt-24">
-        <SigningCard3D
-          name={recipient.name}
-          signature={recipientSignature}
-          signingCelebrationImage={signingCelebration}
-        />
-
-        <div className="relative mt-2 flex w-full flex-col items-center">
-          <div className="mt-8 flex items-center text-center text-red-600">
-            <Clock8 className="mr-2 h-5 w-5" />
-            <span className="text-sm">
-              <Trans>Document Cancelled</Trans>
-            </span>
-          </div>
-
-          <h2 className="mt-6 max-w-[35ch] text-center font-semibold text-2xl leading-normal md:text-3xl lg:text-4xl">
-            <Trans>
-              <span className="mt-1.5 block">"{document.title}"</span> is no longer available to sign
-            </Trans>
-          </h2>
-
-          <p className="mt-2.5 max-w-[60ch] text-center font-medium text-muted-foreground/60 text-sm md:text-base">
-            <Trans>This document has been cancelled by the owner.</Trans>
-          </p>
-
-          {/* REVALLE: sem o convite "Check out Documenso" para quem não está logado (divulgação do Documenso) */}
-          {user ? (
-            <Link to="/" className="mt-36 text-documenso-700 hover:text-documenso-600">
-              <Trans>Go Back Home</Trans>
-            </Link>
-          ) : null}
-        </div>
-      </div>
-    );
+    return <RevalleCancelledDocument document={{ title: document.title }} isLoggedIn={Boolean(user)} />;
   }
 
   return (
@@ -573,44 +539,10 @@ const SigningPageV2 = ({ data }: { data: Awaited<ReturnType<typeof handleV2Loade
     );
   }
 
-  const { envelope, recipientSignature, recipient } = data.envelopeForSigning;
+  const { envelope, recipient } = data.envelopeForSigning;
 
   if (envelope.deletedAt || envelope.status === DocumentStatus.REJECTED) {
-    return (
-      <div className="-mx-4 flex max-w-[100vw] flex-col items-center overflow-x-hidden px-4 pt-16 md:-mx-8 md:px-8 lg:pt-16 xl:pt-24">
-        <SigningCard3D
-          name={recipient.name}
-          signature={recipientSignature || undefined}
-          signingCelebrationImage={signingCelebration}
-        />
-
-        <div className="relative mt-2 flex w-full flex-col items-center">
-          <div className="mt-8 flex items-center text-center text-red-600">
-            <Clock8 className="mr-2 h-5 w-5" />
-            <span className="text-sm">
-              <Trans>Document Cancelled</Trans>
-            </span>
-          </div>
-
-          <h2 className="mt-6 max-w-[35ch] text-center font-semibold text-2xl leading-normal md:text-3xl lg:text-4xl">
-            <Trans>
-              <span className="mt-1.5 block">"{envelope.title}"</span> is no longer available to sign
-            </Trans>
-          </h2>
-
-          <p className="mt-2.5 max-w-[60ch] text-center font-medium text-muted-foreground/60 text-sm md:text-base">
-            <Trans>This document has been cancelled by the owner.</Trans>
-          </p>
-
-          {/* REVALLE: sem o convite "Check out Documenso" para quem não está logado (divulgação do Documenso) */}
-          {user ? (
-            <Link to="/" className="mt-36 text-documenso-700 hover:text-documenso-600">
-              <Trans>Go Back Home</Trans>
-            </Link>
-          ) : null}
-        </div>
-      </div>
-    );
+    return <RevalleCancelledDocument document={{ title: envelope.title }} isLoggedIn={Boolean(user)} />;
   }
 
   return (
@@ -633,3 +565,37 @@ const SigningPageV2 = ({ data }: { data: Awaited<ReturnType<typeof handleV2Loade
     </EnvelopeSigningProvider>
   );
 };
+
+// REVALLE (redesign v3): documento cancelado na faixa azul + um cartão (era o cartão de assinatura com a imagem de
+// comemoração). Mesmos textos.
+// `document.title` (expressão com ponto) mantém o msgid de sempre: <0>"{0}"</0> is no longer available to sign.
+const RevalleCancelledDocument = ({ document, isLoggedIn }: { document: { title: string }; isLoggedIn: boolean }) => (
+  <SigningPageFrame titleAs="p" title={<span title={document.title}>{document.title}</span>}>
+    <div className="flex flex-col items-center text-center">
+      <GateStatusIcon icon={Clock8} tone="danger" />
+
+      <span className="mt-4 inline-flex min-h-7 items-center rounded-full bg-danger-bg px-3 py-1 font-semibold text-[13px] text-destructive">
+        <Trans>Document Cancelled</Trans>
+      </span>
+
+      <h1 className="mt-3 max-w-[30ch] break-words font-black font-display text-[22px] leading-snug tracking-[-0.02em]">
+        <Trans>
+          <span className="block">"{document.title}"</span> is no longer available to sign
+        </Trans>
+      </h1>
+
+      <p className="mt-3 max-w-[46ch] text-[14.5px] text-muted-foreground">
+        <Trans>This document has been cancelled by the owner.</Trans>
+      </p>
+
+      {/* REVALLE: sem o convite "Check out Documenso" para quem não está logado (divulgação do Documenso) */}
+      {isLoggedIn ? (
+        <Button asChild size="lg" className="mt-6 w-full">
+          <Link to="/">
+            <Trans>Go Back Home</Trans>
+          </Link>
+        </Button>
+      ) : null}
+    </div>
+  </SigningPageFrame>
+);

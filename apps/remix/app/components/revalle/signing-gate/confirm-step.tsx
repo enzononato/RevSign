@@ -1,11 +1,12 @@
 import { trpc } from '@documenso/trpc/react';
 import { Button } from '@documenso/ui/primitives/button';
 import { Trans } from '@lingui/react/macro';
-import { Loader } from 'lucide-react';
+import { UserRoundCheckIcon } from 'lucide-react';
 import { useState } from 'react';
 import { useRevalidator } from 'react-router';
 
 import { GateError } from './gate-error';
+import { GateStatusIcon } from './gate-status-icon';
 import { StepHeading } from './step-heading';
 
 export type ConfirmStepProps = {
@@ -34,10 +35,13 @@ export const ConfirmStep = ({ token, preview, onDone }: ConfirmStepProps) => {
 
   return (
     <section className="flex flex-col gap-4">
+      <GateStatusIcon icon={UserRoundCheckIcon} tone="brand" />
+
+      {/* Redesign v3: mesmo texto da pergunta; só a apresentação mudou. */}
       <StepHeading>
-        <Trans>Você é</Trans> <strong>{preview.primeiroNome}</strong>
-        {preview.cargo && <em>, {preview.cargo}</em>}
-        {preview.unidade && <em>, {preview.unidade}</em>}?
+        <Trans>Você é</Trans> <strong className="font-black text-brand-text">{preview.primeiroNome}</strong>
+        {preview.cargo && <em className="font-bold text-muted-foreground not-italic">, {preview.cargo}</em>}
+        {preview.unidade && <em className="font-bold text-muted-foreground not-italic">, {preview.unidade}</em>}?
       </StepHeading>
 
       {failed && (
@@ -46,8 +50,7 @@ export const ConfirmStep = ({ token, preview, onDone }: ConfirmStepProps) => {
         </GateError>
       )}
 
-      <Button type="button" size="lg" className="h-12 w-full text-base" disabled={isBusy} onClick={() => answer(true)}>
-        {isBusy && <Loader className="mr-2 h-5 w-5 animate-spin" />}
+      <Button type="button" size="lg" className="mt-1 w-full" loading={isBusy} onClick={() => answer(true)}>
         <Trans>Sim, sou eu</Trans>
       </Button>
 
@@ -55,7 +58,7 @@ export const ConfirmStep = ({ token, preview, onDone }: ConfirmStepProps) => {
         type="button"
         variant="outline"
         size="lg"
-        className="h-12 w-full text-base"
+        className="w-full"
         disabled={isBusy}
         onClick={() => answer(false)}
       >

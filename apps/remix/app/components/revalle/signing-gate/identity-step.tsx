@@ -3,7 +3,6 @@ import { Button } from '@documenso/ui/primitives/button';
 import { Input } from '@documenso/ui/primitives/input';
 import { Label } from '@documenso/ui/primitives/label';
 import { Plural, Trans } from '@lingui/react/macro';
-import { Loader } from 'lucide-react';
 import { useState } from 'react';
 import { useRevalidator } from 'react-router';
 
@@ -70,19 +69,19 @@ export const IdentityStep = ({ token, attemptsLeft, onDone }: IdentityStepProps)
         <Trans>Confirme que é você</Trans>
       </StepHeading>
 
-      <p>
+      <p className="text-muted-foreground">
         <Trans>Na primeira assinatura, precisamos confirmar seus dados com o cadastro de colaboradores.</Trans>
       </p>
 
       <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="revalle-cpf" className="text-base">
+          <Label htmlFor="revalle-cpf" className="font-semibold text-[14.5px]">
             <Trans>CPF</Trans>
           </Label>
           <Input
             id="revalle-cpf"
             name="cpf"
-            className="h-12 text-base"
+            className="h-12 text-base tabular-nums"
             inputMode="numeric"
             autoComplete="off"
             placeholder="000.000.000-00"
@@ -94,13 +93,13 @@ export const IdentityStep = ({ token, attemptsLeft, onDone }: IdentityStepProps)
         </div>
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor="revalle-birth-date" className="text-base">
+          <Label htmlFor="revalle-birth-date" className="font-semibold text-[14.5px]">
             <Trans>Data de nascimento</Trans>
           </Label>
           <Input
             id="revalle-birth-date"
             name="birthDate"
-            className="h-12 text-base"
+            className="h-12 text-base tabular-nums"
             inputMode="numeric"
             autoComplete="off"
             placeholder="dd/mm/aaaa"
@@ -127,8 +126,7 @@ export const IdentityStep = ({ token, attemptsLeft, onDone }: IdentityStepProps)
           </GateError>
         )}
 
-        <Button type="submit" size="lg" className="h-12 w-full text-base" disabled={!isComplete || isBusy}>
-          {isBusy && <Loader className="mr-2 h-5 w-5 animate-spin" />}
+        <Button type="submit" size="lg" className="mt-1 w-full" disabled={!isComplete} loading={isBusy}>
           <Trans>Confirmar</Trans>
         </Button>
       </form>

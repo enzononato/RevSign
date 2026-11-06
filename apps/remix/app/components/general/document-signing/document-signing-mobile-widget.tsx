@@ -2,7 +2,6 @@ import { Button } from '@documenso/ui/primitives/button';
 
 import { Plural, Trans, useLingui } from '@lingui/react/macro';
 import { RecipientRole } from '@prisma/client';
-import { motion } from 'framer-motion';
 import { LucideChevronDown, LucideChevronUp } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { match } from 'ts-pattern';
@@ -20,7 +19,7 @@ export const DocumentSigningMobileWidget = () => {
 
   const { hidePoweredBy = true } = useEmbedSigningContext() || {};
 
-  const { recipientFieldsRemaining, recipient, requiredRecipientFields } = useRequiredEnvelopeSigningContext();
+  const { recipientFieldsRemaining, recipient } = useRequiredEnvelopeSigningContext();
 
   /**
    * Pre open the widget for assistants to let them know it's there.
@@ -31,98 +30,72 @@ export const DocumentSigningMobileWidget = () => {
     }
   }, []);
 
+  const note =
+    recipientFieldsRemaining.length === 0 ? (
+      match(recipient.role)
+        .with(RecipientRole.VIEWER, () => <Trans>Please mark as viewed to complete</Trans>)
+        .with(RecipientRole.SIGNER, () => <Trans>Please complete the document once reviewed</Trans>)
+        .with(RecipientRole.APPROVER, () => <Trans>Please complete the document once reviewed</Trans>)
+        .with(RecipientRole.ASSISTANT, () => <Trans>Please complete the document once reviewed</Trans>)
+        .otherwise(() => null)
+    ) : (
+      <Plural value={recipientFieldsRemaining.length} one="1 Field Remaining" other="# Fields Remaining" />
+    );
+
+  // REVALLE (redesign v3): barra fixa do preview do celular: a nota da etapa e a pílula de 54px com a ação de sempre
+  // (próximo campo / concluir, com a mesma validação). A seta abre os dados de quem assina (nome e assinatura).
   return (
-    <div className="pointer-events-none fixed right-0 bottom-0 left-0 z-50 flex justify-center px-2 pb-2 sm:px-4 sm:pb-6">
-      <div className="pointer-events-auto w-full max-w-[760px]">
-        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
-          {/* Main Header Bar */}
-          <div className="flex items-center justify-between gap-4 p-4">
-            <div className="flex-1">
-              <div className="flex items-center gap-3">
-                {recipient.role !== RecipientRole.VIEWER && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    // REVALLE: h-11 w-11 p-0 (44 px de área de toque; era h-8 w-8)
-                    className="flex h-11 w-11 flex-shrink-0 items-center justify-center p-0"
-                    // REVALLE: rótulo do leitor de tela traduzido (era 'Collapse'/'Expand' fixo em inglês)
-                    aria-label={isExpanded ? t`Collapse` : t`Expand`}
-                  >
-                    {isExpanded ? (
-                      <LucideChevronDown className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
-                    ) : (
-                      <LucideChevronUp className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
-                    )}
-                  </Button>
-                )}
+    <div className="fixed inset-x-0 bottom-0 z-50 bg-card shadow-[0_-1px_0_hsl(var(--border)),0_-8px_24px_-12px_rgba(20,27,46,0.18)]">
+      <div className="mx-auto w-full max-w-[760px] px-4 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        {isExpanded && (
+          <div className="slide-in-from-bottom-2 mb-3 max-h-[55vh] animate-in overflow-y-auto border-border border-b pb-4 duration-200">
+            <h2 className="sr-only">
+              <Trans>Sign Document</Trans>
+            </h2>
 
-                <div>
-                  <h2 className="font-semibold text-foreground text-lg">
-                    {match(recipient.role)
-                      .with(RecipientRole.VIEWER, () => <Trans>View Document</Trans>)
-                      .with(RecipientRole.SIGNER, () => <Trans>Sign Document</Trans>)
-                      .with(RecipientRole.APPROVER, () => <Trans>Approve Document</Trans>)
-                      .with(RecipientRole.ASSISTANT, () => <Trans>Assist Document</Trans>)
-                      .otherwise(() => null)}
-                  </h2>
+            <EnvelopeSignerForm />
 
-                  <p className="-mt-0.5 text-muted-foreground text-sm">
-                    {recipientFieldsRemaining.length === 0 ? (
-                      match(recipient.role)
-                        .with(RecipientRole.VIEWER, () => <Trans>Please mark as viewed to complete</Trans>)
-                        .with(RecipientRole.SIGNER, () => <Trans>Please complete the document once reviewed</Trans>)
-                        .with(RecipientRole.APPROVER, () => <Trans>Please complete the document once reviewed</Trans>)
-                        .with(RecipientRole.ASSISTANT, () => <Trans>Please complete the document once reviewed</Trans>)
-                        .otherwise(() => null)
-                    ) : (
-                      <Plural
-                        value={recipientFieldsRemaining.length}
-                        one="1 Field Remaining"
-                        other="# Fields Remaining"
-                      />
-                    )}
-                  </p>
-                </div>
+            {!hidePoweredBy && (
+              <div className="mt-2 inline-block rounded bg-primary px-2 py-1 font-medium text-primary-foreground text-xs opacity-60 hover:opacity-100 lg:hidden">
+                <span>
+                  <Trans>Powered by</Trans>
+                </span>
+                <BrandingLogo className="ml-2 inline-block h-[14px]" />
               </div>
-            </div>
-
-            <div>
-              <EnvelopeSignerCompleteDialog />
-            </div>
+            )}
           </div>
+        )}
 
-          {/* Progress Bar */}
-          {recipient.role !== RecipientRole.VIEWER && recipient.role !== RecipientRole.ASSISTANT && (
-            <div className="px-4 pb-3">
-              <div className="relative h-[4px] rounded-md bg-muted">
-                <motion.div
-                  layout="size"
-                  layoutId="document-signing-mobile-widget-progress-bar"
-                  className="absolute inset-y-0 left-0 bg-primary"
-                  style={{
-                    width: `${requiredRecipientFields.length === 0 ? 100 : 100 - (100 / requiredRecipientFields.length) * (recipientFieldsRemaining.length ?? 0)}%`,
-                  }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Expandable Content */}
-          {isExpanded && (
-            <div className="slide-in-from-bottom-2 animate-in border-border border-t p-4 duration-200">
-              <EnvelopeSignerForm />
-
-              {!hidePoweredBy && (
-                <div className="mt-2 inline-block rounded bg-primary px-2 py-1 font-medium text-primary-foreground text-xs opacity-60 hover:opacity-100 lg:hidden">
-                  <span>
-                    <Trans>Powered by</Trans>
-                  </span>
-                  <BrandingLogo className="ml-2 inline-block h-[14px]" />
-                </div>
+        {/* Linha baixa (a seta tem 44px de toque, mas -my-3 não empurra a barra): a barra cabe na folga do rodapé
+            "Código-fonte", que fica visível acima dela no fim da página. */}
+        <div className="mb-2 flex min-h-5 items-center gap-2">
+          {recipient.role !== RecipientRole.VIEWER && (
+            <Button
+              variant="ghost"
+              onClick={() => setIsExpanded(!isExpanded)}
+              // REVALLE: h-11 w-11 p-0 (44 px de área de toque; era h-8 w-8)
+              className="-my-3 flex h-11 w-11 flex-shrink-0 items-center justify-center p-0"
+              // REVALLE: rótulo do leitor de tela traduzido (era 'Collapse'/'Expand' fixo em inglês)
+              aria-label={isExpanded ? t`Collapse` : t`Expand`}
+              aria-expanded={isExpanded}
+            >
+              {isExpanded ? (
+                <LucideChevronDown className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
+              ) : (
+                <LucideChevronUp className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
               )}
-            </div>
+            </Button>
           )}
+
+          <p
+            className="flex-1 text-center font-medium text-[12.5px] text-muted-foreground tabular-nums"
+            aria-live="polite"
+          >
+            {note}
+          </p>
         </div>
+
+        <EnvelopeSignerCompleteDialog buttonSize="lg" triggerClassName="text-[17px]" />
       </div>
     </div>
   );

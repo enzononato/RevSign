@@ -30,9 +30,10 @@ export default function RecipientLayout({ matches }: Route.ComponentProps) {
   const { sessionData } = useOptionalSession();
 
   // Hide the header for signing routes.
+  // REVALLE (redesign v3): também em concluído, recusado, expirado e esperando a vez, que têm a faixa azul própria.
   const hideHeader = matches.some(
     (match) =>
-      match?.id === 'routes/_recipient+/sign.$token+/_index' || match?.id === 'routes/_recipient+/d.$token+/_index',
+      match?.id?.startsWith('routes/_recipient+/sign.$token+/') || match?.id === 'routes/_recipient+/d.$token+/_index',
   );
 
   return (
