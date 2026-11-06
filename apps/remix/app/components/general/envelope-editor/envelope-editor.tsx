@@ -252,13 +252,18 @@ export const EnvelopeEditor = () => {
             {envelopeEditorSteps.map((step) => {
               const Icon = step.icon;
               const isActive = searchParamsStep === step.id;
+              // REVALLE: documento (não modelo) sem destinatário não avança da etapa de destinatários.
+              const isBlockedWithoutRecipients = isDocument && envelope.recipients.length === 0 && step.id !== 'upload';
 
               return (
                 <button
                   key={step.id}
                   data-testid={`envelope-editor-step-${step.id}`}
                   type="button"
+                  disabled={isBlockedWithoutRecipients}
+                  title={isBlockedWithoutRecipients ? 'Adicione pelo menos um destinatário para continuar.' : undefined}
                   className={cn(
+                    isBlockedWithoutRecipients && 'cursor-not-allowed opacity-50',
                     `cursor-pointer rounded-lg text-left transition-colors ${
                       isActive
                         ? 'border border-green-200 bg-green-50 dark:border-green-500/20 dark:bg-green-500/10'
