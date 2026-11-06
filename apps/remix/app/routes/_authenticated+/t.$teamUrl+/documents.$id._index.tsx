@@ -16,9 +16,9 @@ import { Button } from '@documenso/ui/primitives/button';
 import { Card, CardContent } from '@documenso/ui/primitives/card';
 import { Spinner } from '@documenso/ui/primitives/spinner';
 import { msg } from '@lingui/core/macro';
-import { Plural, Trans, useLingui } from '@lingui/react/macro';
+import { Plural, Trans } from '@lingui/react/macro';
 import { DocumentStatus } from '@prisma/client';
-import { ChevronLeft, Users2 } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { Link } from 'react-router';
 import { match } from 'ts-pattern';
 
@@ -28,23 +28,18 @@ import { DocumentPageViewInformation } from '~/components/general/document/docum
 import { DocumentPageViewRecentActivity } from '~/components/general/document/document-page-view-recent-activity';
 import { DocumentPageViewRecipients } from '~/components/general/document/document-page-view-recipients';
 import { DocumentRecipientLinkCopyDialog } from '~/components/general/document/document-recipient-link-copy-dialog';
-import {
-  DocumentStatus as DocumentStatusComponent,
-  FRIENDLY_STATUS_MAP,
-} from '~/components/general/document/document-status';
+import { DocumentStatus as DocumentStatusComponent } from '~/components/general/document/document-status';
 import { EnvelopeRendererFileSelector } from '~/components/general/envelope-editor/envelope-file-selector';
 import { EnvelopeGenericPageRenderer } from '~/components/general/envelope-editor/envelope-generic-page-renderer';
 import { GenericErrorLayout } from '~/components/general/generic-error-layout';
 import { EnvelopePdfViewer } from '~/components/general/pdf-viewer/envelope-pdf-viewer';
 import PDFViewerLazy from '~/components/general/pdf-viewer/pdf-viewer-lazy';
-import { StackAvatarsWithTooltip } from '~/components/general/stack-avatars-with-tooltip';
 import { InvoiceAccountCard } from '~/components/revalle/invoice/invoice-account-card'; // REVALLE:
 import { useCurrentTeam } from '~/providers/team';
 
 import type { Route } from './+types/documents.$id._index';
 
 export default function DocumentPage({ params }: Route.ComponentProps) {
-  const { t } = useLingui();
   const { user } = useSession();
 
   const team = useCurrentTeam();
@@ -107,41 +102,57 @@ export default function DocumentPage({ params }: Route.ComponentProps) {
 
   const isMultiEnvelopeItem = envelope.envelopeItems.length > 1 && envelope.internalVersion === 2;
 
+  // REVALLE v3: cabeçalho (título 28/900, uma linha de situação, ação principal à direita), duas colunas no computador
+  // (prévia do PDF num cartão à esquerda, coluna de cartões de 360px à direita) e uma coluna no celular.
   return (
     <div className="mx-auto -mt-4 w-full max-w-screen-xl px-4 md:px-8">
       {envelope.status === DocumentStatus.PENDING && (
         <DocumentRecipientLinkCopyDialog recipients={envelope.recipients} />
       )}
 
-      <Link to={documentRootPath} className="flex items-center text-documenso-700 hover:opacity-80">
-        <ChevronLeft className="mr-2 inline-block h-5 w-5" />
+      <Link
+        to={documentRootPath}
+        className="-ml-1 inline-flex min-h-11 items-center font-semibold text-brand-text text-sm hover:underline"
+      >
+        <ChevronLeft className="mr-1 inline-block h-4 w-4" />
         <Trans>Documents</Trans>
       </Link>
 
-      <div className="flex flex-row justify-between gap-4">
+      <div className="mt-1 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
-          <h1 className="mt-4 block font-semibold text-2xl md:text-3xl" title={envelope.title}>
+          <h1
+            className="break-words font-black font-display text-[28px] leading-[1.1] tracking-[-0.03em]"
+            title={envelope.title}
+          >
             {envelope.title}
           </h1>
 
-          <div className="mt-2.5 flex items-center gap-x-6">
-            <DocumentStatusComponent inheritColor status={envelope.status} className="text-muted-foreground" />
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2 text-muted-foreground text-sm">
+            <DocumentStatusComponent pill status={envelope.status} />
 
-            {envelope.recipients.length > 0 && (
-              <div className="flex items-center text-muted-foreground">
-                <Users2 className="mr-2 h-5 w-5" />
+            <span>
+              {match(envelope.status)
+                .with(DocumentStatus.COMPLETED, () => <Trans>This document has been signed by all recipients</Trans>)
+                .with(DocumentStatus.REJECTED, () => <Trans>This document has been rejected by a recipient</Trans>)
+                .with(DocumentStatus.CANCELLED, () => <Trans>This document has been cancelled</Trans>)
+                .with(DocumentStatus.DRAFT, () => (
+                  <Trans>This document is currently a draft and has not been sent</Trans>
+                ))
+                .with(DocumentStatus.PENDING, () => {
+                  const pendingRecipients = envelope.recipients.filter(
+                    (recipient) => recipient.signingStatus === 'NOT_SIGNED',
+                  );
 
-                <StackAvatarsWithTooltip
-                  recipients={envelope.recipients}
-                  documentStatus={envelope.status}
-                  position="bottom"
-                >
-                  <span>
-                    <Plural value={envelope.recipients.length} one="# Recipient" other="# Recipients" />
-                  </span>
-                </StackAvatarsWithTooltip>
-              </div>
-            )}
+                  return (
+                    <Plural
+                      value={pendingRecipients.length}
+                      one="Waiting on 1 recipient"
+                      other="Waiting on # recipients"
+                    />
+                  );
+                })
+                .exhaustive()}
+            </span>
 
             {envelope.deletedAt && (
               <Badge variant="destructive">
@@ -150,11 +161,19 @@ export default function DocumentPage({ params }: Route.ComponentProps) {
             )}
           </div>
         </div>
+
+        <div className="flex shrink-0 items-center gap-2" data-testid="document-page-actions">
+          <div className="min-w-0 flex-1 md:w-auto md:min-w-[11rem] md:flex-none">
+            <DocumentPageViewButton envelope={envelope} />
+          </div>
+
+          <DocumentPageViewDropdown envelope={envelope} />
+        </div>
       </div>
 
-      <div className="mt-6 grid w-full grid-cols-12 gap-8">
+      <div className="mt-6 grid w-full grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-8">
         {envelope.internalVersion === 2 ? (
-          <div className="relative col-span-12 lg:col-span-6 xl:col-span-7">
+          <div className="relative min-w-0">
             <EnvelopeRenderProvider
               version="current"
               envelope={envelope}
@@ -170,7 +189,7 @@ export default function DocumentPage({ params }: Route.ComponentProps) {
             >
               {isMultiEnvelopeItem && <EnvelopeRendererFileSelector fields={envelope.fields} className="mb-4 p-0" />}
 
-              <Card className="rounded-xl before:rounded-xl" gradient>
+              <Card>
                 <CardContent className="p-2">
                   <EnvelopePdfViewer
                     customPageRenderer={EnvelopeGenericPageRenderer}
@@ -182,7 +201,7 @@ export default function DocumentPage({ params }: Route.ComponentProps) {
             </EnvelopeRenderProvider>
           </div>
         ) : (
-          <Card className="relative col-span-12 rounded-xl before:rounded-xl lg:col-span-6 xl:col-span-7" gradient>
+          <Card className="relative min-w-0">
             <CardContent className="p-2">
               {envelope.status !== DocumentStatus.COMPLETED && (
                 <DocumentReadOnlyFields
@@ -210,54 +229,16 @@ export default function DocumentPage({ params }: Route.ComponentProps) {
           </Card>
         )}
 
-        <div className={cn('col-span-12 lg:col-span-6 xl:col-span-5', isMultiEnvelopeItem && 'mt-20')}>
-          <div className="space-y-6">
-            <section className="flex flex-col rounded-xl border border-border bg-widget pt-6 pb-4">
-              <div className="flex flex-row items-center justify-between px-4">
-                <h3 className="font-semibold text-2xl text-foreground">
-                  {t(FRIENDLY_STATUS_MAP[envelope.status].labelExtended)}
-                </h3>
-
-                <DocumentPageViewDropdown envelope={envelope} />
-              </div>
-
-              <p className="mt-2 px-4 text-muted-foreground text-sm">
-                {match(envelope.status)
-                  .with(DocumentStatus.COMPLETED, () => <Trans>This document has been signed by all recipients</Trans>)
-                  .with(DocumentStatus.REJECTED, () => <Trans>This document has been rejected by a recipient</Trans>)
-                  .with(DocumentStatus.CANCELLED, () => <Trans>This document has been cancelled</Trans>)
-                  .with(DocumentStatus.DRAFT, () => (
-                    <Trans>This document is currently a draft and has not been sent</Trans>
-                  ))
-                  .with(DocumentStatus.PENDING, () => {
-                    const pendingRecipients = envelope.recipients.filter(
-                      (recipient) => recipient.signingStatus === 'NOT_SIGNED',
-                    );
-
-                    return (
-                      <Plural
-                        value={pendingRecipients.length}
-                        one="Waiting on 1 recipient"
-                        other="Waiting on # recipients"
-                      />
-                    );
-                  })
-                  .exhaustive()}
-              </p>
-
-              <div className="mt-4 border-t px-4 pt-4">
-                <DocumentPageViewButton envelope={envelope} />
-              </div>
-            </section>
-
-            {/* Document information section. */}
-            <DocumentPageViewInformation envelope={envelope} userId={user.id} />
+        <div className={cn('min-w-0', isMultiEnvelopeItem && 'lg:mt-20')}>
+          <div className="space-y-4">
+            {/* Recipients section. */}
+            <DocumentPageViewRecipients envelope={envelope} documentRootPath={documentRootPath} />
 
             {/* REVALLE: conta contábil da nota fiscal (dono e admin podem trocar depois do envio). */}
             <InvoiceAccountCard envelope={envelope} />
 
-            {/* Recipients section. */}
-            <DocumentPageViewRecipients envelope={envelope} documentRootPath={documentRootPath} />
+            {/* Document information section. */}
+            <DocumentPageViewInformation envelope={envelope} userId={user.id} />
 
             {/* Recent activity section. */}
             <DocumentPageViewRecentActivity

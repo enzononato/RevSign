@@ -2,6 +2,8 @@ import * as React from 'react';
 
 import { cn } from '../lib/utils';
 
+// REVALLE v3: redesign visual (tokens, pílula, raios); ver CHANGES.md
+
 const Table = React.forwardRef<
   HTMLTableElement,
   React.HTMLAttributes<HTMLTableElement> & {
@@ -41,7 +43,7 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
   ({ className, ...props }, ref) => (
     <tr
       ref={ref}
-      className={cn('border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted', className)}
+      className={cn('h-14 border-b transition-colors hover:bg-accent/60 data-[state=selected]:bg-accent', className)}
       {...props}
     />
   ),
@@ -54,7 +56,7 @@ const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<
     <th
       ref={ref}
       className={cn(
-        'h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0',
+        'h-11 px-4 text-left align-middle font-semibold text-[12px] text-muted-foreground uppercase tracking-[0.04em] [&:has([role=checkbox])]:pr-0',
         className,
       )}
       {...props}

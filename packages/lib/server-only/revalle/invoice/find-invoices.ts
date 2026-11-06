@@ -3,6 +3,7 @@ import {
   DocumentStatus,
   EnvelopeType,
   Prisma,
+  RecipientRole,
   RevalleFinanceStatus,
   RevalleInvoiceStatus,
   RevalleSuggestionStatus,
@@ -35,6 +36,14 @@ import { isFinanceMember } from '../finance/members';
 import { findDuplicateEnvelopeIdsOrEmpty, sentAtOf } from './duplicates';
 
 export type InvoiceViewer = { userId: number; isAdmin: boolean };
+
+/** REVALLE (redesign v3): quem assina a NF, para os encaixes do cartão da lista (sem cópia nem visualizador). */
+export type InvoiceListRecipient = {
+  name: string;
+  email: string;
+  signingStatus: SigningStatus;
+  role: RecipientRole;
+};
 
 /** Quem vê a lista, com as marcas do Financeiro e da Contabilidade lidas do banco uma vez por pedido. */
 type ResolvedViewer = InvoiceViewer & { isFinance: boolean; isAccounting: boolean };
@@ -75,6 +84,8 @@ export type InvoiceListRow = {
    * o dono abre no time e o admin no painel.
    */
   link: string | null;
+  /** REVALLE (redesign v3): na ordem de assinatura (depois pelo id). */
+  recipients: InvoiceListRecipient[];
 };
 
 export type FindInvoicesOptions = InvoiceViewer & {
@@ -274,6 +285,12 @@ const select = {
   user: { select: { name: true, email: true } },
   team: { select: { url: true } },
   auditLogs: { where: { type: SENT }, orderBy: { createdAt: 'asc' }, take: 1, select: { createdAt: true } },
+  // REVALLE (redesign v3): só leitura, para os encaixes; cópia e visualizador não assinam.
+  recipients: {
+    where: { role: { notIn: [RecipientRole.CC, RecipientRole.VIEWER] } },
+    orderBy: [{ signingOrder: { sort: 'asc', nulls: 'last' } }, { id: 'asc' }],
+    select: { name: true, email: true, signingStatus: true, role: true },
+  },
   revalleInvoice: {
     select: {
       choiceCode: true,
@@ -418,6 +435,7 @@ const toRows = async (envelopes: SelectedEnvelope[], viewer: ResolvedViewer): Pr
           (invoice.costCenterValidatedById ? (approvers.get(invoice.costCenterValidatedById) ?? null) : null))
         : null,
       link,
+      recipients: envelope.recipients, // REVALLE (redesign v3)
     };
   });
 };

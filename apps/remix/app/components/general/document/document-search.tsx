@@ -1,13 +1,15 @@
 import { useDebouncedValue } from '@documenso/lib/client-only/hooks/use-debounced-value';
+import { cn } from '@documenso/ui/lib/utils';
 import { Input } from '@documenso/ui/primitives/input';
 import { msg } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
+import { SearchIcon } from 'lucide-react';
 import { useQueryStates } from 'nuqs';
 import { useEffect, useState } from 'react';
 
 import { documentsSearchParams } from '~/utils/documents-search-params';
 
-export const DocumentSearch = () => {
+export const DocumentSearch = ({ className }: { className?: string }) => {
   const { _ } = useLingui();
 
   const [{ query }, setSearchParams] = useQueryStates(
@@ -31,12 +33,23 @@ export const DocumentSearch = () => {
     }
   }, [debouncedSearchTerm, query, setSearchParams]);
 
+  // REVALLE v3: busca com a lupa dentro da caixa (linha inteira na barra de filtros)
   return (
-    <Input
-      type="search"
-      placeholder={_(msg`Search documents...`)}
-      value={searchTerm}
-      onChange={(e) => setSearchTerm(e.target.value)}
-    />
+    <div className={cn('relative', className)}>
+      <SearchIcon
+        className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+        strokeWidth={2.2}
+        aria-hidden
+      />
+
+      <Input
+        type="search"
+        className="pl-10"
+        placeholder={_(msg`Search documents...`)}
+        aria-label={_(msg`Search documents...`)}
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+      />
+    </div>
   );
 };

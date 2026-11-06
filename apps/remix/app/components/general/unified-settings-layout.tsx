@@ -180,32 +180,33 @@ export const UnifiedSettingsLayout = ({ activeScope, preferredTeamUrl = null }: 
 
   const crumbs = findActiveCrumbs(activeGroup, pathname).map((label) => _(label));
 
+  // REVALLE: v3-7a: nav card + white content card, both on the ground colour
   return (
-    <div className="flex flex-col md:min-h-0 md:flex-1 md:flex-row">
-      <aside className="hover-scrollbar w-full shrink-0 border-b bg-background md:w-80 md:overflow-y-auto md:border-r md:border-b-0">
-        <div className="flex h-full flex-col">
-          <div className="hidden md:block">
-            <UnifiedSettingsSidebar
-              groups={groups}
-              currentOrgUrl={organisation?.url ?? null}
-              currentTeamUrl={teamForSidebar?.url ?? null}
-            />
-          </div>
-          <div className="md:hidden">
-            <UnifiedSettingsSidebarMobile
-              groups={groups}
-              activeScope={activeScope}
-              currentOrgUrl={organisation?.url ?? null}
-              currentTeamUrl={teamForSidebar?.url ?? null}
-            />
-          </div>
+    <div className="flex flex-col gap-4 px-4 pt-4 pb-8 md:min-h-0 md:flex-1 md:flex-row md:gap-6 md:px-8 md:pt-0 md:pb-0">
+      <aside className="hover-scrollbar w-full shrink-0 md:w-72 md:overflow-y-auto md:py-[34px]">
+        <div className="hidden md:block">
+          <UnifiedSettingsSidebar
+            groups={groups}
+            currentOrgUrl={organisation?.url ?? null}
+            currentTeamUrl={teamForSidebar?.url ?? null}
+          />
+        </div>
+        <div className="md:hidden">
+          <UnifiedSettingsSidebarMobile
+            groups={groups}
+            activeScope={activeScope}
+            currentOrgUrl={organisation?.url ?? null}
+            currentTeamUrl={teamForSidebar?.url ?? null}
+          />
         </div>
       </aside>
 
-      <main ref={contentPaneRef} className="relative flex-1 px-4 md:overflow-y-auto md:px-12 lg:px-16">
-        <div className="mx-auto w-full max-w-3xl py-6 md:py-8" data-testid="unified-settings-content">
+      <main ref={contentPaneRef} className="relative min-w-0 flex-1 md:overflow-y-auto md:py-[34px]">
+        <div className="mx-auto w-full max-w-[860px]" data-testid="unified-settings-content">
           <SettingsScopeBreadcrumb scope={activeScope} scopeName={scopeName} crumbs={crumbs} />
-          <Outlet />
+          <div className="rounded-card bg-card p-5 shadow-card md:p-8">
+            <Outlet />
+          </div>
         </div>
       </main>
     </div>

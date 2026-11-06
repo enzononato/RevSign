@@ -11,7 +11,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@documenso/ui/primitives/dropdown-menu';
-import { Trans } from '@lingui/react/macro';
+import { Trans, useLingui } from '@lingui/react/macro';
 import { DocumentStatus, EnvelopeType } from '@prisma/client';
 import { Copy, Download, Edit, History, MoreHorizontal, Pencil, ScrollTextIcon, Trash2 } from 'lucide-react';
 import { useState } from 'react';
@@ -31,6 +31,7 @@ export type DocumentPageViewDropdownProps = {
 
 export const DocumentPageViewDropdown = ({ envelope }: DocumentPageViewDropdownProps) => {
   const { user } = useSession();
+  const { t } = useLingui();
 
   const navigate = useNavigate();
   const team = useCurrentTeam();
@@ -54,8 +55,13 @@ export const DocumentPageViewDropdown = ({ envelope }: DocumentPageViewDropdownP
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger data-testid="document-page-view-action-btn">
-        <MoreHorizontal className="h-5 w-5 text-muted-foreground" />
+      {/* REVALLE v3: botão redondo de contorno (44px) ao lado da ação principal no cabeçalho */}
+      <DropdownMenuTrigger
+        data-testid="document-page-view-action-btn"
+        aria-label={t`Actions`}
+        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-[1.5px] border-border bg-card text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      >
+        <MoreHorizontal className="h-5 w-5" />
       </DropdownMenuTrigger>
 
       <DropdownMenuContent className="w-52" align="end" forceMount>

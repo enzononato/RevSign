@@ -176,15 +176,16 @@ export function EnvelopeRecipientFieldTooltip({
                 </>
               ) : field.recipient.signingStatus === SigningStatus.SIGNED ? (
                 <>
-                  <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                  <span className="text-green-600 dark:text-green-400">
+                  {/* REVALLE: cores de status pelos tokens */}
+                  <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                  <span className="text-success">
                     <Trans>Signed</Trans>
                   </span>
                 </>
               ) : (
                 <>
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                  <span className="text-amber-600 dark:text-amber-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-warning" />
+                  <span className="text-warning-text">
                     <Trans>Pending</Trans>
                   </span>
                 </>

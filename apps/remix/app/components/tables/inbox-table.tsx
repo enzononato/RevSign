@@ -1,5 +1,6 @@
 import { useUpdateSearchParams } from '@documenso/lib/client-only/hooks/use-update-search-params';
 import { useSession } from '@documenso/lib/client-only/providers/session';
+import { formatRevalleDateTime } from '@documenso/lib/revalle/date-format';
 import { isDocumentCompleted } from '@documenso/lib/utils/document';
 import { trpc } from '@documenso/trpc/react';
 import type { TFindInboxResponse } from '@documenso/trpc/server/document-router/find-inbox.types';
@@ -7,7 +8,6 @@ import { Button } from '@documenso/ui/primitives/button';
 import type { DataTableColumnDef } from '@documenso/ui/primitives/data-table';
 import { DataTable } from '@documenso/ui/primitives/data-table';
 import { DataTablePagination } from '@documenso/ui/primitives/data-table-pagination';
-import { Skeleton } from '@documenso/ui/primitives/skeleton';
 import { TableCell } from '@documenso/ui/primitives/table';
 import { useToast } from '@documenso/ui/primitives/use-toast';
 import { msg } from '@lingui/core/macro';
@@ -15,24 +15,28 @@ import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
 import { DocumentStatus as DocumentStatusEnum, RecipientRole, SigningStatus } from '@prisma/client';
 import { CheckCircleIcon, DownloadIcon, EyeIcon, Loader, PencilIcon } from 'lucide-react';
-import { DateTime } from 'luxon';
 import { useQueryStates } from 'nuqs';
-import { useMemo, useTransition } from 'react';
+import { type ReactNode, useMemo, useTransition } from 'react';
 import { match } from 'ts-pattern';
 
-import { DocumentStatus } from '~/components/general/document/document-status';
-import { useOptionalCurrentTeam } from '~/providers/team';
 import { inboxSearchParams, resolveInboxStatus } from '~/utils/inbox-search-params';
 
 import { EnvelopeDownloadDialog } from '../dialogs/envelope-download-dialog';
-import { StackAvatarsWithTooltip } from '../general/stack-avatars-with-tooltip';
+import {
+  DOCUMENT_ROW_SLOTS_CLASS_NAME,
+  DocumentRowCardBody,
+  DocumentRowCardSkeletonBody,
+  DocumentRowState,
+  documentRowCardTableClassName,
+} from './document-row-card';
+import { RecipientSignerSlots } from './recipient-signer-slots';
 
 type DocumentsTableRow = TFindInboxResponse['data'][number];
 
 export const InboxTable = () => {
-  const { _, i18n } = useLingui();
+  const { _ } = useLingui();
+  const { user } = useSession();
 
-  const team = useOptionalCurrentTeam();
   const [isPending, startTransition] = useTransition();
 
   const updateSearchParams = useUpdateSearchParams();
@@ -58,43 +62,38 @@ export const InboxTable = () => {
 
   const hasSearchQuery = query.trim().length > 0;
 
+  // REVALLE v3 (finish review 1, #1 e #7): cada linha é um cartão no padrão das NF (título; remetente · data em 24h;
+  // encaixes; uma pílula de ação ou de situação).
   const columns = useMemo(() => {
     return [
       {
-        header: _(msg`Created`),
-        accessorKey: 'createdAt',
-        cell: ({ row }) => i18n.date(row.original.createdAt, { ...DateTime.DATETIME_SHORT, hourCycle: 'h12' }),
-      },
-      {
-        header: _(msg`Title`),
+        id: 'document',
+        header: () => _(msg`Document`),
         cell: ({ row }) => (
-          <span className="block max-w-[10rem] truncate font-medium md:max-w-[20rem]">{row.original.title}</span>
+          <DocumentRowCardBody
+            title={<span title={row.original.title}>{row.original.title}</span>}
+            meta={`${row.original.user.name ?? row.original.user.email} · ${formatRevalleDateTime(row.original.createdAt)}`}
+            slots={
+              <RecipientSignerSlots
+                recipients={row.original.recipients}
+                documentStatus={row.original.status}
+                currentUserEmail={user.email}
+                max={3}
+                withStatusSummary
+                className={DOCUMENT_ROW_SLOTS_CLASS_NAME}
+              />
+            }
+            action={
+              <InboxTableActionButton
+                row={row.original}
+                fallback={<DocumentRowState status={row.original.status} recipients={row.original.recipients} />}
+              />
+            }
+          />
         ),
-      },
-      {
-        id: 'sender',
-        header: _(msg`Sender`),
-        cell: ({ row }) => row.original.user.name ?? row.original.user.email,
-      },
-      {
-        header: _(msg`Recipient`),
-        accessorKey: 'recipient',
-        cell: ({ row }) => (
-          <StackAvatarsWithTooltip recipients={row.original.recipients} documentStatus={row.original.status} />
-        ),
-      },
-      {
-        header: _(msg`Status`),
-        accessorKey: 'status',
-        cell: ({ row }) => <DocumentStatus status={row.original.status} />,
-        size: 140,
-      },
-      {
-        header: _(msg`Actions`),
-        cell: ({ row }) => <InboxTableActionButton row={row.original} />,
       },
     ] satisfies DataTableColumnDef<DocumentsTableRow>[];
-  }, [team]);
+  }, [user.email]);
 
   const onPaginationChange = (page: number, perPage: number) => {
     startTransition(() => {
@@ -104,6 +103,28 @@ export const InboxTable = () => {
       });
     });
   };
+
+  // REVALLE v3: frase simples, sem o cinza apagado (legível no claro e no escuro)
+  const emptyState = (
+    <div className="flex h-48 flex-col items-center justify-center gap-y-4 text-muted-foreground">
+      <p>
+        {match({ hasSearchQuery, status })
+          .with({ hasSearchQuery: true }, () => <Trans>No documents match your search</Trans>)
+          .with({ status: DocumentStatusEnum.COMPLETED }, () => (
+            <Trans>Documents that you have completed will appear here</Trans>
+          ))
+          .with({ status: DocumentStatusEnum.REJECTED }, () => (
+            <Trans>Documents that have been rejected will appear here</Trans>
+          ))
+          .with({ status: DocumentStatusEnum.CANCELLED }, () => (
+            <Trans>Documents that have been cancelled will appear here</Trans>
+          ))
+          .otherwise(() => (
+            <Trans>Documents that require your attention will appear here</Trans>
+          ))}
+      </p>
+    </div>
+  );
 
   const results = data ?? {
     data: [],
@@ -121,55 +142,18 @@ export const InboxTable = () => {
         currentPage={results.currentPage}
         totalPages={results.totalPages}
         onPaginationChange={onPaginationChange}
-        columnVisibility={{
-          sender: team !== undefined,
-        }}
         error={{
           enable: isLoadingError || false,
         }}
-        emptyState={
-          <div className="flex h-60 flex-col items-center justify-center gap-y-4 text-muted-foreground/60">
-            <p>
-              {match({ hasSearchQuery, status })
-                .with({ hasSearchQuery: true }, () => <Trans>No documents match your search</Trans>)
-                .with({ status: DocumentStatusEnum.COMPLETED }, () => (
-                  <Trans>Documents that you have completed will appear here</Trans>
-                ))
-                .with({ status: DocumentStatusEnum.REJECTED }, () => (
-                  <Trans>Documents that have been rejected will appear here</Trans>
-                ))
-                .with({ status: DocumentStatusEnum.CANCELLED }, () => (
-                  <Trans>Documents that have been cancelled will appear here</Trans>
-                ))
-                .otherwise(() => (
-                  <Trans>Documents that require your attention will appear here</Trans>
-                ))}
-            </p>
-          </div>
-        }
+        className={documentRowCardTableClassName({ withHeader: false })}
+        emptyState={emptyState}
         skeleton={{
           enable: isLoading || false,
           rows: 5,
           component: (
-            <>
-              <TableCell>
-                <Skeleton className="h-4 w-40 rounded-full" />
-              </TableCell>
-              <TableCell>
-                <Skeleton className="h-4 w-20 rounded-full" />
-              </TableCell>
-              <TableCell className="py-4">
-                <div className="flex w-full flex-row items-center">
-                  <Skeleton className="h-10 w-10 flex-shrink-0 rounded-full" />
-                </div>
-              </TableCell>
-              <TableCell>
-                <Skeleton className="h-4 w-20 rounded-full" />
-              </TableCell>
-              <TableCell>
-                <Skeleton className="h-10 w-24 rounded" />
-              </TableCell>
-            </>
+            <TableCell>
+              <DocumentRowCardSkeletonBody />
+            </TableCell>
           ),
         }}
       >
@@ -189,9 +173,11 @@ export const InboxTable = () => {
 
 export type InboxTableActionButtonProps = {
   row: TFindInboxResponse['data'][number];
+  /** REVALLE v3: o que mostrar quando a linha não tem ação para você (a pílula de situação do cartão). */
+  fallback?: ReactNode;
 };
 
-export const InboxTableActionButton = ({ row }: InboxTableActionButtonProps) => {
+export const InboxTableActionButton = ({ row, fallback = null }: InboxTableActionButtonProps) => {
   const { user } = useSession();
   const { toast } = useToast();
   const { _ } = useLingui();
@@ -204,66 +190,69 @@ export const InboxTableActionButton = ({ row }: InboxTableActionButtonProps) => 
   const role = recipient?.role;
 
   if (!recipient) {
-    return null;
+    return fallback;
   }
 
   // TODO: Consider if want to keep this logic for hiding viewing for CC'ers
   if (recipient?.role === RecipientRole.CC && isComplete === false) {
-    return null;
+    return fallback;
   }
 
   // REVALLE: depois de assinar, o botão "View" continua ativo e abre a página de conclusão (que tem "Ver documento")
-  return match({
-    isPending,
-    isComplete,
-    isSigned,
-    internalVersion: row.internalVersion,
-  })
-    .with({ isPending: true, isSigned: false }, () => (
-      <Button className="w-32" asChild>
-        <a href={`/sign/${recipient?.token}`}>
-          {match(role)
-            .with(RecipientRole.SIGNER, () => (
-              <>
-                <PencilIcon className="mr-2 -ml-1 h-4 w-4" />
-                <Trans>Sign</Trans>
-              </>
-            ))
-            .with(RecipientRole.APPROVER, () => (
-              <>
-                <CheckCircleIcon className="mr-2 -ml-1 h-4 w-4" />
-                <Trans>Approve</Trans>
-              </>
-            ))
-            .otherwise(() => (
-              <>
-                <EyeIcon className="mr-2 -ml-1 h-4 w-4" />
-                <Trans>View</Trans>
-              </>
-            ))}
-        </a>
-      </Button>
-    ))
-    .with({ isPending: true, isSigned: true }, () => (
-      <Button className="w-32" asChild>
-        <a href={`/sign/${recipient.token}`}>
-          <EyeIcon className="mr-2 -ml-1 h-4 w-4" />
-          <Trans>View</Trans>
-        </a>
-      </Button>
-    ))
-    .with({ isComplete: true }, () => (
-      <EnvelopeDownloadDialog
-        envelopeId={row.envelopeId}
-        envelopeStatus={row.status}
-        token={recipient?.token}
-        trigger={
-          <Button className="w-32">
-            <DownloadIcon className="mr-2 -ml-1 inline h-4 w-4" />
-            <Trans>Download</Trans>
-          </Button>
-        }
-      />
-    ))
-    .otherwise(() => <div></div>);
+  return (
+    match({
+      isPending,
+      isComplete,
+      isSigned,
+      internalVersion: row.internalVersion,
+    })
+      .with({ isPending: true, isSigned: false }, () => (
+        <Button className="min-w-[8rem]" asChild>
+          <a href={`/sign/${recipient?.token}`}>
+            {match(role)
+              .with(RecipientRole.SIGNER, () => (
+                <>
+                  <PencilIcon className="mr-2 -ml-1 h-4 w-4" />
+                  <Trans>Sign</Trans>
+                </>
+              ))
+              .with(RecipientRole.APPROVER, () => (
+                <>
+                  <CheckCircleIcon className="mr-2 -ml-1 h-4 w-4" />
+                  <Trans>Approve</Trans>
+                </>
+              ))
+              .otherwise(() => (
+                <>
+                  <EyeIcon className="mr-2 -ml-1 h-4 w-4" />
+                  <Trans>View</Trans>
+                </>
+              ))}
+          </a>
+        </Button>
+      ))
+      // REVALLE v3: só "Assinar"/"Aprovar" é azul; ver e baixar ficam em contorno
+      .with({ isPending: true, isSigned: true }, () => (
+        <Button variant="outline" className="min-w-[8rem]" asChild>
+          <a href={`/sign/${recipient.token}`}>
+            <EyeIcon className="mr-2 -ml-1 h-4 w-4" />
+            <Trans>View</Trans>
+          </a>
+        </Button>
+      ))
+      .with({ isComplete: true }, () => (
+        <EnvelopeDownloadDialog
+          envelopeId={row.envelopeId}
+          envelopeStatus={row.status}
+          token={recipient?.token}
+          trigger={
+            <Button variant="outline" className="min-w-[8rem]">
+              <DownloadIcon className="mr-2 -ml-1 inline h-4 w-4" />
+              <Trans>Download</Trans>
+            </Button>
+          }
+        />
+      ))
+      .otherwise(() => fallback)
+  );
 };

@@ -12,6 +12,9 @@ import { NavLink, useLocation } from 'react-router';
 import { SettingsOrgSwitcher } from './settings-org-switcher';
 import { SettingsTeamSwitcher } from './settings-team-switcher';
 
+// REVALLE: v3-7a active pill = brand tint with brand text
+const ACTIVE_PILL = 'bg-accent text-brand-text hover:bg-accent hover:text-brand-text';
+
 export type UnifiedSettingsSidebarProps = {
   groups: SettingsNavGroups;
   currentOrgUrl: string | null;
@@ -20,18 +23,21 @@ export type UnifiedSettingsSidebarProps = {
 
 export const UnifiedSettingsSidebar = ({ groups, currentOrgUrl, currentTeamUrl }: UnifiedSettingsSidebarProps) => {
   return (
-    <aside className="flex w-full flex-col" data-testid="unified-settings-sidebar">
+    <aside
+      className="flex w-full flex-col rounded-card bg-card shadow-card" // REVALLE: v3-7a card
+      data-testid="unified-settings-sidebar"
+    >
       {currentOrgUrl && (
-        <div className="p-4">
+        <div className="p-3">
           <SidebarGroup
             heading={<Trans>Organisation Settings</Trans>}
-            activeBgClassName="bg-[#F1FBEA] text-gray-900 hover:bg-[#F1FBEA] hover:text-gray-900 dark:bg-[#1C2515] dark:text-[#F1FBEA] dark:hover:bg-[#1C2515] dark:hover:text-[#F1FBEA]"
+            activeBgClassName={ACTIVE_PILL}
             switcher={<SettingsOrgSwitcher currentOrgUrl={currentOrgUrl} />}
             items={groups.organisation?.items ?? []}
             scope="organisation"
             emptyState={
               <p
-                className="rounded-md border border-dashed px-3 py-2 text-muted-foreground text-xs"
+                className="rounded-lg border border-dashed px-3 py-2 text-muted-foreground text-xs"
                 data-testid="unified-settings-organisation-empty-state"
               >
                 <Trans>
@@ -45,10 +51,10 @@ export const UnifiedSettingsSidebar = ({ groups, currentOrgUrl, currentTeamUrl }
       )}
 
       {groups.team && currentOrgUrl && (
-        <div className="border-t p-4">
+        <div className="border-t p-3">
           <SidebarGroup
             heading={<Trans>Team Settings</Trans>}
-            activeBgClassName="bg-[#F1FBEA] text-gray-900 hover:bg-[#F1FBEA] hover:text-gray-900 dark:bg-[#1C2515] dark:text-[#F1FBEA] dark:hover:bg-[#1C2515] dark:hover:text-[#F1FBEA]"
+            activeBgClassName={ACTIVE_PILL}
             switcher={<SettingsTeamSwitcher currentOrgUrl={currentOrgUrl} currentTeamUrl={currentTeamUrl} />}
             items={groups.team.items}
             scope={groups.team.scope}
@@ -56,10 +62,10 @@ export const UnifiedSettingsSidebar = ({ groups, currentOrgUrl, currentTeamUrl }
         </div>
       )}
 
-      <div className={cn('p-4', currentOrgUrl && 'border-t')}>
+      <div className={cn('p-3', currentOrgUrl && 'border-t')}>
         <SidebarGroup
           heading={<Trans>Account Settings</Trans>}
-          activeBgClassName="bg-[#F1FBEA] text-gray-900 hover:bg-[#F1FBEA] hover:text-gray-900 dark:bg-[#1C2515] dark:text-[#F1FBEA] dark:hover:bg-[#1C2515] dark:hover:text-[#F1FBEA]"
+          activeBgClassName={ACTIVE_PILL}
           items={groups.account.items}
           scope={groups.account.scope}
         />
@@ -125,7 +131,10 @@ const SidebarGroup = ({
   return (
     <div className={className} data-testid="unified-settings-sidebar-group">
       <div
-        className={cn('mb-2 font-semibold text-muted-foreground text-xs uppercase tracking-widest', headingClassName)}
+        className={cn(
+          'mb-2 px-3 pt-1 font-bold text-[11px] text-muted-foreground uppercase tracking-[0.08em]',
+          headingClassName,
+        )}
       >
         {heading}
       </div>
@@ -183,8 +192,8 @@ const FlatNavItem = ({ item, activeBgClassName, scope }: FlatNavItemProps) => {
         variant="ghost"
         size="sm"
         className={cn(
-          'h-8 w-full justify-start font-normal text-muted-foreground',
-          isActive && cn(activeBgClassName, 'font-medium'),
+          'h-10 w-full justify-start rounded-full px-3 font-medium text-muted-foreground',
+          isActive && cn(activeBgClassName, 'font-semibold'),
         )}
       >
         {item.icon && <item.icon className="mr-2 h-4 w-4" />}
@@ -227,7 +236,7 @@ const CollapsibleNavSection = ({ parent, childItems, activeBgClassName, scope }:
           variant="ghost"
           size="sm"
           className={cn(
-            'h-8 w-full justify-start font-normal text-muted-foreground',
+            'h-10 w-full justify-start rounded-full px-3 font-medium text-muted-foreground',
             // Emphasise the parent when one of its children is the active page.
             hasActiveChild && 'font-medium text-foreground',
           )}
@@ -260,8 +269,8 @@ const CollapsibleNavSection = ({ parent, childItems, activeBgClassName, scope }:
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  'h-8 w-full justify-start font-normal text-muted-foreground',
-                  isActive && cn(activeBgClassName, 'font-medium'),
+                  'h-10 w-full justify-start rounded-full px-3 font-medium text-muted-foreground',
+                  isActive && cn(activeBgClassName, 'font-semibold'),
                 )}
               >
                 {_(child.label)}

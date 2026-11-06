@@ -7,6 +7,8 @@ import * as React from 'react';
 
 import { cn } from '../lib/utils';
 
+// REVALLE v3: redesign visual (tokens, pílula, raios); ver CHANGES.md
+
 const Sheet = SheetPrimitive.Root;
 
 const SheetTrigger = SheetPrimitive.Trigger;
@@ -50,7 +52,7 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 
 const sheetVariants = cva(
-  'fixed z-[61] scale-100 gap-4 border bg-background p-6 opacity-100 shadow-lg focus:outline-none',
+  'fixed z-[61] scale-100 gap-4 border bg-popover p-6 opacity-100 shadow-xl focus:outline-none',
   {
     variants: {
       position: {

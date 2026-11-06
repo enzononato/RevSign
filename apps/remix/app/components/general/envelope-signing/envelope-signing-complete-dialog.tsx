@@ -25,7 +25,16 @@ import { EnvelopeSigningCscStatus } from './envelope-signing-csc-status';
 
 type PendingCscSigning = Extract<EmbedPopupAuthCscOptions, { scope: 'credential' }>;
 
-export const EnvelopeSignerCompleteDialog = () => {
+// REVALLE (redesign v3): tamanho e classes do botão vêm de quem usa (barra fixa do celular, painel, faixa azul).
+export type EnvelopeSignerCompleteDialogProps = {
+  buttonSize?: 'sm' | 'lg';
+  triggerClassName?: string;
+};
+
+export const EnvelopeSignerCompleteDialog = ({
+  buttonSize = 'sm',
+  triggerClassName,
+}: EnvelopeSignerCompleteDialogProps = {}) => {
   const navigate = useNavigate();
   const analytics = useAnalytics();
 
@@ -391,7 +400,8 @@ export const EnvelopeSignerCompleteDialog = () => {
       allowDictateNextSigner={Boolean(nextRecipient && envelope.documentMeta.allowDictateNextSigner)}
       disableNameInput={!isDirectTemplate && recipient.name !== ''}
       defaultNextSigner={nextRecipient ? { name: nextRecipient.name, email: nextRecipient.email } : undefined}
-      buttonSize="sm"
+      buttonSize={buttonSize} // REVALLE:
+      revalleTriggerClassName={triggerClassName} // REVALLE:
       position="center"
     >
       {pendingCsc && (

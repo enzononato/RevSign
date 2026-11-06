@@ -16,11 +16,16 @@ import {
 } from '@documenso/lib/server-only/revalle/proof/find-proof-by-code';
 import { revalleRateLimitIpKey } from '@documenso/lib/server-only/revalle/rate-limit-ip-key';
 import { getIpAddress } from '@documenso/lib/universal/get-ip-address';
+import { prisma } from '@documenso/prisma'; // REVALLE: redesign v3, contagem de quem assina (só leitura)
 import { Button } from '@documenso/ui/primitives/button';
 import { Input } from '@documenso/ui/primitives/input';
-import { CheckIcon, CopyIcon, ShieldCheckIcon } from 'lucide-react';
+import { RecipientRole, SigningStatus } from '@prisma/client';
+import { CheckIcon, CopyIcon, FileUpIcon, ShieldCheckIcon, TriangleAlertIcon } from 'lucide-react';
 import { useState } from 'react';
 import { data, Form, useLoaderData } from 'react-router';
+import { BrandBand } from '~/components/general/background';
+import { RevsignWordmark } from '~/components/revalle/shell/revsign-wordmark';
+import { type SignerSlot, SignerSlots } from '~/components/revalle/shell/signer-slots';
 
 import type { Route } from './+types/verificar';
 
@@ -53,6 +58,12 @@ type LoaderData =
         factorsLabel: string;
         termLabel: string;
       }[];
+      /**
+       * REVALLE (redesign v3): os encaixes do engradado, só de quem assina ou aprova (leitor não é encaixe). Quem já
+       * assinou vem com o nome da prova (o mesmo da lista abaixo); quem falta ou recusou vem sem nome, porque a página é
+       * pública e a lista também não mostra essas pessoas.
+       */
+      slots: { name: string; state: 'signed' | 'pending' | 'rejected' }[];
       /** Fase 6, NF que passou pelo Financeiro: conta, aprovação e substituição (nada da nova versão). */
       invoice: {
         accountLabel: string | null;
@@ -105,8 +116,43 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
     return data<LoaderData>({ state: 'not-found', codigo });
   }
 
+  // REVALLE (redesign v3): só o estado de cada destinatário que assina ou aprova, para "N de N assinaram".
+  const signerStates = await prisma.revalleSignatureProof
+    .findUnique({
+      where: { verificationCode: codigo },
+      select: {
+        recipient: {
+          select: {
+            envelope: {
+              select: {
+                recipients: {
+                  where: { role: { in: [RecipientRole.SIGNER, RecipientRole.APPROVER] } },
+                  select: { signingStatus: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    })
+    .then((row) => row?.recipient.envelope.recipients.map((r) => r.signingStatus) ?? []);
+
+  const signedNames = result.signers
+    .filter((s) => s.role === RecipientRole.SIGNER || s.role === RecipientRole.APPROVER)
+    .map((s) => s.nome);
+  const signedTotal = Math.max(signedNames.length, signerStates.filter((st) => st === SigningStatus.SIGNED).length);
+  const rejectedTotal = signerStates.filter((st) => st === SigningStatus.REJECTED).length;
+  const pendingTotal = Math.max(0, signerStates.length - signedTotal - rejectedTotal);
+
+  const slots: { name: string; state: 'signed' | 'pending' | 'rejected' }[] = [
+    ...Array.from({ length: signedTotal }, (_, i) => ({ name: signedNames[i] ?? '', state: 'signed' as const })),
+    ...Array.from({ length: rejectedTotal }, () => ({ name: '', state: 'rejected' as const })),
+    ...Array.from({ length: pendingTotal }, () => ({ name: '', state: 'pending' as const })),
+  ];
+
   return data<LoaderData>({
     state: 'found',
+    slots,
     codigo,
     documentTitle: result.documentTitle,
     status: result.status,
@@ -145,6 +191,12 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
   });
 };
 
+const signedSlotsCaption = (slots: { state: string }[]) => {
+  const signed = slots.filter((slot) => slot.state === 'signed').length;
+
+  return `${signed} de ${slots.length} ${signed === 1 ? 'assinou' : 'assinaram'}`;
+};
+
 const toHex = (buffer: ArrayBuffer) =>
   Array.from(new Uint8Array(buffer), (byte) => byte.toString(16).padStart(2, '0')).join('');
 
@@ -156,9 +208,12 @@ type FileCheck =
 
 const FileChecker = ({ items }: { items: { versions: RevalleSealedVersion[] }[] }) => {
   const [check, setCheck] = useState<FileCheck>({ kind: 'idle' });
+  const [fileName, setFileName] = useState<string | null>(null);
 
   const onChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+
+    setFileName(file?.name ?? null);
 
     if (!file) {
       setCheck({ kind: 'idle' });
@@ -184,25 +239,42 @@ const FileChecker = ({ items }: { items: { versions: RevalleSealedVersion[] }[] 
   };
 
   return (
-    <section className="space-y-3 rounded-lg border p-4">
-      <h2 className="font-semibold text-xl">Conferir um arquivo</h2>
+    <section className="space-y-3 rounded-card bg-card p-5 shadow-card sm:p-6">
+      <h2 className="text-xl">Conferir um arquivo</h2>
       <p className="text-muted-foreground text-sm">
         Escolha o PDF que você recebeu para saber se ele é exatamente o documento assinado. O arquivo não sai do seu
         aparelho: a conferência é feita aqui, no navegador.
       </p>
-      <input
-        accept="application/pdf,.pdf"
-        className="block w-full text-sm"
-        data-testid="verify-file"
-        onChange={(e) => void onChange(e)}
-        type="file"
-      />
+      {/* REVALLE: redesign v3. O seletor nativo dizia "Choose File / No file chosen" em inglês; o input continua o mesmo, escondido atrás de um botão em português. */}
+      <div className="flex min-w-0 flex-wrap items-center gap-3 rounded-[13px] border border-input bg-background p-2">
+        <input
+          accept="application/pdf,.pdf"
+          className="peer sr-only"
+          data-testid="verify-file"
+          id="verify-file"
+          onChange={(e) => void onChange(e)}
+          type="file"
+        />
+        <label
+          className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full bg-accent px-4 font-semibold text-accent-foreground text-sm transition-colors hover:bg-accent/80 peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background"
+          htmlFor="verify-file"
+        >
+          <FileUpIcon aria-hidden className="h-4 w-4" />
+          Escolher PDF
+        </label>
+        <span
+          className="line-clamp-2 min-w-0 flex-1 text-muted-foreground text-sm [overflow-wrap:anywhere]"
+          title={fileName ?? undefined}
+        >
+          {fileName ?? 'Nenhum arquivo escolhido'}
+        </span>
+      </div>
       <div aria-live="polite" role="status">
         {check.kind === 'working' && <p className="text-sm">Conferindo…</p>}
         {check.kind === 'error' && <p className="text-destructive text-sm">{check.message}</p>}
         {check.kind === 'done' && check.match && (
           <>
-            <p className="font-medium text-green-700 dark:text-green-400">
+            <p className="font-medium text-success">
               Este arquivo confere com a versão selada em {check.match.sealedAtLabel} (horário de Brasília).
             </p>
             {check.match.newerSealedAtLabel && (
@@ -237,7 +309,7 @@ const CopyLinkButton = ({ codigo }: { codigo: string }) => {
   };
 
   return (
-    <Button className="min-h-11" onClick={() => void onCopy()} type="button" variant="outline">
+    <Button className="w-full sm:w-auto" onClick={() => void onCopy()} type="button" variant="outline">
       {isCopied ? <CheckIcon className="mr-2 h-4 w-4" /> : <CopyIcon className="mr-2 h-4 w-4" />}
       {isCopied ? 'Link copiado' : 'Copiar link desta verificação'}
     </Button>
@@ -248,102 +320,127 @@ export default function VerificarPage() {
   const result = useLoaderData<typeof loader>() as LoaderData;
   const initial = result.state === 'found' || result.state === 'not-found' ? result.codigo : '';
   const hasSealedVersions = result.state === 'found' && result.items.some((item) => item.versions.length > 0);
+  const isAuthentic = result.state === 'found' && result.status === 'COMPLETED' && !result.invoice?.supersededLabel;
 
+  // REVALLE: redesign v3. Faixa azul em largura total (anula o padding do layout de _share), cartões por bloco.
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-6 text-foreground">
-      <header className="space-y-2">
-        <h1 className="font-semibold text-3xl">Verificar documento</h1>
-        <p className="text-muted-foreground text-sm">
-          Digite o código de verificação que aparece no carimbo da assinatura (formato XXXX-XXXX).
-        </p>
-      </header>
+    <div className="-mx-4 -my-12 min-h-screen text-foreground md:-mx-12 md:-my-12 lg:-mx-24 lg:-my-24">
+      <BrandBand className="rounded-b-[26px] lg:pb-16">
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
+          <RevsignWordmark variant="onBrand" size="lg" />
+          <h1 className="text-[30px] text-white leading-tight">Verificar documento</h1>
+        </div>
+      </BrandBand>
 
-      <Form className="flex flex-col gap-2 sm:flex-row" method="get">
-        <label className="sr-only" htmlFor="codigo">
-          Código de verificação
-        </label>
-        <Input
-          autoCapitalize="characters"
-          autoComplete="off"
-          defaultValue={initial}
-          id="codigo"
-          maxLength={16}
-          name="codigo"
-          placeholder="Código de verificação"
-          required
-        />
-        <Button type="submit">Verificar</Button>
-      </Form>
-
-      {result.state === 'limited' && (
-        <p className="text-destructive">Muitas consultas. Tente novamente em alguns minutos.</p>
-      )}
-
-      {result.state === 'not-found' && <p className="text-destructive">Código não encontrado.</p>}
-
-      {result.state === 'found' && (
-        <>
-          <section
-            className={`flex gap-3 rounded-lg border p-4 ${
-              result.status === 'COMPLETED' && !result.invoice?.supersededLabel
-                ? 'border-green-300 bg-green-50 dark:border-green-500/30 dark:bg-green-500/10'
-                : 'border-border bg-muted/40'
-            }`}
-            data-testid="verify-authentic"
-          >
-            <ShieldCheckIcon
-              aria-hidden
-              className={`mt-0.5 h-6 w-6 flex-shrink-0 ${
-                result.status === 'COMPLETED' && !result.invoice?.supersededLabel
-                  ? 'text-green-700 dark:text-green-400'
-                  : 'text-muted-foreground'
-              }`}
+      <div className="mx-auto -mt-8 w-full max-w-2xl space-y-4 px-4 pb-12 sm:px-0">
+        <section className="rounded-card bg-card p-5 shadow-card sm:p-6">
+          <Form className="flex flex-col gap-4" method="get">
+            <label className="font-semibold text-sm" htmlFor="codigo">
+              Código do documento
+            </label>
+            <Input
+              autoCapitalize="characters"
+              autoComplete="off"
+              className="h-14 text-center font-semibold text-xl uppercase tracking-[0.2em]"
+              defaultValue={initial}
+              id="codigo"
+              maxLength={16}
+              name="codigo"
+              placeholder="XXXX-XXXX"
+              required
             />
-            <div className="space-y-1 text-sm">
-              <p className="font-semibold text-base">Código {result.codigo} encontrado no RevSign</p>
-              <p className="text-muted-foreground">
-                Este documento foi assinado eletronicamente no RevSign, o sistema de assinaturas da Revalle. Cada
-                participante foi identificado, aceitou o termo de assinatura eletrônica e confirmou a assinatura com um
-                código enviado ao seu e-mail. A integridade do arquivo é garantida pelo SHA-256 abaixo (MP 2.200-2/2001,
-                art. 10, § 2º).
-              </p>
-            </div>
-          </section>
-
-          <section className="space-y-4 rounded-lg border p-4">
-            <div>
-              <p className="text-muted-foreground text-sm">Documento</p>
-              <h2 className="break-words font-semibold text-xl">{result.documentTitle}</h2>
-            </div>
-
-            <p className="font-medium">
-              {result.status === 'COMPLETED' && `Concluído em ${result.completedAtLabel ?? ''} (horário de Brasília)`}
-              {result.status === 'REJECTED' && `Recusado em ${result.completedAtLabel ?? ''} (horário de Brasília)`}
-              {result.status === 'PENDING' && !result.invoice?.supersededLabel && 'Em andamento'}
+            <p className="text-muted-foreground text-sm">
+              Digite o código de verificação que aparece no carimbo da assinatura (formato XXXX-XXXX).
             </p>
+            <Button className="w-full" size="lg" type="submit">
+              Verificar
+            </Button>
+          </Form>
+        </section>
 
-            {result.invoice?.supersededLabel && (
-              <p className="font-medium text-amber-700 dark:text-amber-400">{result.invoice.supersededLabel}</p>
-            )}
+        {result.state === 'limited' && (
+          <section className="flex gap-3 rounded-card bg-warning-bg p-5 text-warning-text shadow-card" role="alert">
+            <TriangleAlertIcon aria-hidden className="mt-0.5 h-6 w-6 flex-shrink-0" />
+            <p className="font-medium">Muitas consultas. Tente novamente em alguns minutos.</p>
+          </section>
+        )}
 
-            {(result.invoice?.accountLabel || result.invoice?.isAwaitingApproval || result.costCenterLabel) && (
-              <div className="space-y-1 text-sm" data-testid="verify-invoice">
-                <h3 className="font-medium text-base">Nota fiscal</h3>
-                {result.invoice?.accountLabel && <p className="break-words">{result.invoice.accountLabel}</p>}
-                {result.invoice?.approvalLabel && <p>{result.invoice.approvalLabel}</p>}
-                {result.costCenterLabel && <p className="break-words">{result.costCenterLabel}</p>}
-                {result.invoice?.isAwaitingApproval && (
-                  <p className="text-muted-foreground">Aguardando aprovação do Financeiro</p>
-                )}
+        {result.state === 'not-found' && (
+          <section className="flex gap-3 rounded-card bg-warning-bg p-5 text-warning-text shadow-card" role="alert">
+            <TriangleAlertIcon aria-hidden className="mt-0.5 h-6 w-6 flex-shrink-0" />
+            <p className="font-medium">Código não encontrado.</p>
+          </section>
+        )}
+
+        {result.state === 'found' && (
+          <>
+            <section
+              className={`flex gap-3 rounded-card p-5 shadow-card sm:p-6 ${isAuthentic ? 'bg-success-bg' : 'bg-card'}`}
+              data-testid="verify-authentic"
+            >
+              <ShieldCheckIcon
+                aria-hidden
+                className={`mt-0.5 h-7 w-7 flex-shrink-0 ${isAuthentic ? 'text-success' : 'text-muted-foreground'}`}
+              />
+              <div className="space-y-1 text-sm">
+                <p className={`font-semibold text-base ${isAuthentic ? 'text-success' : ''}`}>
+                  Código {result.codigo} encontrado no RevSign
+                </p>
+                <p className="text-foreground/80">
+                  Este documento foi assinado eletronicamente no RevSign, o sistema de assinaturas da Revalle. Cada
+                  participante foi identificado, aceitou o termo de assinatura eletrônica e confirmou a assinatura com
+                  um código enviado ao seu e-mail. A integridade do arquivo é garantida pelo SHA-256 abaixo (MP
+                  2.200-2/2001, art. 10, § 2º).
+                </p>
               </div>
-            )}
+            </section>
 
-            <div>
-              <h3 className="mb-2 font-medium">Participantes</h3>
+            <section className="space-y-4 rounded-card bg-card p-5 shadow-card sm:p-6">
+              <div>
+                <p className="text-muted-foreground text-sm">Documento</p>
+                <h2 className="break-words text-xl">{result.documentTitle}</h2>
+              </div>
+
+              <p className="font-medium">
+                {result.status === 'COMPLETED' && `Concluído em ${result.completedAtLabel ?? ''} (horário de Brasília)`}
+                {result.status === 'REJECTED' && `Recusado em ${result.completedAtLabel ?? ''} (horário de Brasília)`}
+                {result.status === 'PENDING' && !result.invoice?.supersededLabel && 'Em andamento'}
+              </p>
+
+              {result.invoice?.supersededLabel && (
+                <p className="rounded-[13px] bg-warning-bg p-3 font-medium text-warning-text">
+                  {result.invoice.supersededLabel}
+                </p>
+              )}
+
+              {(result.invoice?.accountLabel || result.invoice?.isAwaitingApproval || result.costCenterLabel) && (
+                <div className="space-y-1 text-sm" data-testid="verify-invoice">
+                  <h3 className="font-semibold text-base">Nota fiscal</h3>
+                  {result.invoice?.accountLabel && <p className="break-words">{result.invoice.accountLabel}</p>}
+                  {result.invoice?.approvalLabel && <p>{result.invoice.approvalLabel}</p>}
+                  {result.costCenterLabel && <p className="break-words">{result.costCenterLabel}</p>}
+                  {result.invoice?.isAwaitingApproval && (
+                    <p className="text-muted-foreground">Aguardando aprovação do Financeiro</p>
+                  )}
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-card bg-card p-5 shadow-card sm:p-6">
+              <h3 className="mb-3 font-semibold">Participantes</h3>
+              {/* REVALLE: redesign v3. O engradado de quem assina, acima da lista (leitor não entra). */}
+              {result.slots.length > 0 && (
+                <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="verify-slots">
+                  <SignerSlots slots={result.slots satisfies SignerSlot[]} max={10} />
+                  <p className="font-semibold text-muted-foreground text-sm tabular-nums">
+                    {signedSlotsCaption(result.slots)}
+                  </p>
+                </div>
+              )}
               <ul className="space-y-2">
                 {result.signers.map((s, index) => (
-                  <li className="rounded-md bg-muted/40 p-3 text-sm" key={`${s.nome}-${index}`}>
-                    <p className="font-medium">{s.nome}</p>
+                  <li className="rounded-[13px] bg-muted/60 p-4 text-sm" key={`${s.nome}-${index}`}>
+                    <p className="font-semibold text-base">{s.nome}</p>
                     {s.showCpf && <p>CPF {s.cpfMasked ?? 'não verificado'}</p>}
                     <p>
                       {s.verb} {s.signedAtLabel} (horário de Brasília)
@@ -355,15 +452,15 @@ export default function VerificarPage() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </section>
 
             {result.status === 'COMPLETED' && (
-              <div className="space-y-2">
-                <h3 className="font-medium">SHA-256 do documento final</h3>
+              <section className="space-y-2 rounded-card bg-card p-5 shadow-card sm:p-6">
+                <h3 className="font-semibold">SHA-256 do documento final</h3>
                 {result.items.map((item, index) => (
                   <div key={`${item.title}-${index}`}>
                     {result.items.length > 1 && <p className="break-words text-sm">{item.title}</p>}
-                    <code className="block break-all rounded bg-muted p-2 text-xs">
+                    <code className="block break-all rounded-[13px] bg-muted p-3 text-xs">
                       {item.finalSha256 ?? 'Selagem em andamento'}
                     </code>
                     {item.versions.length > 1 && (
@@ -378,15 +475,15 @@ export default function VerificarPage() {
                     )}
                   </div>
                 ))}
-              </div>
+              </section>
             )}
-          </section>
 
-          {hasSealedVersions && <FileChecker items={result.items} />}
+            {hasSealedVersions && <FileChecker items={result.items} />}
 
-          <CopyLinkButton codigo={result.codigo} />
-        </>
-      )}
+            <CopyLinkButton codigo={result.codigo} />
+          </>
+        )}
+      </div>
     </div>
   );
 }

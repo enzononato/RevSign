@@ -125,13 +125,13 @@ export default function OrganisationSignIn({ loaderData }: Route.ComponentProps)
 
   if (action === 'verification-required') {
     return (
-      <div className="w-screen max-w-lg px-4">
-        <div className="flex items-start">
-          <div className="mt-1 mr-4 hidden md:block">
+      <div className="w-full">
+        <div className="flex flex-col">
+          <div className="mb-4">
             <MailsIcon className="h-10 w-10 text-primary" strokeWidth={2} />
           </div>
           <div className="">
-            <h2 className="font-bold text-2xl md:text-4xl">
+            <h2 className="text-[30px] leading-tight">
               <Trans>Confirmation email sent</Trans>
             </h2>
 
@@ -156,9 +156,9 @@ export default function OrganisationSignIn({ loaderData }: Route.ComponentProps)
   }
 
   return (
-    <div className="w-screen max-w-lg px-4">
-      <div className="z-10 rounded-xl border border-border bg-neutral-100 p-6 dark:bg-background">
-        <h1 className="font-semibold text-2xl">
+    <div className="w-full">
+      <div className="z-10">
+        <h1 className="text-[30px] leading-tight">
           <Trans>Welcome to {organisationName}</Trans>
         </h1>
 
@@ -166,7 +166,7 @@ export default function OrganisationSignIn({ loaderData }: Route.ComponentProps)
           <Trans>Sign in to your account</Trans>
         </p>
 
-        <hr className="-mx-6 my-4" />
+        <div className="my-5" />
 
         <div className="mb-4 flex items-center gap-x-2">
           <Checkbox

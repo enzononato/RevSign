@@ -15,6 +15,8 @@ import { cn } from '../lib/utils';
 import { Skeleton } from './skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './table';
 
+// REVALLE v3: redesign visual (tokens, pílula, raios); ver CHANGES.md
+
 export type DataTableChildren<TData> = (_table: TTable<TData>) => React.ReactNode;
 
 export type { ColumnDef as DataTableColumnDef, RowSelectionState } from '@tanstack/react-table';
@@ -123,7 +125,7 @@ export function DataTable<TData, TValue>({
 
   return (
     <>
-      <div className={cn('rounded-md border', className)}>
+      <div className={cn('rounded-card border bg-card', className)}>
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (

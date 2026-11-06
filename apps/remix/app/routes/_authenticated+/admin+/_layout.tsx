@@ -2,7 +2,6 @@ import { getOptionalSession } from '@documenso/auth/server/lib/utils/get-session
 import { LicenseClient } from '@documenso/lib/server-only/license/license-client';
 import { isAdmin } from '@documenso/lib/utils/is-admin';
 import { cn } from '@documenso/ui/lib/utils';
-import { Button } from '@documenso/ui/primitives/button';
 import { msg } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import {
@@ -12,6 +11,7 @@ import {
   Calculator, // REVALLE:
   FileStack,
   LineChartIcon,
+  type LucideIcon,
   MailIcon,
   Settings,
   ShieldCheck, // REVALLE:
@@ -20,6 +20,7 @@ import {
   Users,
   Wallet2,
 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { Link, Outlet, redirect, useLocation } from 'react-router';
 
 import { AdminLicenseStatusBanner } from '~/components/general/admin-license-status-banner';
@@ -51,194 +52,61 @@ export default function AdminLayout({ loaderData }: Route.ComponentProps) {
   const { license } = loaderData;
   const { pathname } = useLocation();
 
+  // REVALLE: v3-7a: display H1, nav pills inside a card, content in a white card
+  const items: { to: string; icon: LucideIcon; label: ReactNode }[] = [
+    { to: '/admin/stats', icon: BarChart3, label: <Trans>Stats</Trans> },
+    { to: '/admin/organisations', icon: Building2Icon, label: <Trans>Organisations</Trans> },
+    { to: '/admin/claims', icon: Wallet2, label: <Trans>Claims</Trans> },
+    { to: '/admin/users', icon: Users, label: <Trans>Users</Trans> },
+    { to: '/admin/documents', icon: FileStack, label: <Trans>Documents</Trans> },
+    { to: '/admin/unsealed-documents', icon: AlertTriangleIcon, label: <Trans>Unsealed Documents</Trans> },
+    { to: '/admin/email-transports', icon: MailIcon, label: <Trans>Email Transports</Trans> },
+    { to: '/admin/email-domains', icon: MailIcon, label: <Trans>Email Domains</Trans> },
+    { to: '/admin/organisation-insights', icon: Trophy, label: <Trans>Organisation Insights</Trans> },
+    { to: '/admin/organisation-stats', icon: LineChartIcon, label: <Trans>Organisation Stats</Trans> },
+    { to: '/admin/site-settings', icon: Settings, label: <Trans>Site Settings</Trans> },
+    { to: '/admin/revalle-verificacoes', icon: ShieldCheck, label: 'Verificações' },
+    { to: '/admin/revalle-contas-contabeis', icon: Calculator, label: 'Contas contábeis' },
+    { to: '/admin/revalle-perfis', icon: UserCogIcon, label: 'Perfis' },
+  ];
+
   return (
-    <div className="mx-auto w-full max-w-screen-xl px-4 md:px-8">
+    <div className="mx-auto w-full max-w-[1260px] px-4 md:px-8">
       <AdminLicenseStatusBanner license={license} />
 
-      <h1 className="font-semibold text-4xl">
+      <h1 className="font-black font-display text-[28px] tracking-[-0.03em] md:text-4xl">
         <Trans>Admin Panel</Trans>
       </h1>
 
-      <div className="mt-4 grid grid-cols-12 gap-x-8 md:mt-8">
-        <div
+      <div className="mt-5 grid grid-cols-12 gap-x-6 gap-y-4 md:mt-7">
+        <nav
           className={cn(
-            'col-span-12 flex gap-x-2.5 gap-y-2 overflow-hidden overflow-x-auto md:col-span-3 md:flex md:flex-col',
+            'col-span-12 -mx-4 flex gap-2 overflow-x-auto px-4 pb-1',
+            'md:sticky md:top-6 md:col-span-3 md:mx-0 md:flex-col md:gap-1 md:self-start md:overflow-visible md:rounded-card md:bg-card md:p-3 md:shadow-card',
           )}
         >
-          <Button
-            variant="ghost"
-            className={cn('justify-start md:w-full', pathname?.startsWith('/admin/stats') && 'bg-secondary')}
-            asChild
-          >
-            <Link to="/admin/stats">
-              <BarChart3 className="mr-2 h-5 w-5" />
-              <Trans>Stats</Trans>
-            </Link>
-          </Button>
+          {items.map((item) => {
+            const isActive = pathname?.startsWith(item.to);
 
-          <Button
-            variant="ghost"
-            className={cn('justify-start md:w-full', pathname?.startsWith('/admin/organisations') && 'bg-secondary')}
-            asChild
-          >
-            <Link to="/admin/organisations">
-              <Building2Icon className="mr-2 h-5 w-5" />
-              <Trans>Organisations</Trans>
-            </Link>
-          </Button>
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={cn(
+                  'flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 font-medium text-sm md:h-10 md:px-3',
+                  isActive
+                    ? 'bg-accent font-semibold text-brand-text'
+                    : 'bg-card text-muted-foreground shadow-card hover:text-foreground md:bg-transparent md:shadow-none md:hover:bg-muted',
+                )}
+              >
+                <item.icon className="h-4 w-4 shrink-0" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
 
-          <Button
-            variant="ghost"
-            className={cn('justify-start md:w-full', pathname?.startsWith('/admin/claims') && 'bg-secondary')}
-            asChild
-          >
-            <Link to="/admin/claims">
-              <Wallet2 className="mr-2 h-5 w-5" />
-              <Trans>Claims</Trans>
-            </Link>
-          </Button>
-
-          <Button
-            variant="ghost"
-            className={cn('justify-start md:w-full', pathname?.startsWith('/admin/users') && 'bg-secondary')}
-            asChild
-          >
-            <Link to="/admin/users">
-              <Users className="mr-2 h-5 w-5" />
-              <Trans>Users</Trans>
-            </Link>
-          </Button>
-
-          <Button
-            variant="ghost"
-            className={cn('justify-start md:w-full', pathname?.startsWith('/admin/documents') && 'bg-secondary')}
-            asChild
-          >
-            <Link to="/admin/documents">
-              <FileStack className="mr-2 h-5 w-5" />
-              <Trans>Documents</Trans>
-            </Link>
-          </Button>
-
-          <Button
-            variant="ghost"
-            className={cn(
-              'justify-start md:w-full',
-              pathname?.startsWith('/admin/unsealed-documents') && 'bg-secondary',
-            )}
-            asChild
-          >
-            <Link to="/admin/unsealed-documents">
-              <AlertTriangleIcon className="mr-2 h-5 w-5" />
-              <Trans>Unsealed Documents</Trans>
-            </Link>
-          </Button>
-
-          <Button
-            variant="ghost"
-            className={cn('justify-start md:w-full', pathname?.startsWith('/admin/email-transports') && 'bg-secondary')}
-            asChild
-          >
-            <Link to="/admin/email-transports">
-              <MailIcon className="mr-2 h-5 w-5" />
-              <Trans>Email Transports</Trans>
-            </Link>
-          </Button>
-
-          <Button
-            variant="ghost"
-            className={cn('justify-start md:w-full', pathname?.startsWith('/admin/email-domains') && 'bg-secondary')}
-            asChild
-          >
-            <Link to="/admin/email-domains">
-              <MailIcon className="mr-2 h-5 w-5" />
-              <Trans>Email Domains</Trans>
-            </Link>
-          </Button>
-
-          <Button
-            variant="ghost"
-            className={cn(
-              'justify-start md:w-full',
-              pathname?.startsWith('/admin/organisation-insights') && 'bg-secondary',
-            )}
-            asChild
-          >
-            <Link to="/admin/organisation-insights">
-              <Trophy className="mr-2 h-5 w-5" />
-              <Trans>Organisation Insights</Trans>
-            </Link>
-          </Button>
-
-          <Button
-            variant="ghost"
-            className={cn(
-              'justify-start md:w-full',
-              pathname?.startsWith('/admin/organisation-stats') && 'bg-secondary',
-            )}
-            asChild
-          >
-            <Link to="/admin/organisation-stats">
-              <LineChartIcon className="mr-2 h-5 w-5" />
-              <Trans>Organisation Stats</Trans>
-            </Link>
-          </Button>
-
-          <Button
-            variant="ghost"
-            className={cn('justify-start md:w-full', pathname?.startsWith('/admin/site-settings') && 'bg-secondary')}
-            asChild
-          >
-            <Link to="/admin/site-settings">
-              <Settings className="mr-2 h-5 w-5" />
-              <Trans>Site Settings</Trans>
-            </Link>
-          </Button>
-
-          {/* REVALLE: */}
-          <Button
-            variant="ghost"
-            className={cn(
-              'justify-start md:w-full',
-              pathname?.startsWith('/admin/revalle-verificacoes') && 'bg-secondary',
-            )}
-            asChild
-          >
-            <Link to="/admin/revalle-verificacoes">
-              <ShieldCheck className="mr-2 h-5 w-5" />
-              Verificações
-            </Link>
-          </Button>
-
-          {/* REVALLE: */}
-          <Button
-            variant="ghost"
-            className={cn(
-              'justify-start md:w-full',
-              pathname?.startsWith('/admin/revalle-contas-contabeis') && 'bg-secondary',
-            )}
-            asChild
-          >
-            <Link to="/admin/revalle-contas-contabeis">
-              <Calculator className="mr-2 h-5 w-5" />
-              Contas contábeis
-            </Link>
-          </Button>
-
-          {/* REVALLE: */}
-          <Button
-            variant="ghost"
-            className={cn('justify-start md:w-full', pathname?.startsWith('/admin/revalle-perfis') && 'bg-secondary')}
-            asChild
-          >
-            <Link to="/admin/revalle-perfis">
-              <UserCogIcon className="mr-2 h-5 w-5" />
-              Perfis
-            </Link>
-          </Button>
-        </div>
-
-        <div className="col-span-12 mt-12 md:col-span-9 md:mt-0">
+        <div className="col-span-12 min-w-0 rounded-card bg-card p-5 shadow-card md:col-span-9 md:p-8">
           <Outlet />
         </div>
       </div>

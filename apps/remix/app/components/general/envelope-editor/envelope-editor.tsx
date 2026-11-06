@@ -264,10 +264,9 @@ export const EnvelopeEditor = () => {
                   title={isBlockedWithoutRecipients ? 'Adicione pelo menos um destinatário para continuar.' : undefined}
                   className={cn(
                     isBlockedWithoutRecipients && 'cursor-not-allowed opacity-50',
-                    `cursor-pointer rounded-lg text-left transition-colors ${
-                      isActive
-                        ? 'border border-green-200 bg-green-50 dark:border-green-500/20 dark:bg-green-500/10'
-                        : 'border border-gray-200 hover:bg-gray-50 dark:border-gray-400/20 dark:hover:bg-gray-400/10'
+                    // REVALLE: redesign v3. Etapa ativa na tinta azul da marca (era verde); bordas e fundos por token.
+                    `cursor-pointer rounded-[13px] text-left transition-colors ${
+                      isActive ? 'border border-primary/25 bg-accent' : 'border border-border hover:bg-muted/60'
                     }`,
                     {
                       'p-3': !minimizeLeftSidebar,
@@ -276,23 +275,15 @@ export const EnvelopeEditor = () => {
                   onClick={() => void navigateToStep(step.id as EnvelopeEditorStep)}
                 >
                   <div className="flex items-center space-x-3">
-                    <div
-                      className={`rounded border p-2 ${
-                        isActive
-                          ? 'border-green-200 bg-green-50 dark:border-green-500/20 dark:bg-green-500/10'
-                          : 'border-gray-100 bg-gray-100 dark:border-gray-400/20 dark:bg-gray-400/10'
-                      }`}
-                    >
-                      <Icon className={`h-4 w-4 ${isActive ? 'text-green-600' : 'text-gray-600'}`} />
+                    <div className={`rounded-[10px] p-2 ${isActive ? 'bg-card' : 'bg-muted'}`}>
+                      <Icon className={`h-4 w-4 ${isActive ? 'text-brand-text' : 'text-muted-foreground'}`} />
                     </div>
 
                     {!minimizeLeftSidebar && (
                       <div>
                         <div
                           className={`font-medium text-sm ${
-                            isActive
-                              ? 'text-green-900 dark:text-green-400'
-                              : 'text-foreground dark:text-muted-foreground'
+                            isActive ? 'font-semibold text-brand-text' : 'text-foreground'
                           }`}
                         >
                           {t(step.title)}

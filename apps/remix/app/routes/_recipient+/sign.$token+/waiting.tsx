@@ -9,9 +9,12 @@ import { Button } from '@documenso/ui/primitives/button';
 import { Trans } from '@lingui/react/macro';
 import type { Team } from '@prisma/client';
 import { DocumentStatus, EnvelopeType } from '@prisma/client';
+import { HourglassIcon } from 'lucide-react'; // REVALLE:
 import { Link, redirect } from 'react-router';
 
 import { RecipientBranding } from '~/components/general/recipient-branding';
+import { GateStatusIcon } from '~/components/revalle/signing-gate/gate-status-icon'; // REVALLE:
+import { SigningPageFrame } from '~/components/revalle/signing-gate/signing-band'; // REVALLE:
 import { useCspNonce } from '~/utils/nonce';
 
 import type { Route } from './+types/waiting';
@@ -77,35 +80,38 @@ export default function WaitingForTurnToSignPage({ loaderData }: Route.Component
   const { documentPathForEditing, branding } = loaderData;
   const cspNonce = useCspNonce();
 
+  // REVALLE (redesign v3): faixa azul + um cartão.
   return (
     <>
       <RecipientBranding branding={branding} cspNonce={cspNonce} />
-      <div className="relative flex flex-col items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-        <div className="w-full max-w-md text-center">
-          <h2 className="font-bold text-3xl tracking-tight">
-            <Trans>Waiting for Your Turn</Trans>
-          </h2>
+      <SigningPageFrame>
+        <div className="flex flex-col items-center text-center">
+          <GateStatusIcon icon={HourglassIcon} tone="warning" />
 
-          <p className="mt-2 text-muted-foreground text-sm">
+          <h1 className="mt-4 font-black font-display text-[26px] leading-tight tracking-[-0.02em]">
+            <Trans>Waiting for Your Turn</Trans>
+          </h1>
+
+          <p className="mt-3 max-w-[46ch] text-[14.5px] text-muted-foreground">
             <Trans>
               It's currently not your turn to sign. You will receive an email with instructions once it's your turn to
               sign the document.
             </Trans>
           </p>
 
-          <p className="mt-4 text-muted-foreground text-sm">
+          <p className="mt-2 max-w-[46ch] text-[14.5px] text-muted-foreground">
             <Trans>Please check your email for updates.</Trans>
           </p>
 
           <div className="mt-4">
             {documentPathForEditing ? (
-              <Button variant="link" asChild>
+              <Button variant="link" className="min-h-11" asChild>
                 <Link to={documentPathForEditing}>
                   <Trans>Were you trying to edit this document instead?</Trans>
                 </Link>
               </Button>
             ) : (
-              <Button variant="link" asChild>
+              <Button variant="link" className="min-h-11" asChild>
                 <Link to="/">
                   <Trans>Return Home</Trans>
                 </Link>
@@ -113,7 +119,7 @@ export default function WaitingForTurnToSignPage({ loaderData }: Route.Component
             )}
           </div>
         </div>
-      </div>
+      </SigningPageFrame>
     </>
   );
 }

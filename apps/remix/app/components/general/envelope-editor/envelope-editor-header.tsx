@@ -21,10 +21,10 @@ import { match } from 'ts-pattern';
 import { EnvelopeDistributeDialog } from '~/components/dialogs/envelope-distribute-dialog';
 import { EnvelopeRedistributeDialog } from '~/components/dialogs/envelope-redistribute-dialog';
 import { TemplateUseDialog } from '~/components/dialogs/template-use-dialog';
-import { BrandingLogo } from '~/components/general/branding-logo';
 import { DocumentAttachmentsPopover } from '~/components/general/document/document-attachments-popover';
 import { EmbeddedEditorAttachmentPopover } from '~/components/general/document/embedded-editor-attachment-popover';
 import { EnvelopeEditorSettingsDialog } from '~/components/general/envelope-editor/envelope-editor-settings-dialog';
+import { RevsignWordmark } from '~/components/revalle/shell/revsign-wordmark';
 
 import { TemplateDirectLinkBadge } from '../template/template-direct-link-badge';
 import { EnvelopeItemTitleInput } from './envelope-editor-title-input';
@@ -74,8 +74,12 @@ export default function EnvelopeEditorHeader() {
           {editorConfig.embedded?.customBrandingLogo ? (
             <img src={`/api/branding/logo/team/${envelope.teamId}`} alt="Logo" className="h-6 w-auto" />
           ) : (
-            <Link to="/">
-              <BrandingLogo className="h-6 w-auto" />
+            // REVALLE: redesign v3. Marca em texto (RevsignWordmark) no lugar do SVG antigo.
+            <Link
+              to="/"
+              className="shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <RevsignWordmark size="sm" />
             </Link>
           )}
           <Separator orientation="vertical" className="h-6 shrink-0" />
@@ -95,11 +99,12 @@ export default function EnvelopeEditorHeader() {
               placeholder={t`Envelope Title`}
             />
 
+            {/* REVALLE: ícones do tipo de modelo neutros (tipo não é status). */}
             {envelope.type === EnvelopeType.TEMPLATE && (
               <>
                 {envelope.templateType === TemplateType.PRIVATE && (
                   <Badge variant="secondary" className="shrink-0">
-                    <LockIcon className="mr-2 h-4 w-4 text-blue-600 dark:text-blue-300" />
+                    <LockIcon className="mr-2 h-4 w-4 text-muted-foreground" />
                     <Trans>Private Template</Trans>
                   </Badge>
                 )}
@@ -111,7 +116,7 @@ export default function EnvelopeEditorHeader() {
                 )}
                 {envelope.templateType === TemplateType.PUBLIC && (
                   <Badge variant="default" className="shrink-0">
-                    <Globe2Icon className="mr-2 h-4 w-4 text-green-500 dark:text-green-300" />
+                    <Globe2Icon className="mr-2 h-4 w-4" />
                     <Trans>Public Template</Trans>
                   </Badge>
                 )}

@@ -5,7 +5,6 @@ import { getDocumentAndSenderByToken } from '@documenso/lib/server-only/document
 import { isRecipientAuthorized } from '@documenso/lib/server-only/document/is-recipient-authorized';
 import { getRecipientByToken } from '@documenso/lib/server-only/recipient/get-recipient-by-token';
 import { isRevalleGatePendingForToken } from '@documenso/lib/server-only/revalle/gate/get-gate-state-for-loader'; // REVALLE:
-import { Badge } from '@documenso/ui/primitives/badge';
 import { Button } from '@documenso/ui/primitives/button';
 import { Trans } from '@lingui/react/macro';
 import { TimerOffIcon } from 'lucide-react';
@@ -13,8 +12,9 @@ import { Link } from 'react-router';
 import { getOptionalLoaderContext } from 'server/utils/get-loader-session'; // REVALLE:
 import { DocumentSigningAuthPageView } from '~/components/general/document-signing/document-signing-auth-page';
 import { RecipientBranding } from '~/components/general/recipient-branding';
+import { GateStatusIcon } from '~/components/revalle/signing-gate/gate-status-icon'; // REVALLE:
+import { SigningPageFrame } from '~/components/revalle/signing-gate/signing-band'; // REVALLE:
 import { useCspNonce } from '~/utils/nonce';
-import { truncateTitle } from '~/utils/truncate-title';
 
 import type { Route } from './+types/expired';
 
@@ -90,26 +90,28 @@ export default function ExpiredSigningPage({ loaderData }: Route.ComponentProps)
     );
   }
 
+  // REVALLE (redesign v3): faixa azul + um cartão. O título só aparece depois do portão (como antes).
   return (
     <>
       <RecipientBranding branding={branding} cspNonce={cspNonce} />
-      <div className="flex flex-col items-center pt-24 lg:pt-36 xl:pt-44">
-        {title && (
-          <Badge variant="neutral" size="default" title={title} className="mb-6 rounded-xl border bg-transparent">
-            {truncateTitle(title)}
-          </Badge>
-        )}
+      <SigningPageFrame
+        titleAs="p"
+        title={
+          title ? (
+            <span title={title} className="line-clamp-2">
+              {title}
+            </span>
+          ) : undefined
+        }
+      >
+        <div className="flex flex-col items-center text-center">
+          <GateStatusIcon icon={TimerOffIcon} tone="warning" />
 
-        <div className="flex flex-col items-center">
-          <div className="flex items-center gap-x-4">
-            <TimerOffIcon className="h-10 w-10 text-orange-500" />
+          <h1 className="mt-4 font-black font-display text-[26px] leading-tight tracking-[-0.02em]">
+            <Trans>Signing Deadline Expired</Trans>
+          </h1>
 
-            <h2 className="max-w-[35ch] text-center font-semibold text-2xl leading-normal md:text-3xl lg:text-4xl">
-              <Trans>Signing Deadline Expired</Trans>
-            </h2>
-          </div>
-
-          <p className="mt-6 max-w-[60ch] text-center text-muted-foreground text-sm">
+          <p className="mt-3 max-w-[46ch] text-[14.5px] text-muted-foreground">
             <Trans>
               The signing deadline for this document has passed. Please contact the document owner if you need a new
               copy to sign.
@@ -117,14 +119,14 @@ export default function ExpiredSigningPage({ loaderData }: Route.ComponentProps)
           </p>
 
           {user && (
-            <Button className="mt-6" asChild>
+            <Button className="mt-6 w-full" size="lg" asChild>
               <Link to={`/`}>
                 <Trans>Return Home</Trans>
               </Link>
             </Button>
           )}
         </div>
-      </div>
+      </SigningPageFrame>
     </>
   );
 }

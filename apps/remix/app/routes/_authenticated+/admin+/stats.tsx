@@ -83,11 +83,11 @@ export default function AdminStatsPage({ loaderData }: Route.ComponentProps) {
 
   return (
     <div>
-      <h2 className="font-semibold text-4xl">
+      <h2 className="font-black font-display text-[26px] tracking-[-0.03em]">
         <Trans>Instance Stats</Trans>
       </h2>
 
-      <div className="mt-8 grid flex-1 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 grid flex-1 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <CardMetric icon={Users} title={_(msg`Total Users`)} value={usersCount} />
         <CardMetric icon={File} title={_(msg`Total Documents`)} value={docStats.ALL} />
         <CardMetric icon={UserPlus} title={_(msg`Active Subscriptions`)} value={organisationsWithSubscriptionsCount} />
@@ -99,9 +99,9 @@ export default function AdminStatsPage({ loaderData }: Route.ComponentProps) {
         <AdminLicenseCard licenseData={licenseData} />
       </div>
 
-      <div className="mt-16 gap-8">
+      <div className="mt-10 gap-8">
         <div>
-          <h3 className="font-semibold text-3xl">
+          <h3 className="font-display font-extrabold text-xl tracking-[-0.02em]">
             <Trans>Document metrics</Trans>
           </h3>
 
@@ -113,7 +113,7 @@ export default function AdminStatsPage({ loaderData }: Route.ComponentProps) {
         </div>
 
         <div>
-          <h3 className="font-semibold text-3xl">
+          <h3 className="font-display font-extrabold text-xl tracking-[-0.02em]">
             <Trans>Recipients metrics</Trans>
           </h3>
 
@@ -126,11 +126,11 @@ export default function AdminStatsPage({ loaderData }: Route.ComponentProps) {
         </div>
       </div>
 
-      <div className="mt-16">
-        <h3 className="font-semibold text-3xl">
+      <div className="mt-10">
+        <h3 className="font-display font-extrabold text-xl tracking-[-0.02em]">
           <Trans>Charts</Trans>
         </h3>
-        <div className="mt-5 grid grid-cols-2 gap-8">
+        <div className="mt-5 grid grid-cols-1 gap-6 xl:grid-cols-2">
           <MonthlyActiveUsersChart title={_(msg`MAU (signed in)`)} data={monthlyActiveUsers} />
 
           <AdminStatsUsersWithDocumentsChart

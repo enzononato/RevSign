@@ -1,15 +1,13 @@
 import { useSessionStorage } from '@documenso/lib/client-only/hooks/use-session-storage';
 import { SKIP_QUERY_BATCH_META } from '@documenso/lib/constants/trpc';
-import { formatAvatarUrl } from '@documenso/lib/utils/avatars';
 import { formatDocumentsPath } from '@documenso/lib/utils/teams';
 import { ExtendedDocumentStatus } from '@documenso/prisma/types/extended-document-status';
 import { trpc } from '@documenso/trpc/react';
 import type { TFindDocumentsInternalResponse } from '@documenso/trpc/server/document-router/find-documents-internal.types';
-import { Avatar, AvatarFallback, AvatarImage } from '@documenso/ui/primitives/avatar';
 import { Button } from '@documenso/ui/primitives/button';
 import type { RowSelectionState } from '@documenso/ui/primitives/data-table';
 import { msg } from '@lingui/core/macro';
-import { Trans } from '@lingui/react/macro';
+import { Plural, Trans } from '@lingui/react/macro';
 import { EnvelopeType, FolderType, type DocumentStatus as PrismaDocumentStatus } from '@prisma/client';
 import { XIcon } from 'lucide-react';
 import { useQueryStates } from 'nuqs';
@@ -25,7 +23,7 @@ import {
 import { EnvelopesBulkMoveDialog } from '~/components/dialogs/envelopes-bulk-move-dialog';
 import { DocumentSearch } from '~/components/general/document/document-search';
 import { EnvelopeDropZoneWrapper } from '~/components/general/envelope/envelope-drop-zone-wrapper';
-import { FolderGrid } from '~/components/general/folder/folder-grid';
+import { FolderGrid, FolderGridActions } from '~/components/general/folder/folder-grid';
 import { DocumentsTable } from '~/components/tables/documents-table';
 import { DocumentsTableEmptyState } from '~/components/tables/documents-table-empty-state';
 import { DocumentsTablePeriodFilter } from '~/components/tables/documents-table-period-filter';
@@ -58,6 +56,8 @@ export default function DocumentsPage() {
 
   const [isMovingDocument, setIsMovingDocument] = useState(false);
   const [documentToMove, setDocumentToMove] = useState<string | null>(null);
+  // REVALLE: a caixa de busca guarda o texto digitado; ao limpar pelo estado vazio ela remonta já vazia.
+  const [searchResetKey, setSearchResetKey] = useState(0);
 
   // Scoped by team so selections made in one team never leak into another.
   const [rowSelection, setRowSelection] = useSessionStorage<RowSelectionState>(
@@ -179,42 +179,66 @@ export default function DocumentsPage() {
   return (
     <EnvelopeDropZoneWrapper type={EnvelopeType.DOCUMENT}>
       <div className="mx-auto w-full max-w-screen-xl px-4 md:px-8">
-        <FolderGrid type={FolderType.DOCUMENT} parentId={folderId ?? null} />
+        {/* REVALLE v3: cabeçalho (título, uma linha de situação, ações à direita), pastas e barra de filtros */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="min-w-0">
+            <h1 className="font-black font-display text-[36px] leading-[1.05] tracking-[-0.03em]">
+              <Trans>Documents</Trans>
+            </h1>
 
-        <div className="mt-8 flex flex-row items-center">
-          <Avatar className="mr-3 h-12 w-12 border-2 border-white border-solid dark:border-border">
-            {team.avatarImageId && <AvatarImage src={formatAvatarUrl(team.avatarImageId)} />}
-            <AvatarFallback className="text-muted-foreground text-xs">{team.name.slice(0, 1)}</AvatarFallback>
-          </Avatar>
-
-          <h2 className="font-semibold text-4xl">
-            <Trans>Documents</Trans>
-          </h2>
-        </div>
-
-        <div className="mt-8 flex flex-wrap items-center gap-x-2 gap-y-4">
-          <div className="w-56">
-            <DocumentSearch />
+            <p className="mt-2 min-h-[1.5em] text-muted-foreground" data-testid="documents-status-line">
+              {data && <DocumentsStatusLine stats={stats} />}
+            </p>
           </div>
 
-          <DocumentsTableStatusFilter stats={stats} />
-
-          {team && <DocumentsTableSenderFilter teamId={team.id} />}
-
-          <DocumentsTablePeriodFilter />
-
-          {hasActiveFilters && (
-            <Button variant="ghost" className="px-2 text-muted-foreground lg:px-3" onClick={onResetFilters}>
-              <Trans>Reset</Trans>
-              <XIcon className="ml-1 h-4 w-4" />
-            </Button>
-          )}
+          <FolderGridActions type={FolderType.DOCUMENT} parentId={folderId ?? null} />
         </div>
 
-        <div className="mt-8">
+        <div className="mt-6">
+          <FolderGrid type={FolderType.DOCUMENT} parentId={folderId ?? null} withActions={false} />
+        </div>
+
+        <div className="mt-6 flex flex-col gap-2">
+          <DocumentSearch key={searchResetKey} className="w-full" />
+
+          <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap md:items-center">
+            <DocumentsTableStatusFilter stats={stats} />
+
+            {team && <DocumentsTableSenderFilter teamId={team.id} />}
+
+            <DocumentsTablePeriodFilter />
+
+            {hasActiveFilters && (
+              <Button
+                variant="link"
+                className="h-11 shrink-0 px-2 font-bold no-underline hover:underline"
+                onClick={onResetFilters}
+              >
+                <XIcon className="mr-1 h-4 w-4" />
+                <Trans>Clear filters</Trans>
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-6">
           <div>
             {data && data.count === 0 ? (
-              <DocumentsTableEmptyState status={findDocumentSearchParams.status ?? ExtendedDocumentStatus.ALL} />
+              // REVALLE: com busca ou filtro ativo, o vazio diz que nada combina e oferece limpar (busca inclusa).
+              <DocumentsTableEmptyState
+                status={findDocumentSearchParams.status ?? ExtendedDocumentStatus.ALL}
+                isFiltered={hasActiveFilters || Boolean(findDocumentSearchParams.query)}
+                onClearFilters={() => {
+                  setSearchResetKey((key) => key + 1);
+                  void setFindDocumentSearchParams({
+                    status: null,
+                    senderIds: null,
+                    period: null,
+                    query: null,
+                    page: null,
+                  });
+                }}
+              />
             ) : (
               <DocumentsTable
                 data={data}
@@ -302,3 +326,43 @@ export default function DocumentsPage() {
     </EnvelopeDropZoneWrapper>
   );
 }
+
+/**
+ * REVALLE v3: a linha de situação embaixo do título ("3 documentos aguardando assinaturas · 1 espera a sua assinatura ·
+ * 2 rascunhos"); só as partes que não são zero.
+ */
+const DocumentsStatusLine = ({ stats }: { stats: TFindDocumentsInternalResponse['stats'] }) => {
+  const pending = stats[ExtendedDocumentStatus.PENDING];
+  const inbox = stats[ExtendedDocumentStatus.INBOX];
+  const drafts = stats[ExtendedDocumentStatus.DRAFT];
+
+  if (pending === 0 && inbox === 0 && drafts === 0) {
+    return <Trans>No documents waiting for signatures.</Trans>;
+  }
+
+  const parts = [
+    pending > 0 && (
+      <Plural
+        key="pending"
+        value={pending}
+        one="# document waiting for signatures"
+        other="# documents waiting for signatures"
+      />
+    ),
+    inbox > 0 && (
+      <Plural key="inbox" value={inbox} one="# waits for your signature" other="# wait for your signature" />
+    ),
+    drafts > 0 && <Plural key="drafts" value={drafts} one="# draft" other="# drafts" />,
+  ].filter(Boolean);
+
+  return (
+    <>
+      {parts.map((part, index) => (
+        <span key={index}>
+          {index > 0 && ' · '}
+          {part}
+        </span>
+      ))}
+    </>
+  );
+};

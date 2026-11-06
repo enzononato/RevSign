@@ -1,6 +1,4 @@
 import { cn } from '@documenso/ui/lib/utils';
-import { Badge } from '@documenso/ui/primitives/badge';
-import { Button } from '@documenso/ui/primitives/button';
 import {
   Command,
   CommandEmpty,
@@ -11,7 +9,6 @@ import {
   CommandSeparator,
 } from '@documenso/ui/primitives/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@documenso/ui/primitives/popover';
-import { Separator } from '@documenso/ui/primitives/separator';
 import { Trans } from '@lingui/react/macro';
 import { CheckIcon, ChevronDownIcon } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react/dist/lucide-react';
@@ -54,16 +51,17 @@ export type FilterPillProps = FilterPillSingleProps | FilterPillMultipleProps;
 /**
  * A faceted filter pill.
  *
- * Renders as a dashed "add a filter" pill at rest, and shows the current
+ * Renders as a labeled filter box ("Status  Todos"), and shows the current
  * selection inline once a value is picked. Selecting the active option
  * again (or the Clear row) removes it.
  *
  * Single select by default, closing on pick. When `multiple` is set the
- * popover stays open for toggling, and the trigger shows the first two
- * selections followed by a "+N more" chip.
+ * popover stays open for toggling, and the trigger shows the first
+ * selection followed by "+N more".
  */
 export const FilterPill = (props: FilterPillProps) => {
-  const { icon: Icon, label, options, enableSearch, searchPlaceholder, loading, clearable = true, testId } = props;
+  // REVALLE v3: o ícone não aparece mais na caixa (o rótulo já diz o filtro); a prop continua para não quebrar quem usa.
+  const { label, options, enableSearch, searchPlaceholder, loading, clearable = true, testId } = props;
 
   const [open, setOpen] = useState(false);
 
@@ -74,7 +72,8 @@ export const FilterPill = (props: FilterPillProps) => {
     .filter((option): option is FilterPillOption => option !== undefined);
 
   const hasSelection = selectedOptions.length > 0;
-  const extraCount = selectedOptions.length - 2;
+  // REVALLE v3: a caixa mostra a primeira escolha e "+N" das demais.
+  const extraCount = selectedOptions.length - 1;
 
   const onSelect = (nextValue: string) => {
     if (props.multiple) {
@@ -100,49 +99,51 @@ export const FilterPill = (props: FilterPillProps) => {
     setOpen(false);
   };
 
+  // REVALLE v3: caixa de filtro rotulada (raio 13, regra 1,5px, valor em negrito); com valor, o estilo azul "set".
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          variant="outline"
+        <button
+          type="button"
           disabled={loading}
-          className={cn('border-dashed text-muted-foreground', {
-            'border-solid text-foreground': hasSelection,
-          })}
+          className={cn(
+            'inline-flex h-11 max-w-full shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-card pr-3 pl-3.5 font-semibold text-muted-foreground text-sm shadow-[inset_0_0_0_1.5px_hsl(var(--border))] transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+            {
+              'bg-accent/60 shadow-[inset_0_0_0_2px_hsl(var(--primary))] dark:shadow-[inset_0_0_0_2px_hsl(var(--brand-text))]':
+                hasSelection,
+            },
+          )}
           data-testid={testId}
         >
-          <Icon className="mr-2 h-4 w-4" />
-          {label}
+          <span>{label}</span>
 
-          {hasSelection && (
-            <>
-              <Separator orientation="vertical" className="mx-2 h-4" />
+          <span
+            className={cn('flex min-w-0 items-center gap-x-1 truncate font-bold text-foreground', {
+              'text-brand-text': hasSelection,
+            })}
+          >
+            {!hasSelection ? (
+              <Trans>All</Trans>
+            ) : props.multiple ? (
+              <>
+                <span className="truncate">{selectedOptions[0].label}</span>
 
-              {props.multiple ? (
-                <span className="flex items-center gap-x-1">
-                  {selectedOptions.slice(0, 2).map((option) => (
-                    <Badge key={option.value} variant="neutral" size="small">
-                      {option.label}
-                    </Badge>
-                  ))}
+                {selectedOptions.length > 1 && (
+                  <span className="shrink-0">
+                    <Trans>+{extraCount} more</Trans>
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="truncate">{props.selectedLabel ?? selectedOptions[0].label}</span>
+            )}
+          </span>
 
-                  {extraCount > 0 && (
-                    <Badge variant="neutral" size="small">
-                      <Trans>+{extraCount} more</Trans>
-                    </Badge>
-                  )}
-                </span>
-              ) : (
-                <span className="font-medium">{props.selectedLabel ?? selectedOptions[0].label}</span>
-              )}
-            </>
-          )}
-
-          <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
+          <ChevronDownIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={2.5} />
+        </button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-52 p-0" align="start">
+      <PopoverContent className="w-60 p-0" align="start">
         <Command>
           {enableSearch && <CommandInput placeholder={searchPlaceholder} />}
 

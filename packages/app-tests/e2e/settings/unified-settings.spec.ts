@@ -71,38 +71,53 @@ test.describe('Unified Settings', () => {
     await expect(sidebar.getByTestId('unified-settings-organisation-empty-state')).toHaveCount(0);
   });
 
-  test('sidebar is flush with the left viewport edge', async ({ page }) => {
+  // REVALLE: redesign v3. The top header became a fixed 244px blue app sidebar on desktop and
+  // `app-header-container` is now the mobile top bar (hidden from md up). The settings sidebar
+  // sits right after the blue app sidebar instead of at the viewport edge.
+  test('sidebar sits right beside the app sidebar', async ({ page }) => {
     const { owner, organisation } = await seedTeam();
 
-    // Wide viewport — a centered max-w-screen-xl container would offset the
-    // sidebar by (1600 - 1280) / 2 = 160px+, while flush-left is ~16px (the
-    // aside's own internal padding).
+    // Wide viewport — the settings sidebar must stay next to the blue app sidebar
+    // instead of drifting towards the middle of a wide screen.
     await page.setViewportSize({ width: 1600, height: 900 });
 
     await apiSignin({ page, email: owner.email });
     await page.goto(`/o/${organisation.url}/settings`);
 
+    const appSidebar = page.getByTestId('app-sidebar');
+    await expect(appSidebar).toBeVisible();
+
+    const appSidebarBox = await appSidebar.boundingBox();
+
+    expect(appSidebarBox?.x ?? Number.MAX_SAFE_INTEGER).toBeLessThan(1);
+    expect(appSidebarBox?.width ?? 0).toBeCloseTo(244, 0);
+
     const sidebar = page.getByTestId('unified-settings-sidebar');
     await expect(sidebar).toBeVisible();
 
     const box = await sidebar.boundingBox();
+    const appSidebarRight = (appSidebarBox?.x ?? 0) + (appSidebarBox?.width ?? 0);
 
-    expect(box?.x ?? Number.MAX_SAFE_INTEGER).toBeLessThan(100);
+    expect(box?.x ?? 0).toBeGreaterThanOrEqual(appSidebarRight - 1);
+    expect(box?.x ?? Number.MAX_SAFE_INTEGER).toBeLessThan(appSidebarRight + 160);
 
-    // The app header stretches to the full viewport width on settings pages.
+    // On desktop the mobile top bar is hidden, on settings and elsewhere.
     const headerContainer = page.getByTestId('app-header-container');
-    const headerBox = await headerContainer.boundingBox();
+    await expect(headerContainer).toBeHidden();
 
-    expect(headerBox?.x ?? Number.MAX_SAFE_INTEGER).toBeLessThan(50);
-    expect((headerBox?.x ?? 0) + (headerBox?.width ?? 0)).toBeGreaterThan(1550);
-
-    // Outside of settings the header keeps its centered max-w-screen-xl container.
     await page.goto(`/o/${organisation.url}`);
+    await expect(appSidebar).toBeVisible();
+    await expect(headerContainer).toBeHidden();
+
+    // On a phone the blue app sidebar is hidden and the top bar spans the full width.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(appSidebar).toBeHidden();
     await expect(headerContainer).toBeVisible();
 
-    const centeredHeaderBox = await headerContainer.boundingBox();
+    const mobileHeaderBox = await headerContainer.boundingBox();
 
-    expect(centeredHeaderBox?.x ?? 0).toBeGreaterThan(100);
+    expect(mobileHeaderBox?.x ?? Number.MAX_SAFE_INTEGER).toBeLessThan(1);
+    expect((mobileHeaderBox?.x ?? 0) + (mobileHeaderBox?.width ?? 0)).toBeGreaterThan(389);
   });
 
   test('content is centered within the pane beside the sidebar', async ({ page }) => {

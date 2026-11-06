@@ -9,7 +9,6 @@ import {
   getRevalleGateLoaderPayload, // REVALLE:
   isRevalleGatePendingForToken, // REVALLE:
 } from '@documenso/lib/server-only/revalle/gate/get-gate-state-for-loader'; // REVALLE:
-import { Badge } from '@documenso/ui/primitives/badge';
 import { Button } from '@documenso/ui/primitives/button';
 import { Trans } from '@lingui/react/macro';
 import { FieldType } from '@prisma/client';
@@ -19,6 +18,8 @@ import { Link, redirect } from 'react-router'; // REVALLE: redirect
 import { getOptionalLoaderContext } from 'server/utils/get-loader-session'; // REVALLE:
 import { DocumentSigningAuthPageView } from '~/components/general/document-signing/document-signing-auth-page';
 import { RecipientBranding } from '~/components/general/recipient-branding';
+import { GateStatusIcon } from '~/components/revalle/signing-gate/gate-status-icon'; // REVALLE:
+import { SigningPageFrame } from '~/components/revalle/signing-gate/signing-band'; // REVALLE:
 import { useCspNonce } from '~/utils/nonce';
 import { truncateTitle } from '~/utils/truncate-title';
 
@@ -81,6 +82,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
       isDocumentAccessValid: true,
       recipientReference,
       truncatedTitle,
+      title: document.title, // REVALLE: título inteiro na faixa (quebra em até duas linhas)
       branding,
     };
   }
@@ -98,7 +100,7 @@ export default function RejectedSigningPage({ loaderData }: Route.ComponentProps
   const user = sessionData?.user;
   const cspNonce = useCspNonce();
 
-  const { isDocumentAccessValid, recipientReference, truncatedTitle, branding } = loaderData;
+  const { isDocumentAccessValid, recipientReference, title, branding } = loaderData;
 
   if (!isDocumentAccessValid) {
     return (
@@ -109,47 +111,49 @@ export default function RejectedSigningPage({ loaderData }: Route.ComponentProps
     );
   }
 
+  // REVALLE (redesign v3): faixa azul + um cartão.
   return (
     <>
       <RecipientBranding branding={branding} cspNonce={cspNonce} />
-      <div className="flex flex-col items-center pt-24 lg:pt-36 xl:pt-44">
-        <Badge variant="neutral" size="default" className="mb-6 rounded-xl border bg-transparent">
-          {truncatedTitle}
-        </Badge>
+      <SigningPageFrame
+        titleAs="p"
+        title={
+          <span title={title} className="line-clamp-2">
+            {title}
+          </span>
+        }
+      >
+        <div className="flex flex-col items-center text-center">
+          <GateStatusIcon icon={XCircle} tone="danger" />
 
-        <div className="flex flex-col items-center">
-          <div className="flex items-center gap-x-4">
-            <XCircle className="h-10 w-10 text-destructive" />
+          <h1 className="mt-4 font-black font-display text-[26px] leading-tight tracking-[-0.02em]">
+            <Trans>Document Rejected</Trans>
+          </h1>
 
-            <h2 className="max-w-[35ch] text-center font-semibold text-2xl leading-normal md:text-3xl lg:text-4xl">
-              <Trans>Document Rejected</Trans>
-            </h2>
-          </div>
-
-          <div className="mt-4 flex items-center text-center text-destructive text-sm">
+          <span className="mt-3 inline-flex min-h-7 items-center rounded-full bg-danger-bg px-3 py-1 font-semibold text-[13px] text-destructive">
             <Trans>You have rejected this document</Trans>
-          </div>
+          </span>
 
-          <p className="mt-6 max-w-[60ch] text-center text-muted-foreground text-sm">
+          <p className="mt-4 max-w-[46ch] text-[14.5px] text-muted-foreground">
             <Trans>
               The document owner has been notified of your decision. They may contact you with further instructions if
               necessary.
             </Trans>
           </p>
 
-          <p className="mt-2 max-w-[60ch] text-center text-muted-foreground text-sm">
+          <p className="mt-2 max-w-[46ch] text-[14.5px] text-muted-foreground">
             <Trans>No further action is required from you at this time.</Trans>
           </p>
 
           {user && (
-            <Button className="mt-6" asChild>
+            <Button className="mt-6 w-full" size="lg" asChild>
               <Link to={`/`}>
                 <Trans>Return Home</Trans>
               </Link>
             </Button>
           )}
         </div>
-      </div>
+      </SigningPageFrame>
     </>
   );
 }

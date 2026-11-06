@@ -1,7 +1,6 @@
-import { costCenterLabel } from '@documenso/lib/revalle/invoice/cost-centers';
+import { costCenterLabel, costCenterName } from '@documenso/lib/revalle/invoice/cost-centers';
 import { cn } from '@documenso/ui/lib/utils';
-import { useLingui } from '@lingui/react/macro';
-import { ReceiptTextIcon } from 'lucide-react';
+import { Trans, useLingui } from '@lingui/react/macro';
 import { createContext, type ReactNode, useContext } from 'react';
 
 export type SigningInvoiceAccount = {
@@ -23,13 +22,26 @@ export const SigningInvoiceAccountProvider = ({
   children: ReactNode;
 }) => <SigningInvoiceAccountContext.Provider value={account ?? null}>{children}</SigningInvoiceAccountContext.Provider>;
 
+/** A NF aberta para quem assina (null fora de NF ou fora da página de assinatura). */
+export const useSigningInvoiceAccount = () => useContext(SigningInvoiceAccountContext);
+
 /**
  * Fase 6: quem assina vê a conta contábil da NF, que faz parte do que é assinado e fica na prova. Fase 7: o centro de
  * custo vai na mesma frase, e vale em separado: NF sem centro mostra só a conta, e NF sem conta (marcada depois do envio)
  * mostra só o centro.
+ *
+ * Redesign v3: o bloco "O que você está assinando" mostra a conta e o centro em linhas. A frase de sempre continua no HTML,
+ * inteira, como texto do leitor de tela (as linhas são só a apresentação dela). Valor, fornecedor e número lidos pela IA
+ * não entram aqui: não fazem parte do que é assinado (revalle/docs/verificacao.md).
  */
-export const SigningInvoiceAccountBlock = ({ className }: { className?: string }) => {
-  const invoice = useContext(SigningInvoiceAccountContext);
+export const SigningInvoiceAccountBlock = ({
+  className,
+  titleClassName,
+}: {
+  className?: string;
+  titleClassName?: string;
+}) => {
+  const invoice = useSigningInvoiceAccount();
   const { t } = useLingui();
 
   if (!invoice) {
@@ -49,16 +61,42 @@ export const SigningInvoiceAccountBlock = ({ className }: { className?: string }
   };
 
   return (
-    <div
-      className={cn(
-        'flex items-start gap-2 rounded-lg border border-border bg-background px-3 py-2 text-muted-foreground text-sm',
-        className,
-      )}
-      data-testid="invoice-signing-account"
-    >
-      <ReceiptTextIcon aria-hidden className="mt-0.5 h-4 w-4 flex-shrink-0" />
-      {/* Um só nó de texto: a frase sai inteira no HTML do servidor. */}
-      <span className="min-w-0 break-words">{sentence()}</span>
-    </div>
+    <section className={className} aria-labelledby="revalle-signing-what">
+      <h2
+        id="revalle-signing-what"
+        className={cn('mb-1 font-display font-extrabold text-[15px] tracking-[-0.01em]', titleClassName)}
+      >
+        <Trans>What you are signing</Trans>
+      </h2>
+
+      <div data-testid="invoice-signing-account">
+        {/* Um só nó de texto: a frase sai inteira no HTML do servidor. */}
+        <span className="sr-only">{sentence()}</span>
+
+        <dl aria-hidden className="divide-y divide-border">
+          {account && (
+            <SigningInvoiceRow label={<Trans>Conta contábil</Trans>} code={account.code} name={account.name || null} />
+          )}
+
+          {costCenter && (
+            <SigningInvoiceRow
+              label={<Trans>Centro de custo</Trans>}
+              code={costCenter.code}
+              name={costCenterName(costCenter.code)}
+            />
+          )}
+        </dl>
+      </div>
+    </section>
   );
 };
+
+const SigningInvoiceRow = ({ label, code, name }: { label: ReactNode; code: string; name: string | null }) => (
+  <div className="flex items-baseline justify-between gap-4 py-2.5 last:pb-0.5">
+    <dt className="flex-shrink-0 text-[14px] text-muted-foreground">{label}</dt>
+    <dd className="min-w-0 break-words text-right font-semibold text-[14.5px] leading-snug">
+      <span className="mr-1.5 font-display font-extrabold text-[13.5px] text-brand-text tabular-nums">{code}</span>
+      {name}
+    </dd>
+  </div>
+);

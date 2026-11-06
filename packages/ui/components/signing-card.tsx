@@ -142,10 +142,13 @@ type SigningCardContentProps = {
 
 const SigningCardContent = ({ className, name, signature }: SigningCardContentProps) => {
   return (
+    // REVALLE (redesign v3): cartão no fundo da página com fio fino, sem a borda em degradê
     <Card
-      className={cn('group z-10 mx-auto flex aspect-[21/9] w-full items-center justify-center', className)}
-      degrees={-145}
-      gradient
+      className={cn(
+        'group z-10 mx-auto flex aspect-[21/9] w-full items-center justify-center bg-background shadow-[inset_0_0_0_1px_hsl(var(--border))] dark:shadow-[inset_0_0_0_1px_hsl(var(--border))]',
+        className,
+      )}
+      backdropBlur={false}
     >
       <CardContent
         className="p-6 text-center font-signature"

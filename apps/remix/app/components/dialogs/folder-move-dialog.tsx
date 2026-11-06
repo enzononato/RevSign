@@ -133,7 +133,8 @@ export const FolderMoveDialog = ({ foldersData, folder, isOpen, onOpenChange }: 
                 render={({ field }) => (
                   <FormItem>
                     <FormControl>
-                      <div className="max-h-96 space-y-2 overflow-y-auto">
+                      {/* REVALLE: folga para a sombra/borda dos botões-pílula não ser cortada pela rolagem. */}
+                      <div className="-m-1 max-h-96 space-y-2 overflow-y-auto p-1">
                         <Button
                           type="button"
                           variant={!field.value ? 'default' : 'outline'}

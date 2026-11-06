@@ -16,21 +16,22 @@ type TemplateTypeIcon = {
 
 type TemplateTypes = (typeof TemplateTypePrisma)[keyof typeof TemplateTypePrisma];
 
+// REVALLE: redesign v3. Tipo de modelo não é status: ícones neutros (o texto já diz o tipo).
 const TEMPLATE_TYPES: Record<TemplateTypes, TemplateTypeIcon> = {
   PRIVATE: {
     label: msg`Private`,
     icon: Lock,
-    color: 'text-blue-600 dark:text-blue-300',
+    color: 'text-muted-foreground',
   },
   PUBLIC: {
     label: msg`Public`,
     icon: Globe2,
-    color: 'text-green-500 dark:text-green-300',
+    color: 'text-muted-foreground',
   },
   ORGANISATION: {
     label: msg`Organisation`,
     icon: Building2,
-    color: 'text-orange-500 dark:text-orange-300',
+    color: 'text-muted-foreground',
   },
 };
 

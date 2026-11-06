@@ -7,9 +7,12 @@ import { useToast } from '@documenso/ui/primitives/use-toast';
 import { msg } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
+import { LogInIcon } from 'lucide-react';
 import { useState } from 'react';
 
 import { EmbedPopupAuth } from '~/components/embed/embed-popup-auth';
+import { GateStatusIcon } from '~/components/revalle/signing-gate/gate-status-icon'; // REVALLE:
+import { SigningPageFrame } from '~/components/revalle/signing-gate/signing-band'; // REVALLE:
 
 export type DocumentSigningAuthPageViewProps = {
   email?: string;
@@ -54,17 +57,21 @@ export const DocumentSigningAuthPageView = ({ email, emailHasAccount }: Document
     setIsSigningOut(false);
   };
 
+  // REVALLE (redesign v3): faixa azul + um cartão, como as outras telas públicas de quem assina.
   return (
-    <div className="mx-auto flex h-[70vh] w-full max-w-md flex-col items-center justify-center">
+    <SigningPageFrame>
       <div className="w-full">
-        <h1 className="font-semibold text-3xl">
+        <GateStatusIcon icon={LogInIcon} tone="brand" />
+
+        <h1 className="mt-4 font-black font-display text-[23px] leading-tight tracking-[-0.02em]">
           <Trans>Authentication required</Trans>
         </h1>
 
-        <p className="mt-2 text-muted-foreground text-sm">
+        <p className="mt-2 text-muted-foreground">
           {email ? (
             <Trans>
-              You need to be logged in as <strong>{email}</strong> to view this page.
+              You need to be logged in as <strong className="break-all text-foreground">{email}</strong> to view this
+              page.
             </Trans>
           ) : (
             <Trans>You need to be logged in to view this page.</Trans>
@@ -73,14 +80,15 @@ export const DocumentSigningAuthPageView = ({ email, emailHasAccount }: Document
 
         {isFramed ? (
           <EmbedPopupAuth
-            className="mt-4"
+            className="mt-5"
             email={email || undefined}
             signedInAs={mismatchedUserEmail}
             onSuccess={() => window.location.reload()}
           />
         ) : (
           <Button
-            className="mt-4 w-full"
+            className="mt-5 w-full"
+            size="lg"
             type="submit"
             onClick={async () => handleChangeAccount(email)}
             loading={isSigningOut}
@@ -89,6 +97,6 @@ export const DocumentSigningAuthPageView = ({ email, emailHasAccount }: Document
           </Button>
         )}
       </div>
-    </div>
+    </SigningPageFrame>
   );
 };

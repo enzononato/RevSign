@@ -5113,3 +5113,181 @@ msgstr "Sei disso e quero enviar mesmo assim"
 
 msgid "Tem a mesma chave de acesso ou o mesmo arquivo de outra nota enviada. Confira antes de decidir."
 msgstr "Tem a mesma chave de acesso ou o mesmo arquivo de outra nota enviada. Confira antes de decidir."
+
+# REVALLE: redesign v3
+msgid "Verify document"
+msgstr "Verificar documento"
+
+msgid "Main navigation"
+msgstr "Navegação principal"
+
+msgid "Menu"
+msgstr "Menu"
+
+msgid "Finance and Accounting"
+msgstr "Financeiro e Contabilidade"
+
+msgid "Search by account number, e.g. 2.1.03"
+msgstr "Buscar pela conta (número), ex.: 2.1.03"
+
+msgid "Sent date"
+msgstr "Enviadas"
+
+msgid "from {fromDay}"
+msgstr "desde {fromDay}"
+
+msgid "until {toDay}"
+msgstr "até {toDay}"
+
+msgid "Any date"
+msgstr "Qualquer data"
+
+msgid "No account"
+msgstr "Sem conta"
+
+msgid "Sent by {sender} · {sentAtLabel}"
+msgstr "Enviada por {sender} · {sentAtLabel}"
+
+msgid "From {sender} · not sent yet"
+msgstr "De {sender} · ainda não enviada"
+
+msgid "{name} rejected"
+msgstr "{name} recusou"
+
+msgid "Everyone signed"
+msgstr "Todos assinaram"
+
+msgid "1 signature missing"
+msgstr "Falta 1 assinatura"
+
+msgid "{pending} signatures missing"
+msgstr "Faltam {pending} assinaturas"
+
+msgid "No one to sign"
+msgstr "Ninguém para assinar"
+
+msgid "Validate cost center"
+msgstr "Validar centro"
+
+msgid "Invoice completed"
+msgstr "Concluída"
+
+msgid "Invoice rejected"
+msgstr "Recusada"
+
+msgid "Invoice superseded"
+msgstr "Substituída"
+
+msgid "Invoice cancelled"
+msgstr "Cancelada"
+
+msgid "Not sent yet"
+msgstr "Não enviada"
+
+msgid "Waiting for {name}"
+msgstr "Aguardando {name}"
+
+msgid "Waiting for signatures"
+msgstr "Aguardando assinaturas"
+
+msgid "Your queues"
+msgstr "Suas filas"
+
+msgid "Send an invoice"
+msgstr "Enviar nota fiscal"
+
+msgid "See all invoices"
+msgstr "Ver todas as notas"
+
+msgid "Pagination"
+msgstr "Paginação"
+
+msgid "{finance} waiting for Financeiro and {accounting} waiting for Contabilidade."
+msgstr "{finance} aguardando o Financeiro e {accounting} aguardando a Contabilidade."
+
+msgid "No invoice is waiting for you."
+msgstr "Nenhuma nota espera você."
+
+msgid "{waiting, plural, one {# invoice is waiting for you.} other {# invoices are waiting for you.}}"
+msgstr "{waiting, plural, one {# nota espera você.} other {# notas esperam você.}}"
+
+msgid "Account approved"
+msgstr "Conta aprovada"
+
+msgid "Cost center validated"
+msgstr "Centro validado"
+
+msgid "{missing, plural, one {# signature missing} other {# signatures missing}}"
+msgstr "{missing, plural, one {Falta # assinatura} other {Faltam # assinaturas}}"
+
+msgid "No documents waiting for signatures."
+msgstr "Nenhum documento aguardando assinaturas."
+
+msgid "{pending, plural, one {# document waiting for signatures} other {# documents waiting for signatures}}"
+msgstr "{pending, plural, one {# documento aguardando assinaturas} other {# documentos aguardando assinaturas}}"
+
+msgid "{inbox, plural, one {# waits for your signature} other {# wait for your signature}}"
+msgstr "{inbox, plural, one {# espera a sua assinatura} other {# esperam a sua assinatura}}"
+
+msgid "{drafts, plural, one {# draft} other {# drafts}}"
+msgstr "{drafts, plural, one {# rascunho} other {# rascunhos}}"
+
+msgid "What was signed"
+msgstr "O que foi assinado"
+
+msgid "Supplier"
+msgstr "Fornecedor"
+
+msgid "Sent by {senderName}"
+msgstr "Enviada por {senderName}"
+
+msgid "What you are signing"
+msgstr "O que você está assinando"
+
+msgid "Signatures"
+msgstr "Assinaturas"
+
+msgid "Invoice PDF"
+msgstr "Nota fiscal em PDF"
+
+msgid "PDF document"
+msgstr "Documento em PDF"
+
+msgid "Read the full document"
+msgstr "Ler o documento inteiro"
+
+msgid "Signature {position} of {totalCount}"
+msgstr "Assinatura {position} de {totalCount}"
+
+msgid "{signedCount} of {totalCount} have signed"
+msgstr "{signedCount} de {totalCount} já assinaram"
+
+msgid "No fields"
+msgstr "Nenhum campo"
+
+msgid "No characters remaining"
+msgstr "Nenhum caractere restante"
+
+msgid "No matching fields"
+msgstr "Nenhum campo correspondente"
+
+msgid "No documents match your search and filters."
+msgstr "Nenhum documento combina com a busca e os filtros."
+
+msgid "Welcome back, we are lucky to have you."
+msgstr "Entre para assinar e acompanhar seus documentos."
+
+msgid "Waiting for completion"
+msgstr "Aguardando conclusão"
+
+msgid "Your signature has been recorded"
+msgstr "Sua assinatura foi registrada"
+
+msgid "Your approval has been recorded"
+msgstr "Sua aprovação foi registrada"
+
+msgid "Escolher arquivo CSV"
+msgstr "Escolher arquivo CSV"
+
+msgid "Nenhum arquivo escolhido"
+msgstr "Nenhum arquivo escolhido"

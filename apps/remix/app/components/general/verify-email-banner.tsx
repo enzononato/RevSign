@@ -76,8 +76,9 @@ export const VerifyEmailBanner = ({ email }: VerifyEmailBannerProps) => {
 
   return (
     <>
-      <div className="bg-yellow-200 dark:bg-yellow-400">
-        <div className="mx-auto flex max-w-screen-xl items-center justify-center gap-x-4 px-4 py-2 font-medium text-sm text-yellow-900">
+      {/* REVALLE: redesign v3 warning tokens (the banner sits at the top of the main column) */}
+      <div className="bg-warning-bg text-warning-text">
+        <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-center gap-x-4 gap-y-1 px-4 py-2 font-semibold text-sm">
           <div className="flex items-center">
             <AlertTriangle className="mr-2.5 h-5 w-5" />
             <Trans>Verify your email address to unlock all features.</Trans>
@@ -86,7 +87,7 @@ export const VerifyEmailBanner = ({ email }: VerifyEmailBannerProps) => {
           <div>
             <Button
               variant="ghost"
-              className="h-auto px-2.5 py-1.5 text-yellow-900 hover:bg-yellow-100 hover:text-yellow-900 dark:hover:bg-yellow-500"
+              className="h-auto px-3 py-1.5 text-warning-text underline-offset-4 hover:bg-warning-text/10 hover:text-warning-text"
               disabled={isButtonDisabled}
               onClick={() => setIsOpen(true)}
               size="sm"

@@ -189,7 +189,8 @@ export const RecipientStepCard = ({
 
                 {isGroup && (
                   <>
-                    <span className="ml-1 flex items-center gap-x-1.5 text-green-700 text-xs dark:text-green-400">
+                    {/* REVALLE: token */}
+                    <span className="ml-1 flex items-center gap-x-1.5 text-success text-xs">
                       <Users2Icon className="h-3.5 w-3.5" />
                       <Plural
                         value={step.members.length}

@@ -259,8 +259,9 @@ export const TemplateDirectLinkDialog = ({
               .with({ token: P.nullish, currentStep: 'SELECT_RECIPIENT' }, () => (
                 <DialogContent className="relative">
                   {isCreatingTemplateDirectLink && validDirectTemplateRecipients.length !== 0 && (
-                    <div className="absolute inset-0 z-50 flex items-center justify-center rounded bg-white/50 dark:bg-black/50">
-                      <LoaderIcon className="h-6 w-6 animate-spin text-gray-500" />
+                    <div className="absolute inset-0 z-50 flex items-center justify-center rounded bg-background/50">
+                      {/* REVALLE: tokens */}
+                      <LoaderIcon className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
                   )}
 

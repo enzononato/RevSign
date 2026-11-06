@@ -4,6 +4,8 @@ import * as React from 'react';
 import { cn } from '../lib/utils';
 import { buttonVariants } from './button';
 
+// REVALLE v3: redesign visual (tokens, pílula, raios); ver CHANGES.md
+
 const AlertDialog = AlertDialogPrimitive.Root;
 
 const AlertDialogTrigger = AlertDialogPrimitive.Trigger;
@@ -41,7 +43,7 @@ const AlertDialogContent = React.forwardRef<
     <AlertDialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fade-in-90 slide-in-from-bottom-10 sm:zoom-in-90 sm:slide-in-from-bottom-0 fixed z-50 grid w-full max-w-lg scale-100 animate-in gap-4 border bg-background p-6 opacity-100 shadow-lg focus:outline-none sm:rounded-lg md:w-full',
+        'fade-in-90 slide-in-from-bottom-10 sm:zoom-in-90 sm:slide-in-from-bottom-0 fixed z-50 grid w-full max-w-lg scale-100 animate-in gap-4 border bg-popover p-6 opacity-100 shadow-xl focus:outline-none sm:rounded-3xl md:w-full',
         className,
       )}
       {...props}
@@ -67,7 +69,11 @@ const AlertDialogTitle = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Title>
 >(({ className, ...props }, ref) => (
-  <AlertDialogPrimitive.Title ref={ref} className={cn('font-semibold text-lg', className)} {...props} />
+  <AlertDialogPrimitive.Title
+    ref={ref}
+    className={cn('font-display font-extrabold text-xl tracking-[-0.02em]', className)}
+    {...props}
+  />
 ));
 
 AlertDialogTitle.displayName = AlertDialogPrimitive.Title.displayName;

@@ -32,8 +32,8 @@ export const OrganisationInvitations = ({ className }: { className?: string }) =
         <AnimateGenericFadeInOut>
           <Alert variant="secondary" className={className}>
             <div className="flex h-full flex-row items-center p-2">
-              <BellIcon className="mr-4 h-5 w-5 text-blue-800" />
-
+              <BellIcon className="mr-4 h-5 w-5 shrink-0 text-brand-text" />{' '}
+              {/* REVALLE: token (o azul fixo sumia no escuro) */}
               <AlertDescription className="mr-2">
                 <Plural
                   value={data.length}
@@ -49,10 +49,12 @@ export const OrganisationInvitations = ({ className }: { className?: string }) =
                   }
                 />
               </AlertDescription>
-
               <Dialog>
                 <DialogTrigger asChild>
-                  <button className="ml-auto font-medium text-blue-700 text-sm hover:text-blue-600">
+                  <button
+                    type="button"
+                    className="ml-auto min-h-11 font-semibold text-brand-text text-sm hover:underline"
+                  >
                     <Trans>View invites</Trans>
                   </button>
                 </DialogTrigger>

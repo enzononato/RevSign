@@ -118,7 +118,8 @@ export default function TemplatePage({ params }: Route.ComponentProps) {
   return (
     <div className="mx-auto -mt-4 w-full max-w-screen-xl px-4 md:px-8">
       <div className="flex flex-row justify-between">
-        <Link to={templateRootPath} className="flex items-center text-documenso-700 hover:opacity-80">
+        {/* REVALLE: token */}
+        <Link to={templateRootPath} className="flex items-center text-brand-text hover:opacity-80">
           <ChevronLeft className="mr-2 inline-block h-5 w-5" />
           <Trans>Templates</Trans>
         </Link>

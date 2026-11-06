@@ -14,10 +14,11 @@ export const DocumentSigningDisclosure = ({ className, ...props }: DocumentSigni
         document and holds the same legal validity as a handwritten signature. By completing the electronic signing
         process, you affirm your understanding and acceptance of these conditions.
       </Trans>
+      {/* REVALLE: link na cor de texto da marca (text-brand-text clareia no escuro). */}
       <span className="mt-2 block">
         <Trans>
           Read the full{' '}
-          <Link className="text-documenso-700 underline" to="/articles/signature-disclosure" target="_blank">
+          <Link className="text-brand-text underline" to="/articles/signature-disclosure" target="_blank">
             signature disclosure
           </Link>
           .

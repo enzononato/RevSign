@@ -92,8 +92,13 @@ export const DocumentsTableActionDropdown = ({ row, onMoveDocument }: DocumentsT
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger data-testid="document-table-action-btn">
-        <MoreHorizontal className="h-5 w-5 text-muted-foreground" />
+      {/* REVALLE v3: alvo de toque de 44px, redondo */}
+      <DropdownMenuTrigger
+        data-testid="document-table-action-btn"
+        aria-label={_(msg`Actions`)}
+        className="inline-flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <MoreHorizontal className="h-5 w-5" />
       </DropdownMenuTrigger>
 
       <DropdownMenuContent className="w-52" align="start" forceMount>

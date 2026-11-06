@@ -10,27 +10,18 @@ export type CardMetricProps = {
   testId?: string;
 };
 
-export const CardMetric = ({ icon: Icon, title, value, className, children, testId }: CardMetricProps) => {
+// REVALLE: v3-7a plain card with a display number: no decorative icon (the `icon` prop is kept for API compatibility)
+export const CardMetric = ({ title, value, className, children, testId }: CardMetricProps) => {
   return (
-    <div
-      className={cn(
-        'h-32 max-h-32 max-w-full overflow-hidden rounded-lg border border-border bg-background shadow shadow-transparent duration-200 hover:shadow-border/80',
-        className,
-      )}
-    >
-      <div className="flex h-full max-h-full flex-col px-4 pt-4 pb-6 sm:px-4 sm:pt-4 sm:pb-8">
-        <div className="flex items-start">
-          {Icon && (
-            <div className="mr-2 h-4 w-4">
-              <Icon className="h-4 w-4 text-muted-foreground" />
-            </div>
-          )}
-
-          <h3 className="mb-2 flex items-end font-medium text-sm leading-tight">{title}</h3>
-        </div>
+    <div className={cn('max-w-full overflow-hidden rounded-card border border-border bg-card', className)}>
+      <div className="flex h-full flex-col gap-3 p-5">
+        <h3 className="font-medium text-muted-foreground text-sm leading-tight">{title}</h3>
 
         {children || (
-          <p className="mt-auto font-semibold text-4xl text-foreground leading-8" data-testid={testId}>
+          <p
+            className="mt-auto font-black font-display text-[34px] text-foreground leading-none tracking-[-0.03em] [font-variant-numeric:tabular-nums]"
+            data-testid={testId}
+          >
             {typeof value === 'number' ? value.toLocaleString('en-US') : value}
           </p>
         )}

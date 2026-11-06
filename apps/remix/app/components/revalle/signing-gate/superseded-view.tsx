@@ -1,11 +1,12 @@
 import { Trans } from '@lingui/react/macro';
 import { FileXIcon } from 'lucide-react';
 
+import { GateStatusIcon } from './gate-status-icon';
 import { StepHeading } from './step-heading';
 
 export const SupersededView = () => (
   <section className="flex flex-col items-center gap-4 text-center">
-    <FileXIcon className="h-12 w-12 text-muted-foreground" />
+    <GateStatusIcon icon={FileXIcon} tone="neutral" />
     <StepHeading>
       <Trans>Este documento foi substituído por uma nova versão.</Trans>
     </StepHeading>

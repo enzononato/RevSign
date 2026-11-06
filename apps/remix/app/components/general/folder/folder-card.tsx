@@ -54,17 +54,25 @@ export const FolderCard = ({ folder, onMove, onSettings, onDelete }: FolderCardP
   };
 
   return (
-    <Link to={formatPath()} data-folder-id={folder.id} data-folder-name={folder.name}>
-      <Card className="h-full border border-border transition-all hover:bg-muted/50">
-        <CardContent className="p-4">
+    // REVALLE v3: pasta como cartão macio (raio 20, sombra de cartão, ícone num ladrilho azul-claro)
+    <Link
+      to={formatPath()}
+      data-folder-id={folder.id}
+      data-folder-name={folder.name}
+      className="block rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    >
+      <Card className="h-full transition-colors hover:bg-accent/40">
+        <CardContent className="p-3.5">
           <div className="flex min-w-0 items-center gap-3">
-            <FolderIcon className="h-6 w-6 flex-shrink-0 text-documenso" />
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-accent text-brand-text">
+              <FolderIcon className="h-5 w-5" />
+            </span>
 
             <div className="flex w-full min-w-0 items-center justify-between">
               <div className="min-w-0 flex-1">
-                <h3 className="flex min-w-0 items-center gap-2 font-medium">
+                <h3 className="flex min-w-0 items-center gap-2 font-bold">
                   <span className="truncate">{folder.name}</span>
-                  {folder.pinned && <PinIcon className="h-3 w-3 flex-shrink-0 text-documenso" />}
+                  {folder.pinned && <PinIcon className="h-3 w-3 flex-shrink-0 text-brand-text" />}
                 </h3>
 
                 <div className="mt-1 flex space-x-2 truncate text-muted-foreground text-xs">
@@ -96,7 +104,7 @@ export const FolderCard = ({ folder, onMove, onSettings, onDelete }: FolderCardP
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" data-testid="folder-card-more-button">
+                  <Button variant="ghost" size="sm" className="h-10 w-10 p-0" data-testid="folder-card-more-button">
                     <MoreVerticalIcon className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -135,17 +143,20 @@ export const FolderCard = ({ folder, onMove, onSettings, onDelete }: FolderCardP
 
 export const FolderCardEmpty = ({ type }: { type: FolderType }) => {
   return (
-    <Card className="h-full border border-border transition-all hover:bg-muted/50">
-      <CardContent className="p-4">
+    // REVALLE v3: cartão macio, como as pastas
+    <Card className="h-full transition-colors hover:bg-accent/40">
+      <CardContent className="p-3.5">
         <div className="flex items-center gap-3">
-          <FolderPlusIcon className="h-6 w-6 text-muted-foreground/60" />
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-muted text-muted-foreground">
+            <FolderPlusIcon className="h-5 w-5" />
+          </span>
 
           <div>
             <h3 className="flex items-center gap-2 font-medium text-muted-foreground">
               <Trans>Create folder</Trans>
             </h3>
 
-            <div className="mt-1 flex space-x-2 truncate text-muted-foreground/60 text-xs">
+            <div className="mt-1 flex space-x-2 truncate text-muted-foreground text-xs">
               {type === FolderType.DOCUMENT ? (
                 <Trans>Organise your documents</Trans>
               ) : (

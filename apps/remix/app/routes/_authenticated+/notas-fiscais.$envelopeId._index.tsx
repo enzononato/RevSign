@@ -18,6 +18,16 @@ import PDFViewerLazy from '~/components/general/pdf-viewer/pdf-viewer-lazy';
 import { AccountingCard } from '~/components/revalle/accounting/accounting-card';
 import { FinanceCard } from '~/components/revalle/finance/finance-card';
 import { InvoiceDuplicateSentence } from '~/components/revalle/invoice/invoice-duplicate-notice'; // REVALLE: Fase 8
+import {
+  financeTone,
+  InvoiceCard,
+  InvoiceCode,
+  InvoiceRow,
+  InvoiceRows,
+  InvoiceStatePill,
+  splitCodeLabel,
+} from '~/components/revalle/invoice/invoice-ui';
+import { RecipientSignerSlots } from '~/components/tables/recipient-signer-slots';
 import { appMetaTags } from '~/utils/meta';
 
 import type { Route } from './+types/notas-fiscais.$envelopeId._index';
@@ -45,32 +55,49 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   return { view };
 }
 
+/** REVALLE v3: a situação de cada destinatário em pílula (verde assinou, âmbar falta, vermelho recusou). */
 const RecipientStatus = ({
   recipient,
 }: {
   recipient: Route.ComponentProps['loaderData']['view']['recipients'][number];
 }) => {
   if (recipient.role === RecipientRole.CC) {
-    return <Trans>Recebe uma cópia</Trans>;
+    return (
+      <InvoiceStatePill tone="neutral">
+        <Trans>Recebe uma cópia</Trans>
+      </InvoiceStatePill>
+    );
   }
 
   if (recipient.signingStatus === SigningStatus.REJECTED) {
-    return <Trans>Recusou</Trans>;
+    return (
+      <InvoiceStatePill tone="danger">
+        <Trans>Recusou</Trans>
+      </InvoiceStatePill>
+    );
   }
 
   if (recipient.signingStatus === SigningStatus.SIGNED) {
     const at = recipient.signedAt ? formatRevalleDateTime(recipient.signedAt) : '';
 
-    return recipient.role === RecipientRole.APPROVER ? (
-      <Trans>Aprovou em {at}</Trans>
-    ) : recipient.role === RecipientRole.VIEWER ? (
-      <Trans>Visualizou em {at}</Trans>
-    ) : (
-      <Trans>Assinou em {at}</Trans>
+    return (
+      <InvoiceStatePill tone="success">
+        {recipient.role === RecipientRole.APPROVER ? (
+          <Trans>Aprovou em {at}</Trans>
+        ) : recipient.role === RecipientRole.VIEWER ? (
+          <Trans>Visualizou em {at}</Trans>
+        ) : (
+          <Trans>Assinou em {at}</Trans>
+        )}
+      </InvoiceStatePill>
     );
   }
 
-  return <Trans>Ainda não assinou</Trans>;
+  return (
+    <InvoiceStatePill tone="warning">
+      <Trans>Ainda não assinou</Trans>
+    </InvoiceStatePill>
+  );
 };
 
 /** Fase 8: fornecedor, número e valor que a IA leu da NF. Podem estar errados: a página diz isso e manda conferir no PDF. */
@@ -82,26 +109,24 @@ const InvoiceReadData = ({
   const { supplierName, invoiceNumber } = data;
   const amount = data.totalAmountCents === null ? null : formatInvoiceAmount(data.totalAmountCents);
 
+  if (!supplierName && !invoiceNumber && !amount) {
+    return null;
+  }
+
   return (
-    <div className="flex flex-col gap-1" data-testid="invoice-view-data">
-      {supplierName && (
-        <p className="break-words">
-          <Trans>Fornecedor: {supplierName}</Trans>
-        </p>
-      )}
-      {invoiceNumber && (
-        <p className="break-words">
-          <Trans>Número: {invoiceNumber}</Trans>
-        </p>
-      )}
-      {amount && (
-        <p>
-          <Trans>Valor: {amount}</Trans>
-        </p>
-      )}
-      <p className="text-muted-foreground text-xs">
+    <div className="flex flex-col" data-testid="invoice-view-data">
+      <p className="mt-1 border-border border-t pt-3 text-muted-foreground text-xs">
         <Trans>Lidos pela IA, confira no PDF</Trans>
       </p>
+      <InvoiceRows>
+        {amount && (
+          <InvoiceRow label={<Trans>Value</Trans>}>
+            <span className="font-extrabold">{amount}</span>
+          </InvoiceRow>
+        )}
+        {supplierName && <InvoiceRow label={<Trans>Supplier</Trans>}>{supplierName}</InvoiceRow>}
+        {invoiceNumber && <InvoiceRow label={<Trans>Number</Trans>}>{invoiceNumber}</InvoiceRow>}
+      </InvoiceRows>
     </div>
   );
 };
@@ -115,15 +140,12 @@ const InvoiceDuplicates = ({
 }: {
   duplicates: Route.ComponentProps['loaderData']['view']['duplicates'];
 }) => (
-  <section
-    className="flex flex-col gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm"
-    data-testid="invoice-view-duplicates"
-  >
-    <h2 className="flex items-start gap-2 font-medium">
-      <TriangleAlertIcon className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" />
+  <InvoiceCard tone="warning" testId="invoice-view-duplicates">
+    <h2 className="flex items-start gap-2 font-display font-extrabold text-[17px] text-warning-text leading-tight">
+      <TriangleAlertIcon className="mt-0.5 h-4 w-4 shrink-0" />
       <Trans>Esta nota parece já ter sido enviada</Trans>
     </h2>
-    <p className="text-muted-foreground">
+    <p>
       <Trans>Tem a mesma chave de acesso ou o mesmo arquivo de outra nota enviada. Confira antes de decidir.</Trans>
     </p>
     <ul className="flex flex-col gap-2">
@@ -137,20 +159,20 @@ const InvoiceDuplicates = ({
             {duplicate.id && duplicate.title && (
               <Link
                 to={invoiceViewPath(duplicate.id)}
-                className="flex min-h-11 items-center break-words font-medium text-documenso-700 hover:underline"
+                className="flex min-h-11 items-center break-words font-bold text-brand-text hover:underline"
                 data-testid="invoice-view-duplicate-link"
               >
                 {duplicate.title}
               </Link>
             )}
-            <p className="break-words">
+            <p className="break-words text-muted-foreground">
               <InvoiceDuplicateSentence duplicate={duplicate} />
             </p>
           </li>
         );
       })}
     </ul>
-  </section>
+  </InvoiceCard>
 );
 
 export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
@@ -159,36 +181,73 @@ export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
   const revalidator = useRevalidator();
 
   const situation = financeStatusLabel(finance.status, view.status);
+  const senderName = view.sender.name;
 
+  // REVALLE v3: cabeçalho (título 28/900, uma linha de situação, ações à direita); no computador, a prévia do PDF à
+  // esquerda e a coluna de cartões de 360px à direita; no celular, os cartões (com as ações do Financeiro e da
+  // Contabilidade) vêm antes do PDF.
   return (
     <div className="mx-auto w-full min-w-0 max-w-screen-xl px-4 md:px-8" data-testid="invoice-view-page">
-      <Link to="/notas-fiscais" className="flex min-h-11 items-center text-documenso-700 hover:opacity-80">
-        <ChevronLeft className="mr-2 inline-block h-5 w-5" />
+      <Link
+        to="/notas-fiscais"
+        className="-ml-1 inline-flex min-h-11 items-center font-semibold text-brand-text text-sm hover:underline"
+      >
+        <ChevronLeft className="mr-1 inline-block h-4 w-4" />
         <Trans>Notas fiscais</Trans>
       </Link>
 
-      <h1 className="mt-2 break-words font-semibold text-2xl md:text-3xl">{view.title}</h1>
+      <div className="mt-1 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0">
+          <h1 className="break-words font-black font-display text-[28px] leading-[1.1] tracking-[-0.03em]">
+            {view.title}
+          </h1>
 
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-muted-foreground text-sm">
-        <DocumentStatus status={view.status} inheritColor />
-        <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
-          <Trans>Versão {finance.version}</Trans>
-        </span>
-        {situation && (
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs" data-testid="invoice-view-situation">
-            {situation}
-          </span>
-        )}
+          <div className="mt-2.5 flex flex-wrap items-center gap-2 text-muted-foreground text-sm">
+            <DocumentStatus pill status={view.status} />
+            {situation && (
+              <InvoiceStatePill tone={financeTone(finance.status, view.status)} testId="invoice-view-situation">
+                {situation}
+              </InvoiceStatePill>
+            )}
+            <InvoiceStatePill tone="neutral">
+              <Trans>Versão {finance.version}</Trans>
+            </InvoiceStatePill>
+            <span>
+              <Trans>Sent by {senderName}</Trans>
+            </span>
+          </div>
+        </div>
+
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap md:justify-end">
+          {/* REVALLE: "Baixar PDF" (Fase 7): quem vê a nota baixa o arquivo sem depender de e-mail */}
+          {view.items.map((item) => (
+            <Button key={item.id} asChild variant="outline" className="w-full whitespace-normal sm:w-auto">
+              <a href={`/notas-fiscais/${view.id}/pdf/${item.id}?download=1`} data-testid="invoice-view-download">
+                <DownloadIcon className="mr-2 h-4 w-4 shrink-0" />
+                {view.items.length > 1 ? <Trans>Baixar PDF: {item.title}</Trans> : <Trans>Baixar PDF</Trans>}
+              </a>
+            </Button>
+          ))}
+          {view.documentPath && (
+            <Button asChild variant="outline" className="w-full whitespace-normal sm:w-auto">
+              <Link to={view.documentPath}>
+                <ExternalLinkIcon className="mr-2 h-4 w-4 shrink-0" />
+                {view.viewer.isOwner ? (
+                  <Trans>Abrir a página do documento</Trans>
+                ) : (
+                  <Trans>Abrir no painel do admin</Trans>
+                )}
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
 
-      <div className="mt-6 grid w-full grid-cols-12 gap-6 lg:gap-8">
-        <div className="col-span-12 flex min-w-0 flex-col gap-4 lg:order-last lg:col-span-5">
+      <div className="mt-6 grid w-full grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-8">
+        <div className="flex min-w-0 flex-col gap-4 lg:order-last">
           {finance.status === 'SUPERSEDED' && (
-            <section
-              className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm"
-              data-testid="invoice-view-superseded"
-            >
-              <p className="font-medium">
+            <InvoiceCard tone="warning" testId="invoice-view-superseded">
+              <p className="font-semibold text-warning-text">
                 {finance.supersedeKind === 'COST_CENTER' ? (
                   <Trans>Esta versão foi substituída (centro de custo corrigido pela Contabilidade).</Trans>
                 ) : (
@@ -196,24 +255,79 @@ export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
                 )}
               </p>
               {finance.supersedeReason && (
-                <p className="mt-1 break-words">
+                <p className="break-words">
                   <Trans>Motivo: {finance.supersedeReason}</Trans>
                 </p>
               )}
-            </section>
+            </InvoiceCard>
           )}
 
+          <InvoiceCard title={<Trans>Destinatários</Trans>}>
+            {view.recipients.length === 0 ? (
+              <p className="text-muted-foreground">
+                <Trans>Nenhum destinatário.</Trans>
+              </p>
+            ) : (
+              <>
+                <RecipientSignerSlots recipients={view.recipients} documentStatus={view.status} />
+                <ul className="flex flex-col" data-testid="invoice-view-recipients">
+                  {view.recipients.map((recipient) => (
+                    <li
+                      key={recipient.id}
+                      className="flex min-w-0 flex-col gap-1.5 border-border border-t py-3 last:pb-0"
+                    >
+                      <div className="min-w-0">
+                        <p className="break-words font-semibold">{recipient.name || recipient.email}</p>
+                        {recipient.name && <p className="break-all text-muted-foreground text-xs">{recipient.email}</p>}
+                      </div>
+                      <RecipientStatus recipient={recipient} />
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </InvoiceCard>
+
+          {/* REVALLE v3: o que quem assinou viu (conta e centro); os dados lidos pela IA ficam embaixo, separados */}
+          <InvoiceCard
+            title={finance.status === 'LEGACY' ? <Trans>Conta contábil</Trans> : <Trans>What was signed</Trans>}
+          >
+            <InvoiceRows>
+              <InvoiceRow label={<Trans>Conta contábil</Trans>}>
+                {finance.account ? <InvoiceCode code={finance.account.code} name={finance.account.name} /> : '-'}
+              </InvoiceRow>
+              <InvoiceRow label={<Trans>Centro de custo</Trans>} testId="invoice-view-cost-center">
+                {finance.costCenterLabel ? <InvoiceCode {...splitCodeLabel(finance.costCenterLabel)} /> : '-'}
+              </InvoiceRow>
+            </InvoiceRows>
+            {invoiceData && <InvoiceReadData data={invoiceData} />}
+          </InvoiceCard>
+
+          {/* REVALLE v3: o aviso de duplicada fica logo antes das decisões do Financeiro e da Contabilidade */}
           {view.duplicates.length > 0 && <InvoiceDuplicates duplicates={view.duplicates} />}
 
+          {view.viewer.isFinance && (
+            <FinanceCard
+              envelopeId={view.id}
+              showSignedValues={false}
+              onChanged={() => void revalidator.revalidate()}
+            />
+          )}
+
+          {view.viewer.isAccounting && (
+            <AccountingCard
+              envelopeId={view.id}
+              showSignedValues={false}
+              onChanged={() => void revalidator.revalidate()}
+            />
+          )}
+
           {(finance.previous || finance.next) && (
-            <section className="flex flex-col gap-1 rounded-xl border border-border bg-widget p-4 text-sm dark:bg-background">
-              <h2 className="font-medium">
-                <Trans>Versões</Trans>
-              </h2>
+            <InvoiceCard title={<Trans>Versões</Trans>}>
               {finance.previous && (
                 <Link
                   to={invoiceViewPath(finance.previous.id)}
-                  className="flex min-h-11 items-center break-words text-documenso-700 hover:underline"
+                  className="flex min-h-11 items-center break-words font-semibold text-brand-text hover:underline"
                   data-testid="invoice-view-previous"
                 >
                   <Trans>Versão anterior: {finance.previous.title}</Trans>
@@ -222,114 +336,33 @@ export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
               {finance.next && (
                 <Link
                   to={invoiceViewPath(finance.next.id)}
-                  className="flex min-h-11 items-center break-words text-documenso-700 hover:underline"
+                  className="flex min-h-11 items-center break-words font-semibold text-brand-text hover:underline"
                   data-testid="invoice-view-next"
                 >
                   <Trans>Nova versão: {finance.next.title}</Trans>
                 </Link>
               )}
-            </section>
+            </InvoiceCard>
           )}
 
-          {view.viewer.isFinance ? (
-            <FinanceCard envelopeId={view.id} onChanged={() => void revalidator.revalidate()} />
-          ) : (
-            <section className="flex flex-col gap-1 rounded-xl border border-border bg-widget p-4 text-sm dark:bg-background">
-              <h2 className="font-medium">
-                <Trans>Conta contábil</Trans>
-              </h2>
-              <p className="break-words">
-                {finance.account ? `${finance.account.code} – ${finance.account.name ?? ''}` : '-'}
-              </p>
-              {situation && <p className="text-muted-foreground">{situation}</p>}
-              <h2 className="mt-2 font-medium">
-                <Trans>Centro de custo</Trans>
-              </h2>
-              <p className="break-words" data-testid="invoice-view-cost-center">
-                {finance.costCenterLabel ?? '-'}
-              </p>
-            </section>
-          )}
-
-          {view.viewer.isAccounting && (
-            <AccountingCard envelopeId={view.id} onChanged={() => void revalidator.revalidate()} />
-          )}
-
-          <section className="flex flex-col gap-2 rounded-xl border border-border bg-widget p-4 text-sm dark:bg-background">
-            <h2 className="font-medium">
-              <Trans>Informações</Trans>
-            </h2>
-            <p className="break-words">
-              <Trans>
-                Remetente: {view.sender.name} ({view.sender.email})
-              </Trans>
-            </p>
-            <p>
-              <Trans>Criado em {formatRevalleDateTime(view.createdAt)}</Trans>
-            </p>
-            {view.completedAt && (
-              <p>
-                <Trans>Concluído em {formatRevalleDateTime(view.completedAt)}</Trans>
-              </p>
-            )}
-            {invoiceData && <InvoiceReadData data={invoiceData} />}
-            {/* REVALLE: "Baixar PDF" (Fase 7): quem vê a nota baixa o arquivo sem depender de e-mail */}
-            {view.items.map((item) => (
-              <Button
-                key={item.id}
-                asChild
-                variant="outline"
-                className="mt-1 h-11 w-full whitespace-normal sm:w-auto sm:self-start"
-              >
-                <a href={`/notas-fiscais/${view.id}/pdf/${item.id}?download=1`} data-testid="invoice-view-download">
-                  <DownloadIcon className="mr-2 h-4 w-4 shrink-0" />
-                  {view.items.length > 1 ? <Trans>Baixar PDF: {item.title}</Trans> : <Trans>Baixar PDF</Trans>}
-                </a>
-              </Button>
-            ))}
-            {view.documentPath && (
-              <Button asChild variant="outline" className="mt-1 h-11 w-full whitespace-normal sm:w-auto sm:self-start">
-                <Link to={view.documentPath}>
-                  <ExternalLinkIcon className="mr-2 h-4 w-4 shrink-0" />
-                  {view.viewer.isOwner ? (
-                    <Trans>Abrir a página do documento</Trans>
-                  ) : (
-                    <Trans>Abrir no painel do admin</Trans>
-                  )}
-                </Link>
-              </Button>
-            )}
-          </section>
-
-          <section className="flex flex-col gap-2 rounded-xl border border-border bg-widget p-4 text-sm dark:bg-background">
-            <h2 className="font-medium">
-              <Trans>Destinatários</Trans>
-            </h2>
-            {view.recipients.length === 0 ? (
-              <p className="text-muted-foreground">
-                <Trans>Nenhum destinatário.</Trans>
-              </p>
-            ) : (
-              <ul className="flex flex-col gap-2" data-testid="invoice-view-recipients">
-                {view.recipients.map((recipient) => (
-                  <li key={recipient.id} className="min-w-0">
-                    <p className="break-words font-medium">{recipient.name || recipient.email}</p>
-                    {recipient.name && <p className="break-all text-muted-foreground">{recipient.email}</p>}
-                    <p className="text-muted-foreground">
-                      <RecipientStatus recipient={recipient} />
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          <InvoiceCard title={<Trans>Informações</Trans>}>
+            <InvoiceRows>
+              <InvoiceRow label={<Trans>Sender</Trans>} stacked>
+                {view.sender.name} <span className="font-normal text-muted-foreground">({view.sender.email})</span>
+              </InvoiceRow>
+              <InvoiceRow label={<Trans>Created</Trans>}>{formatRevalleDateTime(view.createdAt)}</InvoiceRow>
+              {view.completedAt && (
+                <InvoiceRow label={<Trans>Completed</Trans>}>{formatRevalleDateTime(view.completedAt)}</InvoiceRow>
+              )}
+            </InvoiceRows>
+          </InvoiceCard>
         </div>
 
-        <div className="col-span-12 flex min-w-0 flex-col gap-4 lg:col-span-7">
+        <div className="flex min-w-0 flex-col gap-4">
           {view.items.map((item) => (
-            <Card key={item.id} className="rounded-xl before:rounded-xl" gradient>
+            <Card key={item.id}>
               <CardContent className="p-2">
-                {view.items.length > 1 && <p className="px-2 pb-2 font-medium text-sm">{item.title}</p>}
+                {view.items.length > 1 && <p className="px-2 pb-2 font-semibold text-sm">{item.title}</p>}
                 <PDFViewerLazy
                   key={`${item.id}-${item.documentDataId}`}
                   data={`/notas-fiscais/${view.id}/pdf/${item.id}?v=${item.documentDataId}`}

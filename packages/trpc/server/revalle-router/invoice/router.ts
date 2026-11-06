@@ -5,6 +5,7 @@ import { adminImportAccountsRoute } from './admin-import-accounts';
 import { adminPreviewAccountsRoute } from './admin-preview-accounts';
 import { adminUpdateSettingsRoute } from './admin-update-settings';
 import { classifyInvoiceRoute } from './classify';
+import { invoiceDocumentTagsRoute } from './document-tags';
 import { findInvoicesRoute } from './find';
 import { findInvoiceAccountsRoute } from './find-accounts';
 import { getInvoiceRoute } from './get';
@@ -31,4 +32,5 @@ export const invoiceRouter = router({
   findAccounts: findInvoiceAccountsRoute,
   find: findInvoicesRoute,
   pendingCounts: invoicePendingCountsRoute,
+  documentTags: invoiceDocumentTagsRoute,
 });

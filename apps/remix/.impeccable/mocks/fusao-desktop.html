@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>RevSign · Notas fiscais</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,600;6..12,800;6..12,900&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--rv:#1D3F94;--rv-d:#152E6E;--rv-l:#E9EEF9;--ink:#141B2E;--mut:#5E6678;--rule:#E6E3DC;--bg:#F5F4F0;--card:#fff;--ok:#1E7F52;--wait:#8F6200;--wait-bg:#FFF4D9}
+*{box-sizing:border-box;margin:0}
+body{width:1440px;height:900px;overflow:hidden;background:var(--bg);font:15px/1.5 Figtree,sans-serif;color:var(--ink);display:grid;grid-template-columns:244px 1fr;font-variant-numeric:tabular-nums}
+::selection{background:var(--rv);color:#fff}
+aside{background:var(--rv);color:#fff;padding:28px 18px 20px;display:flex;flex-direction:column;gap:30px;background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.045) 0 1px,transparent 1px 24px),repeating-linear-gradient(0deg,rgba(255,255,255,.045) 0 1px,transparent 1px 24px)}
+.logo{font:900 34px/1 'Nunito Sans';letter-spacing:-.035em;padding:0 10px}
+.logo span{color:#9EC0FF}
+.logo small{display:flex;align-items:center;gap:6px;font:600 12px/1.4 Figtree;color:#BFD0F2;margin-top:9px;letter-spacing:0}
+.logo small b{font:900 14px/1 'Nunito Sans';color:#fff;letter-spacing:-.03em}
+nav{display:flex;flex-direction:column;gap:2px}
+nav a{display:flex;justify-content:space-between;align-items:center;padding:11px 12px;border-radius:14px;color:#D4DEF5;text-decoration:none;font-weight:600}
+nav a.on{background:#fff;color:var(--rv)}
+nav .n{min-width:24px;height:24px;padding:0 7px;border-radius:999px;background:#F2B705;color:#2A1E00;font:800 12.5px/24px 'Nunito Sans';text-align:center}
+.me{margin-top:auto;display:flex;gap:11px;align-items:center;padding:10px;border-radius:16px;background:rgba(255,255,255,.09)}
+.av{width:38px;height:38px;border-radius:12px;background:#fff;color:var(--rv);font:800 14px/38px 'Nunito Sans';text-align:center}
+.me b{display:block;font-size:14px}.me span{font-size:12.5px;color:#BFD0F2}
+.lic{font-size:11.5px;color:#9FB3E3;padding:0 10px}
+main{padding:34px 40px 0;display:grid;grid-template-columns:1fr 316px;gap:28px;align-content:start}
+h1{font:900 36px/1.05 'Nunito Sans';letter-spacing:-.03em}
+.sub{color:var(--mut);margin:8px 0 22px}
+.chips{display:flex;gap:8px;margin-bottom:16px}
+.chip{height:38px;padding:0 16px;border-radius:999px;background:#fff;border:1.5px solid var(--rule);display:flex;align-items:center;gap:8px;font-weight:700;color:var(--mut);font-size:14px}
+.chip.on{border-color:var(--ink);color:var(--ink)}
+.chip i{font-style:normal;font:800 12px 'Nunito Sans';background:var(--bg);border-radius:999px;padding:1px 8px}
+.chip.on i{background:var(--ink);color:#fff}
+.list{display:flex;flex-direction:column;gap:10px}
+.r{background:var(--card);border-radius:20px;padding:16px 18px 16px 22px;display:grid;grid-template-columns:1fr 150px 168px;align-items:center;gap:18px;box-shadow:0 1px 2px rgba(20,27,46,.05),0 0 0 1px rgba(20,27,46,.04)}
+.r b{font-size:16px;font-weight:700}
+.meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px;align-items:center}
+.tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;background:#F3F1EC;font-weight:600;font-size:13px}
+.tag em{font-style:normal;font:800 12.5px 'Nunito Sans';color:var(--rv)}
+.amt{font-weight:800;font-size:14px;margin-left:4px}
+.dup{background:var(--wait-bg);color:var(--wait)}
+.who{font-size:13px;color:var(--mut);margin-top:4px}
+.slots{display:flex;gap:5px}
+.s{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;font:800 11px 'Nunito Sans'}
+.s.full{background:var(--rv);color:#fff;box-shadow:inset 0 -3px 0 var(--rv-d)}
+.s.empty{box-shadow:inset 0 0 0 2px #B9C4DC;color:#6F7D9C;background:#fff}
+.slots-l{font-size:12.5px;color:var(--mut);margin-top:5px;font-weight:600}
+.act{height:44px;border-radius:999px;border:0;background:var(--rv);color:#fff;font:700 14.5px Figtree;box-shadow:0 2px 0 var(--rv-d)}
+.state{height:44px;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:7px;font-weight:700;font-size:13.5px;color:var(--mut);background:#F3F1EC}
+.state.ok{color:var(--ok);background:#E7F4EC}
+.side{display:flex;flex-direction:column;gap:14px}
+.box{background:#fff;border-radius:22px;padding:22px;box-shadow:0 1px 2px rgba(20,27,46,.05),0 0 0 1px rgba(20,27,46,.04)}
+.box h2{font:800 17px 'Nunito Sans'}
+.q{display:flex;justify-content:space-between;align-items:baseline;padding:11px 0;border-bottom:1px solid var(--rule);font-weight:600;color:var(--mut)}
+.q:last-child{border:0}
+.q b{font:900 24px 'Nunito Sans';color:var(--ink)}
+.q.me2 b{color:var(--rv)}
+.send{width:100%;height:50px;border-radius:999px;border:0;background:var(--rv);color:#fff;font:700 15.5px Figtree;box-shadow:0 2px 0 var(--rv-d)}
+.ghost{width:100%;height:44px;border-radius:999px;border:1.5px solid var(--rule);background:#fff;font:700 14px Figtree;color:var(--ink)}
+</style></head><body>
+<aside>
+<div class="logo">Rev<span>Sign</span><small>assinaturas da <b>revalle</b></small></div>
+<nav><a href="#">Documentos</a><a class="on" href="#">Notas fiscais <span class="n">3</span></a><a href="#">Verificar documento</a><a href="#">Configurações</a></nav>
+<div class="me"><div class="av">EN</div><div><b>Enzo Nonato</b><span>Financeiro e Contabilidade</span></div></div>
+<div class="lic">Código-fonte (AGPL-3.0)</div>
+</aside>
+<main>
+<section>
+<h1>Notas fiscais</h1><p class="sub">3 notas esperam você hoje. Exemplo com dados fictícios.</p>
+<div class="chips"><span class="chip on">Para mim <i>3</i></span><span class="chip">Assinaturas faltando <i>4</i></span><span class="chip">Concluídas</span><span class="chip">Todas</span><span class="chip">Filtros</span></div>
+<div class="list">
+<div class="r"><div><b>NF 55021 · Distribuidora Vale Gás</b><div class="meta"><span class="tag"><em>342204</em>Gás de cozinha, GLP</span><span class="tag"><em>201</em>Armazém</span><span class="amt">R$ 1.240,00</span></div><div class="who">Enviada por Marina Souza · 05/11 16:02</div></div><div><div class="slots"><div class="s full">MS</div><div class="s full">EN</div></div><div class="slots-l">Todos assinaram</div></div><button class="act">Aprovar conta</button></div>
+<div class="r"><div><b>CT-e 9921 · Transportes Sertão</b><div class="meta"><span class="tag"><em>340802</em>Frete</span><span class="tag"><em>501</em>Entrega</span><span class="tag dup">Possível duplicada</span><span class="amt">R$ 3.880,15</span></div><div class="who">Enviada por Paulo Lima · 05/11 09:47</div></div><div><div class="slots"><div class="s full">PL</div><div class="s full">EN</div><div class="s full">RC</div></div><div class="slots-l">Todos assinaram</div></div><button class="act">Aprovar conta</button></div>
+<div class="r"><div><b>NF 7710 · Papelaria Central</b><div class="meta"><span class="tag"><em>342206</em>Papel, caneta, expediente</span><span class="tag"><em>301</em>Administrativo</span><span class="amt">R$ 312,40</span></div><div class="who">Enviada por Enzo Nonato · 04/11 11:20</div></div><div><div class="slots"><div class="s full">EN</div><div class="s full">VG</div></div><div class="slots-l">Todos assinaram</div></div><button class="act">Validar centro</button></div>
+<div class="r"><div><b>NF 118889 · Petrolluz Materiais</b><div class="meta"><span class="tag"><em>342401</em>Manutenção Predial</span><span class="tag"><em>301</em>Administrativo</span><span class="amt">R$ 85,59</span></div><div class="who">Enviada por Enzo Nonato · 06/11 10:34</div></div><div><div class="slots"><div class="s full">EN</div><div class="s full">VG</div><div class="s empty">MS</div></div><div class="slots-l">Falta 1 assinatura</div></div><div class="state">Aguardando Marina</div></div>
+</div>
+</section>
+<div class="side">
+<div class="box"><h2>Suas filas</h2>
+<div class="q me2"><span>Aguardando o Financeiro</span><b>2</b></div>
+<div class="q me2"><span>Aguardando a Contabilidade</span><b>1</b></div>
+<div class="q"><span>Concluídas em novembro</span><b>47</b></div></div>
+<button class="send">Enviar nota fiscal</button>
+<button class="ghost">Exportar planilha</button>
+</div>
+</main>
+</body></html>

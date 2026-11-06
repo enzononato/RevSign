@@ -1,13 +1,47 @@
 import { ExtendedDocumentStatus } from '@documenso/prisma/types/extended-document-status';
+import { Button } from '@documenso/ui/primitives/button';
 import { msg } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
-import { Bird, CheckCircle2, TimerOff, XCircle } from 'lucide-react';
+import { Trans } from '@lingui/react/macro';
+import { CheckCircle2, FileText, SearchXIcon, TimerOff, XCircle } from 'lucide-react';
 import { match } from 'ts-pattern';
 
-export type DocumentsTableEmptyStateProps = { status: ExtendedDocumentStatus };
+export type DocumentsTableEmptyStateProps = {
+  status: ExtendedDocumentStatus;
+  /** REVALLE: busca ou filtro ativo sem resultado: frase própria e uma ação (limpar). */
+  isFiltered?: boolean;
+  onClearFilters?: () => void;
+};
 
-export const DocumentsTableEmptyState = ({ status }: DocumentsTableEmptyStateProps) => {
+export const DocumentsTableEmptyState = ({ status, isFiltered, onClearFilters }: DocumentsTableEmptyStateProps) => {
   const { _ } = useLingui();
+
+  // REVALLE: redesign v3. Estado vazio num cartão: ícone pequeno, frase e (quando há filtro) uma ação.
+  if (isFiltered) {
+    return (
+      <div
+        className="flex flex-col items-center gap-y-3 rounded-card bg-card px-6 py-12 text-center shadow-card"
+        data-testid="empty-document-state"
+      >
+        <SearchXIcon className="h-8 w-8 text-muted-foreground" strokeWidth={1.75} aria-hidden />
+
+        <div>
+          <h3 className="font-display font-extrabold text-lg tracking-[-0.02em]">
+            <Trans>No documents found</Trans>
+          </h3>
+          <p className="mt-1 max-w-[60ch] text-muted-foreground">
+            <Trans>No documents match your search and filters.</Trans>
+          </p>
+        </div>
+
+        {onClearFilters && (
+          <Button variant="outline" className="mt-1" onClick={onClearFilters}>
+            <Trans>Clear filters</Trans>
+          </Button>
+        )}
+      </div>
+    );
+  }
 
   const {
     title,
@@ -42,7 +76,7 @@ export const DocumentsTableEmptyState = ({ status }: DocumentsTableEmptyStatePro
     .with(ExtendedDocumentStatus.ALL, () => ({
       title: msg`We're all empty`,
       message: msg`You have not yet created or received any documents. To create a document please upload one.`,
-      icon: Bird,
+      icon: FileText,
     }))
     .otherwise(() => ({
       title: msg`Nothing to do`,
@@ -52,15 +86,15 @@ export const DocumentsTableEmptyState = ({ status }: DocumentsTableEmptyStatePro
 
   return (
     <div
-      className="flex h-60 flex-col items-center justify-center gap-y-4 text-muted-foreground/60"
+      className="flex flex-col items-center gap-y-3 rounded-card bg-card px-6 py-12 text-center shadow-card"
       data-testid="empty-document-state"
     >
-      <Icon className="h-12 w-12" strokeWidth={1.5} />
+      <Icon className="h-8 w-8 text-muted-foreground" strokeWidth={1.75} aria-hidden />
 
-      <div className="text-center">
-        <h3 className="font-semibold text-lg">{_(title)}</h3>
+      <div>
+        <h3 className="font-display font-extrabold text-lg tracking-[-0.02em]">{_(title)}</h3>
 
-        <p className="mt-2 max-w-[60ch]">{_(message)}</p>
+        <p className="mt-1 max-w-[60ch] text-muted-foreground">{_(message)}</p>
       </div>
     </div>
   );

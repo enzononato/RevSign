@@ -13,7 +13,7 @@ export const SettingsScopeBreadcrumb = ({ scope, scopeName, crumbs }: SettingsSc
   return (
     <nav
       aria-label="settings-scope-breadcrumb"
-      className="mb-4 flex flex-wrap items-center gap-2 text-muted-foreground text-sm"
+      className="mb-3 flex flex-wrap items-center gap-2 text-muted-foreground text-sm"
       data-testid="settings-scope-breadcrumb"
     >
       <span>{scopeName}</span>

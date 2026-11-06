@@ -13,6 +13,7 @@ import { Link } from 'react-router';
 import { AccountCombobox } from './account-combobox';
 import { CostCenterSelect } from './cost-center-select';
 import { InvoiceDuplicateNotice } from './invoice-duplicate-notice';
+import { InvoiceCard, InvoiceCode, InvoiceRow, InvoiceRows, InvoiceStatePill, splitCodeLabel } from './invoice-ui';
 
 export type InvoiceAccountCardProps = {
   envelope: { id: string; userId: number; status: DocumentStatus };
@@ -74,7 +75,7 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
   if (!isInvoice && state.isInvoice !== 'UNKNOWN') {
     return (
       <div
-        className="-my-2 flex flex-wrap items-center gap-x-1 px-1 text-muted-foreground text-sm"
+        className="flex flex-wrap items-center gap-x-1 px-1 text-muted-foreground text-sm"
         data-testid="invoice-mark-link"
       >
         <span>
@@ -95,32 +96,26 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
 
   if (!isInvoice) {
     return (
-      <section
-        className="flex flex-col gap-2 rounded-xl border border-border bg-widget p-4 text-foreground dark:bg-background"
-        data-testid="invoice-account-card"
-      >
-        <h2 className="font-medium">
-          <Trans>Conta contábil</Trans>
-        </h2>
-
-        <p className="font-medium text-sm">
+      // REVALLE v3: cartão macio
+      <InvoiceCard title={<Trans>Conta contábil</Trans>} testId="invoice-account-card">
+        <p className="font-semibold">
           <Trans>Este documento é uma nota fiscal?</Trans>
         </p>
 
-        <p className="text-muted-foreground text-sm">
+        <p className="text-muted-foreground">
           <Trans>Se este documento for uma nota fiscal, marque aqui para escolher a conta contábil.</Trans>
         </p>
 
         <Button
           type="button"
           variant="outline"
-          className="h-11 w-full whitespace-normal sm:w-auto sm:self-start"
+          className="w-full whitespace-normal"
           disabled={isPending}
           onClick={() => void onMark()}
         >
           <Trans>Marcar como nota fiscal</Trans>
         </Button>
-      </section>
+      </InvoiceCard>
     );
   }
 
@@ -153,37 +148,47 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
   // A versão substituída não recebe conta nem centro: a nova versão é a que vale.
   const canChooseCostCenter = !state.costCenter && state.financeStatus !== 'SUPERSEDED';
 
+  // REVALLE v3: cartão macio no padrão "rótulo à esquerda, valor à direita", código em azul, situação em pílula.
   return (
-    <section
-      className="flex flex-col gap-3 rounded-xl border border-border bg-widget p-4 text-foreground dark:bg-background"
-      data-testid="invoice-account-card"
-    >
-      <h2 className="font-medium">
-        <Trans>Conta contábil</Trans>
-      </h2>
+    <InvoiceCard title={<Trans>Nota fiscal</Trans>} testId="invoice-account-card">
+      <InvoiceRows>
+        <InvoiceRow label={<Trans>Conta contábil</Trans>}>
+          {state.choice && choiceCode ? (
+            <InvoiceCode code={choiceCode} name={choiceName} />
+          ) : (
+            <span className="font-normal text-muted-foreground">
+              <Trans>Nenhuma conta escolhida.</Trans>
+            </span>
+          )}
+        </InvoiceRow>
 
-      <p className="break-words text-sm">
-        {state.choice ? `${choiceCode} · ${choiceName}` : <Trans>Nenhuma conta escolhida.</Trans>}
-      </p>
+        {state.costCenter && (
+          <InvoiceRow label={<Trans>Centro de custo</Trans>} testId="invoice-cost-center-value">
+            <InvoiceCode {...splitCodeLabel(costCenterLabel(state.costCenter.code))} />
+          </InvoiceRow>
+        )}
+
+        {((state.financeStatus === 'PENDING_APPROVAL' && state.choice) || state.financeStatus === 'APPROVED') && (
+          <InvoiceRow label={<Trans>Financeiro</Trans>} stacked>
+            {state.financeStatus === 'APPROVED' ? (
+              <InvoiceStatePill tone="success">
+                <Trans>Aprovada pelo Financeiro</Trans>
+              </InvoiceStatePill>
+            ) : (
+              <InvoiceStatePill tone="warning">
+                <Trans>Aguardando aprovação do Financeiro</Trans>
+              </InvoiceStatePill>
+            )}
+          </InvoiceRow>
+        )}
+      </InvoiceRows>
 
       {/* REVALLE (Fase 8): depois do envio o aviso é só informação, sem a confirmação do diálogo de envio. */}
       <InvoiceDuplicateNotice duplicates={state.duplicates} />
 
-      {state.financeStatus === 'PENDING_APPROVAL' && state.choice && (
-        <p className="text-muted-foreground text-sm">
-          <Trans>Aguardando aprovação do Financeiro</Trans>
-        </p>
-      )}
-
-      {state.financeStatus === 'APPROVED' && (
-        <p className="text-muted-foreground text-sm">
-          <Trans>Aprovada pelo Financeiro</Trans>
-        </p>
-      )}
-
       {state.financeStatus === 'SUPERSEDED' && (
         <>
-          <p className="text-muted-foreground text-sm" data-testid="invoice-account-superseded">
+          <p className="text-muted-foreground" data-testid="invoice-account-superseded">
             {state.supersedeKind === 'COST_CENTER' ? (
               <Trans>
                 Substituída: a Contabilidade corrigiu o centro de custo e criou uma nova versão, que todos assinam de
@@ -196,7 +201,7 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
             )}
           </p>
           {state.supersededByEnvelopeId && (
-            <Button asChild variant="outline" className="h-11 w-full whitespace-normal sm:w-auto sm:self-start">
+            <Button asChild variant="outline" className="w-full whitespace-normal">
               <Link to={invoiceViewPath(state.supersededByEnvelopeId)}>
                 <Trans>Abrir a nova versão</Trans>
               </Link>
@@ -214,27 +219,21 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
             onSelect={(code) => void onChoose(code)}
           />
 
-          <p className="text-amber-700 text-sm dark:text-amber-400">
+          <p className="text-warning-text">
             <Trans>Escolha a conta contábil. Depois, quem aprova ou troca é o Financeiro.</Trans>
           </p>
         </>
-      )}
-
-      {state.costCenter && (
-        <p className="break-words text-sm" data-testid="invoice-cost-center-value">
-          <Trans>Centro de custo: {costCenterLabel(state.costCenter.code)}</Trans>
-        </p>
       )}
 
       {canChooseCostCenter && (
         <>
           <CostCenterSelect value={null} disabled={isPending} onSelect={(code) => void onChooseCostCenter(code)} />
 
-          <p className="text-amber-700 text-sm dark:text-amber-400">
+          <p className="text-warning-text">
             <Trans>Escolha o centro de custo. Depois, quem corrige é a Contabilidade.</Trans>
           </p>
         </>
       )}
-    </section>
+    </InvoiceCard>
   );
 };

@@ -174,11 +174,16 @@ export const DocumentSigningAutoSign = ({ recipient, fields }: DocumentSigningAu
                 <Trans>{_(FRIENDLY_FIELD_TYPE[fieldType as FieldType])}</Trans>
                 <span className="pl-2 text-sm">
                   (
-                  <Plural
-                    value={autoSignableFields.filter((f) => f.type === fieldType).length}
-                    one="1 matching field"
-                    other="# matching fields"
-                  />
+                  {/* REVALLE: no pt-BR o plural "one" pega o 0 ("1 campo correspondente" com zero); o zero tem frase própria. */}
+                  {autoSignableFields.some((f) => f.type === fieldType) ? (
+                    <Plural
+                      value={autoSignableFields.filter((f) => f.type === fieldType).length}
+                      one="1 matching field"
+                      other="# matching fields"
+                    />
+                  ) : (
+                    <Trans>No matching fields</Trans>
+                  )}
                   )
                 </span>
               </li>

@@ -4,16 +4,22 @@ import * as React from 'react';
 
 import { cn } from '../lib/utils';
 
+// REVALLE v3: redesign visual (tokens, pílula, raios); ver CHANGES.md
+
+// REVALLE v3: cores de status via tokens
 const alertVariants = cva(
-  'relative w-full rounded-lg p-4 [&>svg]:absolute [&>svg]:text-foreground [&>svg]:left-4 [&>svg]:top-4 [&>svg+div]:translate-y-[-3px] [&>svg~*]:pl-8',
+  'relative w-full rounded-lg border p-4 [&>svg]:absolute [&>svg]:text-foreground [&>svg]:left-4 [&>svg]:top-4 [&>svg+div]:translate-y-[-3px] [&>svg~*]:pl-8',
   {
     variants: {
       variant: {
-        default: 'bg-green-50 text-green-700 [&_.alert-title]:text-green-800 [&>svg]:text-green-400',
-        neutral: 'bg-gray-50 dark:bg-neutral-900/20 text-muted-foreground [&_.alert-title]:text-foreground',
-        secondary: 'bg-blue-50 text-blue-700 [&_.alert-title]:text-blue-800 [&>svg]:text-blue-400',
-        destructive: 'bg-red-50 text-red-700 [&_.alert-title]:text-red-800 [&>svg]:text-red-400',
-        warning: 'bg-yellow-50 text-yellow-700 [&_.alert-title]:text-yellow-800 [&>svg]:text-yellow-400',
+        default: 'border-success/20 bg-success-bg text-success [&_.alert-title]:text-success [&>svg]:text-success',
+        neutral: 'border-border bg-muted text-muted-foreground [&_.alert-title]:text-foreground',
+        secondary:
+          'border-border bg-accent text-accent-foreground [&_.alert-title]:text-accent-foreground [&>svg]:text-accent-foreground',
+        destructive:
+          'border-destructive/20 bg-danger-bg text-destructive [&_.alert-title]:text-destructive [&>svg]:text-destructive',
+        warning:
+          'border-warning-text/20 bg-warning-bg text-warning-text [&_.alert-title]:text-warning-text [&>svg]:text-warning-text',
       },
       padding: {
         tighter: 'p-2',

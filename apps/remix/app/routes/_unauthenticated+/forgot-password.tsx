@@ -20,9 +20,9 @@ export async function loader() {
 
 export default function ForgotPasswordPage() {
   return (
-    <div className="w-screen max-w-lg px-4">
+    <div className="w-full">
       <div className="w-full">
-        <h1 className="font-semibold text-3xl">
+        <h1 className="text-[30px] leading-tight">
           <Trans>Forgot your password?</Trans>
         </h1>
 
@@ -37,7 +37,7 @@ export default function ForgotPasswordPage() {
         <p className="mt-6 text-center text-muted-foreground text-sm">
           <Trans>
             Remembered your password?{' '}
-            <Link to="/signin" className="text-primary duration-200 hover:opacity-70">
+            <Link to="/signin" className="font-semibold text-brand-text duration-200 hover:opacity-70">
               Sign In
             </Link>
           </Trans>

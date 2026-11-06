@@ -2,7 +2,6 @@ import { trpc } from '@documenso/trpc/react';
 import { Button } from '@documenso/ui/primitives/button';
 import { Input } from '@documenso/ui/primitives/input';
 import { useToast } from '@documenso/ui/primitives/use-toast';
-import { ShieldCheck } from 'lucide-react';
 import { DateTime } from 'luxon';
 import { useEffect, useState } from 'react';
 
@@ -56,26 +55,26 @@ const LockedSection = () => {
   };
 
   return (
-    <section className="mt-8">
-      <h3 className="font-semibold text-xl">Links bloqueados</h3>
+    <section className="mt-10 border-t pt-8">
+      <h3 className="font-display font-extrabold text-xl tracking-[-0.02em]">Links bloqueados</h3>
       <p className="mt-1 text-muted-foreground text-sm">
         Depois de desbloquear, a pessoa pode tentar confirmar a identidade de novo.
       </p>
 
-      <div className="mt-4 overflow-x-auto rounded-md border">
+      <div className="mt-4 overflow-x-auto rounded-lg border">
         <table className="w-full text-left text-sm">
-          <thead className="bg-muted/50 text-muted-foreground">
+          <thead className="bg-muted/60 font-semibold text-muted-foreground text-xs uppercase tracking-[0.04em]">
             <tr>
-              <th className="p-3">Documento</th>
-              <th className="p-3">E-mail</th>
-              <th className="p-3">Motivo</th>
-              <th className="p-3">Bloqueado em</th>
+              <th className="p-3 font-semibold">Documento</th>
+              <th className="p-3 font-semibold">E-mail</th>
+              <th className="p-3 font-semibold">Motivo</th>
+              <th className="p-3 font-semibold">Bloqueado em</th>
               <th className="p-3" />
             </tr>
           </thead>
           <tbody>
             {items.map((item) => (
-              <tr key={item.id} className="border-t">
+              <tr key={item.id} className="border-t hover:bg-accent/60">
                 <td className="max-w-[16rem] truncate p-3">{item.documentTitle}</td>
                 <td className="p-3">{item.recipientEmail}</td>
                 <td className="p-3">
@@ -160,8 +159,8 @@ const LinksSection = () => {
   };
 
   return (
-    <section className="mt-12">
-      <h3 className="font-semibold text-xl">Vínculos de e-mail</h3>
+    <section className="mt-10 border-t pt-8">
+      <h3 className="font-display font-extrabold text-xl tracking-[-0.02em]">Vínculos de e-mail</h3>
       <p className="mt-1 text-muted-foreground text-sm">
         Ao remover um vínculo, a pessoa precisa confirmar CPF e data de nascimento de novo em documentos novos.
       </p>
@@ -174,20 +173,20 @@ const LinksSection = () => {
         onChange={(event) => setSearchInput(event.target.value)}
       />
 
-      <div className="mt-4 overflow-x-auto rounded-md border">
+      <div className="mt-4 overflow-x-auto rounded-lg border">
         <table className="w-full text-left text-sm">
-          <thead className="bg-muted/50 text-muted-foreground">
+          <thead className="bg-muted/60 font-semibold text-muted-foreground text-xs uppercase tracking-[0.04em]">
             <tr>
-              <th className="p-3">E-mail</th>
-              <th className="p-3">Nome na base</th>
-              <th className="p-3">CPF</th>
-              <th className="p-3">Vinculado em</th>
+              <th className="p-3 font-semibold">E-mail</th>
+              <th className="p-3 font-semibold">Nome na base</th>
+              <th className="p-3 font-semibold">CPF</th>
+              <th className="p-3 font-semibold">Vinculado em</th>
               <th className="p-3" />
             </tr>
           </thead>
           <tbody>
             {items.map((item) => (
-              <tr key={item.id} className="border-t">
+              <tr key={item.id} className="border-t hover:bg-accent/60">
                 <td className="p-3">{item.email}</td>
                 <td className="p-3">{item.name ?? '-'}</td>
                 <td className="whitespace-nowrap p-3">{item.cpfMasked}</td>
@@ -239,10 +238,7 @@ const LinksSection = () => {
 export default function AdminRevalleVerificacoesPage() {
   return (
     <div>
-      <div className="flex items-center gap-3">
-        <ShieldCheck className="h-8 w-8" />
-        <h2 className="font-semibold text-4xl">Verificações</h2>
-      </div>
+      <h2 className="font-black font-display text-[26px] leading-tight tracking-[-0.03em]">Verificações</h2>
 
       <LockedSection />
       <LinksSection />

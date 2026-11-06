@@ -1,5 +1,6 @@
 import { FINANCE_STATUSES } from '@documenso/lib/revalle/finance/finance-status';
 import { INVOICE_ROW_STATUSES, ZInvoiceFiltersSchema } from '@documenso/lib/revalle/invoice/invoice-filters';
+import { RecipientRole, SigningStatus } from '@prisma/client';
 import { z } from 'zod';
 
 import { ZInvoiceDataSummarySchema } from './invoice-state.types';
@@ -35,6 +36,15 @@ export const ZInvoiceListRowSchema = z.object({
   costCenterValidatedAt: z.date().nullable(),
   costCenterValidatedBy: z.string().nullable(),
   link: z.string().nullable(),
+  /** REVALLE (redesign v3): quem assina, na ordem de assinatura; sem cópia nem visualizador. */
+  recipients: z.array(
+    z.object({
+      name: z.string(),
+      email: z.string(),
+      signingStatus: z.nativeEnum(SigningStatus),
+      role: z.nativeEnum(RecipientRole),
+    }),
+  ),
 });
 
 export const ZFindInvoicesResponseSchema = z.object({

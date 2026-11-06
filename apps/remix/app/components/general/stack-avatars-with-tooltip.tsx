@@ -158,7 +158,7 @@ const RecipientRow = ({ recipient, signingToken }: RecipientRowProps) => {
       {content}
 
       {isCopied ? (
-        <CheckIcon className="h-3 w-3 shrink-0 text-green-600 dark:text-green-400" />
+        <CheckIcon className="h-3 w-3 shrink-0 text-success" />
       ) : (
         <CopyIcon className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
       )}
@@ -242,33 +242,34 @@ type RecipientStatusSection = {
   hasSigningLink: boolean;
 };
 
+// REVALLE: redesign v3. Cores de status pelos tokens (verde, vermelho, âmbar); status nunca é azul.
 const RECIPIENT_STATUS_SECTIONS: RecipientStatusSection[] = [
   {
     type: RecipientStatusType.COMPLETED,
     label: msg`Completed`,
     icon: CircleCheckIcon,
-    className: 'text-green-600 dark:text-green-400',
+    className: 'text-success',
     hasSigningLink: false,
   },
   {
     type: RecipientStatusType.REJECTED,
     label: msg`Rejected`,
     icon: CircleXIcon,
-    className: 'text-red-600 dark:text-red-400',
+    className: 'text-destructive',
     hasSigningLink: false,
   },
   {
     type: RecipientStatusType.WAITING,
     label: msg`Waiting`,
     icon: ClockIcon,
-    className: 'text-blue-600 dark:text-blue-400',
+    className: 'text-warning-text',
     hasSigningLink: true,
   },
   {
     type: RecipientStatusType.OPENED,
     label: msg`Opened`,
     icon: MailOpenIcon,
-    className: 'text-amber-600 dark:text-amber-400',
+    className: 'text-warning-text',
     hasSigningLink: true,
   },
   {

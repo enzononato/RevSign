@@ -1,8 +1,10 @@
 import { useUpdateSearchParams } from '@documenso/lib/client-only/hooks/use-update-search-params';
 import { useSession } from '@documenso/lib/client-only/providers/session';
+import { formatRevalleDateTime } from '@documenso/lib/revalle/date-format';
 import { isDocumentCompleted } from '@documenso/lib/utils/document';
 import { findRecipientByEmail } from '@documenso/lib/utils/recipients';
 import { formatDocumentsPath } from '@documenso/lib/utils/teams';
+import { trpc } from '@documenso/trpc/react';
 import type { TFindDocumentsResponse } from '@documenso/trpc/server/document-router/find-documents.types';
 import { Checkbox } from '@documenso/ui/primitives/checkbox';
 import type { DataTableColumnDef, RowSelectionState } from '@documenso/ui/primitives/data-table';
@@ -13,17 +15,24 @@ import { TableCell } from '@documenso/ui/primitives/table';
 import { msg } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Loader } from 'lucide-react';
-import { DateTime } from 'luxon';
 import { useMemo, useTransition } from 'react';
 import { Link } from 'react-router';
 import { match } from 'ts-pattern';
 
-import { DocumentStatus } from '~/components/general/document/document-status';
+import { InvoiceDocumentTags } from '~/components/revalle/invoice/invoice-document-tags'; // REVALLE:
 import { useCurrentTeam } from '~/providers/team';
 
-import { StackAvatarsWithTooltip } from '../general/stack-avatars-with-tooltip';
+import {
+  DOCUMENT_ROW_SLOTS_CLASS_NAME,
+  DocumentRowCardBody,
+  DocumentRowCardSelect,
+  DocumentRowCardSkeletonBody,
+  DocumentRowState,
+  documentRowCardTableClassName,
+} from './document-row-card';
 import { DocumentsTableActionButton } from './documents-table-action-button';
 import { DocumentsTableActionDropdown } from './documents-table-action-dropdown';
+import { RecipientSignerSlots } from './recipient-signer-slots';
 
 export type DocumentsTableProps = {
   data?: TFindDocumentsResponse;
@@ -46,12 +55,26 @@ export const DocumentsTable = ({
   rowSelection,
   onRowSelectionChange,
 }: DocumentsTableProps) => {
-  const { _, i18n } = useLingui();
+  const { _ } = useLingui();
+  const { user } = useSession();
 
   const team = useCurrentTeam();
   const [isPending, startTransition] = useTransition();
 
   const updateSearchParams = useUpdateSearchParams();
+
+  // REVALLE v3 (finish review 1, #1 e #7): cada linha é um cartão no padrão das NF (título; remetente · data em 24h;
+  // encaixes; uma pílula de ação ou de situação; menu "…"). A seleção em massa continua numa coluna própria.
+  // REVALLE: conta e centro de custo das NFs desta página (uma consulta só, só leitura).
+  const envelopeIds = useMemo(() => (data?.data ?? []).map((document) => document.envelopeId), [data]);
+  const { data: invoiceTags } = trpc.revalle.invoice.documentTags.useQuery(
+    { teamId: team?.id ?? 0, envelopeIds },
+    { enabled: Boolean(team?.id) && envelopeIds.length > 0 },
+  );
+  const invoiceTagsByEnvelope = useMemo(
+    () => new Map((invoiceTags ?? []).map((tags) => [tags.envelopeId, tags])),
+    [invoiceTags],
+  );
 
   const columns = useMemo(() => {
     const cols: DataTableColumnDef<DocumentsTableRow>[] = [];
@@ -60,20 +83,25 @@ export const DocumentsTable = ({
       cols.push({
         id: 'select',
         header: ({ table }) => (
-          <Checkbox
-            checked={table.getIsAllPageRowsSelected()}
-            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-            aria-label={_(msg`Select all`)}
-            onClick={(e) => e.stopPropagation()}
-          />
+          <label className="flex h-11 cursor-pointer items-center gap-3.5 text-muted-foreground">
+            <Checkbox
+              checked={table.getIsAllPageRowsSelected()}
+              onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+              aria-label={_(msg`Select all`)}
+              onClick={(e) => e.stopPropagation()}
+            />
+            <span aria-hidden>{_(msg`Select all`)}</span>
+          </label>
         ),
         cell: ({ row }) => (
-          <Checkbox
-            checked={row.getIsSelected()}
-            onCheckedChange={(value) => row.toggleSelected(!!value)}
-            aria-label={_(msg`Select row`)}
-            onClick={(e) => e.stopPropagation()}
-          />
+          <DocumentRowCardSelect>
+            <Checkbox
+              checked={row.getIsSelected()}
+              onCheckedChange={(value) => row.toggleSelected(!!value)}
+              aria-label={_(msg`Select row`)}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </DocumentRowCardSelect>
         ),
         enableSorting: false,
         enableHiding: false,
@@ -81,51 +109,45 @@ export const DocumentsTable = ({
       });
     }
 
-    cols.push(
-      {
-        header: _(msg`Created`),
-        accessorKey: 'createdAt',
-        cell: ({ row }) => i18n.date(row.original.createdAt, { ...DateTime.DATETIME_SHORT, hourCycle: 'h12' }),
-      },
-      {
-        header: _(msg`Title`),
-        cell: ({ row }) => <DataTableTitle row={row.original} teamUrl={team?.url} teamEmail={team?.teamEmail?.email} />,
-      },
-      {
-        id: 'sender',
-        header: _(msg`Sender`),
-        cell: ({ row }) => row.original.user.name ?? row.original.user.email,
-      },
-      {
-        header: _(msg`Recipient`),
-        accessorKey: 'recipient',
-        cell: ({ row }) => (
-          <StackAvatarsWithTooltip recipients={row.original.recipients} documentStatus={row.original.status} />
-        ),
-      },
-      {
-        header: _(msg`Status`),
-        accessorKey: 'status',
-        cell: ({ row }) => <DocumentStatus status={row.original.status} />,
-        size: 140,
-      },
-      {
-        header: _(msg`Actions`),
-        cell: ({ row }) =>
-          (!row.original.deletedAt || isDocumentCompleted(row.original.status)) && (
-            <div className="flex items-center gap-x-4">
-              <DocumentsTableActionButton row={row.original} />
-              <DocumentsTableActionDropdown
-                row={row.original}
-                onMoveDocument={onMoveDocument ? () => onMoveDocument(row.original.envelopeId) : undefined}
+    cols.push({
+      id: 'document',
+      header: () => <span className="sr-only">{_(msg`Document`)}</span>,
+      cell: ({ row }) => {
+        const document = row.original;
+        const canAct = !document.deletedAt || isDocumentCompleted(document.status);
+        const statePill = <DocumentRowState status={document.status} recipients={document.recipients} />;
+
+        return (
+          <DocumentRowCardBody
+            title={<DataTableTitle row={document} teamUrl={team?.url} teamEmail={team?.teamEmail?.email} />}
+            tags={<InvoiceDocumentTags tags={invoiceTagsByEnvelope.get(document.envelopeId)} />}
+            meta={`${document.user.name ?? document.user.email} · ${formatRevalleDateTime(document.createdAt)}`}
+            slots={
+              <RecipientSignerSlots
+                recipients={document.recipients}
+                documentStatus={document.status}
+                currentUserEmail={user.email}
+                max={3}
+                withStatusSummary
+                className={DOCUMENT_ROW_SLOTS_CLASS_NAME}
               />
-            </div>
-          ),
+            }
+            action={canAct ? <DocumentsTableActionButton row={document} fallback={statePill} /> : statePill}
+            menu={
+              canAct && (
+                <DocumentsTableActionDropdown
+                  row={document}
+                  onMoveDocument={onMoveDocument ? () => onMoveDocument(document.envelopeId) : undefined}
+                />
+              )
+            }
+          />
+        );
       },
-    );
+    });
 
     return cols;
-  }, [team, onMoveDocument, enableSelection]);
+  }, [team, onMoveDocument, enableSelection, user.email, invoiceTagsByEnvelope]);
 
   const onPaginationChange = (page: number, perPage: number) => {
     startTransition(() => {
@@ -146,15 +168,13 @@ export const DocumentsTable = ({
   return (
     <div className="relative">
       <DataTable
+        className={documentRowCardTableClassName({ withHeader: Boolean(enableSelection) })}
         columns={columns}
         data={results.data}
         perPage={results.perPage}
         currentPage={results.currentPage}
         totalPages={results.totalPages}
         onPaginationChange={onPaginationChange}
-        columnVisibility={{
-          sender: team !== undefined,
-        }}
         error={{
           enable: isLoadingError || false,
         }}
@@ -165,25 +185,13 @@ export const DocumentsTable = ({
             <>
               {enableSelection && (
                 <TableCell>
-                  <Skeleton className="h-4 w-4 rounded" />
+                  <DocumentRowCardSelect>
+                    <Skeleton className="h-4 w-4 rounded" />
+                  </DocumentRowCardSelect>
                 </TableCell>
               )}
               <TableCell>
-                <Skeleton className="h-4 w-40 rounded-full" />
-              </TableCell>
-              <TableCell>
-                <Skeleton className="h-4 w-20 rounded-full" />
-              </TableCell>
-              <TableCell className="py-4">
-                <div className="flex w-full flex-row items-center">
-                  <Skeleton className="h-10 w-10 flex-shrink-0 rounded-full" />
-                </div>
-              </TableCell>
-              <TableCell>
-                <Skeleton className="h-4 w-20 rounded-full" />
-              </TableCell>
-              <TableCell>
-                <Skeleton className="h-10 w-24 rounded" />
+                <DocumentRowCardSkeletonBody withMenu />
               </TableCell>
             </>
           ),
@@ -204,6 +212,9 @@ export const DocumentsTable = ({
     </div>
   );
 };
+
+const TITLE_LINK_CLASS_NAME =
+  'rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 type DataTableTitleProps = {
   row: DocumentsTableRow;
@@ -227,30 +238,21 @@ const DataTableTitle = ({ row, teamUrl, teamEmail }: DataTableTitleProps) => {
   const documentsPath = formatDocumentsPath(teamUrl);
   const formatPath = `${documentsPath}/${row.envelopeId}`;
 
+  // REVALLE v3: o título é a primeira linha do cartão (até 2 linhas, cortadas pelo cartão); o completo fica no `title`.
   return match({
     isOwner,
     isRecipient,
     isCurrentTeamDocument,
   })
     .with({ isOwner: true }, { isCurrentTeamDocument: true }, () => (
-      <Link
-        to={formatPath}
-        title={row.title}
-        className="block max-w-[10rem] truncate font-medium hover:underline md:max-w-[20rem]"
-      >
+      <Link to={formatPath} title={row.title} className={TITLE_LINK_CLASS_NAME}>
         {row.title}
       </Link>
     ))
     .with({ isRecipient: true }, () => (
-      <Link
-        to={`/sign/${recipient?.token}`}
-        title={row.title}
-        className="block max-w-[10rem] truncate font-medium hover:underline md:max-w-[20rem]"
-      >
+      <Link to={`/sign/${recipient?.token}`} title={row.title} className={TITLE_LINK_CLASS_NAME}>
         {row.title}
       </Link>
     ))
-    .otherwise(() => (
-      <span className="block max-w-[10rem] truncate font-medium hover:underline md:max-w-[20rem]">{row.title}</span>
-    ));
+    .otherwise(() => <span title={row.title}>{row.title}</span>);
 };

@@ -2,6 +2,8 @@ import * as React from 'react';
 
 import { cn } from '../lib/utils';
 
+// REVALLE v3: redesign visual (tokens, pílula, raios); ver CHANGES.md
+
 export type CardProps = React.HTMLAttributes<HTMLDivElement> & {
   spotlight?: boolean;
   gradient?: boolean;
@@ -27,15 +29,14 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
           } as React.CSSProperties
         }
         className={cn(
-          'group relative rounded-lg border-2 bg-background text-foreground',
+          // REVALLE v3: cartão 20px, sombra de contorno em vez de borda dura
+          'group relative rounded-card bg-card text-foreground shadow-card dark:shadow-[0_0_0_1px_hsl(var(--border))]',
           {
             'backdrop-blur-[2px]': backdropBlur,
-            'gradient-border-mask before:pointer-events-none before:absolute before:-inset-[2px] before:rounded-lg before:p-[2px] before:[background:linear-gradient(var(--card-gradient-degrees),theme(colors.primary.DEFAULT/50%)_5%,theme(colors.border/80%)_30%)]':
+            'gradient-border-mask before:pointer-events-none before:absolute before:-inset-[2px] before:rounded-card before:p-[2px] before:[background:linear-gradient(var(--card-gradient-degrees),theme(colors.primary.DEFAULT/50%)_5%,theme(colors.border/80%)_30%)]':
               gradient,
-            'dark:gradient-border-mask before:pointer-events-none before:absolute before:-inset-[2px] before:rounded-lg before:p-[2px] before:[background:linear-gradient(var(--card-gradient-degrees),theme(colors.primary.DEFAULT/70%)_5%,theme(colors.border/80%)_30%)]':
+            'dark:gradient-border-mask before:pointer-events-none before:absolute before:-inset-[2px] before:rounded-card before:p-[2px] before:[background:linear-gradient(var(--card-gradient-degrees),theme(colors.primary.DEFAULT/70%)_5%,theme(colors.border/80%)_30%)]':
               gradient,
-            'shadow-[0_0_0_4px_theme(colors.gray.100/70%),0_0_0_1px_theme(colors.gray.100/70%),0_0_0_0.5px_var(colors.primary.DEFAULT/70%)]': true,
-            'dark:shadow-[0]': true,
           },
           className,
         )}
@@ -59,7 +60,11 @@ CardHeader.displayName = 'CardHeader';
 
 const CardTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(
   ({ className, ...props }, ref) => (
-    <h3 ref={ref} className={cn('font-semibold text-lg leading-none tracking-tight', className)} {...props} />
+    <h3
+      ref={ref}
+      className={cn('font-display font-extrabold text-lg leading-none tracking-[-0.02em]', className)}
+      {...props}
+    />
   ),
 );
 

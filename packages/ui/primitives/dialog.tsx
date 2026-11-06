@@ -5,6 +5,8 @@ import * as React from 'react';
 
 import { cn } from '../lib/utils';
 
+// REVALLE v3: redesign visual (tokens, pílula, raios); ver CHANGES.md
+
 const Dialog = DialogPrimitive.Root;
 
 const DialogTrigger = DialogPrimitive.Trigger;
@@ -61,10 +63,10 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'data-[state=open]:fade-in-90 data-[state=open]:slide-in-from-bottom-10 sm:zoom-in-90 data-[state=open]:sm:slide-in-from-bottom-0 fixed z-50 grid w-full animate-in gap-4 border bg-background p-6 shadow-lg focus:outline-none sm:max-w-lg sm:rounded-lg',
+        'data-[state=open]:fade-in-90 data-[state=open]:slide-in-from-bottom-10 sm:zoom-in-90 data-[state=open]:sm:slide-in-from-bottom-0 fixed z-50 grid w-full animate-in gap-4 border bg-popover p-6 shadow-xl focus:outline-none sm:max-w-lg sm:rounded-3xl',
         {
-          'rounded-b-xl': position === 'start',
-          'rounded-t-xl': position === 'end',
+          'rounded-b-3xl': position === 'start',
+          'rounded-t-3xl': position === 'end',
         },
         className,
       )}
@@ -114,7 +116,7 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn('truncate font-semibold text-lg tracking-tight', className)}
+    className={cn('truncate font-display font-extrabold text-xl tracking-[-0.02em]', className)}
     {...props}
   />
 ));

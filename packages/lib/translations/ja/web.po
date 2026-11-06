@@ -65,6 +65,11 @@ msgstr "「{title}」は正常に非表示になりました"
 msgid "\"Team Name\" has invited you to sign \"example document\"."
 msgstr "「Team Name」から「example document」への署名依頼が届いています。"
 
+#. placeholder {0}: card.suggestion.confidence
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "(confiança {0})"
+msgstr ""
+
 #. placeholder {0}: warning.line
 #: apps/remix/app/routes/_authenticated+/o.$orgUrl.settings.branding.tsx
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/settings.branding.tsx
@@ -163,20 +168,10 @@ msgstr "{0, plural, other {# 件を削除しました。}}"
 msgid "{0, plural, one {# recipient · any order} other {# recipients · any order}}"
 msgstr ""
 
-#. placeholder {0}: detectedRecipients.length
-#: apps/remix/app/components/general/envelope-editor/envelope-editor-recipient-form.tsx
-msgid "{0, plural, one {# recipient have been added from AI detection.} other {# recipients have been added from AI detection.}}"
-msgstr "{0, plural, other {AI 検出により # 件の受信者が追加されました。}}"
-
 #. placeholder {0}: template.recipients.length
 #: apps/remix/app/routes/_recipient+/d.$token+/_index.tsx
 msgid "{0, plural, one {# recipient} other {# recipients}}"
 msgstr "{0, plural, other {# 名の受信者}}"
-
-#. placeholder {0}: envelope.recipients.length
-#: apps/remix/app/routes/_authenticated+/t.$teamUrl+/documents.$id._index.tsx
-msgid "{0, plural, one {# Recipient} other {# Recipients}}"
-msgstr "{0, plural, other {# 人の受信者}}"
 
 #. placeholder {0}: org.teams.length
 #: apps/remix/app/routes/_authenticated+/dashboard.tsx
@@ -233,29 +228,6 @@ msgstr "{0, plural, other {# ページ}}"
 msgid "{0, plural, one {1 Recipient} other {# Recipients}}"
 msgstr "{0, plural, other {# 名の受信者}}"
 
-#. placeholder {0}: progress.fieldsDetected
-#. placeholder {1}: progress.pagesProcessed
-#. placeholder {2}: progress.totalPages
-#. placeholder {3}: progress.pagesProcessed
-#. placeholder {4}: progress.totalPages
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-msgid "{0, plural, one {Page {1} of {2} - # field found} other {Page {3} of {4} - # fields found}}"
-msgstr "{0, plural, other {ページ {3}/{4} - # 個のフィールドが見つかりました}}"
-
-#. placeholder {0}: progress.recipientsDetected
-#. placeholder {1}: progress.pagesProcessed
-#. placeholder {2}: progress.totalPages
-#. placeholder {3}: progress.pagesProcessed
-#. placeholder {4}: progress.totalPages
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "{0, plural, one {Page {1} of {2} - # recipient found} other {Page {3} of {4} - # recipients found}}"
-msgstr "{0, plural, other {ページ {3}/{4} - # 人の受信者が見つかりました}}"
-
-#. placeholder {0}: detectedRecipients.length
-#: apps/remix/app/components/general/envelope-editor/envelope-editor-recipient-form.tsx
-msgid "{0, plural, one {Recipient added} other {Recipients added}}"
-msgstr "{0, plural, other {受信者を追加しました}}"
-
 #. placeholder {0}: envelopeIds.length
 #: apps/remix/app/components/dialogs/envelopes-bulk-move-dialog.tsx
 msgid "{0, plural, one {Select a folder to move the selected document to.} other {Select a folder to move the # selected documents to.}}"
@@ -275,16 +247,6 @@ msgstr ""
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/documents.$id._index.tsx
 msgid "{0, plural, one {Waiting on 1 recipient} other {Waiting on # recipients}}"
 msgstr "{0, plural, other {# 名の受信者の対応待ち}}"
-
-#. placeholder {0}: detectedFields.length
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-msgid "{0, plural, one {We found # field in your document.} other {We found # fields in your document.}}"
-msgstr "{0, plural, other {ドキュメント内で # 個のフィールドが見つかりました。}}"
-
-#. placeholder {0}: detectedRecipients.length
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "{0, plural, one {We found # recipient in your document.} other {We found # recipients in your document.}}"
-msgstr "{0, plural, other {ドキュメント内で # 人の受信者が見つかりました。}}"
 
 #. placeholder {0}: envelopeIds.length
 #: apps/remix/app/components/dialogs/envelopes-bulk-cancel-dialog.tsx
@@ -411,13 +373,33 @@ msgstr ""
 msgid "{count, plural, one {# team} other {# teams}}"
 msgstr ""
 
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "{count} notas fiscais"
+msgstr ""
+
+#: apps/remix/app/components/revalle/signing-gate/identity-step.tsx
+msgid "{currentAttempts, plural, one {CPF ou data de nascimento não conferem. Você tem # tentativa.} other {CPF ou data de nascimento não conferem. Você tem # tentativas.}}"
+msgstr ""
+
 #: apps/remix/app/components/general/analytics/analytics-range-picker.tsx
 msgid "{draftDays, plural, one {# day} other {# days}}"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/t.$teamUrl+/documents._index.tsx
+msgid "{drafts, plural, one {# draft} other {# drafts}}"
 msgstr ""
 
 #: packages/email/template-components/template-access-auth-2fa.tsx
 msgid "{expiresInMinutes, plural, one {This code will expire in # minute.} other {This code will expire in # minutes.}}"
 msgstr "{expiresInMinutes, plural, other {このコードは # 分後に有効期限が切れます。}}"
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "{finance} waiting for Financeiro and {accounting} waiting for Contabilidade."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/t.$teamUrl+/documents._index.tsx
+msgid "{inbox, plural, one {# waits for your signature} other {# wait for your signature}}"
+msgstr ""
 
 #: packages/email/templates/document-invite.tsx
 msgid "{inviterName} <0>({inviterEmail})</0>"
@@ -484,9 +466,47 @@ msgstr "{MAXIMUM_PASSKEYS, plural, other {# 個を超えるパスキーを保持
 msgid "{maximumEnvelopeItemCount, plural, one {You cannot upload more than # item per envelope.} other {You cannot upload more than # items per envelope.}}"
 msgstr "{maximumEnvelopeItemCount, plural, other {1 つの封筒にアップロードできるアイテムは # 件までです。}}"
 
+#: apps/remix/app/components/tables/recipient-signer-slots.tsx
+msgid "{missing, plural, one {# signature missing} other {# signatures missing}}"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-perfis.tsx
+msgid "{name} agora é da Contabilidade."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-perfis.tsx
+msgid "{name} agora é do Financeiro."
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+#: apps/remix/app/components/tables/recipient-signer-slots.tsx
+msgid "{name} rejected"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-perfis.tsx
+msgid "{name} saiu da Contabilidade."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-perfis.tsx
+msgid "{name} saiu do Financeiro."
+msgstr ""
+
 #: apps/remix/app/components/dialogs/email-transport-delete-dialog.tsx
 msgid "{organisationClaimCount, plural, one {# Organisation claim} other {# Organisation claims}}"
 msgstr "{organisationClaimCount, plural, other {# 件の組織クレーム}}"
+
+#: apps/remix/app/routes/_authenticated+/t.$teamUrl+/documents._index.tsx
+msgid "{pending, plural, one {# document waiting for signatures} other {# documents waiting for signatures}}"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "{pending} signatures missing"
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "{reasonLength} de {CHANGE_REASON_MAX} caracteres (mínimo {CHANGE_REASON_MIN})"
+msgstr ""
 
 #: apps/remix/app/components/general/direct-template/direct-template-page.tsx
 msgid "{recipientActionVerb} document"
@@ -547,6 +567,11 @@ msgstr ""
 msgid "{selectedCount} selected"
 msgstr "{selectedCount} 件選択済み"
 
+#: apps/remix/app/components/general/envelope-signing/envelope-signer-slots.tsx
+#: apps/remix/app/routes/_recipient+/sign.$token+/complete.tsx
+msgid "{signedCount} of {totalCount} have signed"
+msgstr ""
+
 #: packages/email/template-components/template-document-rejected.tsx
 msgid "{signerName} has rejected the document \"{documentName}\"."
 msgstr "{signerName} がドキュメント「{documentName}」を却下しました。"
@@ -563,6 +588,10 @@ msgstr "{teamName} から {0}<0/>「{documentName}」の依頼が届いていま
 #: packages/email/templates/document-invite.tsx
 msgid "{teamName} has invited you to {action} {documentName}"
 msgstr "{teamName} から {action} {documentName} の依頼が届いています"
+
+#: apps/remix/app/components/revalle/invoice/invoices-nav-badge.tsx
+msgid "{total} notas fiscais aguardando você"
+msgstr ""
 
 #: apps/remix/app/components/general/app-command-menu.tsx
 msgid "{totalVisibleCount, plural, one {# item} other {# items}}"
@@ -771,13 +800,15 @@ msgstr "{validationLength, plural, other {ちょうど # 個のオプション�
 msgid "{visibleRows, plural, one {Showing # result.} other {Showing # results.}}"
 msgstr "{visibleRows, plural, other {# 件の結果を表示中}}"
 
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "{waiting, plural, one {# invoice is waiting for you.} other {# invoices are waiting for you.}}"
+msgstr ""
+
 #: apps/remix/app/components/general/filter-pill.tsx
 msgid "+{extraCount} more"
 msgstr ""
 
 #. placeholder {0}: document.title
-#. placeholder {0}: envelope.title
-#: apps/remix/app/routes/_recipient+/sign.$token+/_index.tsx
 #: apps/remix/app/routes/_recipient+/sign.$token+/_index.tsx
 msgid "<0>\"{0}\"</0> is no longer available to sign"
 msgstr "<0>\"{0}\"</0> は署名できなくなりました"
@@ -959,6 +990,18 @@ msgstr "無料の組織枠は残り 1 件です"
 msgid "1 month"
 msgstr "1 か月"
 
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "1 nota fiscal"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoices-nav-badge.tsx
+msgid "1 nota fiscal aguardando você"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "1 signature missing"
+msgstr ""
+
 #: apps/remix/app/components/dialogs/token-create-dialog.tsx
 msgid "12 months"
 msgstr "12 か月"
@@ -1069,6 +1112,19 @@ msgstr ""
 msgid "A confirmation email has been sent, and it should arrive in your inbox shortly."
 msgstr "確認メールを送信しました。まもなく受信トレイに届きます。"
 
+#: packages/email/templates/revalle-finance-account-changed.tsx
+msgid "A conta contábil de uma nota fiscal foi alterada"
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "A conta já está aprovada, mas o documento ainda não foi enviado. Se o envio falhou, corrija o problema e envie de novo (mesma conta)."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "A data inicial é depois da data final."
+msgstr ""
+
 #: apps/remix/app/routes/_unauthenticated+/articles.signature-disclosure.tsx
 msgid "A device capable of accessing, opening, and reading documents"
 msgstr "文書にアクセスし、開いて閲覧できるデバイス"
@@ -1095,6 +1151,10 @@ msgstr "フィールドが削除されました"
 msgctxt "Audit log format"
 msgid "A field was updated"
 msgstr "フィールドが更新されました"
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "A lista nova substitui a atual. Contas que saírem ficam inativas: documentos antigos continuam com elas, mas elas não aparecem em documentos novos."
+msgstr ""
 
 #: apps/remix/app/routes/_unauthenticated+/articles.signature-disclosure.tsx
 msgid "A means to print or download documents for your records"
@@ -1128,10 +1188,31 @@ msgstr "新しいメンバーが組織に参加しました"
 msgid "A new member has joined your organisation {organisationName}"
 msgstr "新しいメンバーが組織 {organisationName} に参加しました"
 
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "A nova versão ainda não foi enviada. Se o envio falhou, corrija o problema e envie de novo (mesma conta e mesmo centro)."
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "A nova versão não existe mais: corrija o centro de custo de novo."
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "A nova versão não existe mais: troque a conta de novo."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "A pagar"
+msgstr ""
+
 #: apps/remix/app/components/forms/forgot-password.tsx
 #: apps/remix/app/routes/_unauthenticated+/check-email.tsx
 msgid "A password reset email has been sent, if you have an account you should see it in your inbox shortly."
 msgstr "パスワード再設定用のメールを送信しました。アカウントをお持ちの場合は、まもなく受信トレイに届きます。"
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "A receber"
+msgstr ""
 
 #: packages/email/template-components/template-recipient-removed-by-admin.tsx
 #: packages/lib/jobs/definitions/emails/send-admin-recipient-removed-emails.handler.ts
@@ -1210,8 +1291,27 @@ msgstr "有効なメールアドレスを入力してください"
 msgid "A verification email will be sent to the provided email."
 msgstr "入力されたメールアドレス宛てに確認メールが送信されます。"
 
+#: packages/email/templates/revalle-finance-account-changed.tsx
+msgid "A versão anterior não vale mais para assinatura. A nova versão, {newDocumentName}, precisa ser assinada de novo por todos."
+msgstr ""
+
 #: apps/remix/app/components/dialogs/template-use-dialog.tsx
 msgid "About uploaded file naming"
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+#: packages/email/templates/revalle-finance-account-changed.tsx
+msgid "Abrir a nova versão"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Abrir a página do documento"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Abrir no painel do admin"
 msgstr ""
 
 #: apps/remix/app/components/general/organisations/organisation-invitations.tsx
@@ -1253,6 +1353,10 @@ msgstr "アクセスは有効です"
 #: apps/remix/app/routes/_unauthenticated+/organisation.sso.confirmation.$token.tsx
 msgid "Account"
 msgstr "アカウント"
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "Account approved"
+msgstr ""
 
 #: apps/remix/app/routes/_internal+/[__htmltopdf]+/certificate.tsx
 #: packages/lib/server-only/pdf/generate-certificate-pdf.ts
@@ -1326,13 +1430,13 @@ msgid "Action"
 msgstr "操作"
 
 #: apps/remix/app/components/general/document-signing/document-signing-page-view-v2.tsx
+#: apps/remix/app/components/general/document/document-page-view-dropdown.tsx
 #: apps/remix/app/components/general/envelope-signing/envelope-signer-header.tsx
 #: apps/remix/app/components/general/template/template-page-view-documents-table.tsx
 #: apps/remix/app/components/tables/admin-claims-table.tsx
 #: apps/remix/app/components/tables/admin-email-transports-table.tsx
 #: apps/remix/app/components/tables/admin-organisations-table.tsx
-#: apps/remix/app/components/tables/documents-table.tsx
-#: apps/remix/app/components/tables/inbox-table.tsx
+#: apps/remix/app/components/tables/documents-table-action-dropdown.tsx
 #: apps/remix/app/components/tables/organisation-email-domains-table.tsx
 #: apps/remix/app/components/tables/organisation-groups-table.tsx
 #: apps/remix/app/components/tables/organisation-member-invites-table.tsx
@@ -1487,10 +1591,6 @@ msgstr "メールドメインを追加"
 msgid "Add Email Transport"
 msgstr "メールトランスポートを追加"
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-msgid "Add fields"
-msgstr "フィールドを追加"
-
 #: apps/remix/app/components/general/document/document-edit-form.tsx
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-fields-page.tsx
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-upload-page.tsx
@@ -1560,10 +1660,6 @@ msgstr "プレースホルダーを追加"
 msgid "Add rate limit window"
 msgstr ""
 
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "Add recipients"
-msgstr "受信者を追加"
-
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-fields-page.tsx
 msgid "Add Recipients"
 msgstr "受信者を追加"
@@ -1626,6 +1722,7 @@ msgstr "メールの末尾に表示する追加のブランド情報"
 
 #: apps/remix/app/components/dialogs/admin-organisation-member-update-dialog.tsx
 #: apps/remix/app/components/dialogs/admin-organisation-member-update-dialog.tsx
+#: apps/remix/app/components/revalle/shell/shell-nav.tsx
 #: apps/remix/app/routes/_authenticated+/admin+/_layout.tsx
 #: apps/remix/app/routes/_authenticated+/admin+/organisations.$id.tsx
 #: packages/lib/constants/organisations-translations.ts
@@ -1679,6 +1776,23 @@ msgstr "文書に電子的に署名すると、記録用にその文書を表示
 msgid "After submission, a document will be automatically generated and added to your documents page. You will also receive a notification via email."
 msgstr "送信後、自動的にドキュメントが生成され、「ドキュメント」ページに追加されます。メールでも通知が届きます。"
 
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+#: apps/remix/app/routes/_recipient+/sign.$token+/complete.tsx
+msgid "Aguardando aprovação do Financeiro"
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/unsealed-finance-badge.tsx
+msgid "Aguardando o Financeiro"
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "Aguardando validação"
+msgstr ""
+
+#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
+msgid "Aguarde um pouco e tente de novo."
+msgstr ""
+
 #: apps/remix/app/components/dialogs/document-preferences-reset-dialog.tsx
 #: apps/remix/app/components/general/admin-global-settings-section.tsx
 msgid "AI features"
@@ -1688,12 +1802,13 @@ msgstr "AI 機能"
 msgid "AI Features"
 msgstr "AI 機能"
 
-#: apps/remix/app/components/dialogs/ai-features-enable-dialog.tsx
-msgid "AI features are disabled for your team. Please ask your team owner or organisation owner to enable them."
-msgstr "チームではAI機能が無効になっています。チームオーナーまたは組織オーナーに有効化を依頼してください。"
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Ainda não assinou"
+msgstr ""
 
 #: apps/remix/app/components/general/app-command-menu.tsx
 #: apps/remix/app/components/general/document/document-status.tsx
+#: apps/remix/app/components/general/filter-pill.tsx
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/settings.webhooks.$id._index.tsx
 msgid "All"
 msgstr "すべて"
@@ -1761,10 +1876,6 @@ msgstr "すべての署名リンクをクリップボードにコピーしまし
 msgid "All Statuses"
 msgstr "すべてのステータス"
 
-#: apps/remix/app/components/general/app-command-menu.tsx
-msgid "All templates"
-msgstr "すべてのテンプレート"
-
 #: apps/remix/app/components/filters/date-range-filter.tsx
 #: apps/remix/app/components/general/period-selector.tsx
 msgid "All Time"
@@ -1808,11 +1919,6 @@ msgstr "許可されたチーム"
 msgid "Allows authenticating using biometrics, password managers, hardware keys, etc."
 msgstr "生体認証、パスワードマネージャー、ハードウェアキーなどで認証できるようにします。"
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "Almost done"
-msgstr "ほぼ完了しました"
-
 #: apps/remix/app/components/embed/embed-popup-auth.tsx
 msgid "Almost there"
 msgstr ""
@@ -1820,6 +1926,10 @@ msgstr ""
 #: apps/remix/app/components/forms/signup.tsx
 msgid "Already have an account? <0>Sign in instead</0>"
 msgstr "すでにアカウントをお持ちですか？<0>サインイン</0>"
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Alterado por {updatedByName} em {updatedAt}."
+msgstr ""
 
 #: apps/remix/app/components/tables/organisation-billing-invoices-table.tsx
 msgid "Amount"
@@ -1866,8 +1976,6 @@ msgstr "このメールアドレスはすでに存在します。"
 #: apps/remix/app/components/forms/reset-password.tsx
 #: apps/remix/app/components/forms/signup.tsx
 #: apps/remix/app/components/general/claim-account.tsx
-#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
-#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
 #: apps/remix/app/routes/_authenticated+/admin+/organisations.$id.tsx
 #: apps/remix/app/routes/_authenticated+/admin+/organisations.$id.tsx
 #: apps/remix/app/routes/_authenticated+/o.$orgUrl.settings.groups.$id.tsx
@@ -2142,8 +2250,6 @@ msgid "An unknown error occurred while moving the folder."
 msgstr "フォルダの移動中に不明なエラーが発生しました。"
 
 #: apps/remix/app/components/general/analytics/analytics-page-header.tsx
-#: apps/remix/app/components/general/app-nav-mobile.tsx
-#: apps/remix/app/components/general/app-nav-mobile.tsx
 #: apps/remix/app/components/general/org-menu-switcher.tsx
 #: apps/remix/app/routes/_authenticated+/o.$orgUrl._index.tsx
 #: apps/remix/app/routes/_authenticated+/o.$orgUrl.analytics._index.tsx
@@ -2151,16 +2257,20 @@ msgstr "フォルダの移動中に不明なエラーが発生しました。"
 msgid "Analytics"
 msgstr ""
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-msgid "Analyzing page layout"
-msgstr "ページレイアウトを分析しています"
-
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "Analyzing pages"
-msgstr "ページを分析しています"
-
 #: apps/remix/app/components/forms/signup.tsx
 msgid "and"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "Anterior"
+msgstr ""
+
+#: apps/remix/app/components/revalle/signing-gate/term-step.tsx
+msgid "Antes de assinar"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
+msgid "Any date"
 msgstr ""
 
 #: apps/remix/app/routes/_authenticated+/inbox.tsx
@@ -2203,6 +2313,10 @@ msgstr "API トークン"
 msgid "API usage is approaching fair use limits"
 msgstr "API の使用量がフェアユースの上限に近づいています"
 
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Aplicar"
+msgstr ""
+
 #: apps/remix/app/routes/_authenticated+/admin+/stats.tsx
 msgid "App Version"
 msgstr "アプリのバージョン"
@@ -2243,7 +2357,6 @@ msgctxt "Recipient role action verb"
 msgid "Approve"
 msgstr "承認"
 
-#: apps/remix/app/components/general/document-signing/document-signing-mobile-widget.tsx
 #: apps/remix/app/components/general/document-signing/document-signing-page-view-v1.tsx
 #: apps/remix/app/components/general/document-signing/document-signing-page-view-v2.tsx
 #: packages/email/template-components/template-document-reminder.tsx
@@ -2277,6 +2390,28 @@ msgstr "承認者"
 msgctxt "Recipient role progressive verb"
 msgid "Approving"
 msgstr "承認中"
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+msgid "Aprovada pelo Financeiro"
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Aprovada por"
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Aprovar a conta?"
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "Aprovar conta"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Aprovou em {at}"
+msgstr ""
 
 #: apps/remix/app/components/dialogs/assistant-confirmation-dialog.tsx
 msgid "Are you sure you want to complete the document? This action cannot be undone. Please ensure that you have completed prefilling all relevant fields before proceeding."
@@ -2331,16 +2466,47 @@ msgstr "このチームを本当に削除しますか？"
 msgid "Are you sure?"
 msgstr "本当によろしいですか？"
 
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Arquivo CSV separado por ponto e vírgula, com as colunas numero;nome;descricao;tipo. O tipo é pagar, receber ou vazio."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Arquivo: {fileName}"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "As notas fiscais que você enviou ou que chegaram para você assinar."
+msgstr ""
+
 #: apps/remix/app/components/tables/organisation-groups-table.tsx
 msgid "Assigned Teams"
 msgstr "割り当て済みのチーム"
+
+#: packages/email/templates/revalle-finance-account-changed.tsx
+msgid "Assinar a nova versão"
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Assinatura registrada pelo carimbo, com desenho ou imagem"
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Assinatura registrada pelo carimbo, com nome digitado"
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Assinatura registrada pelo carimbo, sem desenho"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Assinou em {at}"
+msgstr ""
 
 #: packages/lib/constants/recipient-roles.ts
 msgctxt "Recipient role action verb"
 msgid "Assist"
 msgstr "補助"
 
-#: apps/remix/app/components/general/document-signing/document-signing-mobile-widget.tsx
 #: apps/remix/app/components/general/document-signing/document-signing-page-view-v1.tsx
 #: apps/remix/app/components/general/document-signing/document-signing-page-view-v2.tsx
 #: packages/email/template-components/template-document-reminder.tsx
@@ -2359,10 +2525,6 @@ msgstr "アシスタント"
 msgctxt "Recipient role name"
 msgid "Assistant"
 msgstr "アシスタント"
-
-#: packages/ui/components/recipient/recipient-role-select.tsx
-msgid "Assistant role is only available when the document is in sequential signing mode."
-msgstr "アシスタントロールは、ドキュメントが順次署名モードのときのみ利用できます。"
 
 #: packages/lib/constants/recipient-roles.ts
 msgctxt "Recipient role plural name"
@@ -2394,6 +2556,14 @@ msgstr "補助中"
 #: packages/ui/primitives/template-flow/add-template-settings.types.tsx
 msgid "At least one signature type must be enabled"
 msgstr "少なくとも 1 つの署名タイプを有効にする必要があります"
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
+msgid "até"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Ativa"
+msgstr ""
 
 #: apps/remix/app/components/general/document/document-attachments-popover.tsx
 #: apps/remix/app/components/general/document/embedded-editor-attachment-popover.tsx
@@ -2446,10 +2616,6 @@ msgstr "認証ポータルが見つかりません"
 #: apps/remix/app/components/general/document-signing/document-signing-auth-page.tsx
 msgid "Authentication required"
 msgstr "認証が必要です"
-
-#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
-msgid "Authenticator app"
-msgstr "認証アプリ"
 
 #: apps/remix/app/components/general/envelope-signing/envelope-signing-csc-status.tsx
 msgid "Authorise your signature with your signing provider in the popup window"
@@ -2511,6 +2677,15 @@ msgstr "バックアップコード"
 #: apps/remix/app/components/forms/2fa/enable-authenticator-app-dialog.tsx
 msgid "Backup codes"
 msgstr "バックアップコード"
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Baixar PDF"
+msgstr ""
+
+#. placeholder {0}: item.title
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Baixar PDF: {0}"
+msgstr ""
 
 #: apps/remix/app/components/general/admin-site-banner-section.tsx
 msgid "Banner Updated"
@@ -2611,8 +2786,6 @@ msgid "Brand website and brand details"
 msgstr ""
 
 #: apps/remix/app/components/general/admin-global-settings-section.tsx
-#: packages/lib/utils/settings-nav.ts
-#: packages/lib/utils/settings-nav.ts
 msgid "Branding"
 msgstr "ブランディング"
 
@@ -2683,6 +2856,25 @@ msgstr "CSV でテンプレートを一括送信"
 msgid "Bulk Send via CSV"
 msgstr "CSV で一括送信"
 
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Buscando sugestão…"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/account-combobox.tsx
+#: apps/remix/app/components/revalle/invoice/account-combobox.tsx
+msgid "Buscar conta por número ou nome"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-perfis.tsx
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-perfis.tsx
+msgid "Buscar por nome ou e-mail"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Buscar por número ou nome"
+msgstr ""
+
 #: packages/email/templates/organisation-invite.tsx
 msgid "by <0>{senderName}</0>"
 msgstr "送信者: <0>{senderName}</0>"
@@ -2712,7 +2904,7 @@ msgstr "Documenso が提供する電子署名サービスを利用すること�
 msgid "By proceeding with your electronic signature, you acknowledge and consent that it will be used to sign the given document and holds the same legal validity as a handwritten signature. By completing the electronic signing process, you affirm your understanding and acceptance of these conditions."
 msgstr "電子署名を続行することで、その署名が対象文書への署名に使用され、手書きの署名と同等の法的効力を持つことに同意し承諾したものとみなされます。電子署名プロセスを完了することで、これらの条件を理解し受け入れたことを表明します。"
 
-#. placeholder {0}: availableLegalLinks.map((link, index) => ( <Fragment key={link.href}> {index > 0 && ( <> {' '} <Trans>and</Trans>{' '} </> )} <Link to={link.href} target="_blank" rel="noopener noreferrer" className="text-documenso-700 duration-200 hover:opacity-70" > {link.label} </Link> </Fragment> ))
+#. placeholder {0}: availableLegalLinks.map((link, index) => ( <Fragment key={link.href}> {index > 0 && ( <> {' '} <Trans>and</Trans>{' '} </> )} <Link to={link.href} target="_blank" rel="noopener noreferrer" className="text-brand-text duration-200 hover:opacity-70" > {link.label} </Link> </Fragment> ))
 #: apps/remix/app/components/forms/signup.tsx
 msgid "By proceeding, you agree to our {0}."
 msgstr ""
@@ -2720,10 +2912,6 @@ msgstr ""
 #: apps/remix/app/routes/_unauthenticated+/articles.signature-disclosure.tsx
 msgid "By using the electronic signature feature, you are consenting to conduct transactions and receive disclosures electronically. You acknowledge that your electronic signature on documents is binding and that you accept the terms outlined in the documents you are signing."
 msgstr "電子署名機能を利用することで、お客様は取引や開示の電子的な実行および受領に同意したものとみなされます。さらに、電子署名が文書に対して法的拘束力を持ち、署名対象文書の条件を受け入れたことを認めるものとします。"
-
-#: packages/ui/components/recipient/recipient-role-select.tsx
-msgid "Can prepare"
-msgstr "準備ができる"
 
 #: apps/remix/app/components/dialogs/team-member-create-dialog.tsx
 msgid "Can't find someone?"
@@ -2738,8 +2926,6 @@ msgstr "メンバーが見つかりませんか？"
 #: apps/remix/app/components/dialogs/admin-swap-subscription-dialog.tsx
 #: apps/remix/app/components/dialogs/admin-team-member-delete-dialog.tsx
 #: apps/remix/app/components/dialogs/admin-user-create-dialog.tsx
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
 #: apps/remix/app/components/dialogs/assistant-confirmation-dialog.tsx
 #: apps/remix/app/components/dialogs/branding-preferences-reset-dialog.tsx
 #: apps/remix/app/components/dialogs/claim-create-dialog.tsx
@@ -2859,6 +3045,18 @@ msgstr "文書を取り消す"
 msgid "Cancel Documents"
 msgstr "文書を取り消す"
 
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
+msgid "Cancelado"
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Cancelar"
+msgstr ""
+
 #: apps/remix/app/components/dialogs/envelopes-bulk-download-dialog.tsx
 #: apps/remix/app/components/general/analytics/analytics-status-breakdown-card.tsx
 #: apps/remix/app/components/general/document/document-status.tsx
@@ -2886,6 +3084,12 @@ msgstr "ドキュメント送信後はアイテムをアップロードできま
 
 #: apps/remix/app/routes/_authenticated+/admin+/organisations.$id.tsx
 msgid "Capabilities enabled for this organisation."
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "Carregando…"
 msgstr ""
 
 #: packages/lib/constants/recipient-roles.ts
@@ -2917,6 +3121,73 @@ msgstr "Cc 受信者"
 msgid "Center"
 msgstr "中央"
 
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+#: apps/remix/app/components/revalle/invoice/cost-center-select.tsx
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+#: apps/remix/app/components/revalle/invoice/signing-invoice-account.tsx
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Centro de custo"
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "Centro de custo atual: {center}. Escolha o centro certo e escreva o motivo."
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+msgid "Centro de custo atualizado."
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Centro de custo corrigido pela Contabilidade de {from} para {to}: substituído por uma nova versão. Motivo: {reason}"
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "Centro de custo corrigido, mas a nova versão não foi enviada"
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "Centro de custo corrigido. A nova versão foi enviada para todos assinarem de novo."
+msgstr ""
+
+#: packages/email/templates/revalle-finance-account-changed.tsx
+msgid "Centro de custo da nota fiscal corrigido pela Contabilidade: {documentName}"
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "Centro de custo definido e validado."
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Centro de custo escolhido: {to}"
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Centro de custo trocado: {from} → {to}"
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Centro de custo validado pela Contabilidade: {center}"
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "Centro de custo validado."
+msgstr ""
+
+#. placeholder {0}: costCenterLabel(state.costCenter.code)
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Centro de custo: {0}"
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "Centro de custo: {center}. A validação fica registrada com o seu nome e a data, e não muda o que foi assinado."
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "Centro de custo: {defined}. Ele fica validado na hora, sem nova versão."
+msgstr ""
+
 #: apps/remix/app/routes/_authenticated+/o.$orgUrl.settings.certificates.tsx
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/settings.certificates.tsx
 msgid "Certificate preferences updated"
@@ -2924,18 +3195,12 @@ msgstr ""
 
 #: apps/remix/app/routes/_authenticated+/o.$orgUrl.settings.certificates.tsx
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/settings.certificates.tsx
-#: packages/lib/utils/settings-nav.ts
-#: packages/lib/utils/settings-nav.ts
 msgid "Certificates"
 msgstr ""
 
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-fields-page-renderer.tsx
 msgid "Change Field Type"
 msgstr "フィールドタイプを変更"
-
-#: apps/remix/app/components/general/app-command-menu.tsx
-msgid "Change language"
-msgstr "言語を変更する"
 
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-fields-page-renderer.tsx
 msgid "Change Recipient"
@@ -2963,7 +3228,6 @@ msgstr "グラフ"
 msgid "Check your email"
 msgstr ""
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-fields-drag-drop.tsx
 #: packages/lib/utils/fields.ts
 #: packages/ui/primitives/document-flow/add-fields.tsx
@@ -3011,10 +3275,6 @@ msgstr "文書をどのように受信者へ届けるかを選択します"
 msgid "Choose how to distribute your document to recipients. Email will send notifications, None will generate signing links for manual distribution."
 msgstr "ドキュメントを受信者にどのように配布するかを選択します。メールは通知を送信し、「なし」は手動配布用の署名リンクを生成します。"
 
-#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
-msgid "Choose verification method"
-msgstr "認証方法を選択"
-
 #: apps/remix/app/components/general/document-signing/document-signing-auth-dialog.tsx
 msgid "Choose your preferred authentication method:"
 msgstr "希望する認証方法を選択してください。"
@@ -3035,6 +3295,8 @@ msgstr "クレーム"
 msgid "Clear"
 msgstr ""
 
+#: apps/remix/app/components/tables/documents-table-empty-state.tsx
+#: apps/remix/app/routes/_authenticated+/t.$teamUrl+/documents._index.tsx
 #: packages/ui/primitives/data-table.tsx
 msgid "Clear filters"
 msgstr "フィルターをクリア"
@@ -3090,11 +3352,6 @@ msgstr "クライアントシークレット"
 msgid "Client secret is required"
 msgstr "クライアントシークレットは必須です"
 
-#: apps/remix/app/components/dialogs/ai-features-enable-dialog.tsx
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
 #: apps/remix/app/components/dialogs/envelope-distribute-dialog.tsx
 #: apps/remix/app/components/dialogs/envelope-item-delete-dialog.tsx
 #: apps/remix/app/components/dialogs/organisation-email-domain-records-dialog.tsx
@@ -3121,6 +3378,10 @@ msgstr "クライアントシークレットは必須です"
 #: packages/ui/primitives/sheet.tsx
 msgid "Close"
 msgstr "閉じる"
+
+#: apps/remix/app/components/general/document-signing/document-signing-mobile-widget.tsx
+msgid "Collapse"
+msgstr ""
 
 #: apps/remix/app/components/general/document-signing/document-signing-page-view-v2.tsx
 msgid "Collapse sidebar"
@@ -3183,6 +3444,7 @@ msgstr "次の署名者のフィールドを入力してください。"
 #: apps/remix/app/components/tables/admin-document-jobs-table.tsx
 #: apps/remix/app/components/tables/admin-document-recipients-table.tsx
 #: apps/remix/app/components/tables/organisation-insights-table.tsx
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
 #: packages/email/template-components/template-document-completed.tsx
 #: packages/email/template-components/template-document-recipient-signed.tsx
 #: packages/email/template-components/template-document-self-signed.tsx
@@ -3215,6 +3477,18 @@ msgstr "{formattedDate} に完了"
 #: apps/remix/app/components/general/analytics/analytics-activity-table-card.tsx
 #: apps/remix/app/components/general/analytics/analytics-overview-cards.tsx
 msgid "Completion rate"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
+msgid "Concluído"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Conferindo se é nota fiscal…"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Configurações salvas."
 msgstr ""
 
 #: packages/lib/constants/pdf-viewer-i18n.ts
@@ -3331,10 +3605,35 @@ msgstr "削除の確認"
 msgid "Confirm email"
 msgstr "メールアドレスを確認"
 
+#. placeholder {0}: data.attempt
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Confirmação de identidade falhou (tentativa {0} de 5)"
+msgstr ""
+
+#: apps/remix/app/components/forms/signup.tsx
+msgid "Confirmamos seu CPF e sua data de nascimento no cadastro de colaboradores."
+msgstr ""
+
+#: apps/remix/app/components/revalle/signing-gate/identity-step.tsx
+msgid "Confirmar"
+msgstr ""
+
+#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
+msgid "Confirmar e concluir"
+msgstr ""
+
 #: apps/remix/app/components/forms/send-confirmation-email.tsx
 #: apps/remix/app/routes/_unauthenticated+/o.$orgUrl.signin.tsx
 msgid "Confirmation email sent"
 msgstr "確認メールを送信しました"
+
+#: apps/remix/app/components/revalle/signing-gate/identity-step.tsx
+msgid "Confirme que é você"
+msgstr ""
+
+#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
+msgid "Confirme que você é o destinatário"
+msgstr ""
 
 #: apps/remix/app/routes/embed+/auth+/popup.tsx
 msgid "Connecting to the embed..."
@@ -3343,6 +3642,111 @@ msgstr ""
 #: apps/remix/app/routes/_unauthenticated+/articles.signature-disclosure.tsx
 msgid "Consent to Electronic Transactions"
 msgstr "電子取引への同意"
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
+msgid "Conta (número)"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Conta aprovada pelo Financeiro. O envio anterior falhou: corrija o rascunho e envie."
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Conta aprovada."
+msgstr ""
+
+#. placeholder {0}: account ?? '-'
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Conta atual: {0}. Escolha a nova conta e escreva o motivo."
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+#: apps/remix/app/components/revalle/invoice/signing-invoice-account.tsx
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Conta contábil"
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Conta contábil apagada porque o arquivo foi alterado (era {from})"
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Conta contábil aprovada pelo Financeiro: {account}"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+msgid "Conta contábil atualizada."
+msgstr ""
+
+#: packages/email/templates/revalle-finance-account-changed.tsx
+msgid "Conta contábil da nota fiscal alterada pelo Financeiro: {documentName}"
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Conta contábil definida pelo Financeiro: {account} (já aprovada)"
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Conta contábil escolhida: {to}"
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Conta contábil trocada pelo Financeiro de {from} para {to}: substituído por uma nova versão. Motivo: {reason}"
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Conta contábil trocada: {from} → {to}"
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Conta definida e aprovada."
+msgstr ""
+
+#. placeholder {0}: definedAccount.code
+#. placeholder {1}: definedAccount.name
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Conta escolhida: {0} – {1}"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Conta escolhida: {choiceCode} · {choiceName}"
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Conta trocada, mas a nova versão não foi enviada"
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Conta trocada. A nova versão foi enviada para todos assinarem de novo."
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Conta: {account}. Depois de aprovada, a nota fiscal é concluída quando todos tiverem assinado (se todos já assinaram, na hora)."
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Conta: {accountLabel}. O documento é enviado agora, em nome do remetente, para todos os destinatários assinarem."
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Conta: {definedLabel}. Ela fica aprovada na hora; a nota fiscal é concluída quando todos tiverem assinado (se todos já assinaram, na hora)."
+msgstr ""
+
+#: apps/remix/app/components/general/org-menu-switcher.tsx
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-perfis.tsx
+msgid "Contabilidade"
+msgstr ""
+
+#. placeholder {0}: user.email
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-perfis.tsx
+msgid "Contabilidade: {0}"
+msgstr ""
 
 #: apps/remix/app/routes/_unauthenticated+/articles.signature-disclosure.tsx
 msgid "Contact Information"
@@ -3365,13 +3769,26 @@ msgstr "お問い合わせ"
 msgid "Contact your organisation owner to upgrade plans."
 msgstr ""
 
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Contas"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Contas contábeis"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Contas válidas: {validCount}"
+msgstr ""
+
 #: apps/remix/app/components/general/admin-site-banner-section.tsx
 msgid "Content"
 msgstr "コンテンツ"
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-msgid "Context"
-msgstr "コンテキスト"
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+#: apps/remix/app/components/revalle/signing-gate/term-step.tsx
+msgid "Continuar"
+msgstr ""
 
 #: apps/remix/app/components/dialogs/assistant-confirmation-dialog.tsx
 #: apps/remix/app/components/dialogs/organisation-create-dialog.tsx
@@ -3563,6 +3980,20 @@ msgstr "値をコピー"
 msgid "Copy your token now. For security reasons you will not be able to see it again."
 msgstr ""
 
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "Corrigir centro de custo"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Corrija estes erros e envie de novo. Nada foi gravado."
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "Cost center validated"
+msgstr ""
+
 #: apps/remix/app/routes/embed+/auth+/popup.tsx
 msgid "Could not connect to the Documenso embed. Close this window and try again."
 msgstr ""
@@ -3570,6 +4001,15 @@ msgstr ""
 #: apps/remix/app/components/general/organisation-usage-reset-button.tsx
 msgid "Counter reset."
 msgstr "カウンターをリセットしました。"
+
+#: apps/remix/app/components/forms/signup.tsx
+#: apps/remix/app/components/revalle/signing-gate/identity-step.tsx
+msgid "CPF"
+msgstr ""
+
+#: apps/remix/app/components/forms/signup.tsx
+msgid "CPF ou data de nascimento não conferem com o cadastro de colaboradores."
+msgstr ""
 
 #: apps/remix/app/components/dialogs/admin-organisation-create-dialog.tsx
 #: apps/remix/app/components/dialogs/admin-user-create-dialog.tsx
@@ -3633,10 +4073,6 @@ msgstr "チームでコラボレーションするための組織を作成"
 msgid "Create an organisation to get started."
 msgstr "まずは組織を作成してください。"
 
-#: apps/remix/app/routes/_authenticated+/t.$teamUrl+/settings.tokens.tsx
-msgid "Create and manage API tokens. See our <0>documentation</0> for more information."
-msgstr ""
-
 #: apps/remix/app/components/dialogs/template-use-dialog.tsx
 msgid "Create and send"
 msgstr "作成して送信"
@@ -3682,6 +4118,7 @@ msgid "Create Email"
 msgstr "メールを作成"
 
 #: apps/remix/app/components/general/folder/folder-card.tsx
+#: apps/remix/app/components/general/folder/folder-grid.tsx
 msgid "Create folder"
 msgstr "フォルダを作成"
 
@@ -3796,8 +4233,6 @@ msgstr "アカウントを作成して、最先端の文書署名を今すぐ始
 #: apps/remix/app/components/general/template/template-page-view-information.tsx
 #: apps/remix/app/components/tables/admin-email-transports-table.tsx
 #: apps/remix/app/components/tables/admin-organisation-overview-table.tsx
-#: apps/remix/app/components/tables/documents-table.tsx
-#: apps/remix/app/components/tables/inbox-table.tsx
 #: apps/remix/app/components/tables/organisation-insights-table.tsx
 #: apps/remix/app/components/tables/organisation-insights-table.tsx
 #: apps/remix/app/components/tables/organisation-teams-table.tsx
@@ -3810,6 +4245,7 @@ msgstr "アカウントを作成して、最先端の文書署名を今すぐ始
 #: apps/remix/app/routes/_authenticated+/admin+/organisations.$id.tsx
 #: apps/remix/app/routes/_authenticated+/admin+/teams.$id.tsx
 #: apps/remix/app/routes/_authenticated+/admin+/unsealed-documents._index.tsx
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
 #: apps/remix/app/routes/_authenticated+/settings+/security.sessions.tsx
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/settings.tokens.tsx
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/settings.webhooks._index.tsx
@@ -3952,7 +4388,11 @@ msgstr "ダークモード"
 msgid "Dashboard"
 msgstr "ダッシュボード"
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
+#: apps/remix/app/components/forms/signup.tsx
+#: apps/remix/app/components/revalle/signing-gate/identity-step.tsx
+msgid "Data de nascimento"
+msgstr ""
+
 #: apps/remix/app/components/general/document-signing/document-signing-date-field.tsx
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-fields-drag-drop.tsx
 #: apps/remix/app/components/tables/admin-document-recipient-item-table.tsx
@@ -3987,9 +4427,16 @@ msgstr ""
 msgid "Date Settings"
 msgstr "日付設定"
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-msgid "David is the Employee, Lucas is the Manager"
-msgstr "David は従業員で、Lucas はマネージャーです"
+#. placeholder {0}: account ?? '-'
+#. placeholder {1}: chosen.code
+#. placeholder {2}: chosen.name
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "De {0} para {1} – {2}."
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "De {center} para {chosen}."
+msgstr ""
 
 #: apps/remix/app/components/general/organisations/organisation-invitations.tsx
 #: apps/remix/app/routes/_unauthenticated+/organisation.invite.$token.tsx
@@ -4099,6 +4546,28 @@ msgstr "デフォルト値"
 #: apps/remix/app/components/forms/editor/editor-field-dropdown-form.tsx
 msgid "Default Value"
 msgstr "既定値"
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "Definir centro de custo"
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Definir e aprovar"
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Definir e aprovar a conta?"
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "Definir o centro de custo?"
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "deixar para o Financeiro"
+msgstr ""
 
 #: apps/remix/app/components/dialogs/document-preferences-reset-dialog.tsx
 #: apps/remix/app/components/general/admin-global-settings-section.tsx
@@ -4299,6 +4768,22 @@ msgstr "アカウントを削除しています..."
 msgid "Deletion scheduled"
 msgstr "削除がスケジュールされました"
 
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Descrição"
+msgstr ""
+
+#: apps/remix/app/components/revalle/optional-drawing-note.tsx
+msgid "Desenhar é opcional. Se preferir, conclua sem desenhar: sua assinatura será registrada pelo carimbo."
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Desfazer"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Destinatários"
+msgstr ""
+
 #: apps/remix/app/components/general/webhook-logs-sheet.tsx
 msgid "Destination"
 msgstr "送信先"
@@ -4308,52 +4793,6 @@ msgstr "送信先"
 #: packages/lib/server-only/pdf/render-certificate.ts
 msgid "Details"
 msgstr "詳細"
-
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "Detect"
-msgstr "検出"
-
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-msgid "Detect fields"
-msgstr "フィールドを検出"
-
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "Detect recipients"
-msgstr "受信者を検出"
-
-#: apps/remix/app/components/general/envelope-editor/envelope-editor-recipient-form.tsx
-msgid "Detect recipients with AI"
-msgstr "AI で受信者を検出"
-
-#: apps/remix/app/components/general/envelope-editor/envelope-editor-fields-page.tsx
-msgid "Detect with AI"
-msgstr "AI で検出"
-
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-msgid "Detected fields"
-msgstr "検出されたフィールド"
-
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "Detected recipients"
-msgstr "検出された受信者"
-
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-msgid "Detecting fields"
-msgstr "フィールドを検出しています"
-
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "Detecting recipients"
-msgstr "受信者を検出しています"
-
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-msgid "Detecting signature areas"
-msgstr "署名欄を検出しています"
-
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "Detection failed"
-msgstr "検出に失敗しました"
 
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-fields-page.tsx
 msgid "Developer Mode"
@@ -4373,6 +4812,10 @@ msgstr "このメールに心当たりがありませんか？<0>送信者を報
 #: packages/email/templates/reset-password.tsx
 msgid "Didn't request a password change? We are here to help you secure your account, just <0>contact us</0>."
 msgstr "パスワード変更をリクエストしていませんか？アカウントの安全確保をお手伝いしますので、<0>こちらからお問い合わせください</0>。"
+
+#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
+msgid "Digite o código"
+msgstr ""
 
 #: apps/remix/app/components/general/template/template-direct-link-badge.tsx
 #: apps/remix/app/components/tables/templates-table.tsx
@@ -4478,10 +4921,6 @@ msgstr "ダイレクトリンク署名を無効にすると、誰もそのリン
 msgid "Disabling the user results in the user not being able to use the account. It also disables all the related contents such as subscription, webhooks, teams, and API keys."
 msgstr "ユーザーを無効化すると、そのユーザーはアカウントを使用できなくなります。また、サブスクリプション、Webhook、チーム、API キーなどの関連コンテンツもすべて無効になります。"
 
-#: apps/remix/app/routes/_authenticated+/o.$orgUrl.support.tsx
-msgid "Discord"
-msgstr "Discord"
-
 #: apps/remix/app/components/dialogs/organisation-email-create-dialog.tsx
 #: apps/remix/app/components/dialogs/organisation-email-update-dialog.tsx
 #: apps/remix/app/routes/_authenticated+/admin+/email-domains.$id.tsx
@@ -4526,6 +4965,8 @@ msgid "Documenso will delete <0>all of your documents</0>, along with all of you
 msgstr "Documenso は<0>すべての文書</0>と、完了済み文書・署名・アカウントに紐づくその他すべてのリソースを削除します。"
 
 #: apps/remix/app/components/general/template/template-page-view-documents-table.tsx
+#: apps/remix/app/components/tables/documents-table.tsx
+#: apps/remix/app/components/tables/inbox-table.tsx
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/documents.$id.logs.tsx
 msgid "Document"
 msgstr "文書"
@@ -4593,7 +5034,6 @@ msgctxt "Audit log format"
 msgid "Document cancelled"
 msgstr "文書は取り消されました"
 
-#: apps/remix/app/routes/_recipient+/sign.$token+/_index.tsx
 #: apps/remix/app/routes/_recipient+/sign.$token+/_index.tsx
 #: packages/lib/jobs/definitions/emails/send-document-deleted-emails.handler.ts
 #: packages/lib/server-only/admin/admin-super-delete-document.ts
@@ -4942,18 +5382,18 @@ msgstr "文書ボリューム"
 msgid "Document will be permanently deleted"
 msgstr "文書は完全に削除されます"
 
-#: apps/remix/app/routes/_authenticated+/o.$orgUrl.support.tsx
-msgid "Documentation"
-msgstr "ドキュメント"
+#: apps/remix/app/components/general/envelope-signing/envelope-signer-header.tsx
+#: apps/remix/app/components/revalle/signing-gate/signing-gate.tsx
+msgid "Documento enviado por {senderName}"
+msgstr ""
 
 #: apps/remix/app/components/general/app-command-menu.tsx
-#: apps/remix/app/components/general/app-nav-desktop.tsx
-#: apps/remix/app/components/general/app-nav-mobile.tsx
 #: apps/remix/app/components/general/claim-limit-fields.tsx
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-upload-page.tsx
 #: apps/remix/app/components/general/organisation-usage-panel.tsx
 #: apps/remix/app/components/general/use-admin-search-categories.ts
 #: apps/remix/app/components/general/user-profile-timur.tsx
+#: apps/remix/app/components/revalle/shell/shell-nav.tsx
 #: apps/remix/app/components/tables/admin-dashboard-users-table.tsx
 #: apps/remix/app/components/tables/admin-organisation-stats-table.tsx
 #: apps/remix/app/components/tables/organisation-insights-table.tsx
@@ -5165,6 +5605,7 @@ msgstr ""
 #: apps/remix/app/components/general/document/document-status.tsx
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-header.tsx
 #: apps/remix/app/components/general/template/template-page-view-documents-table.tsx
+#: apps/remix/app/components/tables/recipient-signer-slots.tsx
 #: packages/lib/constants/document.ts
 msgid "Draft"
 msgstr "下書き"
@@ -5265,6 +5706,18 @@ msgstr "同じ値を重複して使用することはできません"
 msgid "Dutch"
 msgstr "オランダ語"
 
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+msgid "É uma nota fiscal?"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-perfis.tsx
+msgid "E-mail"
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "E-mail reconhecido como colaborador"
+msgstr ""
+
 #: apps/remix/app/components/forms/editor/editor-field-number-form.tsx
 #: packages/ui/primitives/document-flow/field-items-advanced-settings/number-field.tsx
 msgid "E.g. 0"
@@ -5331,11 +5784,11 @@ msgid "Electronic Delivery of Documents"
 msgstr "文書の電子的な配信"
 
 #: apps/remix/app/routes/_unauthenticated+/articles.signature-disclosure.tsx
+#: apps/remix/app/routes/_unauthenticated+/articles.signature-disclosure.tsx
 msgid "Electronic Signature Disclosure"
 msgstr "電子署名に関する開示"
 
 #: apps/remix/app/components/dialogs/admin-user-create-dialog.tsx
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
 #: apps/remix/app/components/dialogs/assistant-confirmation-dialog.tsx
 #: apps/remix/app/components/dialogs/email-transport-send-test-dialog.tsx
 #: apps/remix/app/components/dialogs/envelope-distribute-dialog.tsx
@@ -5372,8 +5825,6 @@ msgstr "電子署名に関する開示"
 #: packages/lib/server-only/pdf/generate-certificate-pdf.ts
 #: packages/lib/server-only/pdf/generate-certificate-pdf.ts
 #: packages/lib/utils/fields.ts
-#: packages/lib/utils/settings-nav.ts
-#: packages/lib/utils/settings-nav.ts
 #: packages/ui/primitives/document-flow/add-fields.tsx
 #: packages/ui/primitives/document-flow/add-signers.tsx
 #: packages/ui/primitives/document-flow/add-signers.tsx
@@ -5559,10 +6010,6 @@ msgstr "メールトランスポート一覧"
 msgid "Email usage is approaching fair use limits"
 msgstr "メールの使用量がフェアユースの上限に近づいています"
 
-#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
-msgid "Email verification"
-msgstr "メール認証"
-
 #: apps/remix/app/components/dialogs/team-email-delete-dialog.tsx
 msgid "Email verification has been removed"
 msgstr "メール認証を削除しました"
@@ -5622,15 +6069,6 @@ msgstr "アカウントを有効化"
 #: apps/remix/app/components/dialogs/admin-user-enable-dialog.tsx
 msgid "Enable Account"
 msgstr "アカウントを有効化"
-
-#: apps/remix/app/components/general/envelope-editor/envelope-editor-recipient-form.tsx
-msgid "Enable AI detection"
-msgstr "AI検出を有効にする"
-
-#: apps/remix/app/components/dialogs/ai-features-enable-dialog.tsx
-#: apps/remix/app/components/dialogs/ai-features-enable-dialog.tsx
-msgid "Enable AI features"
-msgstr "AI機能を有効にする"
 
 #: apps/remix/app/components/forms/document-preferences-form.tsx
 msgid "Enable AI-powered features such as automatic recipient detection. When enabled, document content will be sent to AI providers. We only use providers that do not retain data for training and prefer European regions where available."
@@ -5790,10 +6228,6 @@ msgstr "次の署名者のメールアドレスを入力してください"
 msgid "Enter the next signer's name"
 msgstr "次の署名者の名前を入力してください"
 
-#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
-msgid "Enter verification code"
-msgstr "認証コードを入力"
-
 #: apps/remix/app/components/general/document-signing/document-signing-auth-dialog.tsx
 msgid "Enter your 2FA code"
 msgstr "2FA コードを入力"
@@ -5885,6 +6319,56 @@ msgstr "封筒タイトル"
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-settings-dialog.tsx
 msgid "Envelope updated"
 msgstr "封筒を更新しました"
+
+#: apps/remix/app/components/revalle/invoice/invoice-duplicate-notice.tsx
+msgid "Enviada em {sentAt} por {senderName} · {situation}"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-duplicate-notice.tsx
+msgid "Enviada por {senderName} · {situation}"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
+msgid "Enviadas de"
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Enviado de novo para assinatura."
+msgstr ""
+
+#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
+msgid "Enviamos um código de 6 dígitos para o seu e-mail. Digite o código abaixo para concluir."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Enviar arquivo CSV"
+msgstr ""
+
+#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
+msgid "Enviar código para meu e-mail"
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "Enviar de novo"
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Enviar de novo?"
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Envio em andamento. Aguarde um instante."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Erro 404"
+msgstr ""
 
 #: apps/remix/app/components/dialogs/admin-swap-subscription-dialog.tsx
 #: apps/remix/app/components/dialogs/admin-user-delete-dialog.tsx
@@ -5988,6 +6472,85 @@ msgstr "ファイルのアップロード中にエラーが発生しました"
 msgid "esc"
 msgstr ""
 
+#: apps/remix/app/utils/toast-error-messages.ts
+msgid "Escolha a conta contábil e o centro de custo."
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Escolha a conta contábil."
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+msgid "Escolha a conta contábil. Depois, quem aprova ou troca é o Financeiro."
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Escolha o centro de custo."
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+msgid "Escolha o centro de custo. Depois, quem corrige é a Contabilidade."
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "Escolha um centro de custo diferente do atual."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Escolher arquivo CSV"
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "Esta nota fiscal foi enviada sem centro de custo. Escolha o centro: ele fica validado na hora, sem nova versão (ninguém viu centro ao assinar)."
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Esta nota fiscal foi marcada depois do envio e ainda não tem conta. Escolha a conta: ela fica aprovada na hora, sem nova versão (ninguém viu conta ao assinar)."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Esta nota fiscal não existe ou você não tem acesso a ela."
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-duplicate-notice.tsx
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Esta nota parece já ter sido enviada"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Esta versão foi substituída (centro de custo corrigido pela Contabilidade)."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Esta versão foi substituída (conta contábil alterada pelo Financeiro)."
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "Este centro de custo já estava validado."
+msgstr ""
+
+#: apps/remix/app/components/forms/signup.tsx
+msgid "Este CPF já está vinculado a outro e-mail. Fale com o administrador."
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Este documento é uma nota fiscal?"
+msgstr ""
+
+#: apps/remix/app/components/revalle/signing-gate/superseded-view.tsx
+msgid "Este documento foi substituído por uma nova versão."
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Este documento já tinha sido enviado."
+msgstr ""
+
+#: apps/remix/app/components/revalle/signing-gate/locked-view.tsx
+msgid "Este link foi bloqueado por segurança. Avisamos quem enviou o documento e a equipe de TI. Aguarde o desbloqueio ou peça um novo envio para outro e-mail."
+msgstr ""
+
 #: apps/remix/app/components/general/webhook-logs-sheet.tsx
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/settings.webhooks.$id._index.tsx
 msgid "Event"
@@ -6015,6 +6578,11 @@ msgstr "全員が署名しました"
 msgid "Everyone has signed! You will receive an email copy of the signed document."
 msgstr "全員が署名しました。署名済みドキュメントのコピーがメールで送信されます。"
 
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+#: apps/remix/app/components/tables/recipient-signer-slots.tsx
+msgid "Everyone signed"
+msgstr ""
+
 #: apps/remix/app/components/general/organisation-usage-panel.tsx
 msgid "Exceeded"
 msgstr ""
@@ -6022,6 +6590,14 @@ msgstr ""
 #: apps/remix/app/components/dialogs/passkey-create-dialog.tsx
 msgid "Exceeded timeout"
 msgstr "タイムアウトを超えました"
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "excluído pelo remetente"
+msgstr ""
+
+#: apps/remix/app/components/general/document-signing/document-signing-mobile-widget.tsx
+msgid "Expand"
+msgstr ""
 
 #: apps/remix/app/components/general/document-signing/document-signing-page-view-v2.tsx
 msgid "Expand sidebar"
@@ -6057,20 +6633,15 @@ msgstr "有効期限: {0}"
 msgid "Expires in"
 msgstr ""
 
-#. placeholder {0}: DateTime.fromMillis(Math.max(millisecondsRemaining, 0)).toFormat('mm:ss')
-#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
-msgid "Expires in {0}"
-msgstr "有効期限: 残り {0}"
+#: apps/remix/app/components/revalle/invoice/list/invoice-queues.tsx
+msgid "Exportar planilha"
+msgstr ""
 
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-settings-dialog.tsx
 #: packages/ui/primitives/document-flow/add-settings.tsx
 #: packages/ui/primitives/template-flow/add-template-settings.tsx
 msgid "External ID"
 msgstr "外部 ID"
-
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "Extracting contact details"
-msgstr "連絡先情報を抽出しています"
 
 #: apps/remix/app/components/general/webhook-logs-sheet.tsx
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/settings.webhooks.$id._index.tsx
@@ -6320,6 +6891,24 @@ msgstr "新しいサブスクリプションクレームを作成するための
 msgid "Filter by status"
 msgstr "ステータスで絞り込む"
 
+#: apps/remix/app/components/general/org-menu-switcher.tsx
+msgid "Finance and Accounting"
+msgstr ""
+
+#: apps/remix/app/components/general/org-menu-switcher.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-perfis.tsx
+msgid "Financeiro"
+msgstr ""
+
+#. placeholder {0}: user.email
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-perfis.tsx
+msgid "Financeiro: {0}"
+msgstr ""
+
 #: apps/remix/app/components/forms/branding-preferences-form.tsx
 msgid "Focus ring colour."
 msgstr "フォーカスリングの色。"
@@ -6402,6 +6991,10 @@ msgstr "パスワードをお忘れですか？"
 msgid "Forgot your password?"
 msgstr "パスワードをお忘れですか？"
 
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "Fornecedor, número e valor: lidos pela IA, confira no PDF."
+msgstr ""
+
 #: apps/remix/app/components/dialogs/organisation-create-dialog.tsx
 msgctxt "Plan price"
 msgid "Free"
@@ -6435,6 +7028,14 @@ msgstr "フランス語"
 msgid "From"
 msgstr "送信元"
 
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
+msgid "from {fromDay}"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "From {sender} · not sent yet"
+msgstr ""
+
 #: apps/remix/app/components/forms/email-transport-form.tsx
 msgid "From address"
 msgstr "送信元アドレス"
@@ -6461,8 +7062,6 @@ msgstr "氏名"
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-settings-dialog.tsx
 #: apps/remix/app/components/general/template/template-edit-form.tsx
 #: apps/remix/app/routes/_authenticated+/o.$orgUrl.settings.general.tsx
-#: packages/lib/utils/settings-nav.ts
-#: packages/lib/utils/settings-nav.ts
 #: packages/lib/utils/settings-nav.ts
 #: packages/lib/utils/settings-nav.ts
 msgid "General"
@@ -6532,7 +7131,6 @@ msgstr "戻る"
 msgid "Go back home"
 msgstr "ホームに戻る"
 
-#: apps/remix/app/routes/_recipient+/sign.$token+/_index.tsx
 #: apps/remix/app/routes/_recipient+/sign.$token+/_index.tsx
 #: apps/remix/app/routes/_recipient+/sign.$token+/complete.tsx
 msgid "Go Back Home"
@@ -6632,10 +7230,6 @@ msgstr "高さ:"
 #: apps/remix/app/components/embed/embed-document-signing-page-v1.tsx
 msgid "Help complete the document for other signers."
 msgstr "他の署名者のためにドキュメントの完了を手伝います。"
-
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-msgid "Help the AI assign fields to the right recipients."
-msgstr "AI が正しい受信者にフィールドを割り当てられるように支援します。"
 
 #: apps/remix/app/routes/_authenticated+/o.$orgUrl.settings.email-domains._index.tsx
 msgid "Here you can add email domains to your organisation."
@@ -6808,13 +7402,10 @@ msgstr "ID"
 msgid "ID copied to clipboard"
 msgstr "ID をクリップボードにコピーしました"
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-msgid "Identifying input fields"
-msgstr "入力フィールドを特定しています"
-
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "Identifying recipients"
-msgstr "受信者を特定しています"
+#. placeholder {0}: data.cpfMasked
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Identidade confirmada (CPF {0})"
+msgstr ""
 
 #: apps/remix/app/components/general/organisations/organisation-billing-banner.tsx
 #: apps/remix/app/components/general/organisations/organisation-billing-banner.tsx
@@ -6877,6 +7468,10 @@ msgstr "認証アプリが QR コードに対応していない場合は、代�
 msgid "Important: What This Means"
 msgstr "重要: これが意味すること"
 
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Importar lista de contas"
+msgstr ""
+
 #: apps/remix/app/components/forms/signup.tsx
 #: apps/remix/app/components/general/public-legal-links.tsx
 msgid "Imprint"
@@ -6888,10 +7483,14 @@ msgctxt "Subscription status"
 msgid "Inactive"
 msgstr "無効"
 
-#: apps/remix/app/components/general/app-nav-mobile.tsx
-#: apps/remix/app/components/general/app-nav-mobile.tsx
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Inativa"
+msgstr ""
+
 #: apps/remix/app/components/general/document/document-status.tsx
 #: apps/remix/app/components/general/org-menu-switcher.tsx
+#: apps/remix/app/components/revalle/shell/shell-nav.tsx
+#: apps/remix/app/routes/_authenticated+/inbox.tsx
 msgid "Inbox"
 msgstr "受信箱"
 
@@ -6933,10 +7532,22 @@ msgstr "署名証明書をドキュメントに含める"
 msgid "Includes:"
 msgstr "含まれる内容："
 
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Informações"
+msgstr ""
+
 #: apps/remix/app/components/general/document/document-page-view-information.tsx
 #: apps/remix/app/components/general/template/template-page-view-information.tsx
 msgid "Information"
 msgstr "情報"
+
+#: apps/remix/app/components/forms/signup.tsx
+msgid "Informe a data de nascimento no formato dd/mm/aaaa."
+msgstr ""
+
+#: apps/remix/app/components/forms/signup.tsx
+msgid "Informe um CPF válido."
+msgstr ""
 
 #: packages/ui/components/recipient/recipient-action-auth-select.tsx
 msgid "Inherit authentication method"
@@ -6975,7 +7586,6 @@ msgstr "継承"
 msgid "Inherited subscription claim"
 msgstr "継承されたサブスクリプションクレーム"
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
 #: apps/remix/app/components/dialogs/sign-field-initials-dialog.tsx
 #: apps/remix/app/components/general/document-signing/document-signing-initials-field.tsx
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-fields-drag-drop.tsx
@@ -7115,6 +7725,26 @@ msgstr "招待日時"
 msgid "Invoice"
 msgstr "請求書"
 
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "Invoice cancelled"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "Invoice completed"
+msgstr ""
+
+#: apps/remix/app/components/general/document-signing/document-signing-page-view-v2.tsx
+msgid "Invoice PDF"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "Invoice rejected"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "Invoice superseded"
+msgstr ""
+
 #: apps/remix/app/components/tables/admin-document-logs-table.tsx
 #: apps/remix/app/components/tables/admin-document-recipient-item-table.tsx
 #: apps/remix/app/components/tables/document-logs-table.tsx
@@ -7180,10 +7810,6 @@ msgstr "日本語"
 msgid "Join {organisationName} on Documenso"
 msgstr "{organisationName} に Documenso で参加"
 
-#: apps/remix/app/routes/_authenticated+/o.$orgUrl.support.tsx
-msgid "Join our community on <0>Discord</0> for community support and discussion."
-msgstr "コミュニティサポートやディスカッションのために、<0>Discord</0> のコミュニティに参加してください。"
-
 #: apps/remix/app/components/tables/organisation-insights-table.tsx
 #: apps/remix/app/routes/_authenticated+/admin+/organisations.$id.tsx
 #: apps/remix/app/routes/_authenticated+/admin+/teams.$id.tsx
@@ -7222,7 +7848,6 @@ msgstr "ラベル"
 #: apps/remix/app/components/embed/authoring/configure-document-advanced-settings.tsx
 #: apps/remix/app/components/general/app-command-menu.tsx
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-settings-dialog.tsx
-#: apps/remix/app/components/general/org-menu-switcher.tsx
 #: packages/ui/primitives/document-flow/add-settings.tsx
 #: packages/ui/primitives/template-flow/add-template-settings.tsx
 msgid "Language"
@@ -7356,6 +7981,10 @@ msgstr "文字間隔"
 msgid "Letter Spacing"
 msgstr "文字間隔"
 
+#: apps/remix/app/components/revalle/signing-gate/term-step.tsx
+msgid "Li e concordo"
+msgstr ""
+
 #: apps/remix/app/components/general/admin-license-card.tsx
 #: apps/remix/app/components/general/admin-license-card.tsx
 msgid "License"
@@ -7377,6 +8006,17 @@ msgstr "ライセンスの支払いが延滞しています。サービスの中
 msgid "License synced"
 msgstr "ライセンスが同期されました"
 
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Lido pela IA: {invoiceDataLine}"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Lidos pela IA, confira no PDF"
+msgstr ""
+
 #: apps/remix/app/components/general/app-command-menu.tsx
 msgid "Light Mode"
 msgstr "ライトモード"
@@ -7389,9 +8029,18 @@ msgstr "自分の合意書付き公開プロフィールが欲しいですか？
 msgid "Limit reached"
 msgstr ""
 
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Limite de sugestões atingido. Escolha na lista."
+msgstr ""
+
 #: apps/remix/app/components/general/claim-limit-fields.tsx
 msgid "Limits"
 msgstr "上限"
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "Limpar filtros"
+msgstr ""
 
 #: apps/remix/app/components/forms/editor/editor-field-generic-field-forms.tsx
 msgid "Line height"
@@ -7400,6 +8049,35 @@ msgstr "行の高さ"
 #: apps/remix/app/components/forms/editor/editor-field-generic-field-forms.tsx
 msgid "Line Height"
 msgstr "行の高さ"
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Linha {line}: {message}"
+msgstr ""
+
+#. placeholder {0}: data.cpfMasked
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Link bloqueado (CPF {0} vinculado a outro e-mail)"
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Link bloqueado (CPF vinculado a outro e-mail)"
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Link bloqueado (excesso de códigos errados)"
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Link bloqueado (excesso de tentativas)"
+msgstr ""
+
+#: packages/email/templates/revalle-gate-locked.tsx
+msgid "Link de assinatura bloqueado — {documentName}"
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Link desbloqueado pelo administrador"
+msgstr ""
 
 #: packages/email/templates/confirm-team-email.tsx
 msgid "Link expires in 1 hour."
@@ -7435,6 +8113,10 @@ msgstr "リンク日時"
 #: apps/remix/app/components/general/document/document-edit-form.tsx
 msgid "Links Generated"
 msgstr "生成済みリンク"
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Lista aplicada: {created} novas, {updated} alteradas, {deactivated} desativadas."
+msgstr ""
 
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/settings.webhooks._index.tsx
 msgid "Listening to"
@@ -7485,13 +8167,9 @@ msgstr "ログイン"
 msgid "Logs"
 msgstr "ログ"
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-msgid "Looking for form fields"
-msgstr "フォームフィールドを探しています"
-
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "Looking for signature fields"
-msgstr "署名フィールドを探しています"
+#: apps/remix/app/components/revalle/shell/shell-nav.tsx
+msgid "Main navigation"
+msgstr ""
 
 #: apps/remix/app/components/tables/admin-organisations-table.tsx
 #: apps/remix/app/components/tables/organisation-groups-table.tsx
@@ -7668,9 +8346,10 @@ msgstr "マネージャー"
 msgid "Managers and above"
 msgstr "マネージャー以上"
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-msgid "Mapping fields to recipients"
-msgstr "フィールドを受信者に対応付けています"
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+msgid "Marcar como nota fiscal"
+msgstr ""
 
 #: apps/remix/app/components/general/document-signing/document-signing-complete-dialog.tsx
 msgid "Mark as viewed"
@@ -7772,6 +8451,11 @@ msgstr "メンバー"
 msgid "Members that currently belong to this team."
 msgstr "現在このチームに所属しているメンバー。"
 
+#: apps/remix/app/components/general/app-header.tsx
+#: apps/remix/app/components/general/app-nav-mobile.tsx
+msgid "Menu"
+msgstr ""
+
 #: apps/remix/app/components/forms/support-ticket-form.tsx
 msgid "Message"
 msgstr "メッセージ"
@@ -7807,6 +8491,7 @@ msgid "Missing signature fields"
 msgstr ""
 
 #: apps/remix/app/components/general/document/document-page-view-recipients.tsx
+#: apps/remix/app/components/general/document/document-page-view-recipients.tsx
 #: apps/remix/app/components/general/template/template-page-view-recipients.tsx
 msgid "Modify recipients"
 msgstr "受信者を変更"
@@ -7839,6 +8524,51 @@ msgstr ""
 
 #: apps/remix/app/components/general/organisation-usage-panel.tsx
 msgid "Monthly usage"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/account-combobox.tsx
+msgid "Mostrando {shown} de {total} contas. Digite para encontrar as outras."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Mostrando {shown} de {total}. Use a busca para achar as outras."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-perfis.tsx
+msgid "Mostrando os primeiros {USERS_LIMIT}. Use a busca para achar os outros."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Mostrar inativas"
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Motivo da correção"
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Motivo da troca"
+msgstr ""
+
+#. placeholder {0}: finance.supersedeReason
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Motivo: {0}"
+msgstr ""
+
+#: packages/email/templates/revalle-gate-locked.tsx
+msgid "Motivo: a pessoa errou o CPF ou a data de nascimento 5 vezes."
+msgstr ""
+
+#: packages/email/templates/revalle-gate-locked.tsx
+msgid "Motivo: o código enviado por e-mail foi digitado errado 5 vezes."
+msgstr ""
+
+#: packages/email/templates/revalle-gate-locked.tsx
+msgid "Motivo: o CPF informado já pertence a outro e-mail."
 msgstr ""
 
 #: apps/remix/app/components/dialogs/envelopes-bulk-move-dialog.tsx
@@ -7875,6 +8605,10 @@ msgstr "サブスクリプションを「{sourceOrganisationName}」から、こ
 msgid "Move to Folder"
 msgstr "フォルダに移動"
 
+#: apps/remix/app/components/forms/signup.tsx
+msgid "Muitas tentativas com este CPF. Tente de novo amanhã ou fale com o administrador."
+msgstr ""
+
 #: packages/ui/components/document/document-global-auth-access-select.tsx
 msgid "Multiple access methods can be selected."
 msgstr "複数のアクセス方法を選択できます。"
@@ -7891,8 +8625,11 @@ msgstr "マイフォルダ"
 msgid "N/A"
 msgstr "N/A"
 
+#: apps/remix/app/components/revalle/signing-gate/identity-step.tsx
+msgid "Na primeira assinatura, precisamos confirmar seus dados com o cadastro de colaboradores."
+msgstr ""
+
 #: apps/remix/app/components/dialogs/admin-user-create-dialog.tsx
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
 #: apps/remix/app/components/dialogs/assistant-confirmation-dialog.tsx
 #: apps/remix/app/components/dialogs/folder-update-dialog.tsx
 #: apps/remix/app/components/dialogs/team-email-add-dialog.tsx
@@ -7945,6 +8682,80 @@ msgstr "名前の設定"
 msgid "Named senders with defaults per team, template or document"
 msgstr ""
 
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Não"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Não é nota fiscal"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Não foi possível aplicar a lista."
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "Não foi possível carregar a Contabilidade. Tente de novo."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "Não foi possível carregar as notas fiscais. Tente de novo."
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Não foi possível carregar o Financeiro. Tente de novo."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-perfis.tsx
+msgid "Não foi possível carregar os usuários. Tente de novo."
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Não foi possível concluir."
+msgstr ""
+
+#: apps/remix/app/components/forms/signup.tsx
+msgid "Não foi possível conferir seus dados agora. Tente de novo em alguns minutos."
+msgstr ""
+
+#: apps/remix/app/components/revalle/signing-gate/identity-step.tsx
+#: apps/remix/app/components/revalle/signing-gate/unavailable-view.tsx
+msgid "Não foi possível confirmar agora. Tente novamente em alguns minutos."
+msgstr ""
+
+#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
+msgid "Não foi possível enviar o código"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Não foi possível ler a lista."
+msgstr ""
+
+#: apps/remix/app/components/revalle/signing-gate/confirm-step.tsx
+#: apps/remix/app/components/revalle/signing-gate/term-step.tsx
+msgid "Não foi possível registrar agora. Tente de novo."
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-perfis.tsx
+msgid "Não foi possível salvar. Tente de novo."
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Não foi possível sugerir; escolha na lista"
+msgstr ""
+
+#: apps/remix/app/components/revalle/signing-gate/confirm-step.tsx
+msgid "Não sou eu"
+msgstr ""
+
 #: apps/remix/app/components/general/app-command-menu.tsx
 msgid "Navigate"
 msgstr ""
@@ -7968,6 +8779,47 @@ msgstr "署名が必要"
 #: packages/ui/components/recipient/recipient-role-select.tsx
 msgid "Needs to view"
 msgstr "閲覧が必要"
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Nenhum arquivo escolhido"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Nenhum destinatário."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-perfis.tsx
+msgid "Nenhum usuário encontrado."
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Nenhuma conta contábil cadastrada. Fale com o administrador."
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/account-combobox.tsx
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Nenhuma conta encontrada."
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+msgid "Nenhuma conta escolhida."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "Nenhuma nota fiscal aguardando a Contabilidade."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "Nenhuma nota fiscal aguardando o Financeiro."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "Nenhuma nota fiscal ainda. As notas fiscais que você enviar ou assinar aparecem aqui."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "Nenhuma nota fiscal com esses filtros."
+msgstr ""
 
 #: apps/remix/app/components/dialogs/token-create-dialog.tsx
 #: apps/remix/app/components/tables/settings-security-passkey-table.tsx
@@ -8031,6 +8883,10 @@ msgstr "次の受信者の名前"
 msgid "No"
 msgstr "いいえ"
 
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "No account"
+msgstr ""
+
 #: apps/remix/app/components/tables/documents-table-empty-state.tsx
 msgid "No active drafts"
 msgstr "有効な下書きはありません"
@@ -8055,6 +8911,10 @@ msgstr ""
 msgid "No activity in the selected range."
 msgstr ""
 
+#: apps/remix/app/components/general/document-signing/document-signing-text-field.tsx
+msgid "No characters remaining"
+msgstr ""
+
 #: apps/remix/app/components/general/pdf-viewer/envelope-pdf-viewer.tsx
 #: apps/remix/app/components/general/pdf-viewer/pdf-viewer.tsx
 msgid "No document found"
@@ -8070,6 +8930,7 @@ msgstr ""
 
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-fields-page.tsx
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-preview-page.tsx
+#: apps/remix/app/components/tables/documents-table-empty-state.tsx
 msgid "No documents found"
 msgstr "文書が見つかりません"
 
@@ -8082,6 +8943,14 @@ msgstr ""
 msgid "No documents match your search"
 msgstr ""
 
+#: apps/remix/app/components/tables/documents-table-empty-state.tsx
+msgid "No documents match your search and filters."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/t.$teamUrl+/documents._index.tsx
+msgid "No documents waiting for signatures."
+msgstr ""
+
 #: apps/remix/app/components/general/analytics/analytics-template-usage-card.tsx
 msgid "No documents were created from templates in this period"
 msgstr ""
@@ -8089,10 +8958,6 @@ msgstr ""
 #: apps/remix/app/components/dialogs/admin-swap-subscription-dialog.tsx
 msgid "No eligible organisations found. The target must be on the free plan."
 msgstr "対象となる組織が見つかりません。対象は無料プランである必要があります。"
-
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "No email detected"
-msgstr "メールアドレスが検出されませんでした"
 
 #: apps/remix/app/routes/_authenticated+/admin+/email-domains.$id.tsx
 msgid "No emails configured for this domain."
@@ -8110,9 +8975,10 @@ msgstr "有効な機能はありません"
 msgid "No field type matching this description was found."
 msgstr "この説明に一致するフィールドタイプが見つかりませんでした。"
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-msgid "No fields were detected in your document."
-msgstr "ドキュメント内でフィールドが検出されませんでした。"
+#: apps/remix/app/components/general/document-signing/document-signing-page-view-v2.tsx
+#: apps/remix/app/components/general/envelope-editor/envelope-file-selector.tsx
+msgid "No fields"
+msgstr ""
 
 #: apps/remix/app/components/dialogs/envelopes-bulk-move-dialog.tsx
 msgid "No folders found"
@@ -8145,9 +9011,17 @@ msgstr "グループが見つかりません"
 msgid "No inherited claim"
 msgstr ""
 
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "No invoice is waiting for you."
+msgstr ""
+
 #: apps/remix/app/components/general/admin-license-card.tsx
 msgid "No License Configured"
 msgstr "ライセンスが設定されていません"
+
+#: apps/remix/app/components/general/document-signing/document-signing-auto-sign.tsx
+msgid "No matching fields"
+msgstr ""
 
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/analytics._index.tsx
 msgid "No members"
@@ -8164,6 +9038,10 @@ msgstr ""
 #: apps/remix/app/components/dialogs/team-member-create-dialog.tsx
 msgid "No members selected"
 msgstr "メンバーが選択されていません"
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "No one to sign"
+msgstr ""
 
 #: apps/remix/app/components/dialogs/team-member-create-dialog.tsx
 msgid "No organisation members available"
@@ -8203,13 +9081,10 @@ msgstr "この条件に一致する受信者は見つかりませんでした。
 #: apps/remix/app/components/general/document/document-recipient-link-copy-dialog.tsx
 #: apps/remix/app/components/general/template/template-page-view-recipients.tsx
 #: apps/remix/app/components/tables/admin-document-recipients-table.tsx
+#: apps/remix/app/routes/_authenticated+/t.$teamUrl+/documents.$id.legacy_editor.tsx
 #: packages/ui/primitives/document-flow/add-subject.tsx
 msgid "No recipients"
 msgstr "受信者なし"
-
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "No recipients were detected in your document."
-msgstr "ドキュメント内で受信者が検出されませんでした。"
 
 #: apps/remix/app/components/general/envelope-editor/envelope-recipient-selector.tsx
 #: packages/ui/primitives/recipient-selector.tsx
@@ -8300,6 +9175,11 @@ msgstr "値が見つかりません。"
 msgid "No worries, it happens! Enter your email and we'll email you a special link to reset your password."
 msgstr "大丈夫です。メールアドレスを入力していただければ、パスワードをリセットするための特別なリンクをメールでお送りします。"
 
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-perfis.tsx
+msgid "Nome"
+msgstr ""
+
 #: apps/remix/app/components/dialogs/envelope-distribute-dialog.tsx
 #: apps/remix/app/components/embed/authoring/configure-document-advanced-settings.tsx
 #: apps/remix/app/components/forms/editor/editor-field-number-form.tsx
@@ -8328,6 +9208,10 @@ msgstr "見つかりません"
 msgid "Not Found"
 msgstr "見つかりません"
 
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "Not sent yet"
+msgstr ""
+
 #: apps/remix/app/components/general/admin-global-settings-section.tsx
 msgid "Not set"
 msgstr "未設定"
@@ -8335,6 +9219,53 @@ msgstr "未設定"
 #: apps/remix/app/components/forms/signin.tsx
 msgid "Not supported"
 msgstr "サポートされていません"
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Nota fiscal"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/signing-invoice-account.tsx
+msgid "Nota fiscal · Centro de custo: {centerLabel}"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Nota fiscal · Conta contábil"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/signing-invoice-account.tsx
+msgid "Nota fiscal · Conta contábil: {label}"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/signing-invoice-account.tsx
+msgid "Nota fiscal · Conta contábil: {label} · Centro de custo: {centerLabel}"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Nota fiscal não encontrada"
+msgstr ""
+
+#: apps/remix/app/utils/toast-error-messages.ts
+#: apps/remix/app/utils/toast-error-messages.ts
+msgid "Nota fiscal sem conta contábil ou centro de custo"
+msgstr ""
+
+#: apps/remix/app/components/revalle/shell/shell-nav.tsx
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Notas fiscais"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-perfis.tsx
+msgid "Notas fiscais assinadas aguardando a aprovação do Financeiro: {approvalCount}. Ninguém está marcado como Financeiro: marque alguém abaixo. As notas esperam na página Notas fiscais até alguém do Financeiro aprovar."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-perfis.tsx
+msgid "Notas fiscais com o centro de custo aguardando a Contabilidade: {accountingPendingCount}. Ninguém está marcado como Contabilidade: marque alguém abaixo para validar ou corrigir os centros. As notas seguem o fluxo normal enquanto isso."
+msgstr ""
 
 #: apps/remix/app/components/tables/documents-table-empty-state.tsx
 msgid "Nothing cancelled"
@@ -8353,9 +9284,28 @@ msgstr "通知"
 msgid "Notify the organisation about limit changes"
 msgstr ""
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
+#. placeholder {0}: chosen.code
+#. placeholder {1}: chosen.name
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Nova conta: {0} – {1}"
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Nova versão criada pela Contabilidade com o centro de custo {to} (antes {from}). Motivo: {reason}"
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Nova versão criada pelo Financeiro com a conta contábil {to} (antes {from}). Motivo: {reason}"
+msgstr ""
+
+#. placeholder {0}: finance.next.title
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Nova versão: {0}"
+msgstr ""
+
 #: apps/remix/app/components/general/document-signing/document-signing-number-field.tsx
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-fields-drag-drop.tsx
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
 #: packages/lib/utils/fields.ts
 #: packages/ui/primitives/document-flow/add-fields.tsx
 #: packages/ui/primitives/document-flow/types.ts
@@ -8386,6 +9336,55 @@ msgstr "許可されるチーム数。0 = 無制限"
 msgid "Number Settings"
 msgstr "数値の設定"
 
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Número"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "O arquivo não estava em UTF-8; foi lido como Windows-1252 (padrão do Excel)."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "O arquivo passa de 1 MB."
+msgstr ""
+
+#: packages/email/templates/revalle-finance-account-changed.tsx
+msgid "O centro de custo de uma nota fiscal foi corrigido"
+msgstr ""
+
+#. placeholder {0}: DateTime.fromMillis(Math.max(millisecondsRemaining, 0)).toFormat('mm:ss')
+#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
+msgid "O código vale por {0}"
+msgstr ""
+
+#: apps/remix/app/components/revalle/signing-gate/superseded-view.tsx
+msgid "O convite da nova versão chega por e-mail."
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "O documento é enviado agora, em nome do remetente, para todos os destinatários assinarem."
+msgstr ""
+
+#: apps/remix/app/utils/toast-error-messages.ts
+msgid "O documento foi criado como rascunho, mas é uma nota fiscal: abra o rascunho, escolha a conta contábil e o centro de custo e envie."
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "O envio anterior falhou: corrija o rascunho e envie."
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "O Financeiro está enviando esta nova versão. Os convites saem em instantes."
+msgstr ""
+
+#: packages/email/templates/revalle-gate-locked.tsx
+msgid "O link de {recipientEmail} para o documento \"{documentName}\" foi bloqueado."
+msgstr ""
+
+#: packages/email/templates/revalle-gate-locked.tsx
+msgid "O link de assinatura foi bloqueado"
+msgstr ""
+
 #: apps/remix/app/components/general/analytics/analytics-overview-cards.tsx
 msgid "of sent documents completed"
 msgstr ""
@@ -8393,6 +9392,10 @@ msgstr ""
 #: apps/remix/app/components/general/admin-global-settings-section.tsx
 msgid "Off"
 msgstr "オフ"
+
+#: apps/remix/app/components/revalle/signing-gate/signing-gate.tsx
+msgid "Olá, {recipientName}"
+msgstr ""
 
 #: apps/remix/app/components/general/admin-global-settings-section.tsx
 msgid "On"
@@ -8718,6 +9721,10 @@ msgstr "テンプレートを整理"
 msgid "Organize your documents and templates"
 msgstr "ドキュメントとテンプレートを整理"
 
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Orientações para a IA escolher a conta (ex.: regras da empresa). A lista de contas ativas é enviada junto, sempre."
+msgstr ""
+
 #: apps/remix/app/components/dialogs/envelope-download-dialog.tsx
 #: apps/remix/app/components/dialogs/envelopes-bulk-download-dialog.tsx
 #: apps/remix/app/components/dialogs/envelopes-bulk-download-dialog.tsx
@@ -8728,6 +9735,14 @@ msgstr "オリジナル"
 #: apps/remix/app/components/dialogs/template-use-dialog.tsx
 msgid "Otherwise, the document will be created as a draft."
 msgstr "チェックを入れない場合、文書は下書きとして作成されます。"
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Ou cole a lista aqui"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "Outra nota enviada tem a mesma chave de acesso ou o mesmo arquivo. Confira antes de aprovar."
+msgstr ""
 
 #: apps/remix/app/components/dialogs/envelope-distribute-dialog.tsx
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-fields-page.tsx
@@ -8787,10 +9802,28 @@ msgstr "ページ {0} / {1}"
 msgid "Page {pageNumber} of {numPages}"
 msgstr "{numPages} ページ中 {pageNumber} ページ目"
 
+#. placeholder {0}: data.currentPage
+#. placeholder {1}: data.totalPages
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "Página {0} de {1}"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "Pagination"
+msgstr ""
+
 #: apps/remix/app/components/tables/admin-organisations-table.tsx
 msgctxt "Subscription status"
 msgid "Paid"
 msgstr "有料"
+
+#: apps/remix/app/components/forms/signup.tsx
+msgid "Para criar a conta, informe o CPF e a data de nascimento na página de cadastro."
+msgstr ""
+
+#: apps/remix/app/components/general/document-signing/document-signing-complete-dialog.tsx
+msgid "Para reforçar a prova da assinatura, podemos registrar a localização do seu aparelho. É opcional."
+msgstr ""
 
 #: apps/remix/app/components/dialogs/envelope-download-dialog.tsx
 #: apps/remix/app/components/dialogs/envelopes-bulk-download-dialog.tsx
@@ -8916,9 +9949,17 @@ msgstr "支払い期限超過"
 msgid "Payment required"
 msgstr "支払いが必要です"
 
+#: apps/remix/app/components/general/document-signing/document-signing-page-view-v2.tsx
+msgid "PDF document"
+msgstr ""
+
 #: apps/remix/app/components/dialogs/envelope-download-dialog.tsx
 msgid "PDF Document"
 msgstr "PDF文書"
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
+msgid "Pendente"
+msgstr ""
 
 #: apps/remix/app/components/dialogs/envelopes-bulk-download-dialog.tsx
 #: apps/remix/app/components/general/analytics/analytics-activity-table-card.tsx
@@ -8981,6 +10022,10 @@ msgstr "月額"
 msgid "per year"
 msgstr "年額"
 
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-perfis.tsx
+msgid "Perfis"
+msgstr ""
+
 #: apps/remix/app/components/tables/admin-organisation-stats-table.tsx
 #: apps/remix/app/components/tables/documents-table-period-filter.tsx
 #: apps/remix/app/routes/_authenticated+/admin+/organisation-stats._index.tsx
@@ -8996,7 +10041,6 @@ msgid "Personal Account"
 msgstr "個人アカウント"
 
 #: apps/remix/app/routes/_authenticated+/dashboard.tsx
-#: apps/remix/app/routes/_authenticated+/inbox.tsx
 #: apps/remix/app/routes/_authenticated+/inbox.tsx
 msgid "Personal Inbox"
 msgstr "個人用受信箱"
@@ -9200,10 +10244,6 @@ msgstr "この操作は取り消せません。確認すると、Webhook は完�
 msgid "Please note that you will lose access to all documents associated with this team & all the members will be removed and notified"
 msgstr "このチームに関連するすべての文書へのアクセスを失います。また、すべてのメンバーは削除され、通知されます。"
 
-#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
-msgid "Please open your authenticator app and enter the 6-digit code for this document."
-msgstr "認証アプリを開き、この文書用の6桁のコードを入力してください。"
-
 #: apps/remix/app/components/general/document-signing/document-signing-reject-dialog.tsx
 msgid "Please provide a reason for rejecting this document"
 msgstr "このドキュメントを却下する理由を入力してください。"
@@ -9231,10 +10271,6 @@ msgstr "PDF ファイルを選択してください"
 #: apps/remix/app/components/dialogs/team-member-create-dialog.tsx
 msgid "Please select at least one member to add to the team."
 msgstr "チームに追加するメンバーを少なくとも1人選択してください。"
-
-#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
-msgid "Please select how you'd like to receive your verification code."
-msgstr "認証コードの受け取り方法を選択してください。"
 
 #: apps/remix/app/components/general/settings-upsell/branding-upsell.tsx
 #: apps/remix/app/components/general/settings-upsell/email-domains-upsell.tsx
@@ -9280,6 +10316,10 @@ msgstr ""
 msgid "Polish"
 msgstr "ポーランド語"
 
+#: apps/remix/app/components/revalle/signing-gate/term-step.tsx
+msgid "Política de privacidade"
+msgstr ""
+
 #: apps/remix/app/components/forms/email-transport-form.tsx
 msgid "Port"
 msgstr "ポート"
@@ -9298,6 +10338,10 @@ msgstr "X 位置:"
 msgid "Pos Y:"
 msgstr "Y 位置:"
 
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "Possível duplicada"
+msgstr ""
+
 #: apps/remix/app/components/embed/embed-direct-template-client-page.tsx
 #: apps/remix/app/components/embed/embed-document-signing-page-v1.tsx
 #: apps/remix/app/components/general/document-signing/document-signing-mobile-widget.tsx
@@ -9312,8 +10356,6 @@ msgid "Pre-formatted CSV template with example data."
 msgstr "サンプルデータ入りの事前フォーマット済み CSV テンプレートです。"
 
 #: apps/remix/app/components/general/unified-settings-sidebar-mobile.tsx
-#: packages/lib/utils/settings-nav.ts
-#: packages/lib/utils/settings-nav.ts
 msgid "Preferences"
 msgstr "設定"
 
@@ -9404,6 +10446,10 @@ msgstr "プロフィールを更新しました"
 msgid "Progress"
 msgstr "進行状況"
 
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Prompt"
+msgstr ""
+
 #: apps/remix/app/routes/_authenticated+/settings+/security.linked-accounts.tsx
 msgid "Provider"
 msgstr "プロバイダー"
@@ -9411,6 +10457,10 @@ msgstr "プロバイダー"
 #: apps/remix/app/routes/_authenticated+/o.$orgUrl.settings.sso.tsx
 msgid "Provider has been updated successfully"
 msgstr "プロバイダーを正常に更新しました"
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "Próxima"
+msgstr ""
 
 #: apps/remix/app/components/general/template/template-type.tsx
 #: apps/remix/app/components/tables/templates-table.tsx
@@ -9420,7 +10470,6 @@ msgstr "公開"
 
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/settings.public-profile.tsx
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/settings.public-profile.tsx
-#: packages/lib/utils/settings-nav.ts
 msgid "Public Profile"
 msgstr "公開プロフィール"
 
@@ -9446,11 +10495,18 @@ msgstr ""
 msgid "Qualified electronic signatures are not supported in this embed."
 msgstr ""
 
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Quem escolheu"
+msgstr ""
+
+#: packages/email/templates/revalle-gate-locked.tsx
+msgid "Quem recebeu o link vê: \"Este link foi bloqueado por segurança. Avisamos quem enviou o documento e a equipe de TI. Aguarde o desbloqueio ou peça um novo envio para outro e-mail.\" Para liberar, a equipe de TI desbloqueia em Admin → Verificações."
+msgstr ""
+
 #: apps/remix/app/components/general/envelope-editor/envelope-editor.tsx
 msgid "Quick Actions"
 msgstr "クイックアクション"
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-fields-drag-drop.tsx
 #: packages/lib/utils/fields.ts
 #: packages/ui/primitives/document-flow/add-fields.tsx
@@ -9490,10 +10546,6 @@ msgstr "読み取り専用"
 msgid "Read Only"
 msgstr "読み取り専用"
 
-#: apps/remix/app/routes/_authenticated+/o.$orgUrl.support.tsx
-msgid "Read our documentation to get started with Documenso."
-msgstr "Documenso のドキュメントを読んで使い始めましょう。"
-
 #: apps/remix/app/components/tables/admin-document-recipient-item-table.tsx
 msgid "Read Status"
 msgstr "既読状況"
@@ -9502,10 +10554,9 @@ msgstr "既読状況"
 msgid "Read the full <0>signature disclosure</0>."
 msgstr "<0>署名に関する開示</0>をすべて読む。"
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "Reading your document"
-msgstr "ドキュメントを読み込んでいます"
+#: apps/remix/app/components/general/document-signing/document-signing-page-view-v2.tsx
+msgid "Read the full document"
+msgstr ""
 
 #: apps/remix/app/components/general/document/document-page-view-recipients.tsx
 msgid "Ready"
@@ -9547,6 +10598,10 @@ msgstr "このフィールドへの署名には再認証が必要です"
 msgid "Reauthorise and retry"
 msgstr "再認証して再試行"
 
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Recebe uma cópia"
+msgstr ""
+
 #: packages/ui/components/recipient/recipient-role-select.tsx
 msgid "Receives copy"
 msgstr "コピーを受け取る"
@@ -9566,8 +10621,6 @@ msgstr "最近の文書"
 
 #: apps/remix/app/components/dialogs/template-direct-link-dialog.tsx
 #: apps/remix/app/components/general/template/template-page-view-documents-table.tsx
-#: apps/remix/app/components/tables/documents-table.tsx
-#: apps/remix/app/components/tables/inbox-table.tsx
 msgid "Recipient"
 msgstr "受信者"
 
@@ -9762,6 +10815,14 @@ msgstr "リカバリーコードをコピーしました"
 msgid "Recovery codes"
 msgstr "リカバリーコード"
 
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
+msgid "Recusado"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Recusou"
+msgstr ""
+
 #: packages/ui/primitives/signature-pad/signature-pad-color-picker.tsx
 msgid "Red"
 msgstr "赤"
@@ -9792,6 +10853,10 @@ msgstr ""
 
 #: apps/remix/app/routes/embed+/auth+/popup.tsx
 msgid "Redirecting to your sign in provider..."
+msgstr ""
+
+#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
+msgid "Reenviar código"
 msgstr ""
 
 #: apps/remix/app/components/forms/signup.tsx
@@ -9943,10 +11008,6 @@ msgstr "組織メンバーを削除"
 msgid "Remove rate limit"
 msgstr ""
 
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "Remove recipient"
-msgstr "受信者を削除"
-
 #: apps/remix/app/components/dialogs/admin-recipient-delete-dialog.tsx
 #: apps/remix/app/components/dialogs/admin-recipient-delete-dialog.tsx
 #: apps/remix/app/components/dialogs/admin-recipient-delete-dialog.tsx
@@ -10074,10 +11135,6 @@ msgstr "文書を再封止"
 msgid "Resend"
 msgstr "再送"
 
-#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
-msgid "Resend code"
-msgstr "コードを再送信"
-
 #: apps/remix/app/components/general/verify-email-banner.tsx
 msgid "Resend Confirmation Email"
 msgstr "確認メールを再送"
@@ -10098,7 +11155,6 @@ msgstr "認証を再送"
 
 #: apps/remix/app/components/forms/public-profile-form.tsx
 #: apps/remix/app/components/general/organisation-usage-reset-button.tsx
-#: apps/remix/app/routes/_authenticated+/t.$teamUrl+/documents._index.tsx
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/templates._index.tsx
 msgid "Reset"
 msgstr "リセット"
@@ -10158,6 +11214,10 @@ msgstr "支払いを解決"
 
 #: apps/remix/app/components/general/organisation-usage-panel.tsx
 msgid "Resource blocked"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Responda para enviar"
 msgstr ""
 
 #: apps/remix/app/components/general/webhook-logs-sheet.tsx
@@ -10291,6 +11351,10 @@ msgstr ""
 msgid "Rows per page"
 msgstr "ページあたりの行数"
 
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Salvar"
+msgstr ""
+
 #: apps/remix/app/components/dialogs/template-direct-link-dialog.tsx
 #: apps/remix/app/components/embed/authoring/configure-fields-view.tsx
 #: apps/remix/app/components/embed/authoring/configure-fields-view.tsx
@@ -10302,10 +11366,6 @@ msgstr "保存"
 
 #: apps/remix/app/components/dialogs/envelope-save-as-template-dialog.tsx
 #: apps/remix/app/components/dialogs/envelope-save-as-template-dialog.tsx
-#: apps/remix/app/components/general/document/document-page-view-dropdown.tsx
-#: apps/remix/app/components/general/envelope-editor/envelope-editor.tsx
-#: apps/remix/app/components/general/envelope-editor/envelope-editor.tsx
-#: apps/remix/app/components/tables/documents-table-action-dropdown.tsx
 msgid "Save as Template"
 msgstr "テンプレートとして保存"
 
@@ -10324,6 +11384,10 @@ msgstr "保存に失敗しました"
 msgid "Save Template"
 msgstr "テンプレートを保存"
 
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+msgid "Se este documento for uma nota fiscal, marque aqui para escolher a conta contábil."
+msgstr ""
+
 #: apps/remix/app/routes/_authenticated+/admin+/unsealed-documents._index.tsx
 msgid "Seal job triggered"
 msgstr "封印ジョブをトリガーしました"
@@ -10332,7 +11396,8 @@ msgstr "封印ジョブをトリガーしました"
 msgid "Sealing job started"
 msgstr "封印ジョブを開始しました"
 
-#: apps/remix/app/components/general/app-nav-desktop.tsx
+#: apps/remix/app/components/general/app-header.tsx
+#: apps/remix/app/components/revalle/shell/shell-nav.tsx
 #: apps/remix/app/routes/_authenticated+/o.$orgUrl.settings.members.tsx
 #: apps/remix/app/routes/_authenticated+/o.$orgUrl.settings.teams.tsx
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/settings.groups.tsx
@@ -10344,6 +11409,10 @@ msgstr "検索"
 #: apps/remix/app/routes/_authenticated+/admin+/organisations._index.tsx
 msgid "Search and manage all organisations"
 msgstr "すべての組織を検索・管理"
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
+msgid "Search by account number, e.g. 2.1.03"
+msgstr ""
 
 #: apps/remix/app/routes/_authenticated+/admin+/claims.tsx
 msgid "Search by claim ID or name"
@@ -10385,6 +11454,7 @@ msgstr "組織名、URL、またはIDで検索"
 msgid "Search documents, users, organisations…"
 msgstr ""
 
+#: apps/remix/app/components/general/document/document-search.tsx
 #: apps/remix/app/components/general/document/document-search.tsx
 msgid "Search documents..."
 msgstr "文書を検索..."
@@ -10457,6 +11527,11 @@ msgstr "セキュリティ"
 msgid "Security activity"
 msgstr "セキュリティアクティビティ"
 
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "See all invoices"
+msgstr ""
+
 #: apps/remix/app/components/general/admin-license-status-banner.tsx
 msgid "See Documentation"
 msgstr "ドキュメントを見る"
@@ -10464,6 +11539,14 @@ msgstr "ドキュメントを見る"
 #: apps/remix/app/routes/_authenticated+/admin+/documents.$id.tsx
 msgid "See the background jobs tab for the status"
 msgstr "ステータスはバックグラウンドジョブのタブで確認できます"
+
+#: apps/remix/app/components/revalle/invoice/invoice-duplicate-notice.tsx
+msgid "Sei disso e quero enviar mesmo assim"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/cost-center-select.tsx
+msgid "Selecione o centro de custo"
+msgstr ""
 
 #: apps/remix/app/components/general/document-signing/document-signing-dropdown-field.tsx
 #: packages/ui/primitives/document-flow/field-content.tsx
@@ -10516,6 +11599,7 @@ msgstr "タイムゾーンを選択"
 msgid "Select access methods"
 msgstr "アクセス方法を選択"
 
+#: apps/remix/app/components/tables/documents-table.tsx
 #: apps/remix/app/components/tables/documents-table.tsx
 #: apps/remix/app/components/tables/templates-table.tsx
 msgid "Select all"
@@ -10685,6 +11769,23 @@ msgstr "選択したテンプレートは完全に削除されます"
 msgid "Selector"
 msgstr "セレクター"
 
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "Sem centro de custo"
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "sem conta"
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Sem sugestão"
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "Sem validação"
+msgstr ""
+
 #: apps/remix/app/components/dialogs/email-transport-send-test-dialog.tsx
 #: apps/remix/app/components/dialogs/envelope-distribute-dialog.tsx
 #: apps/remix/app/components/dialogs/webhook-test-dialog.tsx
@@ -10702,6 +11803,11 @@ msgstr "このトランスポートを使用してテストメールを送信し
 #: apps/remix/app/components/dialogs/webhook-test-dialog.tsx
 msgid "Send a test webhook with sample data to verify your integration is working correctly."
 msgstr "統合が正しく動作しているか確認するために、サンプルデータを使ったテスト Webhook を送信します。"
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-queues.tsx
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "Send an invoice"
+msgstr ""
 
 #: apps/remix/app/components/forms/send-confirmation-email.tsx
 msgid "Send confirmation email"
@@ -10776,8 +11882,7 @@ msgid "Send Test Email"
 msgstr "テストメールを送信"
 
 #: apps/remix/app/components/tables/documents-table-sender-filter.tsx
-#: apps/remix/app/components/tables/documents-table.tsx
-#: apps/remix/app/components/tables/inbox-table.tsx
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
 msgid "Sender"
 msgstr "送信者"
 
@@ -10814,6 +11919,18 @@ msgstr "送信中..."
 #: packages/lib/server-only/pdf/render-certificate.ts
 msgid "Sent"
 msgstr "送信日時"
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "Sent by {sender} · {sentAtLabel}"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Sent by {senderName}"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
+msgid "Sent date"
+msgstr ""
 
 #: apps/remix/app/components/general/organisation-usage-panel.tsx
 msgid "Sent this period"
@@ -10858,13 +11975,12 @@ msgstr "Documenso 用のパスワードを設定してください"
 
 #: apps/remix/app/components/general/app-command-menu.tsx
 #: apps/remix/app/components/general/app-command-menu.tsx
-#: apps/remix/app/components/general/app-nav-mobile.tsx
-#: apps/remix/app/components/general/app-nav-mobile.tsx
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-settings-dialog.tsx
 #: apps/remix/app/components/general/envelope-editor/envelope-editor.tsx
 #: apps/remix/app/components/general/folder/folder-card.tsx
 #: apps/remix/app/components/general/org-menu-switcher.tsx
 #: apps/remix/app/components/general/org-menu-switcher.tsx
+#: apps/remix/app/components/revalle/shell/shell-nav.tsx
 #: apps/remix/app/routes/_authenticated+/o.$orgUrl._index.tsx
 #: apps/remix/app/routes/_authenticated+/o.$orgUrl.settings.general.tsx
 #: apps/remix/app/routes/_authenticated+/settings+/_layout.tsx
@@ -10880,11 +11996,6 @@ msgstr "セットアップ"
 #: packages/ui/components/document/document-share-button.tsx
 msgid "Share"
 msgstr "共有"
-
-#: apps/remix/app/components/general/document/document-page-view-dropdown.tsx
-#: apps/remix/app/components/tables/documents-table-action-dropdown.tsx
-msgid "Share Signing Card"
-msgstr "署名カードを共有"
 
 #: packages/lib/constants/template.ts
 msgid "Share the Link"
@@ -10985,13 +12096,10 @@ msgstr "文書に署名"
 #: apps/remix/app/components/general/document-signing/document-signing-mobile-widget.tsx
 #: apps/remix/app/components/general/document-signing/document-signing-page-view-v1.tsx
 #: apps/remix/app/components/general/document-signing/document-signing-page-view-v2.tsx
+#: apps/remix/app/routes/_recipient+/_layout.tsx
 #: packages/email/template-components/template-document-reminder.tsx
 msgid "Sign Document"
 msgstr "文書に署名"
-
-#: apps/remix/app/routes/_recipient+/_layout.tsx
-msgid "Sign Document - Documenso"
-msgstr "文書に署名 - Documenso"
 
 #: apps/remix/app/components/embed/multisign/multi-sign-document-list.tsx
 msgid "Sign Documents"
@@ -11088,7 +12196,6 @@ msgstr "Microsoftでサインアップ"
 msgid "Sign Up with OIDC"
 msgstr "OIDC でサインアップ"
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
 #: apps/remix/app/components/embed/embed-direct-template-client-page.tsx
 #: apps/remix/app/components/embed/embed-document-signing-page-v1.tsx
 #: apps/remix/app/components/embed/multisign/multi-sign-document-signing-view.tsx
@@ -11108,6 +12215,10 @@ msgstr "OIDC でサインアップ"
 #: packages/ui/primitives/template-flow/add-template-fields.tsx
 msgid "Signature"
 msgstr "署名"
+
+#: apps/remix/app/components/general/envelope-signing/envelope-signer-header.tsx
+msgid "Signature {position} of {totalCount}"
+msgstr ""
 
 #: apps/remix/app/routes/_internal+/[__htmltopdf]+/certificate.tsx
 #: packages/lib/server-only/pdf/render-certificate.ts
@@ -11130,6 +12241,10 @@ msgstr "署名の設定"
 #: packages/ui/components/document/document-signature-settings-tooltip.tsx
 msgid "Signature types"
 msgstr "署名タイプ"
+
+#: apps/remix/app/components/general/envelope-signing/envelope-signer-slots.tsx
+msgid "Signatures"
+msgstr ""
 
 #: apps/remix/app/routes/_authenticated+/admin+/stats.tsx
 msgid "Signatures Collected"
@@ -11289,6 +12404,14 @@ msgstr ""
 msgid "Signup is currently disabled or not available for your email domain."
 msgstr "サインアップは現在無効になっているか、お使いのメールドメインでは利用できません。"
 
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Sim"
+msgstr ""
+
+#: apps/remix/app/components/revalle/signing-gate/confirm-step.tsx
+msgid "Sim, sou eu"
+msgstr ""
+
 #. placeholder {0}: DateTime.fromJSDate(publicProfile.badge.since).toFormat('LLL ‘yy')
 #: apps/remix/app/routes/_profile+/p.$url.tsx
 msgid "Since {0}"
@@ -11307,10 +12430,16 @@ msgstr "サイトバナー"
 msgid "Site Settings"
 msgstr "サイト設定"
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "Skip"
-msgstr "スキップ"
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Situação"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "Situação no Financeiro"
+msgstr ""
 
 #: apps/remix/app/components/dialogs/envelope-distribute-dialog.tsx
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-fields-page.tsx
@@ -11382,14 +12511,6 @@ msgstr "問題が発生しました"
 #: apps/remix/app/components/general/envelope-signing/envelope-signing-csc-status.tsx
 msgid "Something went wrong while applying your signature. Please retry."
 msgstr "署名の適用中に問題が発生しました。もう一度お試しください。"
-
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-msgid "Something went wrong while detecting fields."
-msgstr "フィールドの検出中に問題が発生しました。"
-
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "Something went wrong while detecting recipients."
-msgstr "受信者の検出中に問題が発生しました。"
 
 #: apps/remix/app/components/general/pdf-viewer/pdf-viewer-states.tsx
 msgid "Something went wrong while loading the document."
@@ -11503,11 +12624,11 @@ msgstr "統計"
 
 #: apps/remix/app/components/general/template/template-page-view-documents-table.tsx
 #: apps/remix/app/components/general/webhook-logs-sheet.tsx
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
 #: apps/remix/app/components/tables/admin-document-jobs-table.tsx
 #: apps/remix/app/components/tables/admin-organisations-table.tsx
 #: apps/remix/app/components/tables/documents-table-status-filter.tsx
-#: apps/remix/app/components/tables/documents-table.tsx
-#: apps/remix/app/components/tables/inbox-table.tsx
 #: apps/remix/app/components/tables/organisation-billing-invoices-table.tsx
 #: apps/remix/app/components/tables/organisation-email-domains-table.tsx
 #: apps/remix/app/components/tables/organisation-insights-table.tsx
@@ -11626,6 +12747,14 @@ msgstr "サブスクリプションを同期しました"
 msgid "Subscriptions"
 msgstr ""
 
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+msgid "Substituída: a Contabilidade corrigiu o centro de custo e criou uma nova versão, que todos assinam de novo."
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-card.tsx
+msgid "Substituída: o Financeiro trocou a conta e criou uma nova versão, que todos assinam de novo."
+msgstr ""
+
 #: apps/remix/app/components/dialogs/admin-organisation-create-dialog.tsx
 #: apps/remix/app/components/dialogs/admin-organisation-member-delete-dialog.tsx
 #: apps/remix/app/components/dialogs/admin-organisation-member-update-dialog.tsx
@@ -11698,9 +12827,38 @@ msgstr "パスキーを作成しました"
 msgid "Successfully created: {successCount}"
 msgstr "正常に作成: {successCount}"
 
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Sugerir de novo"
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Sugestão da IA"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Sugestão da IA: {suggestionCode} · {suggestionName} (confira)"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Sugestão por IA: desligada. A escolha da conta funciona, mas sem sugestão."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Sugestão por IA: Gemini configurado (modelo {model})."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Sugestão por IA: sem chave do Gemini. A escolha da conta funciona, mas sem sugestão."
+msgstr ""
+
 #: packages/email/templates/bulk-send-complete.tsx
 msgid "Summary:"
 msgstr "概要:"
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Supplier"
+msgstr ""
 
 #: apps/remix/app/components/dialogs/organisation-email-create-dialog.tsx
 msgid "support"
@@ -11708,7 +12866,6 @@ msgstr "サポート"
 
 #: apps/remix/app/components/dialogs/organisation-email-create-dialog.tsx
 #: apps/remix/app/components/dialogs/organisation-email-update-dialog.tsx
-#: apps/remix/app/components/general/org-menu-switcher.tsx
 #: apps/remix/app/routes/_authenticated+/o.$orgUrl.support.tsx
 #: apps/remix/app/routes/_authenticated+/o.$orgUrl.support.tsx
 msgid "Support"
@@ -11955,6 +13112,10 @@ msgstr "この組織グループが現在割り当てられているチーム"
 msgid "Teams that this user is a member of and their roles."
 msgstr "このユーザーが所属しているチームと、そのロールです。"
 
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Tem a mesma chave de acesso ou o mesmo arquivo de outra nota enviada. Confira antes de decidir."
+msgstr ""
+
 #: apps/remix/app/components/dialogs/organisation-member-invite-dialog.tsx
 #: apps/remix/app/components/dialogs/public-profile-template-manage-dialog.tsx
 #: apps/remix/app/components/general/template/template-page-view-documents-table.tsx
@@ -12053,9 +13214,6 @@ msgstr "テンプレートをアップロードしました"
 msgid "Template usage"
 msgstr ""
 
-#: apps/remix/app/components/general/app-command-menu.tsx
-#: apps/remix/app/components/general/app-nav-desktop.tsx
-#: apps/remix/app/components/general/app-nav-mobile.tsx
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/settings.public-profile.tsx
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/templates._index.tsx
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/templates._index.tsx
@@ -12071,6 +13229,15 @@ msgstr "テンプレートを削除しました"
 #: apps/remix/app/components/dialogs/envelopes-bulk-delete-dialog.tsx
 msgid "Templates partially deleted"
 msgstr "一部のテンプレートを削除しました"
+
+#: apps/remix/app/components/revalle/signing-gate/unavailable-view.tsx
+msgid "Tentar de novo"
+msgstr ""
+
+#. placeholder {0}: data.termVersion
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Termo de assinatura eletrônica aceito (versão {0})"
+msgstr ""
 
 #: apps/remix/app/components/forms/signup.tsx
 #: apps/remix/app/components/general/public-legal-links.tsx
@@ -12105,7 +13272,6 @@ msgstr "テスト Webhook を送信しました"
 msgid "test@example.com"
 msgstr "test@example.com"
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
 #: apps/remix/app/components/general/document-signing/document-signing-text-field.tsx
 #: apps/remix/app/components/general/document-signing/document-signing-text-field.tsx
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-fields-drag-drop.tsx
@@ -12470,10 +13636,6 @@ msgstr "テンプレートの公開名"
 msgid "The reason provided for deletion is the following:"
 msgstr "削除理由として次の内容が入力されました。"
 
-#: packages/ui/components/recipient/recipient-role-select.tsx
-msgid "The recipient can prepare the document for later signers by pre-filling suggest values."
-msgstr "受信者は、後続の署名者のために推奨値を事前入力することでドキュメントを準備できます。"
-
 #: apps/remix/app/components/dialogs/admin-recipient-delete-dialog.tsx
 msgid "The recipient has been removed and the document owner has been notified."
 msgstr ""
@@ -12722,11 +13884,6 @@ msgstr "この操作は元に戻せません。十分ご注意ください。"
 msgid "This action is reversible, but please be careful as the account may be affected permanently (e.g. their settings and contents not being restored properly)."
 msgstr "この操作は元に戻すことができますが、アカウントに永続的な影響（例: 設定やコンテンツが正しく復元されないなど）が生じる可能性があるため注意してください。"
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "This can take a minute or two depending on the size of your document."
-msgstr "ドキュメントのサイズによっては、1～2 分かかる場合があります。"
-
 #: apps/remix/app/components/dialogs/claim-delete-dialog.tsx
 msgid "This claim is locked and cannot be deleted."
 msgstr "このクレームはロックされているため削除できません。"
@@ -12793,7 +13950,6 @@ msgid "This document has been cancelled by the owner and is no longer available 
 msgstr "この文書は所有者によりキャンセルされており、他のユーザーは署名できません。"
 
 #: apps/remix/app/routes/_recipient+/sign.$token+/_index.tsx
-#: apps/remix/app/routes/_recipient+/sign.$token+/_index.tsx
 msgid "This document has been cancelled by the owner."
 msgstr "この文書は所有者によりキャンセルされました。"
 
@@ -12857,10 +14013,6 @@ msgstr "この文書は、上記テンプレートをチームメンバーまた
 #: apps/remix/app/components/general/template/template-page-view-documents-table.tsx
 msgid "This document was created using a direct link."
 msgstr "この文書はダイレクトリンクから作成されました。"
-
-#: packages/email/template-components/template-footer.tsx
-msgid "This document was sent using <0>Documenso</0>."
-msgstr "このドキュメントは <0>Documenso</0> を使用して送信されました。"
 
 #: apps/remix/app/components/dialogs/envelope-duplicate-dialog.tsx
 msgid "This document will be duplicated."
@@ -13096,11 +14248,13 @@ msgstr "タイムゾーン"
 msgid "Time Zone"
 msgstr "タイムゾーン"
 
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Tipo"
+msgstr ""
+
 #: apps/remix/app/components/dialogs/envelope-rename-dialog.tsx
 #: apps/remix/app/components/embed/authoring/configure-document-view.tsx
 #: apps/remix/app/components/general/template/template-page-view-documents-table.tsx
-#: apps/remix/app/components/tables/documents-table.tsx
-#: apps/remix/app/components/tables/inbox-table.tsx
 #: apps/remix/app/components/tables/organisation-insights-table.tsx
 #: apps/remix/app/components/tables/templates-table.tsx
 #: apps/remix/app/routes/_authenticated+/admin+/documents._index.tsx
@@ -13160,10 +14314,6 @@ msgstr "このフィールドの作業を支援するには、<0>{0}</0> とし�
 #: apps/remix/app/components/general/document-signing/document-signing-auth-account.tsx
 msgid "To assist with this field, you need to be logged in."
 msgstr "このフィールドの作業を支援するには、ログインする必要があります。"
-
-#: apps/remix/app/components/dialogs/team-member-create-dialog.tsx
-msgid "To be able to add members to a team, you must first add them to the organisation. For more information, please see the <0>documentation</0>."
-msgstr "チームにメンバーを追加するには、まず組織にメンバーを追加する必要があります。詳しくは<0>ドキュメント</0>をご覧ください。"
 
 #: apps/remix/app/components/dialogs/team-email-update-dialog.tsx
 msgid "To change the email you must remove and add a new email address."
@@ -13257,6 +14407,38 @@ msgstr "このフィールドを表示するには、<0>{0}</0> としてログ�
 msgid "To view this field, you need to be logged in."
 msgstr "このフィールドを表示するには、ログインする必要があります。"
 
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-perfis.tsx
+msgid "Toda conta é de colaborador: envia e assina. Marque quem também é do Financeiro (aprova a conta contábil de cada nota fiscal) ou da Contabilidade (valida e corrige o centro de custo). Os dois perfis veem todas as notas fiscais, e a mesma pessoa pode ter os dois. A mudança vale na hora."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "Todas as notas fiscais enviadas para assinatura (você é administrador)."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "Todas as notas fiscais enviadas para assinatura (você é da Contabilidade)."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "Todas as notas fiscais enviadas para assinatura (você é do Financeiro e da Contabilidade)."
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais._index.tsx
+msgid "Todas as notas fiscais enviadas para assinatura (você é do Financeiro)."
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
+msgid "Todos"
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Todos vão assinar de novo uma nova versão. A versão atual deixa de valer, e o remetente e quem assina recebem um aviso com o motivo."
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "Todos vão precisar assinar de novo."
+msgstr ""
+
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/settings.public-profile.tsx
 msgid "Toggle the switch to hide your profile from the public."
 msgstr "スイッチをオフにして、プロフィールを一般公開から隠します。"
@@ -13292,11 +14474,6 @@ msgstr "トークンが見つかりません"
 #: apps/remix/app/utils/toast-error-messages.ts
 msgid "Too many recipients"
 msgstr "受信者が多すぎます"
-
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "Too many requests"
-msgstr "リクエストが多すぎます"
 
 #: apps/remix/app/components/forms/editor/editor-field-generic-field-forms.tsx
 msgid "Top"
@@ -13360,6 +14537,20 @@ msgstr "トランスポートを更新しました。"
 msgid "Triggers"
 msgstr "トリガー"
 
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Trocar"
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Trocar a conta?"
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Trocar conta"
+msgstr ""
+
 #: apps/remix/app/components/general/app-command-menu.tsx
 msgid "Try a different search or switch category."
 msgstr ""
@@ -13368,19 +14559,11 @@ msgstr ""
 msgid "Try a longer range."
 msgstr ""
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
 #: apps/remix/app/components/embed/embed-csc-authentication-required.tsx
 #: apps/remix/app/components/general/document-signing/csc-recipient-blocked-page.tsx
 #: apps/remix/app/components/general/envelope-signing/envelope-signing-csc-status.tsx
 msgid "Try again"
 msgstr "再試行"
-
-#: apps/remix/app/components/dialogs/ai-features-enable-dialog.tsx
-msgid "Turn on AI detection to automatically find recipients and fields in your documents. AI providers do not retain your data for training."
-msgstr "AI検出をオンにすると、ドキュメント内の受信者とフィールドを自動的に検出できます。AIプロバイダーは、トレーニング目的でお客様のデータを保持しません。"
 
 #: apps/remix/app/routes/_authenticated+/settings+/security._index.tsx
 msgid "Two factor authentication"
@@ -13584,10 +14767,6 @@ msgstr "不明"
 msgid "Unknown error"
 msgstr "不明なエラーが発生しました"
 
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "Unknown name"
-msgstr "不明な名前"
-
 #: apps/remix/app/routes/embed+/auth+/popup.tsx
 msgid "Unknown sign in provider."
 msgstr ""
@@ -13631,6 +14810,10 @@ msgstr ""
 #: apps/remix/app/routes/_authenticated+/admin+/unsealed-documents._index.tsx
 msgid "Unsealed Documents"
 msgstr "未封印の文書"
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
+msgid "until {toDay}"
+msgstr ""
 
 #: apps/remix/app/components/dialogs/team-group-create-dialog.tsx
 msgid "Untitled Group"
@@ -13921,6 +15104,10 @@ msgstr "URL"
 msgid "Usage overview for {name} · {rangeLabel}"
 msgstr ""
 
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Usar sugestão"
+msgstr ""
+
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/templates.$id._index.tsx
 msgid "Use"
 msgstr "使用"
@@ -13961,10 +15148,6 @@ msgstr ""
 #: apps/remix/app/components/dialogs/template-use-dialog.tsx
 msgid "Use uploaded file name"
 msgstr ""
-
-#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
-msgid "Use your authenticator app to generate a code"
-msgstr "認証アプリを使用してコードを生成してください"
 
 #: apps/remix/app/components/general/document-signing/document-signing-auth-dialog.tsx
 msgid "Use your passkey for authentication"
@@ -14014,10 +15197,6 @@ msgstr "ユーザーが見つかりません。"
 msgid "User Organisations"
 msgstr "ユーザーの組織"
 
-#: apps/remix/app/components/forms/signup.tsx
-msgid "User profiles are here!"
-msgstr "ユーザープロフィール機能が登場しました！"
-
 #: apps/remix/app/components/forms/email-transport-form.tsx
 msgid "Username"
 msgstr "ユーザー名"
@@ -14027,6 +15206,28 @@ msgstr "ユーザー名"
 #: apps/remix/app/routes/_authenticated+/admin+/_layout.tsx
 msgid "Users"
 msgstr "ユーザー"
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "Validação da Contabilidade"
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "Validado por {validatedBy} em {validatedAt}"
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "Validar centro de custo"
+msgstr ""
+
+#: apps/remix/app/components/revalle/accounting/accounting-card.tsx
+msgid "Validar o centro de custo?"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "Validate cost center"
+msgstr ""
 
 #: apps/remix/app/components/forms/editor/editor-field-checkbox-form.tsx
 #: apps/remix/app/components/forms/editor/editor-field-number-form.tsx
@@ -14043,10 +15244,36 @@ msgstr "バリデーションに失敗しました"
 #: apps/remix/app/components/forms/editor/editor-field-number-form.tsx
 #: apps/remix/app/components/tables/admin-document-recipient-item-table.tsx
 #: apps/remix/app/routes/_authenticated+/admin+/email-domains.$id.tsx
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
 #: packages/ui/primitives/document-flow/field-items-advanced-settings/number-field.tsx
 #: packages/ui/primitives/document-flow/field-items-advanced-settings/number-field.tsx
 msgid "Value"
 msgstr "値"
+
+#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
+msgid "Vamos enviar um código de 6 dígitos para seu e-mail. Ele é necessário para concluir o documento."
+msgstr ""
+
+#: apps/remix/app/routes/_recipient+/sign.$token+/complete.tsx
+msgid "Ver documento"
+msgstr ""
+
+#. placeholder {0}: item.title
+#: apps/remix/app/routes/_recipient+/sign.$token+/complete.tsx
+msgid "Ver documento: {0}"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/admin+/revalle-contas-contabeis.tsx
+msgid "Ver prévia"
+msgstr ""
+
+#: packages/lib/utils/document-audit-logs.ts
+msgid "Verificação de identidade desativada nesta instalação (não verificado)"
+msgstr ""
+
+#: packages/email/templates/revalle-finance-account-changed.tsx
+msgid "Verificar um documento"
+msgstr ""
 
 #: packages/email/template-components/template-access-auth-2fa.tsx
 msgid "Verification Code Required"
@@ -14060,9 +15287,9 @@ msgstr "確認メールを送信しました"
 msgid "Verification email sent successfully."
 msgstr "確認メールが正常に送信されました。"
 
-#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
-msgid "Verify & Complete"
-msgstr "確認して完了"
+#: apps/remix/app/components/revalle/shell/shell-nav.tsx
+msgid "Verify document"
+msgstr ""
 
 #: apps/remix/app/components/dialogs/organisation-email-domain-records-dialog.tsx
 msgid "Verify Domain"
@@ -14105,6 +15332,24 @@ msgstr ""
 msgid "Verify your team email address"
 msgstr "チームメールアドレスを確認"
 
+#. placeholder {0}: finance.version
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Versão {0}"
+msgstr ""
+
+#. placeholder {0}: finance.previous.title
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Versão anterior: {0}"
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/unsealed-finance-badge.tsx
+msgid "Versão substituída"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Versões"
+msgstr ""
+
 #: apps/remix/app/components/forms/editor/editor-field-checkbox-form.tsx
 #: apps/remix/app/components/forms/editor/editor-field-radio-form.tsx
 #: packages/ui/primitives/document-flow/field-items-advanced-settings/checkbox-field.tsx
@@ -14118,6 +15363,7 @@ msgstr "縦位置揃え"
 #: apps/remix/app/components/embed/multisign/multi-sign-document-list.tsx
 #: apps/remix/app/components/forms/2fa/view-recovery-codes-dialog.tsx
 #: apps/remix/app/components/general/document/document-page-view-button.tsx
+#: apps/remix/app/components/tables/documents-table-action-button.tsx
 #: apps/remix/app/components/tables/documents-table-action-button.tsx
 #: apps/remix/app/components/tables/documents-table-action-button.tsx
 #: apps/remix/app/components/tables/documents-table-action-dropdown.tsx
@@ -14192,7 +15438,6 @@ msgstr "DNS レコードを表示"
 msgid "View document"
 msgstr "ドキュメントを表示"
 
-#: apps/remix/app/components/general/document-signing/document-signing-mobile-widget.tsx
 #: apps/remix/app/components/general/document-signing/document-signing-page-view-v1.tsx
 #: apps/remix/app/components/general/document-signing/document-signing-page-view-v2.tsx
 #: packages/email/template-components/template-document-invite.tsx
@@ -14254,10 +15499,6 @@ msgstr "組織テンプレートを表示"
 msgid "View owner"
 msgstr "オーナーを表示"
 
-#: packages/email/template-components/template-document-self-signed.tsx
-msgid "View plans"
-msgstr "プランを表示"
-
 #: apps/remix/app/components/forms/2fa/view-recovery-codes-dialog.tsx
 #: apps/remix/app/components/forms/2fa/view-recovery-codes-dialog.tsx
 msgid "View Recovery Codes"
@@ -14318,13 +15559,48 @@ msgstr "公開範囲"
 msgid "Visible to the document owner in the audit log."
 msgstr ""
 
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Visualizou em {at}"
+msgstr ""
+
+#: apps/remix/app/components/revalle/signing-gate/confirm-step.tsx
+msgid "Você é"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/invoice-account-panel.tsx
+msgid "Você marcou que não é nota fiscal."
+msgstr ""
+
+#: apps/remix/app/routes/_recipient+/sign.$token+/complete.tsx
+msgid "Você receberá o documento assinado por e-mail quando for aprovado."
+msgstr ""
+
+#: apps/remix/app/components/revalle/finance/finance-card.tsx
+msgid "Voltar"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "Voltar para Notas fiscais"
+msgstr ""
+
 #: apps/remix/app/components/general/analytics/analytics-overview-cards.tsx
 msgid "vs. previous period"
 msgstr ""
 
 #: apps/remix/app/components/general/stack-avatars-with-tooltip.tsx
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
+#: apps/remix/app/components/revalle/invoice/list/invoice-filter-bar.tsx
 msgid "Waiting"
 msgstr "保留中"
+
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+#: apps/remix/app/components/tables/document-row-card.tsx
+msgid "Waiting for {name}"
+msgstr ""
+
+#: apps/remix/app/components/tables/recipient-signer-slots.tsx
+msgid "Waiting for completion"
+msgstr ""
 
 #: packages/email/template-components/template-document-pending.tsx
 msgid "Waiting for others"
@@ -14338,15 +15614,14 @@ msgstr ""
 msgid "Waiting for others to sign"
 msgstr "他の人の署名待ち"
 
+#: apps/remix/app/components/revalle/invoice/list/invoice-row-card.tsx
+msgid "Waiting for signatures"
+msgstr ""
+
 #: apps/remix/app/components/embed/embed-document-waiting-for-turn.tsx
 #: apps/remix/app/routes/_recipient+/sign.$token+/waiting.tsx
 msgid "Waiting for Your Turn"
 msgstr "あなたの順番待ち"
-
-#: apps/remix/app/routes/_recipient+/sign.$token+/_index.tsx
-#: apps/remix/app/routes/_recipient+/sign.$token+/_index.tsx
-msgid "Want to send slick signing links like this one? <0>Check out Documenso</0>."
-msgstr "このようなスマートな署名リンクを送りたいですか？<0>Documenso をチェックしてみてください</0>。"
 
 #: apps/remix/app/routes/_profile+/_layout.tsx
 msgid "Want your own public profile?"
@@ -14394,10 +15669,6 @@ msgstr "このファイルを変換できませんでした。有効な Word ド
 #: apps/remix/app/routes/_authenticated+/admin+/organisations.$id.tsx
 msgid "We couldn't create a Stripe customer. Please try again."
 msgstr "Stripe 顧客を作成できませんでした。もう一度お試しください。"
-
-#: apps/remix/app/components/dialogs/ai-features-enable-dialog.tsx
-msgid "We couldn't enable AI features right now. Please try again."
-msgstr "現在AI機能を有効にできませんでした。もう一度お試しください。"
 
 #: apps/remix/app/components/dialogs/admin-organisation-member-delete-dialog.tsx
 #: apps/remix/app/components/dialogs/admin-team-member-delete-dialog.tsx
@@ -14538,11 +15809,6 @@ msgstr "このテンプレートをプロフィールから削除中に不明な
 #: apps/remix/app/components/dialogs/team-member-delete-dialog.tsx
 msgid "We encountered an unknown error while attempting to remove this user. Please try again later."
 msgstr "このユーザーの削除中に不明なエラーが発生しました。後でもう一度お試しください。"
-
-#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
-#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
-msgid "We encountered an unknown error while attempting to request the two-factor authentication code. Please try again later."
-msgstr "二要素認証コードのリクエスト中に不明なエラーが発生しました。後でもう一度お試しください。"
 
 #: apps/remix/app/components/forms/reset-password.tsx
 msgid "We encountered an unknown error while attempting to reset your password. Please try again later."
@@ -14747,18 +16013,6 @@ msgstr "受信者への通知は送信しません。"
 msgid "We'll get back to you as soon as possible via email."
 msgstr "できるだけ早くメールでご連絡いたします。"
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-msgid "We'll scan your document to find form fields like signature lines, text inputs, checkboxes, and more. Detected fields will be suggested for you to review."
-msgstr "署名欄、テキスト入力、チェックボックスなどのフォームフィールドを見つけるためにドキュメントをスキャンします。検出されたフィールドは、確認用として提案されます。"
-
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "We'll scan your document to find signature fields and identify who needs to sign. Detected recipients will be suggested for you to review."
-msgstr "署名フィールドを見つけて、誰が署名する必要があるかを特定するためにドキュメントをスキャンします。検出された受信者は、確認用として提案されます。"
-
-#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
-msgid "We'll send a 6-digit code to your email"
-msgstr "6桁のコードをメールアドレス宛てに送信します"
-
 #: apps/remix/app/components/tables/documents-table-empty-state.tsx
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/templates._index.tsx
 msgid "We're all empty"
@@ -14783,10 +16037,6 @@ msgstr "現在ご利用中のプランのフェアユース上限を超えるド
 #: packages/email/templates/organisation-limit-alert.tsx
 msgid "We've noticed email sending activity on your account that exceeds the fair use limits of your current plan. As a precaution, new email activity has been temporarily paused pending review."
 msgstr "現在ご利用中のプランのフェアユース上限を超えるメール送信アクティビティを検出しました。安全確保のため、審査が完了するまで新たなメールのアクティビティは一時的に停止されています。"
-
-#: apps/remix/app/components/general/document-signing/access-auth-2fa-form.tsx
-msgid "We've sent a 6-digit verification code to your email. Please enter it below to complete the document."
-msgstr "6桁の認証コードをメールで送信しました。文書を完了するには、以下にコードを入力してください。"
 
 #: apps/remix/app/components/general/verify-email-banner.tsx
 msgid "We've sent a confirmation email to <0>{email}</0>. Please check your inbox and click the link in the email to verify your account."
@@ -14884,6 +16134,14 @@ msgstr "Well-known URL は必須です"
 #: apps/remix/app/routes/_recipient+/sign.$token+/waiting.tsx
 msgid "Were you trying to edit this document instead?"
 msgstr "この文書を編集しようとしていましたか？"
+
+#: apps/remix/app/routes/_authenticated+/notas-fiscais.$envelopeId._index.tsx
+msgid "What was signed"
+msgstr ""
+
+#: apps/remix/app/components/revalle/invoice/signing-invoice-account.tsx
+msgid "What you are signing"
+msgstr ""
 
 #: apps/remix/app/routes/_authenticated+/o.$orgUrl._index.tsx
 msgid "What you can do with teams:"
@@ -15176,14 +16434,6 @@ msgstr "署名プロバイダーで認証しました"
 msgid "You authorised the remote signature"
 msgstr "リモート署名を承認しました"
 
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-msgid "You can add fields manually in the editor."
-msgstr "エディターでフィールドを手動で追加できます。"
-
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "You can add recipients manually in the editor."
-msgstr "エディターで受信者を手動で追加できます。"
-
 #: packages/email/template-components/template-confirmation-email.tsx
 msgid "You can also copy and paste this link into your browser: {confirmationLink} (link expires in 1 hour)"
 msgstr "次のリンクをブラウザにコピー＆ペーストして使用することもできます: {confirmationLink}（リンクの有効期限は 1 時間です）"
@@ -15212,10 +16462,6 @@ msgstr "このチームに対して、すべての組織メンバーへのデフ
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/settings.email.tsx
 msgid "You can manage your email preferences here."
 msgstr "ここでメール通知の設定を管理できます。"
-
-#: apps/remix/app/components/general/envelope-editor/envelope-editor-fields-page.tsx
-msgid "You can only detect fields in draft envelopes"
-msgstr "ドラフトの封筒でのみフィールドを検出できます"
 
 #: packages/email/templates/confirm-team-email.tsx
 msgid "You can revoke access at any time in your team settings on Documenso <0>here</0>."
@@ -15779,15 +17025,6 @@ msgstr "全員の署名が完了すると、署名済みドキュメントのコ
 msgid "You won't be able to sign in or send documents while it is disabled."
 msgstr ""
 
-#: apps/remix/app/components/dialogs/ai-features-enable-dialog.tsx
-msgid "You're an admin. You can enable AI features for this team right away. Everyone on the team will see AI detection once enabled."
-msgstr "あなたは管理者です。このチーム向けのAI機能をすぐに有効にできます。有効化されると、チームの全員にAI検出が表示されるようになります。"
-
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "You've made too many detection requests. Please wait a minute before trying again."
-msgstr "検出リクエストが多すぎます。1 分ほど待ってから、もう一度お試しください。"
-
 #: apps/remix/app/routes/_unauthenticated+/organisation.sso.confirmation.$token.tsx
 msgid "Your Account"
 msgstr "あなたのアカウント"
@@ -15806,6 +17043,10 @@ msgstr ""
 
 #: apps/remix/app/routes/_authenticated+/settings+/security._index.tsx
 msgid "Your account has no password. Add one to sign in with your email and to sign documents that require it. We'll email you a link."
+msgstr ""
+
+#: apps/remix/app/routes/_recipient+/sign.$token+/complete.tsx
+msgid "Your approval has been recorded"
 msgstr ""
 
 #: apps/remix/app/components/forms/avatar-image.tsx
@@ -15896,10 +17137,6 @@ msgstr "現在の {currentProductName} プランは支払いが滞っていま�
 msgid "Your current license does not include these features."
 msgstr "現在のライセンスにはこれらの機能が含まれていません。"
 
-#: apps/remix/app/routes/_authenticated+/o.$orgUrl.support.tsx
-msgid "Your current plan includes the following support channels:"
-msgstr "現在のプランには、次のサポートチャネルが含まれています:"
-
 #: apps/remix/app/routes/_authenticated+/o.$orgUrl.settings.billing.tsx
 msgid "Your current plan is inactive."
 msgstr "現在のプランは非アクティブです。"
@@ -15916,10 +17153,6 @@ msgstr "あなたのダイレクト署名テンプレート"
 #: packages/lib/jobs/definitions/emails/send-account-disabled-email.handler.ts
 msgid "Your Documenso account has been disabled"
 msgstr ""
-
-#: apps/remix/app/components/dialogs/ai-features-enable-dialog.tsx
-msgid "Your document content will be sent securely to our AI provider solely for detection and will not be stored or used for training."
-msgstr "ドキュメントの内容は、検出のためだけに安全な方法で当社のAIプロバイダーに送信され、保存されたり学習に利用されたりすることはありません。"
 
 #: apps/remix/app/components/embed/authoring/configure-document-upload.tsx
 #: apps/remix/app/components/general/document/document-upload-button-legacy.tsx
@@ -15972,11 +17205,6 @@ msgstr "文書を正常にアップロードしました。"
 #: apps/remix/app/components/general/document/document-upload-button-legacy.tsx
 msgid "Your document has been uploaded successfully. You will be redirected to the template page."
 msgstr "文書を正常にアップロードしました。テンプレートページにリダイレクトされます。"
-
-#: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
-#: apps/remix/app/components/dialogs/ai-recipient-detection-dialog.tsx
-msgid "Your document is processed securely using AI services that don't retain your data."
-msgstr "ドキュメントは、データを保持しない AI サービスを使用して安全に処理されます。"
 
 #: apps/remix/app/routes/_authenticated+/o.$orgUrl.settings.document.tsx
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/settings.document.tsx
@@ -16138,6 +17366,11 @@ msgstr "プロフィールを更新しました。"
 msgid "Your public profile has been updated."
 msgstr "公開プロフィールを更新しました。"
 
+#: apps/remix/app/components/revalle/invoice/list/invoice-queues.tsx
+#: apps/remix/app/components/revalle/invoice/list/invoice-queues.tsx
+msgid "Your queues"
+msgstr ""
+
 #: apps/remix/app/components/forms/2fa/recovery-code-list.tsx
 msgid "Your recovery code has been copied to your clipboard."
 msgstr "リカバリーコードをクリップボードにコピーしました。"
@@ -16155,6 +17388,10 @@ msgstr ""
 #: packages/lib/utils/document-audit-logs.ts
 msgid "Your remote signature was applied"
 msgstr "リモート署名が適用されました"
+
+#: apps/remix/app/routes/_recipient+/sign.$token+/complete.tsx
+msgid "Your signature has been recorded"
+msgstr ""
 
 #: apps/remix/app/components/general/document-signing/csc-recipient-signing-in-progress-page.tsx
 #: apps/remix/app/components/general/envelope-signing/envelope-signing-csc-status.tsx
