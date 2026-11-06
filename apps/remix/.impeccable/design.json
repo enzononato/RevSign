@@ -1,0 +1,318 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-06T19:21:45.703239+00:00",
+  "title": "Design System: RevSign",
+  "extensions": {
+    "colorMeta": {
+      "brand-royal": {
+        "role": "primary",
+        "displayName": "Azul Royal Revalle",
+        "canonical": "hsl(223 67% 35%)",
+        "tonalRamp": [
+          "#172036",
+          "#152D6A",
+          "#1D3F95",
+          "#2651C0",
+          "#557BDD",
+          "#95ADEA",
+          "#CCD8F5",
+          "#EDF0F7"
+        ]
+      },
+      "brand-deep": {
+        "role": "primary",
+        "displayName": "Azul Régua",
+        "canonical": "hsl(223 68% 26%)",
+        "tonalRamp": [
+          "#171F36",
+          "#142D6B",
+          "#1D3F96",
+          "#2551C1",
+          "#547BDE",
+          "#94ACEB",
+          "#CCD7F5",
+          "#EDF0F7"
+        ]
+      },
+      "brand-text-dark": {
+        "role": "primary",
+        "displayName": "Azul de Texto (escuro)",
+        "canonical": "hsl(221 100% 75%)",
+        "tonalRamp": [
+          "#0F1E3D",
+          "#002880",
+          "#0039B2",
+          "#0049E6",
+          "#3374FF",
+          "#80A8FF",
+          "#C2D5FF",
+          "#EBEFFA"
+        ]
+      },
+      "counter-amber": {
+        "role": "secondary",
+        "displayName": "Âmbar do Contador",
+        "canonical": "hsl(45 96% 48%)",
+        "tonalRamp": [
+          "#3C3110",
+          "#7D5E03",
+          "#AF8404",
+          "#E1AA05",
+          "#FBCA37",
+          "#FCDE82",
+          "#FEEFC3",
+          "#FAF6EB"
+        ]
+      },
+      "ground": {
+        "role": "neutral",
+        "displayName": "Papel Quente",
+        "canonical": "hsl(48 20% 95%)",
+        "tonalRamp": [
+          "#2B2922",
+          "#4C4733",
+          "#6B6447",
+          "#8A815C",
+          "#ADA585",
+          "#CCC7B3",
+          "#E7E4DA",
+          "#F4F3F1"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Tinta Marinho",
+        "canonical": "hsl(224 39% 13%)",
+        "tonalRamp": [
+          "#1D222F",
+          "#273459",
+          "#36497C",
+          "#465EA0",
+          "#7186C1",
+          "#A6B4D8",
+          "#D4DBEC",
+          "#EFF1F5"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Fio",
+        "canonical": "hsl(42 17% 88%)",
+        "tonalRamp": [
+          "#2A2822",
+          "#4B4435",
+          "#685F4A",
+          "#867B5F",
+          "#AAA088",
+          "#CAC4B4",
+          "#E6E2DB",
+          "#F4F3F1"
+        ]
+      },
+      "ground-dark": {
+        "role": "neutral",
+        "displayName": "Marinho Fundo",
+        "canonical": "hsl(224 44% 10%)",
+        "tonalRamp": [
+          "#1C2230",
+          "#24335C",
+          "#324781",
+          "#405BA5",
+          "#6C84C6",
+          "#A3B2DB",
+          "#D3DAEE",
+          "#EFF1F6"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "h1/h2 de página e wordmark, Nunito Sans 900."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Título de cartão e diálogo."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Título da linha de documento/NF."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Texto corrido, tabular."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Metadados, rótulos de filtro, etiquetas."
+      }
+    },
+    "shadows": [
+      {
+        "name": "card",
+        "value": "0 1px 2px rgba(20,27,46,.05), 0 0 0 1px rgba(20,27,46,.04)",
+        "purpose": "Contorno de cartão; no escuro 0 0 0 1px hsl(var(--border))."
+      },
+      {
+        "name": "ridge",
+        "value": "0 2px 0 hsl(var(--brand-deep))",
+        "purpose": "Régua sob botão primário."
+      },
+      {
+        "name": "slot-ridge",
+        "value": "inset 0 -3px 0 hsl(var(--brand-deep))",
+        "purpose": "Régua do encaixe cheio."
+      }
+    ],
+    "motion": [
+      {
+        "name": "slot-fill",
+        "value": "420ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Encaixe que acabou de encher: escala 0,8 e tinta sobe; desligado com prefers-reduced-motion."
+      },
+      {
+        "name": "nav-hover",
+        "value": "150ms color/background",
+        "purpose": "Itens do menu."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "md",
+        "value": "768px (barra lateral aparece)"
+      },
+      {
+        "name": "row-card-xl",
+        "value": "576px (contêiner)"
+      },
+      {
+        "name": "row-card-4xl",
+        "value": "896px (contêiner)"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botão primário",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Única ação da visão: pílula azul com régua escura.",
+      "html": "<button class=\"ds-btn\">Enviar nota fiscal</button>",
+      "css": ".ds-btn{font-family:'Figtree',sans-serif;height:44px;padding:8px 20px;border:0;border-radius:999px;background:#1D3F94;color:#fff;font-weight:700;font-size:14.5px;box-shadow:0 2px 0 #152F6F;cursor:pointer}.ds-btn:hover{background:rgba(29,63,148,.9)}.ds-btn:active{transform:translateY(1px);box-shadow:none}.ds-btn:focus-visible{outline:2px solid #1D3F94;outline-offset:2px}"
+    },
+    {
+      "name": "Botão outline",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Ação secundária, como Exportar planilha.",
+      "html": "<button class=\"ds-btn-out\">Exportar planilha</button>",
+      "css": ".ds-btn-out{font-family:'Figtree',sans-serif;height:44px;padding:8px 20px;border:1.5px solid #E6E2DB;border-radius:999px;background:#fff;color:#141B2E;font-weight:700;font-size:14.5px;cursor:pointer}.ds-btn-out:hover{background:#EBF0FA;color:#1D3F94}.ds-btn-out:focus-visible{outline:2px solid #1D3F94;outline-offset:2px}"
+    },
+    {
+      "name": "Campo",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo de 44px, raio 13px, foco azul.",
+      "html": "<input class=\"ds-input\" placeholder=\"Buscar nota\">",
+      "css": ".ds-input{font-family:'Figtree',sans-serif;height:44px;width:240px;padding:8px 14px;border:1.5px solid #E6E2DB;border-radius:13px;background:#fff;color:#141B2E;font-size:14px}.ds-input:focus-visible{outline:2px solid #1D3F94;outline-offset:2px;border-color:#1D3F94}"
+    },
+    {
+      "name": "Caixa de filtro",
+      "kind": "chip",
+      "refersTo": "filter-box",
+      "description": "Rótulo + valor; azul quando restringe a lista.",
+      "html": "<span class=\"ds-fb\">Conta <b>Todas</b></span> <span class=\"ds-fb ds-on\">Centro <b>301 Administrativo</b></span>",
+      "css": ".ds-fb{font-family:'Figtree',sans-serif;display:inline-flex;gap:6px;align-items:center;height:44px;padding:0 12px 0 14px;border-radius:13px;background:#fff;color:#555C6D;font-weight:600;font-size:14px;box-shadow:inset 0 0 0 1.5px #E6E2DB}.ds-fb b{color:#141B2E;font-weight:700}.ds-on{background:#EBF0FA;box-shadow:inset 0 0 0 2px #1D3F94}.ds-on b{color:#1D3F94}"
+    },
+    {
+      "name": "Encaixes de assinatura",
+      "kind": "custom",
+      "refersTo": "slot-signed",
+      "description": "Cheio assinou, vazado falta, riscado recusou.",
+      "html": "<span class=\"ds-slots\"><i class=\"ds-s ds-ok\">MS</i><i class=\"ds-s ds-pend\">JR</i><i class=\"ds-s ds-you\">Você</i><i class=\"ds-s ds-rej\">AC</i></span>",
+      "css": ".ds-slots{display:inline-flex;gap:5px}.ds-s{position:relative;display:inline-grid;place-items:center;height:30px;min-width:30px;padding:0 6px;border-radius:10px;font:900 11px 'Nunito Sans',sans-serif;font-style:normal}.ds-ok{background:#1D3F94;color:#fff;box-shadow:inset 0 -3px 0 #152F6F}.ds-pend{background:#fff;color:#555C6D;box-shadow:inset 0 0 0 2px #E6E2DB}.ds-you{background:#EBF0FA;color:#1D3F94;box-shadow:inset 0 0 0 2px #1D3F94;padding:0 10px}.ds-rej{background:#FDEAE8;color:#B42318;box-shadow:inset 0 0 0 2px #B42318;overflow:hidden}.ds-rej::after{content:'';position:absolute;left:4px;right:4px;top:50%;height:2px;background:#B42318;transform:rotate(-45deg)}"
+    },
+    {
+      "name": "Cartão de linha de NF",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Título, etiquetas, valor, encaixes e uma pílula de ação.",
+      "html": "<div class=\"ds-row\"><div><div class=\"ds-t\">NF 4821 · Distribuidora Sul</div><div class=\"ds-m\">Marcos S. · 05/11</div><span class=\"ds-tag\"><em>3.1.02</em> Fretes</span> <span class=\"ds-tag\"><em>301</em> Administrativo</span></div><button class=\"ds-a\">Assinar</button></div>",
+      "css": ".ds-row{font-family:'Figtree',sans-serif;display:flex;justify-content:space-between;align-items:center;gap:18px;width:480px;padding:16px 18px 16px 22px;border-radius:20px;background:#fff;color:#141B2E;box-shadow:0 1px 2px rgba(20,27,46,.05),0 0 0 1px rgba(20,27,46,.04)}.ds-t{font-weight:700;font-size:16px}.ds-m{margin:4px 0 6px;font-size:13px;color:#555C6D}.ds-tag{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;background:#EDECE8;font-weight:600;font-size:13px}.ds-tag em{font:800 12.5px 'Nunito Sans',sans-serif;font-style:normal;color:#1D3F94}.ds-a{height:44px;width:150px;border:0;border-radius:999px;background:#1D3F94;color:#fff;font:700 13.5px 'Figtree',sans-serif;box-shadow:0 2px 0 #152F6F}"
+    },
+    {
+      "name": "Item de menu ativo",
+      "kind": "nav",
+      "refersTo": "nav-item-active",
+      "description": "Casca azul com grade; ativo em branco; contador âmbar.",
+      "html": "<div class=\"ds-nav\"><a class=\"ds-ni ds-act\">Notas fiscais <span class=\"ds-cnt\">7</span></a><a class=\"ds-ni\">Caixa de entrada</a></div>",
+      "css": ".ds-nav{width:212px;padding:18px;border-radius:20px;background-color:#1D3F94;background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.045) 0 1px,transparent 1px 24px),repeating-linear-gradient(0deg,rgba(255,255,255,.045) 0 1px,transparent 1px 24px);font-family:'Figtree',sans-serif}.ds-ni{display:flex;justify-content:space-between;align-items:center;min-height:44px;padding:0 12px;border-radius:14px;color:#D4DEF5;font-weight:600;font-size:15px}.ds-ni:hover{background:rgba(255,255,255,.1);color:#fff}.ds-act{background:#fff;color:#1D3F94}.ds-cnt{display:inline-flex;align-items:center;justify-content:center;height:24px;min-width:24px;padding:0 7px;border-radius:999px;background:#F0B505;color:#291D00;font:800 12.5px 'Nunito Sans',sans-serif}"
+    },
+    {
+      "name": "Wordmark RevSign",
+      "kind": "custom",
+      "refersTo": "display",
+      "description": "Rev em branco, Sign em azul claro sobre a casca.",
+      "html": "<span class=\"ds-wm\">Rev<span>Sign</span></span>",
+      "css": ".ds-wm{display:inline-block;padding:16px 20px;border-radius:20px;background:#1D3F94;color:#fff;font:900 34px/1 'Nunito Sans',sans-serif;letter-spacing:-.035em}.ds-wm span{color:#9EC0FF}"
+    }
+  ],
+  "narrative": {
+    "northStar": "O Engradado",
+    "overview": "Cada documento é um engradado retornável: tem encaixes, e cada encaixe se enche quando alguém assina. Casca azul royal moldada, conteúdo em papel quente e cartões brancos macios; o azul só aparece onde existe algo a fazer.",
+    "keyCharacteristics": [
+      "Casca azul royal com grade de 24px",
+      "Chão quente, cartões raio 20, pílulas 999",
+      "Nunito Sans 900 nos títulos, Figtree na interface",
+      "Estado pela forma, não só pela cor",
+      "Profundidade por contorno e régua"
+    ],
+    "rules": [
+      {
+        "name": "The Action-Only Blue Rule",
+        "body": "Azul sólido significa que há algo a fazer agora.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Amber Rule",
+        "body": "O âmbar existe só para o contador de pendências.",
+        "section": "colors"
+      },
+      {
+        "name": "The Pair Rule",
+        "body": "Todo status é fundo lavado + texto escuro da mesma família.",
+        "section": "colors"
+      },
+      {
+        "name": "The Heavy Headline Rule",
+        "body": "Só h1, h2, números de destaque e iniciais de encaixe usam Nunito Sans pesada.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Rule",
+        "body": "Valores, contadores e datas usam algarismos tabulares.",
+        "section": "typography"
+      },
+      {
+        "name": "The Ridge Rule",
+        "body": "Cheio e clicável tem régua escura por baixo; vazado tem contorno interno.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do usar azul só para ação, filtro restringente, encaixe cheio, item ativo e foco.",
+      "Do mostrar andamento com encaixes e manter o estado legível sem cor.",
+      "Do usar os tokens em vez de hex e testar nos dois temas.",
+      "Do manter uma ação por linha e um botão primário por visão.",
+      "Do respeitar prefers-reduced-motion."
+    ],
+    "donts": [
+      "Don't usar azul em texto corrido ou situação passiva.",
+      "Don't voltar à tabela cinza com selos coloridos.",
+      "Don't usar o âmbar fora do contador.",
+      "Don't usar --primary como cor de texto no escuro.",
+      "Don't usar sombra difusa ou dura deslocada.",
+      "Don't esconder o link Código-fonte (AGPL-3.0)."
+    ]
+  }
+}
