@@ -12,17 +12,18 @@ export type SettingsHeaderProps = {
 export const SettingsHeader = ({ children, title, subtitle, className, hideDivider }: SettingsHeaderProps) => {
   return (
     <>
-      <div className={cn('mb-4 flex flex-row items-center justify-between', className)}>
-        <div>
-          <h2 className="font-bold text-xl">{title}</h2>
+      {/* REVALLE: v3-7a page header: display title, one muted line, pill actions on the right; the divider is a hairline rule */}
+      <div className={cn('mb-5 flex flex-row flex-wrap items-center justify-between gap-3', className)}>
+        <div className="min-w-0">
+          <h2 className="font-black font-display text-[26px] leading-tight tracking-[-0.03em]">{title}</h2>
 
-          <p className="text-muted-foreground text-sm md:mt-2">{subtitle}</p>
+          <p className="mt-1 text-muted-foreground text-sm">{subtitle}</p>
         </div>
 
         {children}
       </div>
 
-      {!hideDivider && <hr className="mb-4" />}
+      {!hideDivider && <hr className="mb-6 border-border" />}
     </>
   );
 };

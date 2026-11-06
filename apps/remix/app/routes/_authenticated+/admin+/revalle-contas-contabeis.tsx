@@ -6,7 +6,6 @@ import { Label } from '@documenso/ui/primitives/label';
 import { Textarea } from '@documenso/ui/primitives/textarea';
 import { useToast } from '@documenso/ui/primitives/use-toast';
 import { Trans, useLingui } from '@lingui/react/macro';
-import { CalculatorIcon } from 'lucide-react';
 import { DateTime } from 'luxon';
 import { type ChangeEvent, useEffect, useState } from 'react';
 
@@ -42,7 +41,7 @@ const AiStatusSection = () => {
   const model = data.model;
 
   return (
-    <div className="mt-6 rounded-md border p-4 text-sm">
+    <div className="mt-6 rounded-lg border bg-muted/40 p-4 text-sm">
       {data.aiStatus === 'CONFIGURED' && (
         <p>
           <Trans>Sugestão por IA: Gemini configurado (modelo {model}).</Trans>
@@ -139,8 +138,8 @@ const ImportSection = ({ onApplied }: { onApplied: () => void }) => {
   const validCount = preview?.accounts.length ?? 0;
 
   return (
-    <section className="mt-8">
-      <h3 className="font-semibold text-xl">
+    <section className="mt-10 border-t pt-8">
+      <h3 className="font-display font-extrabold text-xl tracking-[-0.02em]">
         <Trans>Importar lista de contas</Trans>
       </h3>
       <p className="mt-1 text-muted-foreground text-sm">
@@ -197,7 +196,7 @@ const ImportSection = ({ onApplied }: { onApplied: () => void }) => {
       </div>
 
       {preview && (
-        <div className="mt-4 rounded-md border p-4 text-sm">
+        <div className="mt-4 rounded-lg border bg-muted/40 p-4 text-sm">
           {fileName && (
             <p className="text-muted-foreground">
               <Trans>Arquivo: {fileName}</Trans>
@@ -283,8 +282,8 @@ const AccountsSection = ({ refreshKey }: { refreshKey: number }) => {
   const total = data?.total ?? 0;
 
   return (
-    <section className="mt-12">
-      <h3 className="font-semibold text-xl">
+    <section className="mt-10 border-t pt-8">
+      <h3 className="font-display font-extrabold text-xl tracking-[-0.02em]">
         <Trans>Contas</Trans>
       </h3>
 
@@ -308,24 +307,24 @@ const AccountsSection = ({ refreshKey }: { refreshKey: number }) => {
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-md border">
+      <div className="mt-4 overflow-x-auto rounded-lg border">
         <table className="w-full text-left text-sm">
-          <thead className="bg-muted/50 text-muted-foreground">
+          <thead className="bg-muted/60 font-semibold text-muted-foreground text-xs uppercase tracking-[0.04em]">
             <tr>
-              <th className="p-3">
+              <th className="p-3 font-semibold">
                 <Trans>Número</Trans>
               </th>
-              <th className="p-3">
+              <th className="p-3 font-semibold">
                 <Trans>Nome</Trans>
               </th>
-              <th className="p-3">
+              <th className="p-3 font-semibold">
                 <Trans>Descrição</Trans>
               </th>
-              <th className="p-3">
+              <th className="p-3 font-semibold">
                 <Trans>Tipo</Trans>
               </th>
               {includeInactive && (
-                <th className="p-3">
+                <th className="p-3 font-semibold">
                   <Trans>Situação</Trans>
                 </th>
               )}
@@ -392,8 +391,8 @@ const SettingsSection = () => {
   const updatedAt = data?.updatedAt ? formatDate(data.updatedAt) : null;
 
   return (
-    <section className="mt-12">
-      <h3 className="font-semibold text-xl">
+    <section className="mt-10 border-t pt-8">
+      <h3 className="font-display font-extrabold text-xl tracking-[-0.02em]">
         <Trans>Sugestão da IA</Trans>
       </h3>
 
@@ -438,12 +437,9 @@ export default function AdminRevalleContasContabeisPage() {
 
   return (
     <div>
-      <div className="flex items-center gap-3">
-        <CalculatorIcon className="h-8 w-8" />
-        <h2 className="font-semibold text-4xl">
-          <Trans>Contas contábeis</Trans>
-        </h2>
-      </div>
+      <h2 className="font-black font-display text-[26px] leading-tight tracking-[-0.03em]">
+        <Trans>Contas contábeis</Trans>
+      </h2>
 
       <AiStatusSection />
       <ImportSection onApplied={() => setRefreshKey((key) => key + 1)} />

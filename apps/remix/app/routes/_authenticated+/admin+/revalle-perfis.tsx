@@ -4,7 +4,6 @@ import { Input } from '@documenso/ui/primitives/input';
 import { Switch } from '@documenso/ui/primitives/switch';
 import { useToast } from '@documenso/ui/primitives/use-toast';
 import { Trans, useLingui } from '@lingui/react/macro';
-import { UserCogIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 // Igual a PROFILE_USERS_LIMIT (servidor): a lista vem cortada nesse número.
@@ -63,12 +62,9 @@ export default function AdminRevallePerfisPage() {
 
   return (
     <div>
-      <div className="flex items-center gap-3">
-        <UserCogIcon className="h-8 w-8" />
-        <h2 className="font-semibold text-4xl">
-          <Trans>Perfis</Trans>
-        </h2>
-      </div>
+      <h2 className="font-black font-display text-[26px] leading-tight tracking-[-0.03em]">
+        <Trans>Perfis</Trans>
+      </h2>
 
       <p className="mt-4 max-w-2xl text-muted-foreground text-sm">
         <Trans>
@@ -81,7 +77,7 @@ export default function AdminRevallePerfisPage() {
       {hasNoFinanceMembers && approvalCount > 0 && (
         <div
           role="alert"
-          className="mt-4 flex max-w-2xl flex-col gap-1 rounded-md border border-amber-500/50 bg-amber-50 p-3 text-amber-800 text-sm dark:bg-amber-950/30 dark:text-amber-300"
+          className="mt-4 flex max-w-2xl flex-col gap-1 rounded-lg border border-warning/40 bg-warning-bg p-4 text-sm text-warning-text"
           data-testid="finance-admin-alert"
         >
           <p>
@@ -97,7 +93,7 @@ export default function AdminRevallePerfisPage() {
       {hasNoAccountingMembers && accountingPendingCount > 0 && (
         <div
           role="alert"
-          className="mt-4 flex max-w-2xl flex-col gap-1 rounded-md border border-amber-500/50 bg-amber-50 p-3 text-amber-800 text-sm dark:bg-amber-950/30 dark:text-amber-300"
+          className="mt-4 flex max-w-2xl flex-col gap-1 rounded-lg border border-warning/40 bg-warning-bg p-4 text-sm text-warning-text"
           data-testid="accounting-admin-alert"
         >
           <p>
@@ -118,27 +114,27 @@ export default function AdminRevallePerfisPage() {
         onChange={(event) => setSearchInput(event.target.value)}
       />
 
-      <div className="mt-4 overflow-x-auto rounded-md border">
+      <div className="mt-4 overflow-x-auto rounded-lg border">
         <table className="w-full text-left text-sm">
-          <thead className="bg-muted/50 text-muted-foreground">
+          <thead className="bg-muted/60 font-semibold text-muted-foreground text-xs uppercase tracking-[0.04em]">
             <tr>
-              <th className="p-3">
+              <th className="p-3 font-semibold">
                 <Trans>Nome</Trans>
               </th>
-              <th className="p-3">
+              <th className="p-3 font-semibold">
                 <Trans>E-mail</Trans>
               </th>
-              <th className="p-3">
+              <th className="p-3 font-semibold">
                 <Trans>Financeiro</Trans>
               </th>
-              <th className="p-3">
+              <th className="p-3 font-semibold">
                 <Trans>Contabilidade</Trans>
               </th>
             </tr>
           </thead>
           <tbody>
             {users.map((user) => (
-              <tr key={user.id} className="border-t">
+              <tr key={user.id} className="border-t hover:bg-accent/60">
                 <td className="p-3">{user.name?.trim() || '-'}</td>
                 <td className="p-3">{user.email}</td>
                 <td className="p-3">

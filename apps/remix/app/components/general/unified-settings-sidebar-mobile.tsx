@@ -86,17 +86,14 @@ export const UnifiedSettingsSidebarMobile = ({
   // sections under it get `px-4` to line up with the content pane's own `px-4`
   // inset, and `pb-4` keeps the last control off the aside's bottom border.
   return (
-    <div className="flex flex-col gap-3 pb-4" data-testid="unified-settings-sidebar-mobile">
+    <div
+      className="flex flex-col gap-3 rounded-card bg-card p-3 shadow-card" // REVALLE: v3-7a
+      data-testid="unified-settings-sidebar-mobile"
+    >
       {visibleScopes.length > 1 ? (
-        <div className="flex border-border border-b" role="tablist">
+        <div className="flex gap-1 rounded-full bg-muted p-1" role="tablist">
           {visibleScopes.map((scope) => {
             const isActive = scope === activeScope;
-            const accent =
-              scope === 'organisation'
-                ? 'border-emerald-500 text-emerald-700 dark:text-emerald-300'
-                : scope === 'team'
-                  ? 'border-blue-500 text-blue-700 dark:text-blue-300'
-                  : 'border-foreground text-foreground';
             return (
               <button
                 key={scope}
@@ -105,8 +102,8 @@ export const UnifiedSettingsSidebarMobile = ({
                 aria-selected={isActive}
                 onClick={() => handleScopeChange(scope)}
                 className={cn(
-                  'flex-1 border-b-2 py-2 text-center font-bold text-xs uppercase tracking-wide',
-                  isActive ? accent : 'border-transparent text-muted-foreground',
+                  'min-h-11 flex-1 rounded-full px-2 text-center font-semibold text-sm',
+                  isActive ? 'bg-card text-brand-text shadow-card' : 'text-muted-foreground',
                 )}
                 data-testid={`unified-settings-mobile-tab-${scope}`}
               >
@@ -118,7 +115,7 @@ export const UnifiedSettingsSidebarMobile = ({
           })}
         </div>
       ) : (
-        <div className="px-4 py-2 text-center font-bold text-muted-foreground text-xs uppercase tracking-wide">
+        <div className="px-1 py-1 font-bold text-muted-foreground text-xs uppercase tracking-[0.08em]">
           {activeScope === 'organisation' && <Trans>Organisation</Trans>}
           {activeScope === 'team' && <Trans>Team</Trans>}
           {activeScope === 'account' && <Trans>Account</Trans>}
@@ -129,7 +126,7 @@ export const UnifiedSettingsSidebarMobile = ({
           the only way for a user who can't manage the organisation to move between them,
           since the Organisation tab is absent when they have no organisation pages. */}
       {activeScope !== 'account' && currentOrgUrl && (
-        <div className="flex flex-col gap-2 px-4">
+        <div className="flex flex-col gap-2">
           <SettingsOrgSwitcher currentOrgUrl={currentOrgUrl} />
 
           {activeScope === 'team' && (
@@ -138,8 +135,8 @@ export const UnifiedSettingsSidebarMobile = ({
         </div>
       )}
 
-      <div className="px-4">
-        <div className="mb-1 font-bold text-[10px] text-muted-foreground uppercase tracking-wide">
+      <div>
+        <div className="mb-1 px-1 font-bold text-[11px] text-muted-foreground uppercase tracking-[0.08em]">
           <Trans>Jump to</Trans>
         </div>
         <Select

@@ -70,9 +70,9 @@ export const AdminDashboardUsersTable = ({ users, totalPages, perPage, page }: A
         accessorKey: 'edit',
         cell: ({ row }) => {
           return (
-            <Button className="w-24" asChild>
+            <Button variant="outline" size="sm" asChild>
               <Link to={`/admin/users/${row.original.id}`}>
-                <Edit className="mr-2 -ml-1 h-4 w-4" />
+                <Edit className="mr-1.5 h-4 w-4" /> {/* REVALLE: v3-7a */}
                 <Trans>Edit</Trans>
               </Link>
             </Button>
@@ -127,7 +127,7 @@ export const AdminDashboardUsersTable = ({ users, totalPages, perPage, page }: A
       </DataTable>
 
       {isPending && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/50">
+        <div className="absolute inset-0 flex items-center justify-center bg-card/50">
           <Loader className="h-8 w-8 animate-spin text-gray-500" />
         </div>
       )}
