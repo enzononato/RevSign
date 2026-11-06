@@ -27,12 +27,13 @@ export const RevsignWordmark = ({
   return (
     <span
       className={cn('inline-flex select-none', size === 'sm' ? 'items-baseline gap-2' : 'flex-col', className)}
+      role="img"
       aria-label="RevSign"
     >
       <span
         aria-hidden
         className={cn(
-          'font-display font-black leading-none tracking-[-0.035em]',
+          'font-black font-display leading-none tracking-[-0.035em]',
           SIZES[size],
           isOnBrand ? 'text-white' : 'text-foreground',
         )}

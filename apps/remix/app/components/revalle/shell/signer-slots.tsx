@@ -39,13 +39,14 @@ export const SignerSlots = ({ slots, max = 6, size = 'md', className }: SignerSl
       {visible.map((slot, index) => (
         <Tooltip key={`${slot.name}-${index}`}>
           <TooltipTrigger asChild>
-            <span
-              tabIndex={0}
+            <button
+              type="button"
               aria-label={`${slot.name}: ${slot.detail ?? STATE_LABEL[slot.state]}`}
               className={cn(
                 'relative inline-grid place-items-center rounded-[10px] font-black font-display leading-none',
                 size === 'sm' ? 'h-[26px] min-w-[26px] px-1 text-[10px]' : 'h-[30px] min-w-[30px] px-1.5 text-[11px]',
-                slot.state === 'signed' && 'bg-primary text-primary-foreground shadow-[inset_0_-3px_0_hsl(var(--brand-deep))]',
+                slot.state === 'signed' &&
+                  'bg-primary text-primary-foreground shadow-[inset_0_-3px_0_hsl(var(--brand-deep))]',
                 slot.state === 'pending' && 'bg-card text-muted-foreground shadow-[inset_0_0_0_2px_hsl(var(--input))]',
                 slot.state === 'you' && 'bg-accent px-2.5 text-brand-text shadow-[inset_0_0_0_2px_hsl(var(--primary))]',
                 slot.state === 'rejected' &&
@@ -53,7 +54,7 @@ export const SignerSlots = ({ slots, max = 6, size = 'md', className }: SignerSl
               )}
             >
               {slot.state === 'you' ? 'Você' : initials(slot.name)}
-            </span>
+            </button>
           </TooltipTrigger>
           <TooltipContent>
             <span className="font-semibold">{slot.name}</span> · {slot.detail ?? STATE_LABEL[slot.state]}
