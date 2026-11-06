@@ -162,6 +162,17 @@ Quem faz: quem administra o banco de RH (TI), com Enzo.
 9. Conecte-se como `revsign_leitura` e rode `SELECT count(*) FROM vw_colaboradores_assinatura;`. Deve listar pessoas.
 10. Ainda como `revsign_leitura`, tente ler a tabela real: deve dar `permission denied`.
 
+### Sem criar nada no banco (Revalle)
+
+A Parte 1 é opcional. Na Revalle, o RevSign lê direto a tabela `"colaboradores-revalle"` do banco `agente_revalle`, sem view e sem usuário novo:
+
+- `COLABORADORES_DATABASE_URL=postgres://<usuário>:<senha>@agente_revalle_postgres:5432/agente_revalle`
+- `COLABORADORES_TABLE=colaboradores-revalle`
+
+O RevSign descobre as colunas pelo nome (CPF, nome, data de nascimento, cargo, setor, unidade, matrícula, e-mail, telefone, situação), consultando só o catálogo do banco. CPF com máscara e data em texto (`dd/mm/aaaa` ou `aaaa-mm-dd`) são convertidos na própria consulta. A conexão abre em modo leitura: o banco recusa qualquer gravação vinda do RevSign, mesmo com um usuário que poderia gravar.
+
+Se faltar uma coluna obrigatória (CPF, nome ou data de nascimento), o log do app mostra `Base de colaboradores: coluna não encontrada para ...`, e a assinatura e o cadastro respondem que a base está indisponível. Corrija com `COLABORADORES_COLUMNS`, por exemplo `data_nascimento=dt_nasc`.
+
 ### Parte 2 — Configurar no EasyPanel
 
 1. Monte a URL de conexão: `postgres://revsign_leitura:<senha>@<host>:5432/<banco>`.

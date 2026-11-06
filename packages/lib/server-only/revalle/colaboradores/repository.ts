@@ -1,4 +1,11 @@
 import { Pool } from 'pg';
+import {
+  buildColaboradorSourceSql,
+  COLABORADOR_FIELDS,
+  missingRequiredFields,
+  parseColumnOverrides,
+  pickColaboradorColumns,
+} from '../../../revalle/colaboradores-source';
 import { normalizeCpf } from '../../../revalle/cpf';
 import { env } from '../../../utils/env';
 import { type Colaborador, mapColaboradorRow } from './map-row';
@@ -11,8 +18,10 @@ export type ColaboradoresRepository = {
   searchByName(query: string, limit?: number): Promise<Colaborador[]>;
 };
 
-const VIEW_COLUMNS = `cpf, nome, to_char(data_nascimento, 'YYYY-MM-DD') AS data_nascimento,
-  cargo, setor, unidade, matricula, email, telefone, situacao`;
+const COLUMNS = COLABORADOR_FIELDS.join(', ');
+
+// Padrão: a view do contrato (base de teste). Em produção, a tabela do RH direto, sem criar nada no banco dela.
+const DEFAULT_TABLE = 'vw_colaboradores_assinatura';
 
 const ACCENTS_FROM = 'áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ';
 const ACCENTS_TO = 'aaaaaeeeeiiiiooooouuuucnAAAAAEEEEIIIIOOOOOUUUUCN';
@@ -36,6 +45,9 @@ const createRepository = (connectionString: string): ColaboradoresRepository => 
     query_timeout: 5000,
     connectionTimeoutMillis: 5000,
     idleTimeoutMillis: 30000,
+    // A base é de outro sistema e o RevSign só consulta: a sessão recusa qualquer gravação, mesmo que o usuário da
+    // conexão tenha permissão de escrita.
+    options: '-c default_transaction_read_only=on',
   });
 
   pool.on('error', () => {
@@ -48,9 +60,48 @@ const createRepository = (connectionString: string): ColaboradoresRepository => 
     return result.rows;
   };
 
+  const schema = env('COLABORADORES_SCHEMA')?.trim() || 'public';
+  const table = env('COLABORADORES_TABLE')?.trim() || DEFAULT_TABLE;
+  let source: Promise<string> | null = null;
+
+  // Descobre as colunas uma vez (consulta só ao catálogo). Falhou: tenta de novo na próxima consulta.
+  const resolveSource = async () => {
+    const rows = await queryRows(
+      `SELECT column_name AS name, data_type AS type FROM information_schema.columns
+       WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position`,
+      [schema, table],
+    );
+
+    const mapping = pickColaboradorColumns(
+      rows.map((row) => ({ name: String(row.name), type: String(row.type) })),
+      parseColumnOverrides(env('COLABORADORES_COLUMNS')),
+    );
+    const missing = missingRequiredFields(mapping);
+
+    if (rows.length === 0 || missing.length > 0) {
+      // Só nomes de colunas e da tabela, nunca dados.
+      console.error(
+        `[revalle] Base de colaboradores: ${rows.length === 0 ? `tabela ${schema}.${table} não encontrada ou sem permissão` : `coluna não encontrada para ${missing.join(', ')}`}. Ajuste COLABORADORES_TABLE ou COLABORADORES_COLUMNS.`,
+      );
+
+      throw new Error('COLABORADORES_SOURCE_INVALID');
+    }
+
+    return buildColaboradorSourceSql(schema, table, mapping);
+  };
+
+  const getSource = async () => {
+    source ??= resolveSource().catch((error: unknown) => {
+      source = null;
+      throw error;
+    });
+
+    return await source;
+  };
+
   return {
     findByCpf: async (cpf) => {
-      const rows = await queryRows(`SELECT ${VIEW_COLUMNS} FROM vw_colaboradores_assinatura WHERE cpf = $1 LIMIT 1`, [
+      const rows = await queryRows(`SELECT ${COLUMNS} FROM ${await getSource()} AS c WHERE cpf = $1 LIMIT 1`, [
         normalizeCpf(cpf),
       ]);
 
@@ -59,7 +110,7 @@ const createRepository = (connectionString: string): ColaboradoresRepository => 
 
     findByEmail: async (email) => {
       const rows = await queryRows(
-        `SELECT ${VIEW_COLUMNS} FROM vw_colaboradores_assinatura WHERE lower(trim(email)) = $1 LIMIT 1`,
+        `SELECT ${COLUMNS} FROM ${await getSource()} AS c WHERE lower(trim(email)) = $1 LIMIT 1`,
         [email.trim().toLowerCase()],
       );
 
@@ -74,7 +125,7 @@ const createRepository = (connectionString: string): ColaboradoresRepository => 
       }
 
       const rows = await queryRows(
-        `SELECT ${VIEW_COLUMNS} FROM vw_colaboradores_assinatura
+        `SELECT ${COLUMNS} FROM ${await getSource()} AS c
          WHERE ${FOLD('nome')} LIKE $1 ESCAPE '\\'
          ORDER BY nome
          LIMIT $2`,
