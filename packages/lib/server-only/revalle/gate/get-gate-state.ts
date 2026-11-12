@@ -11,6 +11,7 @@ import { env } from '../../../utils/env';
 import { logger } from '../../../utils/logger';
 import type { Colaborador } from '../colaboradores/repository';
 import { getColaboradoresRepository } from '../colaboradores/repository';
+import { findPatrimonioSignerCpf } from '../patrimonio/gate';
 import { isSupersededPendingVersion } from './superseded-version';
 import { REVALLE_MAX_ATTEMPTS, type RevalleGateRecipient, type RevalleGateState } from './types';
 
@@ -184,12 +185,19 @@ export const getRevalleGateState = async (
   }
 
   const email = normalizeEmail(recipient.email);
-  const link = await prisma.revalleEmailLink.findUnique({ where: { email } });
 
-  if (link) {
-    await markLinked(recipient, link.cpf, requestMetadata);
+  // Termo do Patrimônio: CPF e data de nascimento sempre. O e-mail (que pode ser pessoal) nunca identifica sozinho:
+  // nem o vínculo salvo nem o e-mail da base valem aqui.
+  const isPatrimonioTermo = (await findPatrimonioSignerCpf(recipient.id)) !== null;
 
-    return { status: 'PASSED' };
+  if (!isPatrimonioTermo) {
+    const link = await prisma.revalleEmailLink.findUnique({ where: { email } });
+
+    if (link) {
+      await markLinked(recipient, link.cpf, requestMetadata);
+
+      return { status: 'PASSED' };
+    }
   }
 
   const repository = getColaboradoresRepository();
@@ -201,7 +209,7 @@ export const getRevalleGateState = async (
   }
 
   try {
-    const byEmail = await repository.findByEmail(email);
+    const byEmail = isPatrimonioTermo ? null : await repository.findByEmail(email);
 
     if (byEmail) {
       await markLinked(recipient, byEmail.cpf, requestMetadata);

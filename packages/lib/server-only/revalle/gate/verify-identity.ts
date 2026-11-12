@@ -7,6 +7,7 @@ import type { RequestMetadata } from '../../../universal/extract-request-metadat
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import type { Colaborador } from '../colaboradores/repository';
 import { getColaboradoresRepository } from '../colaboradores/repository';
+import { findPatrimonioSignerCpf } from '../patrimonio/gate';
 import { getRevalleGateState, logRevalleBaseUnavailable, previewOf } from './get-gate-state';
 import { lockRevalleGate } from './lock-gate';
 import { REVALLE_MAX_ATTEMPTS, type RevalleGateState } from './types';
@@ -15,10 +16,15 @@ const maskForAudit = (input: string) => (normalizeCpf(input).length === 11 ? mas
 
 type LookupResult = { kind: 'FOUND'; colaborador: Colaborador } | { kind: 'NOT_FOUND' } | { kind: 'UNAVAILABLE' };
 
-const lookup = async (cpf: string, birthDate: string): Promise<LookupResult> => {
+// `expectedCpf` (termo do Patrimônio): só o CPF que o Patrimônio informou passa; outro CPF é um erro como os demais.
+const lookup = async (cpf: string, birthDate: string, expectedCpf: string | null): Promise<LookupResult> => {
   const isoDate = parseBirthDateInput(birthDate);
 
   if (!isValidCpf(cpf) || !isoDate) {
+    return { kind: 'NOT_FOUND' };
+  }
+
+  if (expectedCpf !== null && normalizeCpf(cpf) !== expectedCpf) {
     return { kind: 'NOT_FOUND' };
   }
 
@@ -93,7 +99,8 @@ export const verifyRevalleIdentity = async ({
       : { status: 'IDENTITY_REQUIRED', attemptsLeft: Math.max(0, REVALLE_MAX_ATTEMPTS - gate.failedAttempts) };
   }
 
-  const result = await lookup(cpf, birthDate);
+  const patrimonioCpf = await findPatrimonioSignerCpf(recipientId);
+  const result = await lookup(cpf, birthDate, patrimonioCpf);
 
   if (result.kind === 'UNAVAILABLE') {
     await giveBackAttempt(recipientId);
@@ -107,12 +114,18 @@ export const verifyRevalleIdentity = async ({
     const { colaborador } = result;
     const email = normalizeEmail(recipient.email);
 
-    const linkedElsewhere = await prisma.revalleEmailLink.findFirst({
-      where: { cpf: colaborador.cpf, email: { not: email } },
-      select: { id: true },
-    });
+    // Termo do Patrimônio: o Patrimônio responde pela ligação e-mail ↔ colaborador; sem as checagens de conflito.
+    const linkedElsewhere =
+      patrimonioCpf === null
+        ? await prisma.revalleEmailLink.findFirst({
+            where: { cpf: colaborador.cpf, email: { not: email } },
+            select: { id: true },
+          })
+        : null;
+    const baseEmailDiffers =
+      patrimonioCpf === null && colaborador.email !== null && normalizeEmail(colaborador.email) !== email;
 
-    if (linkedElsewhere || (colaborador.email && normalizeEmail(colaborador.email) !== email)) {
+    if (linkedElsewhere || baseEmailDiffers) {
       await lockRevalleGate({
         recipientId,
         reason: 'CPF_CONFLICT',

@@ -7,6 +7,7 @@ import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { RequestMetadata } from '../../../universal/extract-request-metadata';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { getColaboradoresRepository } from '../colaboradores/repository';
+import { findPatrimonioSignerCpf } from '../patrimonio/gate';
 import { ensureRevalleGate, getRevalleGateState, logRevalleBaseUnavailable } from './get-gate-state';
 import { lockRevalleGate } from './lock-gate';
 import type { RevalleGateState } from './types';
@@ -45,6 +46,44 @@ export const confirmRevalleIdentity = async ({
 
   const cpf = gate.pendingCpf;
   const email = normalizeEmail(recipient.email);
+
+  // Termo do Patrimônio: confirma sem criar o vínculo e-mail ↔ CPF (um e-mail pessoal nunca vira credencial para outros
+  // documentos) e sem comparar com o e-mail da base. O CPF fica na linha do portão, para a prova.
+  const patrimonioCpf = await findPatrimonioSignerCpf(recipientId);
+
+  if (patrimonioCpf !== null) {
+    if (cpf !== patrimonioCpf) {
+      await prisma.revalleRecipientGate.updateMany({
+        where: { recipientId, identityStatus: 'VERIFIED', lockedAt: null },
+        data: { identityStatus: 'PENDING', pendingCpf: null },
+      });
+
+      return await getRevalleGateState(recipient, requestMetadata);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const confirmed = await tx.revalleRecipientGate.updateMany({
+        where: { recipientId, identityStatus: 'VERIFIED', lockedAt: null, pendingCpf: cpf },
+        data: { identityStatus: 'CONFIRMED', cpf, pendingCpf: null, identityConfirmedAt: new Date() },
+      });
+
+      if (confirmed.count === 0) {
+        return;
+      }
+
+      await tx.documentAuditLog.create({
+        data: createDocumentAuditLogData({
+          type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_IDENTITY_CONFIRMED,
+          envelopeId: recipient.envelopeId,
+          data: { cpfMasked: maskCpf(cpf) },
+          user: { name: recipient.name, email: recipient.email },
+          requestMetadata,
+        }),
+      });
+    });
+
+    return await getRevalleGateState(recipient, requestMetadata);
+  }
 
   const repository = getColaboradoresRepository();
 

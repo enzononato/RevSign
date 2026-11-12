@@ -6,11 +6,12 @@ import { formatDomainList, isTemplateDraftEmailExempt } from '../../revalle/reci
 /**
  * Regra de domínio dos destinatários. Estrita por padrão (documento, envio, conclusão): nenhum e-mail fora dos domínios passa.
  * `allowTemplatePlaceholders` só nos rascunhos de MODELO (placeholder `recipient.N@documenso.com` e link direto).
+ * `allowExternalDomains` só nos termos criados pela integração com o Patrimônio (a única porta que o liga).
  * E-mail vazio é ignorado, a não ser com `rejectEmpty` (o envio recusa).
  */
 export const assertRecipientEmailsAllowed = (
   emails: Array<string | null | undefined>,
-  options: { rejectEmpty?: boolean; allowTemplatePlaceholders?: boolean } = {},
+  options: { rejectEmpty?: boolean; allowTemplatePlaceholders?: boolean; allowExternalDomains?: boolean } = {},
 ): void => {
   const allowedDomains = getAllowedSignupDomains();
 
@@ -26,6 +27,10 @@ export const assertRecipientEmailsAllowed = (
     }
 
     if (options.allowTemplatePlaceholders && isTemplateDraftEmailExempt(email)) {
+      continue;
+    }
+
+    if (options.allowExternalDomains) {
       continue;
     }
 
