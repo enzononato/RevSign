@@ -138,17 +138,20 @@ node --test --test-concurrency=1 scripts/revalle/tests/invoice-classify.test.mjs
 ## Integração com o Patrimônio
 
 `patrimonio.test.mjs` só roda com a stack subida com `compose.test.yml`, que liga a integração com valores de teste (chave,
-conta remetente `admin@hml.local`, webhook em `http://host.docker.internal:8799/hook`, liberado em
-`NEXT_PRIVATE_WEBHOOK_SSRF_BYPASS_HOSTS`). O teste sobe o receptor dos avisos na porta **8799** da máquina (precisa estar
-livre) e confere o HMAC de cada aviso. Usa `REVSIGN_API_TOKEN` e `REVSIGN_USER_*` (recusa do e-mail externo pela API
-comum e pela tela) e o João e a Maria fictícios do `dev-seed.sql` (o vínculo do CPF deles é solto antes e depois).
+conta remetente `admin@hml.local`, webhook em `http://patrimonio-hook:8799/hook`, um nome de uma parte só que aponta
+para a máquina, sem `NEXT_PRIVATE_WEBHOOK_SSRF_BYPASS_HOSTS`). O teste sobe o receptor dos avisos na porta **8799** da
+máquina (precisa estar livre) e confere o HMAC de cada aviso. Usa `REVSIGN_API_TOKEN` e `REVSIGN_USER_*` (recusa do
+e-mail externo pela API comum e pela tela, termo travado), `REVSIGN_ADMIN_*` (exclusão pelo admin recusada),
+`REVSIGN_SENDER_API_TOKEN` (token de conta ADMIN: o Zapier aceita) e o João e a Maria fictícios do `dev-seed.sql` (o
+vínculo do CPF deles é solto antes e depois). Alguns estados são postos no banco por instantes e desfeitos (vencido,
+assinado sem selar, exclusão branda).
 O caso do reenvio de aviso espera a 2ª tentativa (30 s). **O último caso recria o app** sem a chave
 (`PATRIMONIO_TEST_API_KEY=` vazio) para conferir o 404 e o recria de novo com a imagem que estava rodando; o env file
 padrão é `../local-hml/hml.env` (outro: `REVSIGN_HML_ENV_FILE`).
 
 ```sh
-REVSIGN_API_TOKEN=... REVSIGN_USER_EMAIL=... REVSIGN_USER_PASSWORD=... \
-  node --test --test-concurrency=1 scripts/revalle/tests/patrimonio.test.mjs
+REVSIGN_API_TOKEN=... REVSIGN_USER_EMAIL=... REVSIGN_USER_PASSWORD=... REVSIGN_ADMIN_EMAIL=... \
+  REVSIGN_ADMIN_PASSWORD=... REVSIGN_SENDER_API_TOKEN=... node --test --test-concurrency=1 scripts/revalle/tests/patrimonio.test.mjs
 ```
 
 ## Tradução (overlay pt-BR)

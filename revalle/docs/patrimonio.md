@@ -13,7 +13,9 @@ PDF (carimbo, certificado, `/verificar`) e avisa o Patrimônio a cada mudança d
 Todo pedido leva `Authorization: Bearer <chave>`. A chave é única (a mesma `NEXT_PRIVATE_REVALLE_PATRIMONIO_API_KEY` do
 RevSign, 32+ caracteres, gerada com `openssl rand -hex 32`) e fica só no servidor do Patrimônio, nunca no navegador.
 Chave ausente ou errada: `401 UNAUTHORIZED`. Integração desligada no RevSign: `404 NOT_CONFIGURED` em todas as rotas.
-Limite: 120 pedidos por minuto por IP (`429 RATE_LIMITED`, com `Retry-After`).
+A chave é conferida antes de tudo. Limites (`429 RATE_LIMITED`, com `Retry-After`): 120 pedidos por minuto com a chave
+certa (um balde só, o da chave: tráfego de terceiros nunca o consome) e 20 pedidos sem chave válida a cada 15 minutos
+por IP.
 
 ## 2. Criar e enviar um termo
 
@@ -71,7 +73,10 @@ Dicas para o modelo:
   cor (pode ser branca, para não aparecer na impressão do modelo).
 - Deixe livre um espaço de uns 6,5 cm à direita e 2 cm abaixo do início do marcador: o campo cobre essa área.
 - O marcador tem de ficar inteiro numa linha e ser texto de verdade (não imagem, não WordArt, não caixa de texto girada).
-- Página em retrato ou paisagem pelo tamanho do papel, sem girar a página.
+- Página em retrato ou paisagem pelo tamanho do papel, **sem girar a página**: a página que tem o marcador não pode ter
+  rotação (`/Rotate`), nem MediaBox fora de (0, 0), nem CropBox menor que a página. Senão o pedido é recusado com
+  `422 INVALID_FILE` ("A página N, que tem o marcador {{assinatura}}, está girada…"). O LibreOffice nunca gera essas
+  páginas; acontece com PDF montado ou editado em outro programa.
 - Confira o PDF convertido: `pdftotext termo.pdf - | grep -i assinatura` tem de mostrar o marcador.
 
 ## 4. Estados
@@ -82,7 +87,15 @@ Dicas para o modelo:
 | `SIGNED` | assinado e selado: o PDF final está pronto |
 | `REJECTED` | o colaborador recusou (`signer.rejectionReason` traz o motivo) |
 | `EXPIRED` | o prazo do link venceu sem assinatura |
-| `CANCELLED` | cancelado pelo Patrimônio (ou pela tela do RevSign) |
+| `CANCELLED` | cancelado pelo Patrimônio (ou pelo botão Cancelar na tela do RevSign) |
+
+Termo concluído ou recusado nunca muda de estado depois.
+
+**No RevSign, o termo só muda pela integração.** Excluir (pela tela, em lote, pela API comum ou pelo admin), reenviar,
+mexer em destinatário, campo, arquivo ou dados, duplicar ou salvar como modelo um termo do Patrimônio é recusado com
+"Este termo é do Patrimônio: cancele pelo sistema do Patrimônio." (exclusão) ou "…: reenvie, altere ou cancele pelo
+sistema do Patrimônio." (o resto). Cancelar pela tela continua possível e gera o aviso `termo.cancelled`. Um termo
+vencido continua vencido.
 
 ## 5. Avisos (webhook)
 
@@ -161,8 +174,8 @@ Guarde o arquivo do seu lado.
 |---|---|---|
 | GET | `/termos/{termoId}` | estado do termo (formato da seção 2) |
 | GET | `/termos?externalId=PAT-2026-000123` | `{"data": [...]}`: termos com esse `externalId`, mais novo primeiro (até 50) |
-| POST | `/termos/{termoId}/cancelar` | corpo opcional `{"reason": "texto até 500 caracteres"}`; só `PENDING` (senão `409 NOT_PENDING`). O link para de funcionar, o colaborador recebe o aviso de cancelamento com o motivo e a trilha de auditoria fica |
-| POST | `/termos/{termoId}/reenviar` | manda de novo o e-mail com o link; só `PENDING`; no máximo 1 vez a cada 10 minutos por termo (`429 RESEND_TOO_SOON`, com `Retry-After`) |
+| POST | `/termos/{termoId}/cancelar` | corpo opcional `{"reason": "texto até 500 caracteres"}`; só `PENDING` com o colaborador ainda sem assinar (senão `409 NOT_PENDING`: depois da assinatura, enquanto o RevSign sela, o termo já não pode ser cancelado). O link para de funcionar, o colaborador recebe o aviso de cancelamento com o motivo e a trilha de auditoria fica |
+| POST | `/termos/{termoId}/reenviar` | manda de novo o e-mail com o link; só `PENDING` com o colaborador ainda sem assinar (senão `409 NOT_PENDING`); no máximo 1 vez a cada 10 minutos por termo (`429 RESEND_TOO_SOON`, com `Retry-After`) |
 
 ## 8. Erros
 
@@ -175,14 +188,14 @@ Formato: `{"error": {"code": "…", "message": "…"}}` (às vezes com um campo 
 | `NOT_FOUND` | 404 | termo não existe |
 | `INVALID_REQUEST` | 400 | campo faltando ou fora da regra, multipart malformado, corpo que não é JSON |
 | `METHOD_NOT_ALLOWED` | 405 | método errado para a rota |
-| `INVALID_FILE` | 422 | não é PDF, PDF corrompido ou com senha |
+| `INVALID_FILE` | 422 | não é PDF, PDF corrompido ou com senha, ou a página do marcador está girada (seção 3) |
 | `FILE_TOO_LARGE` | 413 | arquivo acima de 10 MB |
 | `MARKER_NOT_FOUND` | 422 | o PDF não tem `{{assinatura}}` |
 | `INVALID_CPF` | 422 | CPF inválido |
 | `COLABORADOR_NOT_FOUND` | 422 | CPF válido que não está na base do RH |
 | `HR_BASE_UNAVAILABLE` | 503 | base do RH fora do ar; tente de novo depois |
 | `DUPLICATE_EXTERNAL_ID` | 409 | já existe termo `PENDING` com esse `externalId` (vem o `termoId`) |
-| `NOT_PENDING` | 409 | cancelar ou reenviar termo que não está `PENDING` |
+| `NOT_PENDING` | 409 | cancelar ou reenviar termo que não está `PENDING`, ou já assinado e ainda sendo selado |
 | `NOT_SIGNED` | 409 | PDF de termo que não está `SIGNED` |
 | `RESEND_TOO_SOON` | 429 | reenvio a menos de 10 minutos do anterior |
 | `RATE_LIMITED` | 429 | limite de pedidos por IP |
@@ -214,17 +227,23 @@ documentos do RevSign. Ao concluir, o colaborador recebe o PDF assinado por e-ma
    | `NEXT_PRIVATE_REVALLE_PATRIMONIO_SENDER_EMAIL` | e-mail da conta do passo 1 |
    | `NEXT_PRIVATE_REVALLE_PATRIMONIO_WEBHOOK_URL` | endereço do webhook do Patrimônio (abaixo) |
    | `NEXT_PRIVATE_REVALLE_PATRIMONIO_WEBHOOK_SECRET` | `openssl rand -hex 32` (o mesmo vai para o Patrimônio) |
-   | `NEXT_PRIVATE_WEBHOOK_SSRF_BYPASS_HOSTS` | só com endereço interno: o nome do host interno do Patrimônio |
+
+   **Não** use `NEXT_PRIVATE_WEBHOOK_SSRF_BYPASS_HOSTS` para a integração: o aviso do Patrimônio vai sempre e só ao
+   endereço de `NEXT_PRIVATE_REVALLE_PATRIMONIO_WEBHOOK_URL`, mesmo interno, e essa variável global liberaria o host
+   também para os webhooks de time.
 
 3. **Endereço interno ou público.**
    - Interno (recomendado quando os dois estão no mesmo projeto do EasyPanel): não sai da VPS e não depende do DNS nem do
      certificado. O Patrimônio chama `http://<serviço-interno-do-revsign>:3000/api/revalle/patrimonio/v1` e o webhook
      aponta para `http://<serviço-interno-do-patrimonio>:<porta>/<caminho>` (o EasyPanel mostra o nome interno de cada
-     serviço, ex.: `revalle_patrimonio-api`). Como esse nome resolve para um IP privado, o RevSign só o chama se ele
-     estiver em `NEXT_PRIVATE_WEBHOOK_SSRF_BYPASS_HOSTS` (o nome exato, sem porta nem `http://`; vários separados por
-     vírgula). Atenção: a liberação vale também para os webhooks de time do RevSign; libere só esse host.
-   - Público: `https://…` dos dois lados. Não precisa da liberação de SSRF, mas o tráfego passa pelo proxy e depende do
-     DNS e do certificado.
+     serviço, ex.: `revalle_patrimonio-api`).
+   - Público: `https://…` dos dois lados; o tráfego passa pelo proxy e depende do DNS e do certificado.
+   - Regra do endereço do webhook: `https://` sempre; `http://` só para a rede interna, ou seja, um nome de uma parte só
+     (sem ponto, como o nome interno do serviço) ou um IP privado (`10.x`, `172.16–31.x`, `192.168.x`, `127.x`,
+     `fc00::/7`, `fe80::/10`, `::1`). Fora disso (ex.: `http://patrimonio.revalle.com.br`) o RevSign não envia o aviso
+     e o log do app mostra `aviso … não enviado (WEBHOOK_URL_NOT_HTTPS)` (ou `WEBHOOK_URL_INVALID`); depois de corrigir
+     a variável e fazer o Deploy, os avisos guardados saem na varredura seguinte (até 15 min). Redirecionamento não é
+     seguido.
 4. Sem `NEXT_PRIVATE_REVALLE_PATRIMONIO_API_KEY` a integração fica desligada (404). Sem URL ou segredo do webhook, as
    rotas funcionam e nenhum aviso é enviado.
 

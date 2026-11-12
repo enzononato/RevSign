@@ -237,7 +237,7 @@ Os limites do upstream contam por IP, e na Revalle cada unidade inteira sai para
 | `api.file-upload` | 300 por minuto, por IP | Envio de arquivos |
 | `revalle.gate` (fixo) | 300 por 15 min, por IP | Telas do portão. Não se ajusta por variável |
 | `revalle.complete` | 20 tentativas de concluir em 15 min, por link (não por IP) | Freia quem tenta concluir muitas vezes com o mesmo link. Passou do limite, a tela pede para tentar mais tarde |
-| `revalle.patrimonio` | 120 pedidos por minuto, por IP | API da integração com o Patrimônio (`patrimonio.md`) |
+| `revalle.patrimonio` | 120 pedidos por minuto com a chave certa (um balde só, o da chave, não o do IP) | API da integração com o Patrimônio (`patrimonio.md`). A chave é conferida antes: tráfego sem ela nunca consome este limite |
 | `revalle.patrimonio-auth` | 20 pedidos sem chave válida em 15 min, por IP | Freia quem tenta adivinhar a chave da integração |
 
 Além disso, cada link aceita no máximo **5 tentativas** de CPF e data e no máximo **5 códigos por e-mail errados ou vencidos**; no 5º erro de cada um o link é bloqueado (isso não é ajustável).
