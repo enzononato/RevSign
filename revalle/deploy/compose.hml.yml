@@ -90,6 +90,13 @@ services:
       NEXT_PRIVATE_REVALLE_GEMINI_MODEL: ${NEXT_PRIVATE_REVALLE_GEMINI_MODEL:-}
       NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL: ${NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL:-}
       NEXT_PRIVATE_REVALLE_INVOICE_AI: ${NEXT_PRIVATE_REVALLE_INVOICE_AI:-enabled}
+      # Integração com o Patrimônio (revalle/docs/patrimonio.md). Sem a chave (32+ caracteres) fica desligada: as rotas
+      # /api/revalle/patrimonio/v1 respondem 404. A conta remetente tem de existir. Sem URL ou segredo, sem avisos. A URL
+      # interna (http://nome-do-servico:porta/...) funciona sem NEXT_PRIVATE_WEBHOOK_SSRF_BYPASS_HOSTS (não a use para isso).
+      NEXT_PRIVATE_REVALLE_PATRIMONIO_API_KEY: ${NEXT_PRIVATE_REVALLE_PATRIMONIO_API_KEY:-}
+      NEXT_PRIVATE_REVALLE_PATRIMONIO_SENDER_EMAIL: ${NEXT_PRIVATE_REVALLE_PATRIMONIO_SENDER_EMAIL:-}
+      NEXT_PRIVATE_REVALLE_PATRIMONIO_WEBHOOK_URL: ${NEXT_PRIVATE_REVALLE_PATRIMONIO_WEBHOOK_URL:-}
+      NEXT_PRIVATE_REVALLE_PATRIMONIO_WEBHOOK_SECRET: ${NEXT_PRIVATE_REVALLE_PATRIMONIO_WEBHOOK_SECRET:-}
       DOCUMENSO_DISABLE_TELEMETRY: 'true'
       NEXT_PUBLIC_REVALLE_SOURCE_URL: https://github.com/enzononato/RevSign
       # Marca: motivo da assinatura no PDF e e-mail de suporte nas telas e nos e-mails.

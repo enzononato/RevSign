@@ -53,6 +53,7 @@ import {
 } from '../revalle/finance/hold'; // REVALLE:
 import { holdSealForFinance } from '../revalle/finance/seal-hold'; // REVALLE:
 import { assertInvoiceChoiceBeforeSend } from '../revalle/invoice/choice'; // REVALLE:
+import { assertNotPatrimonioTermo } from '../revalle/patrimonio/guard'; // REVALLE:
 import { assertUserNotDisabledById } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
 
@@ -65,9 +66,18 @@ export type SendDocumentOptions = {
   teamId: number;
   sendEmail?: boolean;
   requestMetadata: ApiRequestMetadata;
+  /** REVALLE: aceita destinatário fora dos domínios da empresa. Só a integração com o Patrimônio passa `true`. */
+  revalleAllowExternalRecipients?: boolean;
 };
 
-export const sendDocument = async ({ id, userId, teamId, sendEmail, requestMetadata }: SendDocumentOptions) => {
+export const sendDocument = async ({
+  id,
+  userId,
+  teamId,
+  sendEmail,
+  requestMetadata,
+  revalleAllowExternalRecipients = false, // REVALLE:
+}: SendDocumentOptions) => {
   // Refuse to send on behalf of a disabled account. Guards distribute /
   // redistribute / template-use routes, the bulk-send job, and direct
   // templates that auto-send on creation.
@@ -119,6 +129,11 @@ export const sendDocument = async ({ id, userId, teamId, sendEmail, requestMetad
 
   if (!envelope) {
     throw new Error('Document not found');
+  }
+
+  // REVALLE: termo do Patrimônio só é enviado pela integração.
+  if (!revalleAllowExternalRecipients) {
+    await assertNotPatrimonioTermo(envelope.id);
   }
 
   if (envelope.recipients.length === 0) {
@@ -192,7 +207,7 @@ export const sendDocument = async ({ id, userId, teamId, sendEmail, requestMetad
 
   assertRecipientEmailsAllowed(
     envelope.recipients.map((r) => r.email),
-    { rejectEmpty: true },
+    { rejectEmpty: true, allowExternalDomains: revalleAllowExternalRecipients },
   ); // REVALLE:
 
   // REVALLE: rede de segurança, o código por e-mail é exigido antes de qualquer distribuição.

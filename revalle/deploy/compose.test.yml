@@ -1,4 +1,6 @@
-# RevSign — complemento SÓ PARA TESTES do ensaio local: servidor FALSO do Gemini (Fase 5).
+# RevSign — complemento SÓ PARA TESTES do ensaio local: servidor FALSO do Gemini (Fase 5) e integração com o
+# Patrimônio ligada com valores de teste (avisos para o receptor que patrimonio.test.mjs sobe na máquina, porta 8799,
+# pelo nome patrimonio-hook).
 #
 # A sugestão de conta contábil chama uma API externa e paga. Nos testes, o app fala com este servidor falso
 # (scripts/revalle/tests/fake-gemini.mjs) em vez do Google: é um dublê na fronteira de rede, o app não muda.
@@ -34,3 +36,13 @@ services:
     environment:
       GEMINI_API_KEY: test-key
       NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL: http://fake-gemini:8787/v1beta
+      # Patrimônio: valores SÓ de teste. PATRIMONIO_TEST_API_KEY vazio (não ausente) desliga a integração (o teste usa
+      # isso para conferir o 404). A conta remetente é a do ensaio.
+      NEXT_PRIVATE_REVALLE_PATRIMONIO_API_KEY: ${PATRIMONIO_TEST_API_KEY-test-only-patrimonio-api-key-not-a-secret}
+      NEXT_PRIVATE_REVALLE_PATRIMONIO_SENDER_EMAIL: admin@hml.local
+      # Nome de uma parte só (como o nome interno de um serviço do EasyPanel), por http, apontando para a máquina: o aviso
+      # do Patrimônio não usa NEXT_PRIVATE_WEBHOOK_SSRF_BYPASS_HOSTS (o teste confere que ela fica vazia).
+      NEXT_PRIVATE_REVALLE_PATRIMONIO_WEBHOOK_URL: http://patrimonio-hook:8799/hook
+      NEXT_PRIVATE_REVALLE_PATRIMONIO_WEBHOOK_SECRET: test-only-patrimonio-webhook-secret
+    extra_hosts:
+      - patrimonio-hook:host-gateway

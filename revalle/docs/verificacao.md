@@ -30,6 +30,21 @@ Depois da primeira confirmação ("Sim, sou eu"), o sistema guarda a ligação *
 
 Se o e-mail da pessoa já constar na base de colaboradores (coluna `email` da view), o vínculo é feito sozinho, sem pedir CPF.
 
+### Termos do Patrimônio (e-mail pessoal)
+
+Os termos de equipamento criados pela integração com o Patrimônio (`patrimonio.md`) são os únicos documentos que aceitam
+e-mail fora dos domínios da empresa, e o portão deles é mais rígido:
+
+- A tela de **CPF e data de nascimento aparece sempre**: o vínculo salvo e o e-mail da base não dispensam a etapa.
+- Só passa o **CPF que o Patrimônio informou** no termo, com a data de nascimento da base. Outro CPF (mesmo de outro
+  colaborador, com a data certa) dá a mesma mensagem `CPF ou data de nascimento não conferem.` e conta tentativa
+  (5 erros bloqueiam o link, como nos outros documentos).
+- Não há bloqueio por "CPF já ligado a outro e-mail" nem por "e-mail da base diferente": o Patrimônio responde pela
+  ligação e-mail ↔ colaborador.
+- **Nenhum vínculo é criado**: um e-mail pessoal nunca vira credencial para outros documentos.
+- O CPF confirmado fica na linha do portão (para a prova); auditoria, certificado e `/verificar` mostram só o CPF
+  mascarado, como sempre. Termo, código por e-mail, prova, carimbo e certificado são os mesmos.
+
 ### Quem não passa pelo portão
 
 - Papéis **só visualizar** e **cópia** (CC): não assinam, então não veem termo nem CPF.
@@ -222,6 +237,8 @@ Os limites do upstream contam por IP, e na Revalle cada unidade inteira sai para
 | `api.file-upload` | 300 por minuto, por IP | Envio de arquivos |
 | `revalle.gate` (fixo) | 300 por 15 min, por IP | Telas do portão. Não se ajusta por variável |
 | `revalle.complete` | 20 tentativas de concluir em 15 min, por link (não por IP) | Freia quem tenta concluir muitas vezes com o mesmo link. Passou do limite, a tela pede para tentar mais tarde |
+| `revalle.patrimonio` | 120 pedidos por minuto com a chave certa (um balde só, o da chave, não o do IP) | API da integração com o Patrimônio (`patrimonio.md`). A chave é conferida antes: tráfego sem ela nunca consome este limite |
+| `revalle.patrimonio-auth` | 20 pedidos sem chave válida em 15 min, por IP | Freia quem tenta adivinhar a chave da integração |
 
 Além disso, cada link aceita no máximo **5 tentativas** de CPF e data e no máximo **5 códigos por e-mail errados ou vencidos**; no 5º erro de cada um o link é bloqueado (isso não é ajustável).
 

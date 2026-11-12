@@ -135,6 +135,25 @@ node --test --test-concurrency=1 scripts/revalle/tests/invoice-classify.test.mjs
 - **Perna opcional com o Gemini de verdade:** com `REVALLE_TEST_GEMINI_API_KEY=<chave>` no ambiente do teste, um caso programa o servidor falso no modo `proxy`, que repassa UMA chamada (o DANFE fictício) ao Google com essa chave, e confere só que a resposta passa na validação ou vira `FAILED` com um código curto. A chave fica só na memória do servidor falso (não é devolvida nem registrada). Sem a variável, o caso é pulado. Custa uma chamada paga.
 - O caso "o log do app não tem o texto da NF" lê `docker logs revsign-hml-documenso-1` desde o início do teste e procura uma frase da NF fictícia e a chave de acesso.
 
+## Integração com o Patrimônio
+
+`patrimonio.test.mjs` só roda com a stack subida com `compose.test.yml`, que liga a integração com valores de teste (chave,
+conta remetente `admin@hml.local`, webhook em `http://patrimonio-hook:8799/hook`, um nome de uma parte só que aponta
+para a máquina, sem `NEXT_PRIVATE_WEBHOOK_SSRF_BYPASS_HOSTS`). O teste sobe o receptor dos avisos na porta **8799** da
+máquina (precisa estar livre) e confere o HMAC de cada aviso. Usa `REVSIGN_API_TOKEN` e `REVSIGN_USER_*` (recusa do
+e-mail externo pela API comum e pela tela, termo travado), `REVSIGN_ADMIN_*` (exclusão pelo admin recusada),
+`REVSIGN_SENDER_API_TOKEN` (token de conta ADMIN: o Zapier aceita) e o João e a Maria fictícios do `dev-seed.sql` (o
+vínculo do CPF deles é solto antes e depois). Alguns estados são postos no banco por instantes e desfeitos (vencido,
+assinado sem selar, exclusão branda).
+O caso do reenvio de aviso espera a 2ª tentativa (30 s). **O último caso recria o app** sem a chave
+(`PATRIMONIO_TEST_API_KEY=` vazio) para conferir o 404 e o recria de novo com a imagem que estava rodando; o env file
+padrão é `../local-hml/hml.env` (outro: `REVSIGN_HML_ENV_FILE`).
+
+```sh
+REVSIGN_API_TOKEN=... REVSIGN_USER_EMAIL=... REVSIGN_USER_PASSWORD=... REVSIGN_ADMIN_EMAIL=... \
+  REVSIGN_ADMIN_PASSWORD=... REVSIGN_SENDER_API_TOKEN=... node --test --test-concurrency=1 scripts/revalle/tests/patrimonio.test.mjs
+```
+
 ## Tradução (overlay pt-BR)
 
 As traduções do RevSign ficam no overlay `packages/lib/translations/revalle/pt-BR.po`; os catálogos do upstream (`packages/lib/translations/<idioma>/web.po`) nunca são editados no git.

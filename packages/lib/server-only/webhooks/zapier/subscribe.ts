@@ -3,6 +3,7 @@ import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
 import { buildTeamWhereQuery } from '@documenso/lib/utils/teams';
 import { prisma } from '@documenso/prisma';
 
+import { assertRevalleAdmin } from '../../revalle/locked-settings'; // REVALLE:
 import { assertNotPrivateUrl } from '../assert-webhook-url';
 import { validateApiToken } from './validateApiToken';
 
@@ -41,6 +42,11 @@ export const subscribeHandler = async (req: Request) => {
         message: 'You do not have permission to manage webhooks for this team',
       });
     }
+
+    // REVALLE: só o admin do sistema cria webhook, como na tela (Fase 7, spec §6).
+    await assertRevalleAdmin(userId).catch(() => {
+      throw new AppError(AppErrorCode.UNAUTHORIZED, { message: 'Only the system administrator can create webhooks' });
+    });
 
     const createdWebhook = await prisma.webhook.create({
       data: {

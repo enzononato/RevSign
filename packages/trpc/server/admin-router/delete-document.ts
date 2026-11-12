@@ -1,5 +1,6 @@
 import { adminSuperDeleteDocument } from '@documenso/lib/server-only/admin/admin-super-delete-document';
 import { sendDeleteEmail } from '@documenso/lib/server-only/document/send-delete-email';
+import { assertNotPatrimonioTermo } from '@documenso/lib/server-only/revalle/patrimonio/guard'; // REVALLE:
 
 import { adminProcedure } from '../trpc';
 import { ZDeleteDocumentRequestSchema, ZDeleteDocumentResponseSchema } from './delete-document.types';
@@ -15,6 +16,8 @@ export const deleteDocumentRoute = adminProcedure
         id,
       },
     });
+
+    await assertNotPatrimonioTermo(id, { action: 'delete' }); // REVALLE: antes do e-mail de exclusão
 
     await sendDeleteEmail({ envelopeId: id, reason });
 
