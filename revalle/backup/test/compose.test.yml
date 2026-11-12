@@ -20,7 +20,7 @@ services:
       retries: 30
 
   sftp:
-    image: atmoz/sftp:alpine-3.7
+    image: atmoz/sftp:alpine # a tag alpine-3.7 saiu do Docker Hub (11/2026)
     command: ['tester:${TEST_PASS}:1001:100:upload']
 
   ftps:
