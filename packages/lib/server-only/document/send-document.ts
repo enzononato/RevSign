@@ -53,6 +53,7 @@ import {
 } from '../revalle/finance/hold'; // REVALLE:
 import { holdSealForFinance } from '../revalle/finance/seal-hold'; // REVALLE:
 import { assertInvoiceChoiceBeforeSend } from '../revalle/invoice/choice'; // REVALLE:
+import { assertNotPatrimonioTermo } from '../revalle/patrimonio/guard'; // REVALLE:
 import { assertUserNotDisabledById } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
 
@@ -128,6 +129,11 @@ export const sendDocument = async ({
 
   if (!envelope) {
     throw new Error('Document not found');
+  }
+
+  // REVALLE: termo do Patrimônio só é enviado pela integração.
+  if (!revalleAllowExternalRecipients) {
+    await assertNotPatrimonioTermo(envelope.id);
   }
 
   if (envelope.recipients.length === 0) {

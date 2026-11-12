@@ -50,12 +50,12 @@ export const isPatrimonioAuthorized = (authorization: string | null, key: string
 
 export type PatrimonioWebhookConfig = { url: string; secret: string };
 
-/** Endereço e segredo dos avisos. Sem um dos dois, nenhum aviso é gerado. */
+/** Endereço e segredo dos avisos. Sem um dos dois, nenhum aviso é gerado. O formato do endereço é conferido na entrega. */
 export const getPatrimonioWebhookConfig = (): PatrimonioWebhookConfig | null => {
   const url = env('NEXT_PRIVATE_REVALLE_PATRIMONIO_WEBHOOK_URL')?.trim();
   const secret = env('NEXT_PRIVATE_REVALLE_PATRIMONIO_WEBHOOK_SECRET')?.trim();
 
-  if (!url || !secret || !/^https?:\/\//i.test(url)) {
+  if (!url || !secret) {
     return null;
   }
 

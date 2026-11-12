@@ -11,6 +11,7 @@ import type { EnvelopeIdOptions } from '../../utils/envelope';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { incrementDocumentId, incrementTemplateId } from '../envelope/increment-id';
 import { assertOrganisationRatesAndLimits } from '../rate-limit/assert-organisation-rates-and-limits';
+import { assertNotPatrimonioTermo } from '../revalle/patrimonio/guard'; // REVALLE:
 import { resolveSignatureLevel } from '../signature-level/resolve-signature-level';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
 
@@ -38,6 +39,7 @@ export const duplicateEnvelope = async ({ id, userId, teamId, overrides }: Dupli
   const envelope = await prisma.envelope.findFirst({
     where: envelopeWhereInput,
     select: {
+      id: true, // REVALLE:
       type: true,
       title: true,
       userId: true,
@@ -78,6 +80,8 @@ export const duplicateEnvelope = async ({ id, userId, teamId, overrides }: Dupli
       message: 'Document not found',
     });
   }
+
+  await assertNotPatrimonioTermo(envelope.id); // REVALLE: termo do Patrimônio não é duplicado nem vira modelo
 
   if (duplicateAsTemplate && envelope.type !== EnvelopeType.DOCUMENT) {
     throw new AppError(AppErrorCode.INVALID_REQUEST, {

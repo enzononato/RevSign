@@ -7,11 +7,11 @@ import { prisma } from '@documenso/prisma';
 
 import { jobs } from '../../../jobs/client';
 import { fetchWithTimeout } from '../../../utils/timeout';
-import { assertNotPrivateUrl } from '../../webhooks/assert-webhook-url';
 import { revalleErrorCode } from '../error-code';
 import { getPatrimonioWebhookConfig } from './config';
 import { PATRIMONIO_WEBHOOK_JOB_ID } from './events';
 import {
+  checkPatrimonioWebhookUrl,
   nextAttemptDelayMs,
   PATRIMONIO_WEBHOOK_MAX_ATTEMPTS,
   type PatrimonioEventBody,
@@ -20,6 +20,9 @@ import {
 } from './webhook';
 
 const DELIVERY_TIMEOUT_MS = 10_000;
+
+/** Endereço do aviso fora da regra: a varredura tenta de novo (a cada 15 min) até a variável ser corrigida. */
+const URL_ERROR_RETRY_MS = 15 * 60_000;
 
 /** Enquanto uma tentativa roda, ninguém mais pega o aviso (a varredura só pega `nextAttemptAt` vencido). */
 const ATTEMPT_LEASE_MS = 2 * 60_000;
@@ -39,6 +42,21 @@ export const deliverPatrimonioEvent = async (eventId: string): Promise<'DELIVERE
   const config = getPatrimonioWebhookConfig();
 
   if (!config) {
+    return 'SKIPPED';
+  }
+
+  // Endereço fora da regra (http:// para fora da rede interna, ou inválido): nem tenta. A tentativa não conta; a
+  // varredura tenta de novo depois que a variável for corrigida.
+  const urlError = checkPatrimonioWebhookUrl(config.url);
+
+  if (urlError) {
+    await prisma.revallePatrimonioEvent.updateMany({
+      where: { id: eventId, deliveredAt: null },
+      data: { lastError: urlError, nextAttemptAt: new Date(Date.now() + URL_ERROR_RETRY_MS) },
+    });
+
+    console.error(`[RevSign] Patrimônio: aviso ${eventId} não enviado (${urlError})`);
+
     return 'SKIPPED';
   }
 
@@ -67,8 +85,8 @@ export const deliverPatrimonioEvent = async (eventId: string): Promise<'DELIVERE
   let error: string | null = null;
 
   try {
-    await assertNotPrivateUrl(config.url);
-
+    // Só o endereço configurado pelo operador recebe o aviso, mesmo sendo interno (IP privado): a proteção contra SSRF
+    // dos webhooks de time (`assertNotPrivateUrl`) não vale aqui e `NEXT_PRIVATE_WEBHOOK_SSRF_BYPASS_HOSTS` não é usada.
     const response = await fetchWithTimeout(config.url, {
       method: 'POST',
       body,

@@ -1,8 +1,10 @@
 import { PDF } from '@libpdf/core';
 import { describe, expect, it } from 'vitest';
 
+import { PatrimonioError } from '../../../revalle/patrimonio/request';
 import {
   applySignatureMarkers,
+  isSupportedMarkerPage,
   placeSignatureField,
   SIGNATURE_FIELD_HEIGHT_PT,
   SIGNATURE_FIELD_WIDTH_PT,
@@ -91,12 +93,33 @@ describe('placeSignatureField', () => {
   });
 });
 
+describe('isSupportedMarkerPage', () => {
+  const box = { x: 0, y: 0, width: A4.width, height: A4.height };
+
+  it('página A4 sem rotação, MediaBox em (0, 0) e sem CropBox menor', () => {
+    expect(isSupportedMarkerPage({ rotation: 0, mediaBox: box, cropBox: box })).toBe(true);
+  });
+
+  it.each([90, 180, 270])('recusa página girada %s°', (rotation) => {
+    expect(isSupportedMarkerPage({ rotation, mediaBox: box, cropBox: box })).toBe(false);
+  });
+
+  it('recusa MediaBox fora de (0, 0) e CropBox menor', () => {
+    const offset = { ...box, x: 10, y: 10 };
+
+    expect(isSupportedMarkerPage({ rotation: 0, mediaBox: offset, cropBox: offset })).toBe(false);
+    expect(isSupportedMarkerPage({ rotation: 0, mediaBox: box, cropBox: { ...box, width: 500 } })).toBe(false);
+  });
+});
+
 describe('applySignatureMarkers (PDF de verdade)', () => {
-  const makePdf = (pages: string[][]) => {
+  const makePdf = (pages: string[][], rotations: Record<number, 0 | 90 | 180 | 270> = {}) => {
     const pdf = PDF.create();
 
-    for (const lines of pages) {
+    for (const [pageIndex, lines] of pages.entries()) {
       const page = pdf.addPage({ size: 'a4' });
+
+      page.setRotation(rotations[pageIndex] ?? 0);
 
       lines.forEach((line, index) => {
         page.drawText(line, { x: 72, y: 700 - index * 40, size: 12 });
@@ -131,6 +154,18 @@ describe('applySignatureMarkers (PDF de verdade)', () => {
     const reloaded = await PDF.load(new Uint8Array(cleanedPdf));
 
     expect(reloaded.getPageCount()).toBe(3);
+  });
+
+  it('página com marcador girada: INVALID_FILE dizendo a página; girada sem marcador não importa', async () => {
+    const rotated = Buffer.from(await makePdf([['Capa'], ['Assinatura: {{assinatura}}']], { 1: 90 }));
+
+    await expect(applySignatureMarkers(rotated)).rejects.toSatisfy(
+      (error) => error instanceof PatrimonioError && error.code === 'INVALID_FILE' && /página 2/.test(error.message),
+    );
+
+    const otherRotated = Buffer.from(await makePdf([['Capa'], ['Assinatura: {{assinatura}}']], { 0: 90 }));
+
+    expect((await applySignatureMarkers(otherRotated)).fields).toHaveLength(1);
   });
 
   it('sem marcador: nenhum campo e o PDF volta igual', async () => {

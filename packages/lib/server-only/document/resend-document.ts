@@ -33,6 +33,7 @@ import { getEmailContext } from '../email/get-email-context';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { assertOrganisationRatesAndLimits } from '../rate-limit/assert-organisation-rates-and-limits';
 import { updateRecipientNextReminder } from '../recipient/update-recipient-next-reminder';
+import { assertNotPatrimonioTermo } from '../revalle/patrimonio/guard'; // REVALLE:
 import { assertUserNotDisabled } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
 
@@ -42,9 +43,18 @@ export type ResendDocumentOptions = {
   recipients: number[];
   teamId: number;
   requestMetadata: ApiRequestMetadata;
+  /** REVALLE: reenvio de termo do Patrimônio. Só a integração passa `true`; a tela e a API comum são recusadas. */
+  revalleAllowPatrimonioTermo?: boolean;
 };
 
-export const resendDocument = async ({ id, userId, recipients, teamId, requestMetadata }: ResendDocumentOptions) => {
+export const resendDocument = async ({
+  id,
+  userId,
+  recipients,
+  teamId,
+  requestMetadata,
+  revalleAllowPatrimonioTermo = false, // REVALLE:
+}: ResendDocumentOptions) => {
   const user = await prisma.user.findFirstOrThrow({
     where: {
       id: userId,
@@ -94,6 +104,11 @@ export const resendDocument = async ({ id, userId, recipients, teamId, requestMe
 
   if (!envelope) {
     throw new Error('Document not found');
+  }
+
+  // REVALLE: termo do Patrimônio só é reenviado pela integração (um termo vencido continua vencido).
+  if (!revalleAllowPatrimonioTermo) {
+    await assertNotPatrimonioTermo(envelope.id);
   }
 
   if (envelope.recipients.length === 0) {

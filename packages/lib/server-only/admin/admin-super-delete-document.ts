@@ -14,6 +14,7 @@ import { createDocumentAuditLogData } from '../../utils/document-audit-logs';
 import { isRecipientEmailValidForSending } from '../../utils/recipients';
 import { renderEmailWithI18N } from '../../utils/render-email-with-i18n';
 import { getEmailContext } from '../email/get-email-context';
+import { assertNotPatrimonioTermo } from '../revalle/patrimonio/guard'; // REVALLE:
 
 export type AdminSuperDeleteDocumentOptions = {
   envelopeId: string;
@@ -43,6 +44,8 @@ export const adminSuperDeleteDocument = async ({ envelopeId, requestMetadata }: 
       message: 'Document not found',
     });
   }
+
+  await assertNotPatrimonioTermo(envelope.id, { action: 'delete' }); // REVALLE: nem o admin exclui termo do Patrimônio
 
   const { branding, settings, senderEmail, replyToEmail, emailTransport } = await getEmailContext({
     emailType: 'RECIPIENT',

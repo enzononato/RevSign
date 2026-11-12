@@ -10,6 +10,7 @@ import {
   FieldType,
   Prisma,
   RecipientRole,
+  SigningStatus,
 } from '@prisma/client';
 import type { PatrimonioCreateTermoFields } from '../../../revalle/patrimonio/request';
 import { assertTermoFile, PatrimonioError } from '../../../revalle/patrimonio/request';
@@ -226,7 +227,11 @@ const preparePdf = async (file: Buffer) => {
 
   try {
     prepared = await applySignatureMarkers(await normalizePdf(file, { flattenForm: true }));
-  } catch {
+  } catch (error) {
+    if (error instanceof PatrimonioError) {
+      throw error;
+    }
+
     throw new PatrimonioError('INVALID_FILE', 'O arquivo não é um PDF válido (ou está protegido por senha).');
   }
 
@@ -354,9 +359,21 @@ export const createPatrimonioTermo = async ({
   return await getPatrimonioTermo(envelope.id);
 };
 
+/**
+ * Cancelar e reenviar só com o termo pendente E o colaborador ainda sem assinar: entre a assinatura e o fim da selagem o
+ * estado continua PENDING, mas o termo já não pode ser cancelado nem reenviado.
+ */
 const assertPending = (termo: TermoRow) => {
-  if (statusOf(termo) !== 'PENDING' || termo.envelope.status !== DocumentStatus.PENDING) {
-    throw new PatrimonioError('NOT_PENDING', 'O termo não está pendente.', { extra: { status: statusOf(termo) } });
+  const status = statusOf(termo);
+
+  if (status !== 'PENDING' || termo.envelope.status !== DocumentStatus.PENDING) {
+    throw new PatrimonioError('NOT_PENDING', 'O termo não está pendente.', { extra: { status } });
+  }
+
+  if (termo.envelope.recipients.some((recipient) => recipient.signingStatus !== SigningStatus.NOT_SIGNED)) {
+    throw new PatrimonioError('NOT_PENDING', 'O colaborador já assinou; o termo está sendo selado.', {
+      extra: { status },
+    });
   }
 };
 
@@ -444,6 +461,7 @@ export const resendPatrimonioTermo = async ({
       teamId: sender.teamId,
       recipients: signer ? [signer.id] : [],
       requestMetadata,
+      revalleAllowPatrimonioTermo: true,
     });
   } catch (error) {
     await prisma.revallePatrimonioTermo.updateMany({

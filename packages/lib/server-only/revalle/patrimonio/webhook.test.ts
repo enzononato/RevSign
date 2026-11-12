@@ -3,6 +3,7 @@ import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 
 import {
+  checkPatrimonioWebhookUrl,
   computeTermoStatus,
   isFinalTermoEvent,
   nextAttemptDelayMs,
@@ -107,6 +108,9 @@ describe('computeTermoStatus', () => {
     ['PENDING', null, { signingStatus: 'NOT_SIGNED', expiresAt: new Date('2026-11-12T11:59:59Z') }, 'EXPIRED'],
     ['PENDING', null, { signingStatus: 'NOT_SIGNED', expiresAt: new Date('2026-11-12T12:00:01Z') }, 'PENDING'],
     ['COMPLETED', null, { signingStatus: 'SIGNED', expiresAt: new Date('2026-11-12T11:00:00Z') }, 'SIGNED'],
+    // Excluído depois de concluído ou recusado continua concluído ou recusado (a exclusão só esconde da lista).
+    ['COMPLETED', new Date('2026-11-12T11:00:00Z'), { signingStatus: 'SIGNED', expiresAt: null }, 'SIGNED'],
+    ['REJECTED', new Date('2026-11-12T11:00:00Z'), { signingStatus: 'REJECTED', expiresAt: null }, 'REJECTED'],
   ] as const)('%s, apagado=%s → %s', (envelopeStatus, deletedAt, signer, expected) => {
     expect(computeTermoStatus({ envelopeStatus, deletedAt, signer }, now)).toBe(expected);
   });
@@ -118,5 +122,42 @@ describe('tentativas', () => {
     expect([1, 2, 3, 4].map(nextAttemptDelayMs)).toEqual([30_000, 120_000, 600_000, 3_600_000]);
     expect(nextAttemptDelayMs(5)).toBeNull();
     expect(nextAttemptDelayMs(0)).toBeNull();
+  });
+});
+
+describe('checkPatrimonioWebhookUrl', () => {
+  it.each([
+    'https://patrimonio.revalle.com.br/revsign/webhook',
+    'https://203.0.113.10/hook',
+    'http://revalle_patrimonio-api:8000/revsign/webhook',
+    'http://patrimonio-hook:8799/hook',
+    'http://localhost:8080/hook',
+    'http://10.0.1.5/hook',
+    'http://172.20.0.3:8000/hook',
+    'http://192.168.0.10/hook',
+    'http://127.0.0.1:9000/hook',
+    'http://[fd12:3456::1]/hook',
+    'http://[::1]:8000/hook',
+  ])('aceita %s', (url) => {
+    expect(checkPatrimonioWebhookUrl(url)).toBeNull();
+  });
+
+  it.each([
+    'http://patrimonio.revalle.com.br/hook',
+    'http://host.docker.internal:8799/hook',
+    'http://203.0.113.10/hook',
+    'http://172.32.0.1/hook',
+    'http://[2001:db8::1]/hook',
+  ])('recusa http fora da rede interna: %s', (url) => {
+    expect(checkPatrimonioWebhookUrl(url)).toBe('WEBHOOK_URL_NOT_HTTPS');
+  });
+
+  it.each([
+    'ftp://patrimonio-api/hook',
+    'não é url',
+    'https://user:senha@patrimonio.revalle.com.br/hook',
+    'file:///etc/x',
+  ])('recusa endereço inválido: %s', (url) => {
+    expect(checkPatrimonioWebhookUrl(url)).toBe('WEBHOOK_URL_INVALID');
   });
 });

@@ -3,6 +3,7 @@ import { match } from 'ts-pattern';
 
 import { AppError, AppErrorCode } from '../../errors/app-error';
 import { isTspEnvelope } from '../../types/signature-level';
+import { assertNotPatrimonioTermo } from '../revalle/patrimonio/guard'; // REVALLE:
 
 type EnvelopeMutableSnapshot = {
   signatureLevel: string;
@@ -53,6 +54,9 @@ export async function assertEnvelopeMutable(
 }
 
 const refetchAndAssert = async (tx: Prisma.TransactionClient, envelopeId: string): Promise<void> => {
+  // REVALLE: termo do Patrimônio só muda pelas rotas da integração (destinatários, campos, dados, arquivo).
+  await assertNotPatrimonioTermo(envelopeId, { tx });
+
   const refetched = await tx.envelope.findFirstOrThrow({
     where: { id: envelopeId },
     select: { signatureLevel: true, status: true },

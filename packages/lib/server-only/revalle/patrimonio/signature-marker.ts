@@ -4,6 +4,7 @@
 
 import { PDF } from '@libpdf/core';
 
+import { PatrimonioError } from '../../../revalle/patrimonio/request';
 import { type BoundingBox, whiteoutRegions } from '../../pdf/auto-place-fields';
 
 export const SIGNATURE_FIELD_WIDTH_PT = 180;
@@ -55,12 +56,46 @@ export const placeSignatureField = ({ page, bbox, pageWidth, pageHeight }: Marke
   };
 };
 
-/** Acha os marcadores em todas as páginas de um PDF já carregado. */
+type Box = { x: number; y: number; width: number; height: number };
+
+export type MarkerPageGeometry = { rotation: number; mediaBox: Box; cropBox: Box };
+
+const BOX_TOLERANCE_PT = 0.5;
+
+const sameBox = (a: Box, b: Box) =>
+  Math.abs(a.x - b.x) <= BOX_TOLERANCE_PT &&
+  Math.abs(a.y - b.y) <= BOX_TOLERANCE_PT &&
+  Math.abs(a.width - b.width) <= BOX_TOLERANCE_PT &&
+  Math.abs(a.height - b.height) <= BOX_TOLERANCE_PT;
+
+/**
+ * A posição do campo vale para página sem rotação, com a MediaBox começando em (0, 0) e sem CropBox menor. Fora disso
+ * as coordenadas do texto e as da tela não batem: o pedido é recusado (o LibreOffice nunca gera essas páginas).
+ */
+export const isSupportedMarkerPage = ({ rotation, mediaBox, cropBox }: MarkerPageGeometry): boolean =>
+  rotation === 0 &&
+  Math.abs(mediaBox.x) <= BOX_TOLERANCE_PT &&
+  Math.abs(mediaBox.y) <= BOX_TOLERANCE_PT &&
+  sameBox(mediaBox, cropBox);
+
+/** Acha os marcadores em todas as páginas de um PDF já carregado. Página com marcador fora do padrão: INVALID_FILE. */
 export const findSignatureMarkers = (pdfDoc: PDF): MarkerMatch[] => {
   const markers: MarkerMatch[] = [];
 
   for (const page of pdfDoc.getPages()) {
-    for (const match of page.findText(signatureMarkerRegex())) {
+    const matches = page.findText(signatureMarkerRegex());
+
+    if (
+      matches.length > 0 &&
+      !isSupportedMarkerPage({ rotation: page.rotation, mediaBox: page.getMediaBox(), cropBox: page.getCropBox() })
+    ) {
+      throw new PatrimonioError(
+        'INVALID_FILE',
+        `A página ${page.index + 1}, que tem o marcador {{assinatura}}, está girada ou com margens de página fora do padrão. Gere o PDF sem girar a página.`,
+      );
+    }
+
+    for (const match of matches) {
       markers.push({
         page: page.index + 1,
         bbox: match.bbox,

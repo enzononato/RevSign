@@ -5,7 +5,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { prisma } from '@documenso/prisma';
-import { Prisma, RecipientRole, SigningStatus } from '@prisma/client';
+import { DocumentStatus, Prisma, RecipientRole, SigningStatus } from '@prisma/client';
 
 import { jobs } from '../../../jobs/client';
 import { logger } from '../../../utils/logger';
@@ -32,6 +32,7 @@ const recordEvent = async (event: PatrimonioTermoEvent, envelopeId: string) => {
       externalId: true,
       envelope: {
         select: {
+          status: true,
           recipients: {
             where: { role: RecipientRole.SIGNER },
             orderBy: { id: 'asc' },
@@ -43,6 +44,11 @@ const recordEvent = async (event: PatrimonioTermoEvent, envelopeId: string) => {
   });
 
   if (!termo) {
+    return;
+  }
+
+  // O Documenso dispara DOCUMENT_CANCELLED também ao excluir um documento; só o cancelamento de verdade avisa.
+  if (event === 'termo.cancelled' && termo.envelope.status !== DocumentStatus.CANCELLED) {
     return;
   }
 

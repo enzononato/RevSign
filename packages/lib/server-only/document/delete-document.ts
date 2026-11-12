@@ -14,6 +14,7 @@ import { type EnvelopeIdOptions, unsafeBuildEnvelopeIdQuery } from '../../utils/
 import { isRecipientEmailValidForSending } from '../../utils/recipients';
 import { getEmailContext } from '../email/get-email-context';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
+import { assertNotPatrimonioTermo } from '../revalle/patrimonio/guard'; // REVALLE:
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
 
 export type DeleteDocumentOptions = {
@@ -80,6 +81,9 @@ export const deleteDocument = async ({ id, userId, teamId, requestMetadata }: De
       message: 'Not allowed',
     });
   }
+
+  // REVALLE: termo do Patrimônio não é excluído pela tela, pela API comum nem em lote (a linha do termo e a trilha somem).
+  await assertNotPatrimonioTermo(envelope.id, { action: 'delete' });
 
   // Handle hard or soft deleting the actual document if user has permission.
   if (hasDeleteAccess) {
