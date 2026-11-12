@@ -505,7 +505,8 @@ model Envelope {
 
   envelopeAttachments EnvelopeAttachment[]
 
-  revalleInvoice RevalleInvoiceClassification? // REVALLE: back-relation (nota fiscal e conta contábil)
+  revalleInvoice         RevalleInvoiceClassification? // REVALLE: back-relation (nota fiscal e conta contábil)
+  revallePatrimonioTermo RevallePatrimonioTermo? // REVALLE: back-relation (termo do Patrimônio)
 
   @@index([type])
   @@index([status])
@@ -1563,4 +1564,41 @@ model RevalleSignupIdentity {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   cpf       String
   createdAt DateTime @default(now())
+}
+
+/// REVALLE: termo de responsabilidade de equipamento criado pela integração com o Patrimônio. A linha marca o envelope
+/// como termo: só ele aceita signatário fora dos domínios da empresa e tem regras próprias no portão (o CPF digitado
+/// tem de ser `signerCpf`, sem vínculo e-mail ↔ CPF). `signerCpf` fica completo, como no vínculo.
+/// `activeExternalId` = `externalId` enquanto o termo está pendente (nulo depois): o índice único impede dois termos
+/// pendentes com o mesmo `externalId`, também em pedidos simultâneos.
+model RevallePatrimonioTermo {
+  envelopeId       String    @id
+  envelope         Envelope  @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
+  externalId       String
+  activeExternalId String?   @unique
+  kind             String // ENTREGA | DEVOLUCAO
+  signerCpf        String
+  createdAt        DateTime  @default(now())
+  cancelledAt      DateTime?
+  cancelReason     String?
+  lastResendAt     DateTime?
+
+  @@index([externalId])
+}
+
+/// REVALLE: avisos (webhook) ao Patrimônio, um por mudança de estado do termo (`id` = `eventId`), com as tentativas de
+/// entrega. Sem FK: a trilha das entregas fica mesmo se o envelope for apagado. Nunca leva CPF.
+model RevallePatrimonioEvent {
+  id            String    @id
+  envelopeId    String
+  event         String
+  payload       Json
+  createdAt     DateTime  @default(now())
+  deliveredAt   DateTime?
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime?
+  lastError     String?
+
+  @@unique([envelopeId, event])
+  @@index([deliveredAt, nextAttemptAt])
 }
