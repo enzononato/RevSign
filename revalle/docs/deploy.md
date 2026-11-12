@@ -418,6 +418,11 @@ Legenda de "segredo?": **sim** = nunca no repositório, só no EasyPanel e no co
 | `NEXT_PRIVATE_REVALLE_GEMINI_MODEL` | (Opcional) modelo do Gemini usado na sugestão. Precisa ser **Gemini 2.5 ou mais novo** (o app pede raciocínio mínimo, `thinkingLevel`/`thinkingBudget`, que modelos mais antigos não aceitam) | não definir (vale `gemini-3.6-flash`) | não |
 | `NEXT_PRIVATE_REVALLE_INVOICE_AI` | `enabled` (padrão) ou `disabled`: desliga a sugestão sem apagar a chave | não definir (vale `enabled`) | não |
 | `NEXT_PRIVATE_REVALLE_GEMINI_BASE_URL` | Endereço da API do Gemini. Só os testes usam (servidor falso, `compose.test.yml`) | **não definir** (vale o endereço do Google) | não |
+| `NEXT_PRIVATE_REVALLE_PATRIMONIO_API_KEY` | (Opcional) chave da API da integração com o Patrimônio (`patrimonio.md`), 32+ caracteres. Sem ela (ou curta), a integração fica desligada e as rotas `/api/revalle/patrimonio/v1` respondem 404 | `openssl rand -hex 32`, ou não definir | sim |
+| `NEXT_PRIVATE_REVALLE_PATRIMONIO_SENDER_EMAIL` | E-mail da conta do RevSign dona dos termos (remetente dos e-mails); precisa existir e estar ativa | `patrimonio@revalle.com.br` | não |
+| `NEXT_PRIVATE_REVALLE_PATRIMONIO_WEBHOOK_URL` | Endereço que recebe os avisos (`termo.sent`, `termo.signed`…). Sem ela, nenhum aviso | URL do webhook do Patrimônio | não |
+| `NEXT_PRIVATE_REVALLE_PATRIMONIO_WEBHOOK_SECRET` | Segredo do HMAC dos avisos (o mesmo do lado do Patrimônio). Sem ele, nenhum aviso | `openssl rand -hex 32` | sim |
+| `NEXT_PRIVATE_WEBHOOK_SSRF_BYPASS_HOSTS` | (Upstream) hosts com IP privado que os webhooks podem chamar, separados por vírgula. Só para o webhook do Patrimônio pelo endereço interno; vale também para os webhooks de time | nome interno do serviço do Patrimônio, ou não definir | não |
 
 ### Serviço Postgres (`revsign-db`)
 
@@ -472,6 +477,24 @@ das NFs que já têm.
 2. Depois de atualizar, peça para as pessoas recarregarem a página (Ctrl+F5) se o visual antigo aparecer misturado:
    é cache do navegador.
 3. O PDF do certificado e o carimbo não mudam nesta versão.
+
+## Antes de atualizar (integração Patrimônio)
+
+Vale para quem atualiza uma instalação que já está em uso. Esta versão traz a API para o Patrimônio criar termos de
+equipamento e acompanhar a assinatura (`patrimonio.md`). Nada muda para quem usa o RevSign pela tela ou pela API comum: a
+regra de domínio continua estrita fora dessa integração.
+
+1. **Backup antes** (seção "Backup antes de atualizar"). A migração `20261112100000_revalle_patrimonio` roda sozinha na
+   subida e só **cria duas tabelas novas** (`RevallePatrimonioTermo` e `RevallePatrimonioEvent`); nenhuma linha existente
+   muda.
+2. **A integração nasce desligada.** Sem `NEXT_PRIVATE_REVALLE_PATRIMONIO_API_KEY`, as rotas respondem 404 e nada mais
+   muda. Para ligar, siga a seção "Configuração no EasyPanel" de `patrimonio.md`: crie a conta remetente, ponha as
+   variáveis `NEXT_PRIVATE_REVALLE_PATRIMONIO_*` (seção "Tabela de todas as variáveis") e faça o Deploy.
+3. **Webhook pelo endereço interno**: ponha o nome interno do serviço do Patrimônio em
+   `NEXT_PRIVATE_WEBHOOK_SSRF_BYPASS_HOSTS` (sem ele, o aviso falha com `WEBHOOK_INVALID_REQUEST` no log do app). Pelo
+   endereço público (`https://`), não precisa.
+4. Depois de ligar, rode o roteiro "Testar em homologação" de `patrimonio.md` (criação, aviso com HMAC, assinatura,
+   download do PDF, cancelamento).
 
 ## Atualizar a versão depois
 
