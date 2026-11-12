@@ -1,5 +1,6 @@
 # RevSign — complemento SÓ PARA TESTES do ensaio local: servidor FALSO do Gemini (Fase 5) e integração com o
-# Patrimônio ligada com valores de teste (avisos para o receptor que patrimonio.test.mjs sobe na máquina, porta 8799).
+# Patrimônio ligada com valores de teste (avisos para o receptor que patrimonio.test.mjs sobe na máquina, porta 8799,
+# pelo nome patrimonio-hook).
 #
 # A sugestão de conta contábil chama uma API externa e paga. Nos testes, o app fala com este servidor falso
 # (scripts/revalle/tests/fake-gemini.mjs) em vez do Google: é um dublê na fronteira de rede, o app não muda.
@@ -39,8 +40,9 @@ services:
       # isso para conferir o 404). A conta remetente é a do ensaio.
       NEXT_PRIVATE_REVALLE_PATRIMONIO_API_KEY: ${PATRIMONIO_TEST_API_KEY-test-only-patrimonio-api-key-not-a-secret}
       NEXT_PRIVATE_REVALLE_PATRIMONIO_SENDER_EMAIL: admin@hml.local
-      NEXT_PRIVATE_REVALLE_PATRIMONIO_WEBHOOK_URL: http://host.docker.internal:8799/hook
+      # Nome de uma parte só (como o nome interno de um serviço do EasyPanel), por http, apontando para a máquina: o aviso
+      # do Patrimônio não usa NEXT_PRIVATE_WEBHOOK_SSRF_BYPASS_HOSTS (o teste confere que ela fica vazia).
+      NEXT_PRIVATE_REVALLE_PATRIMONIO_WEBHOOK_URL: http://patrimonio-hook:8799/hook
       NEXT_PRIVATE_REVALLE_PATRIMONIO_WEBHOOK_SECRET: test-only-patrimonio-webhook-secret
-      NEXT_PRIVATE_WEBHOOK_SSRF_BYPASS_HOSTS: host.docker.internal
     extra_hosts:
-      - host.docker.internal:host-gateway
+      - patrimonio-hook:host-gateway

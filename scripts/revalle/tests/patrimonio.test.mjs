@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   APP_CONTAINER,
+  api,
   appContainerEnv,
   BASE_URL,
   completeWithCode,
@@ -38,6 +39,8 @@ const MARIA = { cpf: '39053344705', birthDate: '07/03/1990' };
 // CPF válido que não está na base.
 const OUTSIDER_CPF = '12345678909';
 const LINKED_ELSEWHERE_EMAIL = 'patrimonio-vinculo-joao@revalle.com.br';
+const LOCKED_MESSAGE = /Este termo é do Patrimônio/;
+const DELETE_MESSAGE = /Este termo é do Patrimônio: cancele pelo sistema do Patrimônio\./;
 
 const RUN = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 const external = (tag) => `pat-${tag}-${RUN}@gmail.com`;
@@ -49,7 +52,8 @@ const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 // ---------------------------------------------------------------------------------------------------------------
 // PDF mínimo (uma página A4, Helvetica) com as linhas dadas. Sem dependências.
 // ---------------------------------------------------------------------------------------------------------------
-const makePdf = (lines) => {
+// `page` muda o dicionário da página (ex.: '/Rotate 90' ou '/MediaBox [10 10 605 852]').
+const makePdf = (lines, { page = '/MediaBox [0 0 595 842]' } = {}) => {
   const escapePdfText = (text) => text.replace(/[\\()]/g, (char) => `\\${char}`);
   const content = lines
     .map((line, i) => `BT /F1 12 Tf 72 ${760 - i * 28} Td (${escapePdfText(line)}) Tj ET`)
@@ -57,7 +61,7 @@ const makePdf = (lines) => {
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
     '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    `<< /Type /Page /Parent 2 0 R ${page.includes('/MediaBox') ? page : `/MediaBox [0 0 595 842] ${page}`} /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>`,
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
     `<< /Length ${Buffer.byteLength(content, 'latin1')} >>\nstream\n${content}\nendstream`,
   ];
@@ -388,6 +392,10 @@ test('criação com e-mail externo: 201, PENDING, convite enviado e aviso termo.
 
   fx.main = termoId;
 
+  // O aviso vai a um nome interno de uma parte só, por http, sem a liberação global de SSRF.
+  assert.equal(appContainerEnv('NEXT_PRIVATE_WEBHOOK_SSRF_BYPASS_HOSTS'), '');
+  assert.match(appContainerEnv('NEXT_PRIVATE_REVALLE_PATRIMONIO_WEBHOOK_URL'), /^http:\/\/patrimonio-hook:/);
+
   // Envelope do Documenso, dono = conta remetente, destinatário externo, um campo de assinatura do marcador.
   assert.equal(db(`select status from "Envelope" where id = '${termoId}'`), 'PENDING');
   assert.equal(
@@ -510,6 +518,19 @@ test('pedido inválido: marcador ausente, arquivo que não é PDF, arquivo grand
 
   big.write('%PDF-1.4\n');
   assertError(await createTermo({ externalId: extId('big'), file: big }), 413, 'FILE_TOO_LARGE');
+
+  const marker = ['Termo', 'Assinatura: {{assinatura}}'];
+
+  for (const [tag, page] of [
+    ['rot', '/Rotate 90'],
+    ['box', '/MediaBox [10 10 605 852]'],
+  ]) {
+    const res = await createTermo({ externalId: extId(tag), file: makePdf(marker, { page }) });
+
+    assertError(res, 422, 'INVALID_FILE');
+    assert.match(res.body.error.message, /página 1.*girada/, res.text);
+    assert.equal(count(extId(tag)), 0, `envelope criado para ${tag}`);
+  }
 
   assertError(await createTermo({ externalId: 'com espaço' }), 400, 'INVALID_REQUEST');
   assertError(await createTermo({ externalId: extId('kind'), kind: 'EMPRESTIMO' }), 400, 'INVALID_REQUEST');
@@ -645,6 +666,212 @@ test('reenviar: manda o e-mail de novo e respeita 1 vez a cada 10 minutos', asyn
   assert.equal((await post(`/termos/${fx.resend}/cancelar`)).status, 200);
 });
 
+test('chave primeiro: lixo com X-Forwarded-For forjado não tira o limite do Patrimônio', async () => {
+  const spoofed = { 'X-Forwarded-For': '198.51.100.77' };
+  let limited = 0;
+
+  for (let i = 0; i < 25; i += 1) {
+    const res = await fetchIdempotent(
+      `${API}/termos?externalId=X`,
+      { headers: { Authorization: 'Bearer chave-errada', ...spoofed } },
+      readJson,
+    );
+
+    assert.ok([401, 429].includes(res.status), res.text);
+    limited += res.status === 429 ? 1 : 0;
+  }
+
+  assert.ok(limited > 0, 'o balde de falhas não limitou');
+
+  const ok = await fetchIdempotent(
+    `${API}/termos?externalId=${encodeURIComponent(extId('main'))}`,
+    { headers: { ...auth(), ...spoofed } },
+    readJson,
+  );
+
+  assert.equal(ok.status, 200, ok.text);
+  assert.equal(
+    db(`select count(*) from "RateLimit" where action = 'revalle.patrimonio' and key = 'ip:patrimonio-key'`) !== '0',
+    true,
+  );
+});
+
+test('termo do Patrimônio não é excluído, reenviado, alterado nem duplicado pela tela, pela API comum ou pelo admin', async () => {
+  const adminEmail = process.env.REVSIGN_ADMIN_EMAIL;
+  const adminPassword = process.env.REVSIGN_ADMIN_PASSWORD;
+  const userEmail = process.env.REVSIGN_USER_EMAIL;
+  const userPassword = process.env.REVSIGN_USER_PASSWORD;
+
+  assert.ok(adminEmail && adminPassword && userEmail && userPassword, 'defina REVSIGN_ADMIN_* e REVSIGN_USER_*');
+
+  const email = external('locked');
+  const created = await createTermo({ externalId: extId('locked'), signerEmail: email });
+
+  assert.equal(created.status, 201, created.text);
+
+  const termoId = created.body.termoId;
+  const signer = signerOf(termoId);
+  const teamId = db(`select "teamId" from "Envelope" where id = '${termoId}'`);
+  const seen = await mailIdsTo(email);
+  const userCookie = await signIn(userEmail, userPassword);
+  const adminCookie = await signIn(adminEmail, adminPassword);
+  const expect = (res, pattern, what) => {
+    assert.notEqual(res.status, 200, `${what}: ${res.text}`);
+    assert.match(res.text, pattern, what);
+  };
+
+  expect(await api('POST', '/envelope/delete', { envelopeId: termoId }), DELETE_MESSAGE, 'API v2 delete');
+
+  const v1 = await readJson(
+    await fetch(`${BASE_URL}/api/v1/documents/${signer.documentId}`, {
+      method: 'DELETE',
+      headers: { Authorization: process.env.REVSIGN_API_TOKEN },
+    }),
+  );
+
+  // A API v1 não enxerga documento v2 (o termo é v2) e responde 404 antes; a guarda está em `deleteDocument`, que a v1
+  // também usa.
+  assert.notEqual(v1.status, 200, v1.text);
+
+  const bulk = await trpcAs(
+    userCookie,
+    'mutation',
+    'envelope.bulk.delete',
+    { envelopeIds: [termoId] },
+    {
+      'x-team-id': teamId,
+    },
+  );
+
+  // A exclusão em lote não lança: o termo sai como falha e continua (conferido no banco no fim).
+  assert.ok(bulk.status < 500, bulk.text);
+
+  expect(
+    await trpcAs(adminCookie, 'mutation', 'admin.document.delete', { id: termoId, reason: 'teste' }),
+    DELETE_MESSAGE,
+    'admin delete',
+  );
+  expect(
+    await api('POST', '/envelope/redistribute', { envelopeId: termoId, recipients: [signer.recipientId] }),
+    LOCKED_MESSAGE,
+    'redistribute',
+  );
+  expect(await api('POST', '/envelope/distribute', { envelopeId: termoId }), LOCKED_MESSAGE, 'distribute');
+  expect(
+    await api('POST', '/envelope/recipient/update-many', {
+      envelopeId: termoId,
+      data: [{ id: signer.recipientId, name: 'Outro nome' }],
+    }),
+    LOCKED_MESSAGE,
+    'recipient update',
+  );
+  expect(await api('POST', '/envelope/duplicate', { envelopeId: termoId }), LOCKED_MESSAGE, 'duplicate');
+
+  // Nada mudou: termo pendente, envelope não excluído, nome igual, nenhum e-mail novo ao colaborador.
+  assert.equal(
+    db(`select status || '|' || ("deletedAt" is null) from "Envelope" where id = '${termoId}'`),
+    'PENDING|true',
+  );
+  assert.equal(db(`select name from "Recipient" where id = ${signer.recipientId}`), 'João Exemplo Pereira');
+  assert.equal(db(`select count(*) from "RevallePatrimonioTermo" where "envelopeId" = '${termoId}'`), '1');
+  assert.equal((await get(`/termos/${termoId}`)).body.status, 'PENDING');
+  await sleep(1500);
+  assert.deepEqual(
+    [...(await mailIdsTo(email))].filter((id) => !seen.has(id)),
+    [],
+  );
+
+  // Cancelar pela tela continua possível e avisa o Patrimônio.
+  fx.locked = termoId;
+});
+
+test('vencido continua vencido: o reenvio pela API comum é recusado e o da integração dá NOT_PENDING', async () => {
+  const created = await createTermo({ externalId: extId('expired'), signerEmail: external('expired') });
+
+  assert.equal(created.status, 201, created.text);
+
+  const termoId = created.body.termoId;
+  const signer = signerOf(termoId);
+
+  db(`update "Recipient" set "expiresAt" = now() - interval '1 minute' where id = ${signer.recipientId}`);
+
+  const expiresAt = db(`select "expiresAt" from "Recipient" where id = ${signer.recipientId}`);
+
+  assert.equal((await get(`/termos/${termoId}`)).body.status, 'EXPIRED');
+
+  const redistributed = await api('POST', '/envelope/redistribute', {
+    envelopeId: termoId,
+    recipients: [signer.recipientId],
+  });
+
+  assert.notEqual(redistributed.status, 200, redistributed.text);
+  assert.match(redistributed.text, LOCKED_MESSAGE);
+  assert.equal(db(`select "expiresAt" from "Recipient" where id = ${signer.recipientId}`), expiresAt);
+  assert.equal((await get(`/termos/${termoId}`)).body.status, 'EXPIRED');
+  assertError(await post(`/termos/${termoId}/reenviar`), 409, 'NOT_PENDING');
+  assertError(await post(`/termos/${termoId}/cancelar`), 409, 'NOT_PENDING');
+
+  // O externalId de um termo vencido fica livre para um termo novo.
+  const again = await createTermo({ externalId: extId('expired'), signerEmail: external('expired2') });
+
+  assert.equal(again.status, 201, again.text);
+  assert.equal((await post(`/termos/${again.body.termoId}/cancelar`)).status, 200);
+});
+
+test('assinado e ainda não selado: cancelar e reenviar dão 409 NOT_PENDING', async () => {
+  const created = await createTermo({ externalId: extId('sealing'), signerEmail: external('sealing') });
+
+  assert.equal(created.status, 201, created.text);
+
+  const termoId = created.body.termoId;
+  const signer = signerOf(termoId);
+
+  // O intervalo entre a assinatura e o fim da selagem, posto no banco por instantes.
+  db(`update "Recipient" set "signingStatus" = 'SIGNED' where id = ${signer.recipientId}`);
+
+  try {
+    assert.equal((await get(`/termos/${termoId}`)).body.status, 'PENDING');
+
+    const cancelled = await post(`/termos/${termoId}/cancelar`);
+
+    assertError(cancelled, 409, 'NOT_PENDING');
+    assert.match(cancelled.body.error.message, /já assinou/);
+    assertError(await post(`/termos/${termoId}/reenviar`), 409, 'NOT_PENDING');
+    assert.equal(db(`select status from "Envelope" where id = '${termoId}'`), 'PENDING');
+  } finally {
+    db(`update "Recipient" set "signingStatus" = 'NOT_SIGNED' where id = ${signer.recipientId}`);
+  }
+
+  assert.equal((await post(`/termos/${termoId}/cancelar`)).status, 200);
+});
+
+test('Zapier: só o admin do sistema cria webhook (token comum recebe 401)', async () => {
+  const subscribe = (token) =>
+    fetch(`${BASE_URL}/api/v1/zapier/subscribe`, {
+      method: 'POST',
+      headers: { Authorization: token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ webhookUrl: `https://93.184.216.34/zapier-${RUN}`, eventTrigger: 'DOCUMENT_SIGNED' }),
+    }).then(readJson);
+
+  const normal = await subscribe(process.env.REVSIGN_API_TOKEN);
+
+  assert.equal(normal.status, 401, normal.text);
+  assert.equal(db(`select count(*) from "Webhook" where "webhookUrl" like '%zapier-${RUN}'`), '0');
+
+  const adminToken = process.env.REVSIGN_SENDER_API_TOKEN;
+
+  assert.ok(adminToken, 'defina REVSIGN_SENDER_API_TOKEN (token de uma conta ADMIN)');
+
+  try {
+    const admin = await subscribe(adminToken);
+
+    assert.equal(admin.status, 200, admin.text);
+    assert.equal(db(`select count(*) from "Webhook" where "webhookUrl" like '%zapier-${RUN}'`), '1');
+  } finally {
+    db(`delete from "Webhook" where "webhookUrl" like '%zapier-${RUN}'`);
+  }
+});
+
 test('portão: sempre CPF e nascimento, só o CPF do termo passa, sem checagens de vínculo e sem criar vínculo', async () => {
   const signer = signerOf(fx.main);
 
@@ -761,6 +988,45 @@ test('assinatura completa com o código do Mailpit: termo.signed e o PDF baixado
   // O PDF final é maior que o enviado (carimbo e certificado).
   assert.ok(pdf.bytes.length > TERMO_PDF.length);
   assertError(await post(`/termos/${fx.main}/cancelar`), 409, 'NOT_PENDING');
+});
+
+test('termo assinado: a exclusão é recusada e, mesmo marcado como excluído, continua SIGNED com o PDF', async () => {
+  const deleted = await api('POST', '/envelope/delete', { envelopeId: fx.main });
+
+  assert.notEqual(deleted.status, 200, deleted.text);
+  assert.match(deleted.text, DELETE_MESSAGE);
+
+  // Exclusão "branda" (só esconde da lista) posta no banco por instantes: o estado e o PDF não mudam.
+  db(`update "Envelope" set "deletedAt" = now() where id = '${fx.main}'`);
+
+  try {
+    assert.equal((await get(`/termos/${fx.main}`)).body.status, 'SIGNED');
+    assert.equal((await fetchIdempotent(`${API}/termos/${fx.main}/pdf`, { headers: auth() }, readJson)).status, 200);
+  } finally {
+    db(`update "Envelope" set "deletedAt" = null where id = '${fx.main}'`);
+  }
+
+  await sleep(1500);
+  assert.equal(
+    received.filter((hit) => hit.body?.termoId === fx.main && hit.body?.event === 'termo.cancelled').length,
+    0,
+  );
+});
+
+test('cancelar pela tela continua possível e avisa termo.cancelled', async () => {
+  const userCookie = await signIn(process.env.REVSIGN_USER_EMAIL, process.env.REVSIGN_USER_PASSWORD);
+  const teamId = db(`select "teamId" from "Envelope" where id = '${fx.locked}'`);
+  const cancelled = await trpcAs(
+    userCookie,
+    'mutation',
+    'envelope.cancel',
+    { envelopeId: fx.locked, reason: 'pela tela' },
+    { 'x-team-id': teamId },
+  );
+
+  assert.equal(cancelled.status, 200, cancelled.text);
+  await waitEvent(fx.locked, 'termo.cancelled');
+  assert.equal((await get(`/termos/${fx.locked}`)).body.status, 'CANCELLED');
 });
 
 test('recusa: termo.rejected com o motivo; o portão volta a pedir CPF (sem vínculo do termo anterior)', async () => {
