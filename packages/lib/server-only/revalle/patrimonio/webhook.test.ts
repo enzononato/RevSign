@@ -47,7 +47,8 @@ describe('assinatura HMAC', () => {
 
 describe('corpo do aviso', () => {
   it('sai sempre com as chaves na mesma ordem e sem CPF', () => {
-    const shuffled = { signer: BODY.signer, status: BODY.status, ...BODY };
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+    const shuffled = Object.fromEntries(Object.entries(BODY).reverse()) as typeof BODY;
 
     expect(serializeEventBody(shuffled)).toBe(serializeEventBody(BODY));
     expect(Object.keys(JSON.parse(serializeEventBody(BODY)))).toEqual([
