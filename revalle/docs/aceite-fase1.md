@@ -15,7 +15,8 @@ Quem faz: Enzo. Onde: `https://assinatura-hml.revalle.com.br`. Marque cada item 
 
 1. Entre no site, clique em **Enviar documento** e envie o PDF de teste.
 2. Adicione dois destinatários (A e B) e marque **ordem de assinatura** (assinatura em sequência).
-3. Coloque um campo de assinatura para cada um e clique em **Enviar**.
+3. Coloque um campo de assinatura para cada um (o único campo do editor; com mais de um arquivo no envelope, um em cada
+   arquivo para cada um) e clique em **Enviar**.
 
 - [ ] Só A recebe o e-mail no começo; B ainda não.
 - [ ] Depois que A assina, B recebe o e-mail.

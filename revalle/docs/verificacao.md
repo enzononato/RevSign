@@ -17,7 +17,8 @@ As telas, na ordem em que a pessoa vê:
    - Só aparece na primeira vez de cada pessoa (e-mail ainda sem vínculo).
    - Se os dados estiverem certos, a tela mostra "Você é <primeiro nome>" (com cargo e unidade) e os botões "Sim, sou eu" e "Não sou eu".
    - Se estiverem errados, a mensagem é sempre a mesma: `CPF ou data de nascimento não conferem.` (vale para CPF que não existe na base e para data errada). A tela informa quantas tentativas restam.
-3. **Documento**: a pessoa lê o PDF e preenche os campos.
+3. **Documento**: a pessoa lê o PDF e assina cada posição de assinatura, uma por uma (o único campo que o remetente
+   pode pôr; documentos antigos podem ter outros campos, que continuam funcionando).
 4. **Assinar**: botão de concluir.
 5. **Código por e-mail**: botão "Enviar código para meu e-mail", depois o código de 6 dígitos que chega na caixa de entrada.
    - Só esse código conclui a assinatura: nenhum outro meio (autenticador de conta, login) substitui o código enviado ao e-mail do destinatário.

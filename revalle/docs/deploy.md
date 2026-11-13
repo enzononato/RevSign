@@ -499,6 +499,25 @@ regra de domínio continua estrita fora dessa integração.
 5. Depois de ligar, rode o roteiro "Testar em homologação" de `patrimonio.md` (criação, aviso com HMAC, assinatura,
    download do PDF, cancelamento).
 
+## Antes de atualizar (só assinatura)
+
+Vale para quem atualiza uma instalação que já está em uso. Não há migração nem variável nova. Muda o que o remetente
+pode montar no editor:
+
+1. **Só existe o campo Assinatura.** Nome, E-mail, Data, Texto, Número, Caixa de seleção, Opções, Lista, Iniciais e os
+   demais saem do editor (documento e modelo). A API (v1, v2 e tRPC) recusa criar ou trocar um campo para outro tipo com
+   400 e a mensagem `Só o campo de assinatura é permitido.`; marcador `{{tipo}}` no PDF que não seja de assinatura é
+   apagado do PDF, mas não vira campo. **Documentos que já têm esses campos continuam funcionando** (assinar, selar,
+   ver e editar a posição): nada é apagado nem convertido. Modelos antigos com esses campos continuam gerando documentos
+   com eles.
+2. **Cada signatário assina cada documento.** No envio, todo destinatário com papel de assinar precisa de ao menos uma
+   posição de assinatura em **cada** arquivo do envelope; senão o envio é recusado com, por exemplo,
+   `Falta a posição da assinatura de Fulano no documento contrato.pdf.` (a tela de envio mostra a mesma lista antes de
+   chamar o servidor). Aprovador, visualizador, cópia e assistente não precisam de campo. Vale também para envio pela API
+   e por modelo; documentos já enviados antes desta versão não são conferidos de novo. Integrações que mandam um
+   envelope com vários arquivos precisam pôr a assinatura de cada signatário em todos eles (o Patrimônio já põe).
+3. **Backup antes**, como sempre (seção "Backup antes de atualizar").
+
 ## Atualizar a versão depois
 
 0. Antes de trocar a versão, confirme que as DUAS imagens existem para a tag nova: `ghcr.io/enzononato/revsign:<tag>` e `ghcr.io/enzononato/revsign-backup:<tag>` (GitHub → Packages; os dois jobs de publicação são independentes e um pode falhar sozinho).
