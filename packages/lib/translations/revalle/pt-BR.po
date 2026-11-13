@@ -5291,3 +5291,12 @@ msgstr "Escolher arquivo CSV"
 
 msgid "Nenhum arquivo escolhido"
 msgstr "Nenhum arquivo escolhido"
+
+msgid "Each signer must have a signature position in every document."
+msgstr "Quem assina precisa ter a posição da assinatura em cada documento."
+
+msgid "Missing signature position for {signer} in document {documentTitle}."
+msgstr "Falta a posição da assinatura de {signer} no documento {documentTitle}."
+
+msgid "Missing signature position"
+msgstr "Falta a posição da assinatura"

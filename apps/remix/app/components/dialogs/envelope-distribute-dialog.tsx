@@ -3,6 +3,7 @@ import { useCurrentEnvelopeEditor } from '@documenso/lib/client-only/providers/e
 import { useCurrentOrganisation } from '@documenso/lib/client-only/providers/organisation';
 import { DO_NOT_INVALIDATE_QUERY_ON_MUTATION } from '@documenso/lib/constants/trpc';
 import { AppError } from '@documenso/lib/errors/app-error';
+import { findMissingSignaturesPerItem, getRevalleSignerLabel } from '@documenso/lib/revalle/signature-only'; // REVALLE:
 import { extractDocumentAuthMethods } from '@documenso/lib/utils/document-auth';
 import { hasOverlappingFields } from '@documenso/lib/utils/fields-overlap';
 import { getRecipientsWithMissingFields } from '@documenso/lib/utils/recipients';
@@ -129,6 +130,17 @@ export const EnvelopeDistributeDialog = ({
     [recipientsWithIndex, envelope.fields],
   );
 
+  // REVALLE: cada SIGNER precisa de assinatura em CADA documento do envelope (o servidor confere de novo no envio).
+  const revalleMissingSignaturesPerItem = useMemo(
+    () =>
+      findMissingSignaturesPerItem(
+        recipientsWithIndex,
+        [...envelope.envelopeItems].sort((a, b) => a.order - b.order),
+        envelope.fields,
+      ),
+    [recipientsWithIndex, envelope.envelopeItems, envelope.fields],
+  );
+
   /**
    * List of recipients who must have an email due to having auth enabled.
    */
@@ -165,6 +177,11 @@ export const EnvelopeDistributeDialog = ({
   );
 
   const invalidEnvelopeCode = useMemo(() => {
+    // REVALLE: a lista por documento já cobre quem não tem assinatura nenhuma, nomeando o documento.
+    if (revalleMissingSignaturesPerItem.length > 0) {
+      return 'REVALLE_MISSING_SIGNATURES_PER_ITEM';
+    }
+
     if (recipientsMissingSignatureFields.length > 0) {
       return 'MISSING_SIGNATURES';
     }
@@ -178,7 +195,12 @@ export const EnvelopeDistributeDialog = ({
     }
 
     return null;
-  }, [envelope.recipients, recipientsMissingRequiredEmail, recipientsMissingSignatureFields]);
+  }, [
+    envelope.recipients,
+    recipientsMissingRequiredEmail,
+    recipientsMissingSignatureFields,
+    revalleMissingSignaturesPerItem,
+  ]);
 
   const onFormSubmit = async ({ meta }: TEnvelopeDistributeFormSchema) => {
     try {
@@ -504,6 +526,26 @@ export const EnvelopeDistributeDialog = ({
                 .with('MISSING_RECIPIENTS', () => (
                   <AlertDescription>
                     <Trans>You need at least one recipient to send a document</Trans>
+                  </AlertDescription>
+                ))
+                .with('REVALLE_MISSING_SIGNATURES_PER_ITEM', () => (
+                  <AlertDescription>
+                    <Trans>Each signer must have a signature position in every document.</Trans>
+
+                    <ul className="mt-1 ml-2 list-inside list-disc">
+                      {revalleMissingSignaturesPerItem.map(({ recipient, envelopeItem }) => {
+                        const signer = getRevalleSignerLabel(recipient) || t`Recipient ${recipient.index + 1}`;
+                        const documentTitle = envelopeItem.title;
+
+                        return (
+                          <li key={`${recipient.id}:${envelopeItem.id}`} className="break-words">
+                            <Trans>
+                              Missing signature position for {signer} in document {documentTitle}.
+                            </Trans>
+                          </li>
+                        );
+                      })}
+                    </ul>
                   </AlertDescription>
                 ))
                 .with('MISSING_SIGNATURES', () => (

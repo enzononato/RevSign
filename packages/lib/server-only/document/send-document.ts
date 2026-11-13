@@ -54,6 +54,7 @@ import {
 import { holdSealForFinance } from '../revalle/finance/seal-hold'; // REVALLE:
 import { assertInvoiceChoiceBeforeSend } from '../revalle/invoice/choice'; // REVALLE:
 import { assertNotPatrimonioTermo } from '../revalle/patrimonio/guard'; // REVALLE:
+import { assertSignaturesInEveryItem } from '../revalle/signature-only'; // REVALLE:
 import { assertUserNotDisabledById } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
 
@@ -101,6 +102,8 @@ export const sendDocument = async ({
       envelopeItems: {
         select: {
           id: true,
+          title: true, // REVALLE: nome e ordem do documento na recusa "falta a posição da assinatura"
+          order: true, // REVALLE:
           documentData: {
             select: {
               type: true,
@@ -152,6 +155,15 @@ export const sendDocument = async ({
 
   if (isDocumentCompleted(envelope.status)) {
     throw new Error('Can not send completed document');
+  }
+
+  // REVALLE: no primeiro envio, cada SIGNER precisa de assinatura em CADA documento do envelope (mensagem em pt-BR
+  // nomeando quem e qual documento). Envelope já enviado não é conferido de novo (documentos de antes desta regra).
+  // Antes de qualquer gravação (injeção de formValues, hashes, authOptions).
+  if (envelope.status === DocumentStatus.DRAFT) {
+    const revalleItems = [...envelope.envelopeItems].sort((a, b) => a.order - b.order);
+
+    assertSignaturesInEveryItem(envelope.recipients, revalleItems, envelope.fields);
   }
 
   // REVALLE: nota fiscal só sai com a conta contábil escolhida. Só no primeiro envio: reenviar um documento já enviado
