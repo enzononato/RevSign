@@ -15,6 +15,7 @@ import { canRecipientFieldsBeModified } from '../../utils/recipients';
 import { assertEnvelopeMutable } from '../envelope/assert-envelope-mutable';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { type BoundingBox, whiteoutRegions } from '../pdf/auto-place-fields';
+import { assertRevalleFieldTypesAllowed } from '../revalle/signature-only'; // REVALLE:
 
 type CoordinatePosition = {
   page: number;
@@ -68,6 +69,8 @@ export const createEnvelopeFields = async ({
   fields,
   requestMetadata,
 }: CreateEnvelopeFieldsOptions) => {
+  assertRevalleFieldTypesAllowed(fields.map((field) => field.type)); // REVALLE: só o campo de assinatura
+
   const { envelopeWhereInput } = await getEnvelopeWhereInput({
     id,
     type: null, // Null to allow any type of envelope.

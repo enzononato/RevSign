@@ -12,6 +12,7 @@ import { mapFieldToLegacyField } from '../../utils/fields';
 import { canRecipientFieldsBeModified } from '../../utils/recipients';
 import { assertEnvelopeMutable } from '../envelope/assert-envelope-mutable';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
+import { assertRevalleFieldTypesAllowed } from '../revalle/signature-only'; // REVALLE:
 
 export interface UpdateEnvelopeFieldsOptions {
   userId: number;
@@ -97,6 +98,11 @@ export const updateEnvelopeFields = async ({
 
     const fieldType = field.type || originalField.type;
     const isFieldTypeChanged = fieldType !== originalField.type;
+
+    // REVALLE: só se troca para assinatura; campo antigo de outro tipo que mantém o tipo continua editável.
+    if (isFieldTypeChanged) {
+      assertRevalleFieldTypesAllowed([fieldType]);
+    }
 
     // An omitted fieldMeta keeps the stored one, unless the field type changes.
     const fallbackFieldMeta = isFieldTypeChanged ? FIELD_META_DEFAULT_VALUES[fieldType] : undefined;

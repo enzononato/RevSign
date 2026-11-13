@@ -40,6 +40,7 @@ import { incrementDocumentId, incrementTemplateId } from '../envelope/increment-
 import { assertOrganisationRatesAndLimits } from '../rate-limit/assert-organisation-rates-and-limits';
 import { assignOmittedRecipientSigningOrders } from '../recipient/assign-omitted-recipient-signing-orders';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
+import { assertRevalleFieldTypesAllowed } from '../revalle/signature-only'; // REVALLE:
 import { assertCompatibleRecipientGrouping } from '../signature-level/assert-compatible-recipient-grouping';
 import { assertCompatibleRecipientRole } from '../signature-level/assert-compatible-recipient-role';
 import { resolveSignatureLevel } from '../signature-level/resolve-signature-level';
@@ -311,6 +312,9 @@ export const createEnvelope = async ({
       allowExternalDomains: revalleAllowExternalRecipients && type === EnvelopeType.DOCUMENT,
     },
   ); // REVALLE:
+
+  // REVALLE: só o campo de assinatura nos campos enviados junto com os destinatários.
+  assertRevalleFieldTypesAllowed((data.recipients ?? []).flatMap((r) => (r.fields ?? []).map((f) => f.type)));
 
   assertCompatibleRecipientGrouping({ signatureLevel, recipients: requestedRecipients });
 

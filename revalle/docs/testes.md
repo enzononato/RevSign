@@ -349,7 +349,7 @@ sh scripts/revalle/inspect-pdf-signature.sh smoke-output/final.pdf --full   # es
 
 ## Celular (360 px)
 
-`scripts/revalle/mobile-check.mjs` passa pelo caminho de quem assina numa tela de celular (360×740, escala 2): cria e envia um documento pela API, abre o link, passa pelo portão (termo, CPF e data de nascimento do Fernando fictício do `dev-seed.sql`, "sou eu"), abre pelo menu de ações os diálogos "Baixar PDF" e "Recusar" e os fecha (depois de cada um, o 1º toque num campo tem de abri-lo), assina um campo de assinatura e um de texto, pede o código por e-mail (lido no Mailpit) e conclui. Em cada passo tira um print e confere:
+`scripts/revalle/mobile-check.mjs` passa pelo caminho de quem assina numa tela de celular (360×740, escala 2): cria e envia um documento pela API, abre o link, passa pelo portão (termo, CPF e data de nascimento do Fernando fictício do `dev-seed.sql`, "sou eu"), abre pelo menu de ações os diálogos "Baixar PDF" e "Recusar" e os fecha (depois de cada um, o 1º toque num campo tem de abri-lo), assina dois campos de assinatura (só existe esse campo; o segundo pode reaproveitar a assinatura já feita), pede o código por e-mail (lido no Mailpit) e conclui. Em cada passo tira um print e confere:
 
 - sem rolagem horizontal (`document.scrollingElement.scrollWidth <= 360`);
 - todo botão visível (`button` ou `role=button`) com pelo menos 44 px de altura (caixa de seleção vale pela área do `<label>` dela);

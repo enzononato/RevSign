@@ -1,6 +1,7 @@
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
 import { verifyEmbeddingPresignToken } from '@documenso/lib/server-only/embedding-presign/verify-embedding-presign-token';
 import { createEnvelope } from '@documenso/lib/server-only/envelope/create-envelope';
+import { assertRevalleFieldTypesAllowed } from '@documenso/lib/server-only/revalle/signature-only'; // REVALLE:
 import { mapSecondaryIdToTemplateId } from '@documenso/lib/utils/envelope';
 import { prisma } from '@documenso/prisma';
 import { EnvelopeType } from '@prisma/client';
@@ -30,6 +31,9 @@ export const createEmbeddingTemplateRoute = procedure
       const apiToken = await verifyEmbeddingPresignToken({ token: presignToken });
 
       const { title, documentDataId, recipients, meta } = input;
+
+      // REVALLE: só o campo de assinatura (antes de criar o modelo, para não sobrar modelo pela metade).
+      assertRevalleFieldTypesAllowed(recipients.flatMap((recipient) => (recipient.fields ?? []).map((f) => f.type)));
 
       // First create the template
       const template = await createEnvelope({

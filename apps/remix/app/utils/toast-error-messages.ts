@@ -27,6 +27,11 @@ export const getDistributeErrorMessage = (code: string): ToastMessageDescriptor 
       title: msg`Nota fiscal sem conta contábil ou centro de custo`,
       description: msg`Escolha a conta contábil e o centro de custo.`,
     }))
+    .with(AppErrorCode.MISSING_SIGNATURE_FIELD, () => ({
+      // REVALLE: o servidor recusou o envio porque falta a assinatura de alguém em algum documento do envelope.
+      title: msg`Missing signature position`,
+      description: msg`Each signer must have a signature position in every document.`,
+    }))
     .otherwise(() => ({
       title: msg`Something went wrong`,
       description: msg`An error occurred while distributing the document.`,

@@ -286,7 +286,7 @@ const newInvoiceWithTwoFiles = async (label) => {
   const form = new FormData();
   const email = `f7-ct-${label}-${RUN}@revalle.com.br`;
   const title = `[TESTE NF] contabilidade ${label} ${RUN}`;
-  // O DANFE primeiro: o campo de assinatura fica no primeiro arquivo, e o teste apaga o outro.
+  // O DANFE primeiro (o teste apaga o outro arquivo, e a assinatura dele vai junto).
   const files = [await danfe(label), 'assets/example.pdf'];
 
   form.append(
@@ -300,7 +300,16 @@ const newInvoiceWithTwoFiles = async (label) => {
           role: 'SIGNER',
           name: 'Teste',
           email,
-          fields: [{ type: 'SIGNATURE', page: 1, positionX: 10, positionY: 80, width: 30, height: 8 }],
+          // Uma assinatura em cada arquivo: o envio exige a de cada signatário em todos (regra "só assinatura").
+          fields: files.map((_, identifier) => ({
+            type: 'SIGNATURE',
+            identifier,
+            page: 1,
+            positionX: 10,
+            positionY: 80,
+            width: 30,
+            height: 8,
+          })),
         },
       ],
     }),

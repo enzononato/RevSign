@@ -187,7 +187,16 @@ const newEnvelopeWithFiles = async (files, title) => {
           role: 'SIGNER',
           name: 'Teste',
           ...recipient(),
-          fields: [{ type: 'SIGNATURE', page: 1, positionX: 10, positionY: 80, width: 30, height: 8 }],
+          // Uma assinatura em cada arquivo: o envio exige a de cada signatário em todos (regra "só assinatura").
+          fields: files.map((_, identifier) => ({
+            type: 'SIGNATURE',
+            identifier,
+            page: 1,
+            positionX: 10,
+            positionY: 80,
+            width: 30,
+            height: 8,
+          })),
         },
       ],
     }),
