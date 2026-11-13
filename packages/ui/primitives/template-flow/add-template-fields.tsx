@@ -690,7 +690,8 @@ export const AddTemplateFieldsFormPartial = ({
 
               <Form {...form}>
                 <div className="-mx-2 flex-1 overflow-y-auto px-2">
-                  <fieldset className="my-2 grid grid-cols-3 gap-4">
+                  {/* REVALLE: só o campo de assinatura (o 1º botão); os outros ficam no código do upstream, ocultos. */}
+                  <fieldset className="my-2 grid grid-cols-3 gap-4 [&>button:not(:first-child)]:hidden">
                     <button
                       type="button"
                       className="group h-full w-full"

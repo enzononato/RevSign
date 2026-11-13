@@ -22,6 +22,7 @@ import { deleteEnvelopeRecipient } from '@documenso/lib/server-only/recipient/de
 import { getRecipientsForDocument } from '@documenso/lib/server-only/recipient/get-recipients-for-document';
 import { setDocumentRecipients } from '@documenso/lib/server-only/recipient/set-document-recipients';
 import { updateEnvelopeRecipients } from '@documenso/lib/server-only/recipient/update-envelope-recipients';
+import { assertRevalleFieldTypesAllowed } from '@documenso/lib/server-only/revalle/signature-only'; // REVALLE:
 import { createDocumentFromTemplate } from '@documenso/lib/server-only/template/create-document-from-template';
 import { deleteTemplate } from '@documenso/lib/server-only/template/delete-template';
 import { findTemplates } from '@documenso/lib/server-only/template/find-templates';
@@ -1360,6 +1361,8 @@ export const ApiContractV1Implementation = tsr.router(ApiContractV1, {
     }
 
     try {
+      assertRevalleFieldTypesAllowed(fields.map((field) => field.type)); // REVALLE: só o campo de assinatura
+
       const createdFields = await prisma.$transaction(async (tx) => {
         return Promise.all(
           fields.map(async (fieldData) => {

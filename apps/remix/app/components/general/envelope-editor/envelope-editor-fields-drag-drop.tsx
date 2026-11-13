@@ -3,6 +3,7 @@ import { useDocumentElement } from '@documenso/lib/client-only/hooks/use-documen
 import { useCurrentEnvelopeEditor } from '@documenso/lib/client-only/providers/envelope-editor-provider';
 import { getRevalleSignatureFieldPixels } from '@documenso/lib/client-only/revalle/signature-field-size'; // REVALLE:
 import { PDF_VIEWER_PAGE_SELECTOR } from '@documenso/lib/constants/pdf-viewer';
+import { isRevalleAllowedFieldType } from '@documenso/lib/revalle/signature-only'; // REVALLE:
 import { clampRevalleSignatureFieldSize } from '@documenso/lib/revalle/stamp'; // REVALLE:
 import { FIELD_META_DEFAULT_VALUES } from '@documenso/lib/types/field-meta';
 import { nanoid } from '@documenso/lib/universal/id';
@@ -33,7 +34,7 @@ const MIN_WIDTH_PX = 36;
 const DEFAULT_HEIGHT_PX = MIN_HEIGHT_PX * 2.5;
 const DEFAULT_WIDTH_PX = MIN_WIDTH_PX * 2.5;
 
-export const fieldButtonList = [
+const upstreamFieldButtonList = [
   {
     type: FieldType.SIGNATURE,
     icon: SignatureIcon,
@@ -86,6 +87,10 @@ export const fieldButtonList = [
     name: msg`Dropdown`,
   },
 ];
+
+// REVALLE: só o campo de assinatura existe (paleta, menu ao desenhar um campo e troca de tipo). A lista do upstream fica
+// acima, intacta, para o merge.
+export const fieldButtonList = upstreamFieldButtonList.filter((field) => isRevalleAllowedFieldType(field.type));
 
 type EnvelopeEditorFieldDragDropProps = {
   selectedRecipientId: number | null;
@@ -253,7 +258,8 @@ export const EnvelopeEditorFieldDragDrop = ({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-x-2 gap-y-2.5">
+      {/* REVALLE: um botão só (Assinatura), na largura toda: era `grid-cols-2`. */}
+      <div className="grid grid-cols-1 gap-x-2 gap-y-2.5">
         {fieldButtonList.map((field) => (
           <button
             disabled={isFieldsDisabled}

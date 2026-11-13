@@ -25,6 +25,7 @@ import type { EnvelopeIdOptions } from '../../utils/envelope';
 import { mapFieldToLegacyField } from '../../utils/fields';
 import { canRecipientFieldsBeModified } from '../../utils/recipients';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
+import { assertRevalleFieldTypesAllowed } from '../revalle/signature-only'; // REVALLE:
 
 export interface SetFieldsForDocumentOptions {
   userId: number;
@@ -116,6 +117,11 @@ export const setFieldsForDocument = async ({
       throw new AppError(AppErrorCode.INVALID_REQUEST, {
         message: 'Cannot modify a field where the recipient has already interacted with the document',
       });
+    }
+
+    // REVALLE: campo novo, ou troca de tipo, só de assinatura; campo antigo de outro tipo que mantém o tipo continua.
+    if (!existing || existing.type !== field.type) {
+      assertRevalleFieldTypesAllowed([field.type]);
     }
 
     return {

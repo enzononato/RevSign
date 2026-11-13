@@ -20,6 +20,7 @@ import { AppError, AppErrorCode } from '../../errors/app-error';
 import type { EnvelopeIdOptions } from '../../utils/envelope';
 import { mapFieldToLegacyField } from '../../utils/fields';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
+import { assertRevalleFieldTypesAllowed } from '../revalle/signature-only'; // REVALLE:
 
 export type SetFieldsForTemplateOptions = {
   userId: number;
@@ -96,6 +97,11 @@ export const setFieldsForTemplate = async ({ userId, teamId, id, fields }: SetFi
       throw new AppError(AppErrorCode.INVALID_REQUEST, {
         message: `Recipient not found for field ${field.id}`,
       });
+    }
+
+    // REVALLE: campo novo, ou troca de tipo, só de assinatura; campo antigo de outro tipo que mantém o tipo continua.
+    if (!existing || existing.type !== field.type) {
+      assertRevalleFieldTypesAllowed([field.type]);
     }
 
     return {

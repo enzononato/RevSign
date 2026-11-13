@@ -2,6 +2,7 @@ import { type TFieldAndMeta, ZEnvelopeFieldAndMetaSchema } from '@documenso/lib/
 import { PDF, rgb } from '@libpdf/core';
 import type { FieldType, Recipient } from '@prisma/client';
 
+import { isRevalleAllowedFieldType } from '../../revalle/signature-only'; // REVALLE:
 import { parseFieldMetaFromPlaceholder, parseFieldTypeFromPlaceholder } from './helpers';
 
 const PLACEHOLDER_REGEX = /\{\{([^}]+)\}\}/g;
@@ -205,7 +206,10 @@ export const convertPlaceholdersToFieldInputs = (
   recipientResolver: (recipientPlaceholder: string, placeholder: string) => Pick<Recipient, 'id'>,
   envelopeItemId?: string,
 ): FieldToCreate[] => {
-  return placeholders.map((p) => {
+  // REVALLE: só o campo de assinatura nasce de marcador no PDF; os outros marcadores só são apagados do PDF.
+  const revallePlaceholders = placeholders.filter((p) => isRevalleAllowedFieldType(p.fieldAndMeta.type));
+
+  return revallePlaceholders.map((p) => {
     const xPercent = (p.x / p.pageWidth) * 100;
     const yPercent = (p.y / p.pageHeight) * 100;
     const widthPercent = (p.width / p.pageWidth) * 100;
