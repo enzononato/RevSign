@@ -2,8 +2,8 @@
 // REVALLE: conferência do caminho de quem assina num celular de 360 px (viewport 360×740, escala 2).
 //
 // Passa por um fluxo real: cria e envia um documento pela API, abre o link de assinatura, passa pelo portão
-// (termo, CPF/data de nascimento do Fernando fictício do dev-seed.sql, "sou eu"), assina um campo de assinatura e
-// um de texto, abre e fecha os diálogos "Baixar PDF" e "Recusar" do menu de ações (e confere que, depois de cada um, o
+// (termo, CPF/data de nascimento do Fernando fictício do dev-seed.sql, "sou eu"), assina dois campos de assinatura
+// (só existe esse campo), abre e fecha os diálogos "Baixar PDF" e "Recusar" do menu de ações (e confere que, depois de cada um, o
 // 1º toque num campo abre o campo), pede o código por e-mail (lido no Mailpit) e conclui.
 // Antes, se houver sessão do remetente (REVSIGN_USER_EMAIL/REVSIGN_USER_PASSWORD, dono do token), confere o envio de
 // uma nota fiscal fictícia no celular: o diálogo de envio com o bloco "Nota fiscal · Conta contábil", a escolha da conta
@@ -50,7 +50,7 @@ const MARIA = { cpf: '39053344705', birthDate: '07/03/1990' };
 // Campos do documento de teste (em % da página 1) e o centro de cada um, para o toque no canvas.
 const FIELD_BOXES = {
   signature: { type: 'SIGNATURE', page: 1, positionX: 10, positionY: 70, width: 35, height: 8 },
-  text: { type: 'TEXT', page: 1, positionX: 55, positionY: 70, width: 35, height: 6 },
+  second: { type: 'SIGNATURE', page: 1, positionX: 55, positionY: 70, width: 35, height: 8 },
 };
 const FIELDS = Object.fromEntries(
   Object.entries(FIELD_BOXES).map(([key, f]) => [
@@ -936,7 +936,7 @@ const runBrowser = async () => {
       .click();
     await page.getByRole('dialog').waitFor({ state: 'detached' });
     await check('07-baixar-fechado');
-    await firstTapOpens('07-baixar-fechado', FIELDS.text);
+    await firstTapOpens('07-baixar-fechado', FIELDS.second);
     await page
       .getByRole('dialog')
       .getByRole('button', { name: /cancelar/i })
@@ -975,13 +975,36 @@ const runBrowser = async () => {
       .click();
     await page.getByRole('dialog').waitFor({ state: 'detached' });
 
-    // 7. Campo de texto.
-    await clickField(FIELDS.text);
-    await page.getByRole('dialog').waitFor();
-    await check('10-dialogo-texto');
-    await page.getByRole('dialog').locator('textarea, input').first().fill('Teste no celular');
-    await page.getByRole('dialog').getByRole('button').last().click();
-    await page.getByRole('dialog').waitFor({ state: 'detached' });
+    // 7. Segunda assinatura (só existe o campo de assinatura). A tela pode reaproveitar a assinatura já feita, sem
+    // diálogo; se o diálogo abrir, desenha de novo.
+    await clickField(FIELDS.second);
+
+    const isSecondDialog = await page
+      .getByRole('dialog')
+      .waitFor({ timeout: 3000 })
+      .then(
+        () => true,
+        () => false,
+      );
+
+    if (isSecondDialog) {
+      await check('10-dialogo-segunda-assinatura');
+
+      const secondCanvas = page.getByRole('dialog').locator('canvas').first();
+      const secondBox = await secondCanvas.boundingBox();
+
+      await page.mouse.move(secondBox.x + secondBox.width * 0.2, secondBox.y + secondBox.height * 0.5);
+      await page.mouse.down();
+      await page.mouse.move(secondBox.x + secondBox.width * 0.7, secondBox.y + secondBox.height * 0.4, { steps: 8 });
+      await page.mouse.up();
+      await page
+        .getByRole('dialog')
+        .getByRole('button')
+        .filter({ hasText: /^(assinar|sign)$/i })
+        .click();
+      await page.getByRole('dialog').waitFor({ state: 'detached' });
+    }
+
     await check('11-campos-preenchidos');
 
     // 8. Concluir: diálogo, código por e-mail e conclusão.
