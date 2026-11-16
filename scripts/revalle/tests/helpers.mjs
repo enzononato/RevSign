@@ -4,7 +4,8 @@
 // Uso: node --test --test-concurrency=1 scripts/revalle/tests/*.test.mjs (ver revalle/docs/testes.md)
 
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { crc32, deflateSync } from 'node:zlib';
@@ -670,5 +671,79 @@ export const assertNoPaidGeminiCalls = () => {
 
   if (message) {
     throw new Error(message);
+  }
+};
+
+// PDF mínimo (uma página A4, Helvetica, texto em WinAnsi) com as linhas dadas. Sem dependências.
+export const textPdfBuffer = (lines) => {
+  const escapePdfText = (text) => text.replace(/[\\()]/g, (char) => `\\${char}`);
+  const content = lines
+    .map((line, i) => `BT /F1 11 Tf 40 ${800 - i * 18} Td (${escapePdfText(line)}) Tj ET`)
+    .join('\n');
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
+    `<< /Length ${Buffer.byteLength(content, 'latin1')} >>\nstream\n${content}\nendstream`,
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = [];
+
+  objects.forEach((body, i) => {
+    offsets.push(Buffer.byteLength(pdf, 'latin1'));
+    pdf += `${i + 1} 0 obj\n${body}\nendobj\n`;
+  });
+
+  const xref = Buffer.byteLength(pdf, 'latin1');
+
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  pdf += offsets.map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('');
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+
+  return Buffer.from(pdf, 'latin1');
+};
+
+// DANFE fictício (é detectado como nota fiscal pelo texto). `variant` muda o arquivo (outra SHA-256, sem cache da
+// sugestão). Devolve o caminho do arquivo, numa pasta temporária.
+export const danfePdfFile = (variant) => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'revsign-danfe-'));
+  const file = path.join(dir, `danfe-${variant}.pdf`);
+
+  writeFileSync(
+    file,
+    textPdfBuffer([
+      'DANFE - Documento Auxiliar da Nota Fiscal Eletronica',
+      'No 000.012.345   Serie 001',
+      'Chave de Acesso',
+      '2924 1012 3456 7800 0195 5500 1000 0123 4511 2345 6784',
+      'Natureza da Operacao: Venda de mercadoria adquirida de terceiros',
+      'Emitente: Distribuidora Ficticia de Ferragens Ltda   CNPJ 12.345.678/0001-95',
+      `Referencia do teste: ${variant}`,
+      'Valor Total da Nota: R$ 150,00',
+    ]),
+  );
+
+  return file;
+};
+
+// Garante uma lista de contas contábeis com a conta padrão de `chooseInvoice` (2.1.03) ativa. Só importa (pela sessão
+// de um admin) quando ela não está ativa: a importação substitui a lista dos outros testes, que importam a deles.
+export const ensureInvoiceAccounts = async (adminCookie) => {
+  if (
+    db(`select coalesce((select active::text from "RevalleAccountingAccount" where code = '2.1.03'), 'f')`) === 'true'
+  ) {
+    return;
+  }
+
+  const csv = [
+    'numero;nome;descricao;tipo',
+    '2.1.03;Fornecedores;Compra de mercadorias e insumos a prazo;pagar',
+    '3.1.01;Serviços de terceiros;Serviços tomados de pessoa jurídica;pagar',
+  ].join('\n');
+  const imported = await trpcAs(adminCookie, 'mutation', 'revalle.invoice.adminImportAccounts', { csv });
+
+  if (imported.status !== 200) {
+    throw new Error(`importação da lista de contas: HTTP ${imported.status} ${imported.text}`);
   }
 };

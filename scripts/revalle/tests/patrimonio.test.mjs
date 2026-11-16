@@ -14,10 +14,14 @@ import {
   APP_CONTAINER,
   api,
   appContainerEnv,
+  assertNoPaidGeminiCalls,
   BASE_URL,
+  chooseInvoice,
   completeWithCode,
   createEnvelope,
+  danfePdfFile,
   db,
+  ensureInvoiceAccounts,
   fetchIdempotent,
   isStaleSocketError,
   mailIdsTo,
@@ -31,7 +35,6 @@ const API = `${BASE_URL}/api/revalle/patrimonio/v1`;
 const KEY = 'test-only-patrimonio-api-key-not-a-secret';
 const SECRET = 'test-only-patrimonio-webhook-secret';
 const HOOK_PORT = 8799;
-const DOMAIN_MESSAGE = /não é de um domínio da empresa/;
 
 // Pessoas fictícias de revalle/colaboradores/dev-seed.sql. João tem e-mail da empresa na base (que o termo ignora).
 const JOAO = { cpf: '52871936455', birthDate: '20/11/1985' };
@@ -449,17 +452,21 @@ test('criação com e-mail externo: 201, PENDING, convite enviado e aviso termo.
   assert.equal(status.body.status, 'PENDING');
 });
 
-test('o mesmo e-mail externo é recusado pela API comum e pela tela', async () => {
+// Desde 16/11/2026 (e-mail externo), o mesmo e-mail pessoal vale num documento comum, pela API e pela tela; a nota fiscal
+// continua só para e-mails da empresa.
+test('o mesmo e-mail externo vale num documento comum (API e tela); numa nota fiscal, o envio é recusado', async () => {
   const email = external('main');
   const viaApi = await createEnvelope({ recipients: [{ email }] });
 
-  assert.equal(viaApi.status, 400, viaApi.text);
-  assert.match(viaApi.text, DOMAIN_MESSAGE);
+  assert.equal(viaApi.status, 200, viaApi.text);
 
   const userEmail = process.env.REVSIGN_USER_EMAIL;
   const userPassword = process.env.REVSIGN_USER_PASSWORD;
+  const adminEmail = process.env.REVSIGN_ADMIN_EMAIL;
+  const adminPassword = process.env.REVSIGN_ADMIN_PASSWORD;
 
   assert.ok(userEmail && userPassword, 'defina REVSIGN_USER_EMAIL e REVSIGN_USER_PASSWORD');
+  assert.ok(adminEmail && adminPassword, 'defina REVSIGN_ADMIN_EMAIL e REVSIGN_ADMIN_PASSWORD');
 
   const draft = await createEnvelope({ recipients: [{ email: `pat-tela-${RUN}@revalle.com.br` }] });
 
@@ -479,9 +486,24 @@ test('o mesmo e-mail externo é recusado pela API comum e pela tela', async () =
     { 'x-team-id': teamId },
   );
 
-  assert.equal(viaScreen.ok, false, viaScreen.text);
-  assert.match(viaScreen.text, DOMAIN_MESSAGE);
-  assert.equal(db(`select count(*) from "Recipient" where email = '${email}' and "envelopeId" = '${draft.id}'`), '0');
+  assert.equal(viaScreen.ok, true, viaScreen.text);
+  assert.equal(db(`select count(*) from "Recipient" where email = '${email}' and "envelopeId" = '${draft.id}'`), '1');
+
+  // Nota fiscal para o mesmo e-mail: o rascunho é criado, a conta e o centro são escolhidos, e o envio é recusado.
+  // Antes de criar a NF, confere que o app não pode chamar o Gemini pago.
+  assertNoPaidGeminiCalls();
+  await ensureInvoiceAccounts(await signIn(adminEmail, adminPassword));
+
+  const invoice = await createEnvelope({ recipients: [{ email }], pdf: danfePdfFile(`pat-${RUN}`) });
+
+  assert.equal(invoice.status, 200, invoice.text);
+  assert.equal((await chooseInvoice({ cookie, envelopeId: invoice.id })).status, 200);
+
+  const sent = await api('POST', '/envelope/distribute', { envelopeId: invoice.id });
+
+  assert.equal(sent.status, 400, sent.text);
+  assert.ok(sent.text.includes(`Troque o e-mail de ${email}.`), sent.text);
+  assert.equal(db(`select status from "Envelope" where id = '${invoice.id}'`), 'DRAFT');
 });
 
 test('PDF antes de assinar: 409 NOT_SIGNED; termo inexistente: 404 NOT_FOUND', async () => {
