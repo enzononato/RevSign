@@ -7,7 +7,8 @@ import { buildSendReceiptLines, type SendReceiptLine } from '../../../revalle/re
 import type { TRevalleSendReceiptData } from '../../../types/document-audit-logs';
 
 // REVALLE: o PDF do comprovante de envio, montado na hora a partir do evento do histórico. Mesmo evento = mesmo
-// conteúdo (as datas do PDF são as do evento; a fonte entra com nome fixo). Noto Sans, como o carimbo e a anotação da NF.
+// conteúdo (as datas do PDF são as do evento; a fonte entra inteira e com nome fixo: o subconjunto do fontkit perde
+// glifos da Noto Sans). Noto Sans, como o carimbo e a anotação da NF.
 
 const PAGE_WIDTH = 595.28; // A4
 const PAGE_HEIGHT = 841.89;
@@ -89,7 +90,7 @@ export const renderSendReceiptPdf = async ({
 
   pdf.registerFontkit(fontkit);
 
-  const font = await pdf.embedFont(await loadFontBytes(), { subset: true, customName: 'NotoSans-RevSign' });
+  const font = await pdf.embedFont(await loadFontBytes(), { customName: 'NotoSans-RevSign' });
 
   pdf.setTitle(`Comprovante de envio ${data.receiptId}`);
   pdf.setAuthor(REVALLE_APP_NAME);
