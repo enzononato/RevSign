@@ -214,8 +214,12 @@ test('PDF do comprovante: o dono baixa; de fora e comprovante de outro envelope 
   const again = await get(href, fx.cookie);
   assert.equal(again.status, 200);
 
-  // Sem sessão.
-  assert.equal((await get(href)).status, 401);
+  // Sem sessão: a área logada manda para o login (nada do PDF sai).
+  const anonymous = await get(href);
+
+  assert.equal(anonymous.status, 302);
+  assert.match(anonymous.headers.get('location') ?? '', /\/signin/);
+  assert.notEqual(anonymous.headers.get('content-type'), 'application/pdf');
 
   // Conta de fora do time.
   const outsider = await createConfirmedAccount({

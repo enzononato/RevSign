@@ -231,12 +231,18 @@ test('confirmando o e-mail o vínculo nasce e a primeira assinatura não pede CP
 
   assert.equal((await signupColaborador({ name: 'Teste Cadastro', email, password: PASSWORD })).status, 201);
 
-  // Antes de confirmar, quem recebe um documento neste e-mail ainda é mandado ao CPF (o contraste do teste).
+  // Antes de confirmar, a conta não vale para assinar (conta obrigatória desde 16/11/2026): o link pelo e-mail da
+  // empresa é recusado sem uma sessão confirmada. O Cookie vazio de propósito desliga o login automático dos testes.
   const unconfirmed = await createEnvelope({ recipients: [{ email }] });
   const [pendingRecipient] = await distribute(unconfirmed.id);
-  const pendingState = await trpc('revalle.gate.acceptTerm', { token: pendingRecipient.token, termVersion: '1' });
+  const pendingState = await trpc(
+    'revalle.gate.acceptTerm',
+    { token: pendingRecipient.token, termVersion: '1' },
+    { Cookie: 'revsign-teste=sem-sessao' },
+  );
 
-  assert.equal(pendingState.body.result.data.json.status, 'IDENTITY_REQUIRED', pendingState.text);
+  assert.equal(pendingState.status, 401, pendingState.text);
+  assert.match(pendingState.text, /REVALLE_ACCOUNT_REQUIRED/);
 
   const verified = await confirmEmail(email);
 
