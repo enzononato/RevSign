@@ -19,6 +19,7 @@ import { assertEnvelopeMutable } from '../envelope/assert-envelope-mutable';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { hasRevalleEmailChanged } from '../revalle/email-change'; // REVALLE:
+import { assertSentInvoiceRecipientEmails } from '../revalle/invoice/external-recipients'; // REVALLE:
 import { assertCompatibleRecipientGrouping } from '../signature-level/assert-compatible-recipient-grouping';
 import { assertCompatibleRecipientRole } from '../signature-level/assert-compatible-recipient-role';
 import { resolveReplacedRecipientSigningOrders } from './assign-omitted-recipient-signing-orders';
@@ -81,6 +82,10 @@ export const setDocumentRecipients = async ({
   assertEnvelopeMutable(envelope);
 
   assertRecipientEmailsAllowed(recipients.map((r) => r.email)); // REVALLE:
+  await assertSentInvoiceRecipientEmails(
+    envelope.id,
+    recipients.map((r) => r.email),
+  ); // REVALLE: NF enviada, só e-mail da empresa
 
   if (envelope.completedAt) {
     throw new Error('Document already complete');

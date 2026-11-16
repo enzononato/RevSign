@@ -17,6 +17,7 @@ import {
   isEnvelopeDraft,
   toInvoiceState,
 } from './classify';
+import { assertInvoiceRecipientEmails } from './external-recipients';
 
 export const INVOICE_ACCOUNT_REQUIRED_MESSAGE = 'Escolha a conta contábil e o centro de custo.';
 
@@ -57,13 +58,22 @@ const invoiceChoiceRequiredError = () =>
  * (`previousEnvelopeId`) herda o que a anterior tinha: uma NF que foi enviada sem centro ou sem conta continua podendo ser
  * enviada de novo nela, e o que o Financeiro ou a Contabilidade acabou de escolher vale. Se o arquivo do rascunho foi
  * trocado, a situação é zerada e a isenção acaba: é um primeiro envio como outro qualquer.
+ *
+ * E-mail externo (16/11/2026): NF com destinatário de fora da empresa é recusada (`INVOICE_EXTERNAL_RECIPIENT`).
  */
-export const assertInvoiceChoiceBeforeSend = async (envelopeId: string): Promise<'APPROVAL' | 'NONE'> => {
+export const assertInvoiceChoiceBeforeSend = async (
+  envelopeId: string,
+  recipientEmails: Array<string | null | undefined> = [],
+): Promise<'APPROVAL' | 'NONE'> => {
   const state = await classifyEnvelope(envelopeId, {}, { startSuggestion: false });
 
   if (state.isInvoice !== 'YES') {
     return 'NONE';
   }
+
+  // E-mail externo: NF só vai para e-mails da empresa, também na nova versão do Financeiro. Antes da conta: trocar o
+  // e-mail é o que destrava, e a conta escolhida não muda nada.
+  assertInvoiceRecipientEmails(recipientEmails);
 
   const row = await prisma.revalleInvoiceClassification.findUnique({
     where: { envelopeId },

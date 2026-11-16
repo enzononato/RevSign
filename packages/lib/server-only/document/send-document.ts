@@ -53,6 +53,7 @@ import {
 } from '../revalle/finance/hold'; // REVALLE:
 import { holdSealForFinance } from '../revalle/finance/seal-hold'; // REVALLE:
 import { assertInvoiceChoiceBeforeSend } from '../revalle/invoice/choice'; // REVALLE:
+import { assertSentInvoiceRecipientEmails } from '../revalle/invoice/external-recipients'; // REVALLE:
 import { assertNotPatrimonioTermo } from '../revalle/patrimonio/guard'; // REVALLE:
 import { assertSignaturesInEveryItem } from '../revalle/signature-only'; // REVALLE:
 import { assertUserNotDisabledById } from '../user/assert-user-not-disabled';
@@ -67,8 +68,8 @@ export type SendDocumentOptions = {
   teamId: number;
   sendEmail?: boolean;
   requestMetadata: ApiRequestMetadata;
-  /** REVALLE: aceita destinatário fora dos domínios da empresa. Só a integração com o Patrimônio passa `true`. */
-  revalleAllowExternalRecipients?: boolean;
+  /** REVALLE: envia termo do Patrimônio. Só a integração com o Patrimônio passa `true`. */
+  revalleAllowPatrimonioTermo?: boolean;
 };
 
 export const sendDocument = async ({
@@ -77,7 +78,7 @@ export const sendDocument = async ({
   teamId,
   sendEmail,
   requestMetadata,
-  revalleAllowExternalRecipients = false, // REVALLE:
+  revalleAllowPatrimonioTermo = false, // REVALLE:
 }: SendDocumentOptions) => {
   // Refuse to send on behalf of a disabled account. Guards distribute /
   // redistribute / template-use routes, the bulk-send job, and direct
@@ -135,7 +136,7 @@ export const sendDocument = async ({
   }
 
   // REVALLE: termo do Patrimônio só é enviado pela integração.
-  if (!revalleAllowExternalRecipients) {
+  if (!revalleAllowPatrimonioTermo) {
     await assertNotPatrimonioTermo(envelope.id);
   }
 
@@ -167,9 +168,17 @@ export const sendDocument = async ({
   }
 
   // REVALLE: nota fiscal só sai com a conta contábil escolhida. Só no primeiro envio: reenviar um documento já enviado
-  // nunca é bloqueado. Antes da injeção de formValues (que troca o PDF).
+  // nunca é bloqueado. Antes da injeção de formValues (que troca o PDF). Nota fiscal só para e-mails da empresa, em
+  // qualquer envio (o documento comum vai para qualquer e-mail).
+  const revalleRecipientEmails = envelope.recipients.map((r) => r.email);
   const revalleInvoiceSend =
-    envelope.status === DocumentStatus.DRAFT ? await assertInvoiceChoiceBeforeSend(envelope.id) : 'NONE';
+    envelope.status === DocumentStatus.DRAFT
+      ? await assertInvoiceChoiceBeforeSend(envelope.id, revalleRecipientEmails)
+      : 'NONE';
+
+  if (envelope.status !== DocumentStatus.DRAFT) {
+    await assertSentInvoiceRecipientEmails(envelope.id, revalleRecipientEmails);
+  }
 
   const legacyDocumentId = mapSecondaryIdToDocumentId(envelope.secondaryId);
 
@@ -219,7 +228,7 @@ export const sendDocument = async ({
 
   assertRecipientEmailsAllowed(
     envelope.recipients.map((r) => r.email),
-    { rejectEmpty: true, allowExternalDomains: revalleAllowExternalRecipients },
+    { rejectEmpty: true },
   ); // REVALLE:
 
   // REVALLE: rede de segurança, o código por e-mail é exigido antes de qualquer distribuição.

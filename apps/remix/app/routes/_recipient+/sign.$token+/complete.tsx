@@ -1,6 +1,6 @@
 import { getOptionalSession } from '@documenso/auth/server/lib/utils/get-session';
 import { useOptionalSession } from '@documenso/lib/client-only/providers/session';
-import { isSignupEnabledForProvider } from '@documenso/lib/constants/auth';
+import { isEmailDomainAllowedForSignup, isSignupEnabledForProvider } from '@documenso/lib/constants/auth'; // REVALLE: isEmailDomainAllowedForSignup
 import { loadRecipientBrandingByTeamId } from '@documenso/lib/server-only/branding/load-recipient-branding';
 import { getDocumentAndSenderByToken } from '@documenso/lib/server-only/document/get-document-by-token';
 import { isRecipientAuthorized } from '@documenso/lib/server-only/document/is-recipient-authorized';
@@ -102,7 +102,9 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   const recipientName =
     recipient.name || fields.find((field) => field.type === FieldType.NAME)?.customText || recipient.email;
 
-  const canSignUp = !isExistingUser && isSignupEnabledForProvider('email');
+  // REVALLE: só e-mail da empresa cria conta; quem assinou por um e-mail de fora não vê o convite para criar conta.
+  const canSignUp =
+    !isExistingUser && isSignupEnabledForProvider('email') && isEmailDomainAllowedForSignup(recipient.email);
 
   const canRedirectToFolder = user && document.userId === user.id && document.folderId && document.team?.url;
 

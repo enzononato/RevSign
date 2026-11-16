@@ -7,8 +7,8 @@ import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { RequestMetadata } from '../../../universal/extract-request-metadata';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { getColaboradoresRepository } from '../colaboradores/repository';
-import { findPatrimonioSignerCpf } from '../patrimonio/gate';
 import { ensureRevalleGate, getRevalleGateState, logRevalleBaseUnavailable } from './get-gate-state';
+import { getRevalleIdentityPolicy } from './identity-policy';
 import { lockRevalleGate } from './lock-gate';
 import type { RevalleGateState } from './types';
 
@@ -47,12 +47,13 @@ export const confirmRevalleIdentity = async ({
   const cpf = gate.pendingCpf;
   const email = normalizeEmail(recipient.email);
 
-  // Termo do Patrimônio: confirma sem criar o vínculo e-mail ↔ CPF (um e-mail pessoal nunca vira credencial para outros
-  // documentos) e sem comparar com o e-mail da base. O CPF fica na linha do portão, para a prova.
-  const patrimonioCpf = await findPatrimonioSignerCpf(recipientId);
+  // E-mail de fora da empresa e termo do Patrimônio: confirma sem criar o vínculo e-mail ↔ CPF (o e-mail nunca vira
+  // credencial para outros documentos) e sem comparar com o e-mail da base. O CPF fica na linha do portão, para a prova.
+  // No termo, só o CPF que o Patrimônio informou.
+  const policy = await getRevalleIdentityPolicy(recipient);
 
-  if (patrimonioCpf !== null) {
-    if (cpf !== patrimonioCpf) {
+  if (policy.mode === 'ALWAYS_CPF') {
+    if (policy.expectedCpf !== null && cpf !== policy.expectedCpf) {
       await prisma.revalleRecipientGate.updateMany({
         where: { recipientId, identityStatus: 'VERIFIED', lockedAt: null },
         data: { identityStatus: 'PENDING', pendingCpf: null },

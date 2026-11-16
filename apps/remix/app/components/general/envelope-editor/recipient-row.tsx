@@ -2,7 +2,11 @@ import type { TEditorRecipientsFormSchema } from '@documenso/lib/client-only/hoo
 import { useCurrentEnvelopeEditor } from '@documenso/lib/client-only/providers/envelope-editor-provider';
 import { useCurrentOrganisation } from '@documenso/lib/client-only/providers/organisation';
 import { isEmailDomainAllowed } from '@documenso/lib/revalle/email-domain'; // REVALLE:
-import { getClientAllowedDomains, isTemplateDraftEmailExempt } from '@documenso/lib/revalle/recipient-domains'; // REVALLE:
+import {
+  getClientAllowedDomains,
+  isExternalEmail,
+  isTemplateDraftEmailExempt,
+} from '@documenso/lib/revalle/recipient-domains'; // REVALLE:
 import { isCcRecipient } from '@documenso/lib/utils/recipients';
 import { trpc } from '@documenso/trpc/react'; // REVALLE:
 import { RecipientActionAuthSelect } from '@documenso/ui/components/recipient/recipient-action-auth-select';
@@ -21,8 +25,9 @@ import { GripVerticalIcon, TrashIcon } from 'lucide-react';
 import { memo, useEffect, useState } from 'react'; // REVALLE: useEffect, useState
 import { useFormContext } from 'react-hook-form';
 
-// REVALLE: aviso quando o e-mail da empresa ainda não tem vínculo com um CPF.
-const useRevalleUnlinkedHint = (email: string) => {
+// REVALLE: aviso quando o e-mail da empresa ainda não tem vínculo com um CPF (`UNLINKED`) ou quando o e-mail é de fora
+// da empresa (`EXTERNAL`: CPF e data de nascimento em todo documento, e nota fiscal não vai para ele).
+const useRevalleRecipientHint = (email: string): 'UNLINKED' | 'EXTERNAL' | null => {
   const [debounced, setDebounced] = useState('');
 
   useEffect(() => {
@@ -33,12 +38,22 @@ const useRevalleUnlinkedHint = (email: string) => {
   }, [email]);
 
   const domains = getClientAllowedDomains();
-  const eligible =
-    debounced.includes('@') && !isTemplateDraftEmailExempt(debounced) && isEmailDomainAllowed(debounced, domains);
+  const isCurrent = debounced === email.trim().toLowerCase();
+  const isCandidate = debounced.includes('@') && !isTemplateDraftEmailExempt(debounced);
+  const eligible = isCandidate && isEmailDomainAllowed(debounced, domains);
 
   const { data } = trpc.revalle.recipientLinkStatus.useQuery({ emails: [debounced] }, { enabled: eligible });
 
-  return eligible && data?.[0]?.isLinked === false && debounced === email.trim().toLowerCase();
+  if (!isCurrent) {
+    return null;
+  }
+
+  // Só com o domínio já digitado inteiro (tem ponto depois do @), para não piscar enquanto a pessoa digita.
+  if (isCandidate && /@[^@\s]+\.[^@\s]+$/.test(debounced) && isExternalEmail(debounced, domains)) {
+    return 'EXTERNAL';
+  }
+
+  return eligible && data?.[0]?.isLinked === false ? 'UNLINKED' : null;
 };
 
 type TEditorSigner = TEditorRecipientsFormSchema['signers'][number];
@@ -94,7 +109,7 @@ const RecipientRowInner = ({
 
   const rowErrors = form.formState.errors.signers?.[signerIndex];
 
-  const showUnlinkedHint = useRevalleUnlinkedHint(signer.email); // REVALLE:
+  const revalleHint = useRevalleRecipientHint(signer.email); // REVALLE:
 
   return (
     <fieldset data-native-id={signer.id} disabled={isSubmitting || !canBeModified} className="py-1">
@@ -148,9 +163,15 @@ const RecipientRowInner = ({
               </FormControl>
 
               {/* REVALLE: */}
-              {showUnlinkedHint && !rowErrors?.email && (
+              {revalleHint === 'UNLINKED' && !rowErrors?.email && (
                 <p className="text-muted-foreground text-xs" data-testid="revalle-unlinked-hint">
                   Na primeira assinatura, esta pessoa vai confirmar CPF e data de nascimento.
+                </p>
+              )}
+
+              {revalleHint === 'EXTERNAL' && !rowErrors?.email && (
+                <p className="text-muted-foreground text-xs" data-testid="revalle-external-hint">
+                  {t`E-mail outside the company: the person must be in the HR base and confirms CPF and date of birth on every document. Invoices only go to company e-mails.`}
                 </p>
               )}
 

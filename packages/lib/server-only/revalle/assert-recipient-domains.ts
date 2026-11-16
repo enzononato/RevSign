@@ -1,43 +1,38 @@
 import { getAllowedSignupDomains } from '../../constants/auth';
 import { AppError, AppErrorCode } from '../../errors/app-error';
-import { isEmailDomainAllowed } from '../../revalle/email-domain';
-import { formatDomainList, isTemplateDraftEmailExempt } from '../../revalle/recipient-domains';
+import { isExternalEmail, isTemplatePlaceholderEmail } from '../../revalle/recipient-domains';
 
 /**
- * Regra de domínio dos destinatários. Estrita por padrão (documento, envio, conclusão): nenhum e-mail fora dos domínios passa.
- * `allowTemplatePlaceholders` só nos rascunhos de MODELO (placeholder `recipient.N@documenso.com` e link direto).
- * `allowExternalDomains` só nos termos criados pela integração com o Patrimônio (a única porta que o liga).
- * E-mail vazio é ignorado, a não ser com `rejectEmpty` (o envio recusa).
+ * Regra dos e-mails de destinatário (desde 16/11/2026, "e-mail externo"): documento comum vai para QUALQUER e-mail. O que
+ * continua recusado:
+ * - o placeholder de modelo (`recipient.N@documenso.com`) e o destinatário do link direto num DOCUMENTO, no envio e na
+ *   conclusão: não são pessoas. `allowTemplatePlaceholders` só nos rascunhos de MODELO;
+ * - e-mail vazio, com `rejectEmpty` (o envio recusa).
+ * A nota fiscal continua só para e-mails da empresa: `invoice/external-recipients.ts`.
  */
 export const assertRecipientEmailsAllowed = (
   emails: Array<string | null | undefined>,
-  options: { rejectEmpty?: boolean; allowTemplatePlaceholders?: boolean; allowExternalDomains?: boolean } = {},
+  options: { rejectEmpty?: boolean; allowTemplatePlaceholders?: boolean } = {},
 ): void => {
-  const allowedDomains = getAllowedSignupDomains();
-
   for (const email of emails) {
     if (!email || email.trim() === '') {
       if (options.rejectEmpty) {
         throw new AppError(AppErrorCode.INVALID_BODY, {
-          message: 'Todo destinatário precisa de um e-mail da empresa.',
+          message: 'Todo destinatário precisa de um e-mail.',
         });
       }
 
       continue;
     }
 
-    if (options.allowTemplatePlaceholders && isTemplateDraftEmailExempt(email)) {
-      continue;
-    }
-
-    if (options.allowExternalDomains) {
-      continue;
-    }
-
-    if (!isEmailDomainAllowed(email, allowedDomains)) {
+    if (!options.allowTemplatePlaceholders && isTemplatePlaceholderEmail(email)) {
       throw new AppError(AppErrorCode.INVALID_BODY, {
-        message: `O e-mail ${email.trim()} não é de um domínio da empresa. Use um e-mail ${formatDomainList(allowedDomains)}.`,
+        message: `O e-mail ${email.trim()} é um exemplo do modelo, não de uma pessoa. Informe o e-mail de quem vai assinar.`,
       });
     }
   }
 };
+
+/** E-mail de fora dos domínios da empresa (`NEXT_PRIVATE_ALLOWED_SIGNUP_DOMAINS`). Sem a lista, nada é externo. */
+export const isRevalleExternalEmail = (email: string | null | undefined): boolean =>
+  isExternalEmail(email, getAllowedSignupDomains());

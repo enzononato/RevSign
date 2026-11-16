@@ -1,5 +1,6 @@
 import { useSession } from '@documenso/lib/client-only/providers/session';
 import { DO_NOT_INVALIDATE_QUERY_ON_MUTATION } from '@documenso/lib/constants/trpc';
+import { AppError } from '@documenso/lib/errors/app-error';
 import { invoiceViewPath } from '@documenso/lib/revalle/finance/finance-status';
 import { costCenterLabel } from '@documenso/lib/revalle/invoice/cost-centers';
 import { isAdmin } from '@documenso/lib/utils/is-admin';
@@ -67,7 +68,16 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
   const onMark = async () => {
     try {
       utils.revalle.invoice.get.setData({ envelopeId: envelope.id }, await markAsInvoice({ envelopeId: envelope.id }));
-    } catch {
+    } catch (err) {
+      const error = AppError.parseError(err);
+
+      // Nota fiscal só vai para e-mails da empresa: a recusa nomeia o e-mail de fora (texto do servidor).
+      if (error.code === 'INVOICE_EXTERNAL_RECIPIENT' && error.message) {
+        toast({ title: error.message, variant: 'destructive', duration: 7500 });
+
+        return;
+      }
+
       toast({ title: t`Não foi possível salvar. Tente de novo.`, variant: 'destructive', duration: 5000 });
     }
   };

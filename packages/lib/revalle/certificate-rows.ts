@@ -89,7 +89,11 @@ const FACTOR_LABELS: Record<string, string> = {
   EMAIL_CODE: 'Código por e-mail',
   EMPLOYEE_CONFIRMATION: 'Confirmação de colaborador',
   EMPLOYEE_LINKED: 'Vínculo de colaborador já confirmado',
+  EXTERNAL_EMAIL: 'E-mail externo à empresa',
 };
+
+// Fatores que são um fato sobre quem assinou, não uma etapa com horário.
+const UNTIMED_FACTORS = new Set(['EXTERNAL_EMAIL']);
 
 const DEVICE_LOCATION_LABELS: Record<string, string> = {
   DENIED: 'não autorizada',
@@ -113,8 +117,12 @@ export const formatRevalleProofFactors = (factors: unknown) => {
   }
 
   const parts = parsed.data
-    .filter((item) => item.at && FACTOR_LABELS[item.factor])
-    .map((item) => `${FACTOR_LABELS[item.factor]} (${formatRevalleDateTime(item.at as string)})`);
+    .filter((item) => (item.at || UNTIMED_FACTORS.has(item.factor)) && FACTOR_LABELS[item.factor])
+    .map((item) =>
+      UNTIMED_FACTORS.has(item.factor)
+        ? FACTOR_LABELS[item.factor]
+        : `${FACTOR_LABELS[item.factor]} (${formatRevalleDateTime(item.at as string)})`,
+    );
 
   return parts.length > 0 ? parts.join(' · ') : EMPTY;
 };

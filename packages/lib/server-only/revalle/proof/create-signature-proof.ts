@@ -6,6 +6,7 @@ import { maskCpf } from '../../../revalle/cpf';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { RequestMetadata } from '../../../universal/extract-request-metadata';
 import { logger } from '../../../utils/logger';
+import { isRevalleExternalEmail } from '../assert-recipient-domains';
 import { getColaboradoresRepository } from '../colaboradores/repository';
 import { type IpLocation, lookupIpLocation } from '../geoip';
 import { findSigningInvoiceAccount } from '../invoice/signing-account';
@@ -30,7 +31,7 @@ export type ProofEmployee = {
 };
 
 export type ProofFactor = {
-  factor: 'EMAIL_LINK' | 'EMAIL_CODE' | 'EMPLOYEE_CONFIRMATION' | 'EMPLOYEE_LINKED';
+  factor: 'EMAIL_LINK' | 'EMAIL_CODE' | 'EMPLOYEE_CONFIRMATION' | 'EMPLOYEE_LINKED' | 'EXTERNAL_EMAIL';
   at: string;
 };
 
@@ -176,6 +177,12 @@ export const createRevalleSignatureProof = async ({
     factors.push({ factor: 'EMPLOYEE_CONFIRMATION', at: confirmationAt.toISOString() });
   } else if (gate?.identityStatus === 'LINKED' && linkedFactorAt) {
     factors.push({ factor: 'EMPLOYEE_LINKED', at: linkedFactorAt.toISOString() });
+  }
+
+  // E-mail de fora da empresa (pessoal ou de outra empresa): fica visível na prova, no certificado e no /verificar.
+  // `at` é a hora da assinatura, só para o formato; o certificado mostra este fator sem horário.
+  if (isRevalleExternalEmail(recipient.email)) {
+    factors.push({ factor: 'EXTERNAL_EMAIL', at: signedAt.toISOString() });
   }
 
   const signatureFields = await tx.field.findMany({

@@ -113,11 +113,6 @@ export type CreateEnvelopeOptions = {
 
   meta?: Partial<Omit<DocumentMeta, 'id'>>;
   requestMetadata: ApiRequestMetadata;
-
-  /**
-   * REVALLE: aceita destinatário fora dos domínios da empresa. Só a integração com o Patrimônio passa `true`.
-   */
-  revalleAllowExternalRecipients?: boolean;
 };
 
 export const createEnvelope = async ({
@@ -130,7 +125,6 @@ export const createEnvelope = async ({
   requestMetadata,
   internalVersion,
   bypassDefaultRecipients = false,
-  revalleAllowExternalRecipients = false, // REVALLE:
 }: CreateEnvelopeOptions) => {
   // Refuse to create on behalf of a disabled account. Guards every route that
   // funnels through here (document.create, envelope.use, template create,
@@ -307,10 +301,7 @@ export const createEnvelope = async ({
 
   assertRecipientEmailsAllowed(
     requestedRecipients.map((r) => r.email),
-    {
-      allowTemplatePlaceholders: type === EnvelopeType.TEMPLATE,
-      allowExternalDomains: revalleAllowExternalRecipients && type === EnvelopeType.DOCUMENT,
-    },
+    { allowTemplatePlaceholders: type === EnvelopeType.TEMPLATE },
   ); // REVALLE:
 
   // REVALLE: só o campo de assinatura nos campos enviados junto com os destinatários.

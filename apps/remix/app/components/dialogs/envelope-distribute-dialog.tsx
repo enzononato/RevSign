@@ -212,6 +212,9 @@ export const EnvelopeDistributeDialog = ({
 
       if (meta.distributionMethod === DocumentDistributionMethod.NONE) {
         redirectPath += '?action=copy-links';
+      } else {
+        // REVALLE: os e-mails saem como antes e a página do documento abre com os links de assinatura para copiar.
+        redirectPath += '?action=view-signing-links';
       }
 
       await navigate(redirectPath);
@@ -236,7 +239,11 @@ export const EnvelopeDistributeDialog = ({
 
       toast({
         title: i18n._(errorMessage.title),
-        description: i18n._(errorMessage.description),
+        // REVALLE: a recusa da nota fiscal com e-mail de fora nomeia o e-mail (texto do servidor).
+        description:
+          error.code === 'INVOICE_EXTERNAL_RECIPIENT' && error.message
+            ? error.message
+            : i18n._(errorMessage.description),
         variant: 'destructive',
         duration: 7500,
       });
@@ -296,7 +303,11 @@ export const EnvelopeDistributeDialog = ({
             <form onSubmit={handleSubmit(onFormSubmit)}>
               <fieldset disabled={isSubmitting}>
                 {/* REVALLE: nota fiscal · conta contábil */}
-                <InvoiceAccountPanel envelopeId={envelope.id} onReadyChange={setIsInvoiceReady} />
+                <InvoiceAccountPanel
+                  envelopeId={envelope.id}
+                  onReadyChange={setIsInvoiceReady}
+                  recipientEmails={envelope.recipients.map((recipient) => recipient.email)}
+                />
 
                 {hasOverlappingEnvelopeFields && (
                   <Alert variant="warning" className="mb-4 flex flex-row items-start gap-3">

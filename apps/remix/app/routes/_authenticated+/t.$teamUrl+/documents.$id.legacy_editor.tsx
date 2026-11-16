@@ -142,6 +142,7 @@ export default function DocumentEditPage() {
             envelopeId={document.envelopeId}
             onReadyChange={() => undefined}
             hasDuplicateAcknowledgement={false}
+            recipientEmails={recipients.map((recipient) => recipient.email)}
           />
         </div>
       )}

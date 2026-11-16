@@ -1,6 +1,6 @@
 // REVALLE: integração com o Patrimônio. Criar, consultar, cancelar e reenviar termos, e baixar o PDF selado. Tudo passa
-// pelas funções do Documenso (createEnvelope, sendDocument, cancelDocument, resendDocument); só aqui a exceção de domínio
-// (`revalleAllowExternalRecipients`) é ligada.
+// pelas funções do Documenso (createEnvelope, sendDocument, cancelDocument, resendDocument); só aqui o envio e o reenvio
+// de um termo (`revalleAllowPatrimonioTermo`) são ligados.
 
 import { prisma } from '@documenso/prisma';
 import {
@@ -272,7 +272,6 @@ export const createPatrimonioTermo = async ({
     teamId: sender.teamId,
     internalVersion: 2,
     bypassDefaultRecipients: true,
-    revalleAllowExternalRecipients: true,
     data: {
       type: EnvelopeType.DOCUMENT,
       title: fields.title,
@@ -337,7 +336,7 @@ export const createPatrimonioTermo = async ({
       teamId: sender.teamId,
       sendEmail: true,
       requestMetadata,
-      revalleAllowExternalRecipients: true,
+      revalleAllowPatrimonioTermo: true,
     });
   } catch (error) {
     logger.error({

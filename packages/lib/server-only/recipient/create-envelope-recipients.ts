@@ -13,6 +13,7 @@ import { mapRecipientToLegacyRecipient } from '../../utils/recipients';
 import { assertEnvelopeMutable } from '../envelope/assert-envelope-mutable';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
+import { assertSentInvoiceRecipientEmails } from '../revalle/invoice/external-recipients'; // REVALLE:
 import { assertCompatibleRecipientGrouping } from '../signature-level/assert-compatible-recipient-grouping';
 import { assertCompatibleRecipientRole } from '../signature-level/assert-compatible-recipient-role';
 import { assignOmittedRecipientSigningOrders } from './assign-omitted-recipient-signing-orders';
@@ -73,6 +74,10 @@ export const createEnvelopeRecipients = async ({
     recipientsToCreate.map((r) => r.email),
     { allowTemplatePlaceholders: envelope.type === EnvelopeType.TEMPLATE },
   ); // REVALLE:
+  await assertSentInvoiceRecipientEmails(
+    envelope.id,
+    recipientsToCreate.map((r) => r.email),
+  ); // REVALLE: NF enviada, só e-mail da empresa
 
   if (envelope.completedAt) {
     throw new AppError(AppErrorCode.INVALID_REQUEST, {

@@ -377,7 +377,8 @@ export const DocumentEditForm = ({ className, initialDocument, documentRootPath 
           duration: 5000,
         });
 
-        await navigate(documentRootPath);
+        // REVALLE: abre a página do documento com os links de assinatura para copiar (os e-mails saem como antes).
+        await navigate(`${documentRootPath}/${document.envelopeId}?action=view-signing-links`);
       } else if (document.status === DocumentStatus.DRAFT) {
         toast({
           title: _(msg`Links Generated`),
@@ -395,7 +396,9 @@ export const DocumentEditForm = ({ className, initialDocument, documentRootPath 
 
       toast({
         title: _(errorMessage.title),
-        description: _(errorMessage.description),
+        // REVALLE: a recusa da nota fiscal com e-mail de fora nomeia o e-mail (texto do servidor).
+        description:
+          error.code === 'INVOICE_EXTERNAL_RECIPIENT' && error.message ? error.message : _(errorMessage.description),
         variant: 'destructive',
       });
     }

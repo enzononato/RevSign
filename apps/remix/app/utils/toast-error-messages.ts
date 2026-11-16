@@ -27,6 +27,11 @@ export const getDistributeErrorMessage = (code: string): ToastMessageDescriptor 
       title: msg`Nota fiscal sem conta contábil ou centro de custo`,
       description: msg`Escolha a conta contábil e o centro de custo.`,
     }))
+    .with('INVOICE_EXTERNAL_RECIPIENT', () => ({
+      // REVALLE: nota fiscal só vai para e-mails da empresa (a tela mostra a mensagem do servidor, que nomeia o e-mail).
+      title: msg`Invoice with an e-mail outside the company`,
+      description: msg`Invoices can only be sent to company e-mails.`,
+    }))
     .with(AppErrorCode.MISSING_SIGNATURE_FIELD, () => ({
       // REVALLE: o servidor recusou o envio porque falta a assinatura de alguém em algum documento do envelope.
       title: msg`Missing signature position`,

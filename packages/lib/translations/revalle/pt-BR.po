@@ -5300,3 +5300,15 @@ msgstr "Falta a posição da assinatura de {signer} no documento {documentTitle}
 
 msgid "Missing signature position"
 msgstr "Falta a posição da assinatura"
+
+msgid "E-mail outside the company: the person must be in the HR base and confirms CPF and date of birth on every document. Invoices only go to company e-mails."
+msgstr "E-mail de fora da empresa: a pessoa precisa estar na base do RH e confirma CPF e data de nascimento em todo documento. Nota fiscal só vai para e-mails da empresa."
+
+msgid "Invoices can only be sent to company e-mails ({domainList}). Change the e-mail of {externalRecipientEmail}."
+msgstr "Nota fiscal só pode ser enviada para e-mails da empresa ({domainList}). Troque o e-mail de {externalRecipientEmail}."
+
+msgid "Invoice with an e-mail outside the company"
+msgstr "Nota fiscal com e-mail de fora da empresa"
+
+msgid "Invoices can only be sent to company e-mails."
+msgstr "Nota fiscal só pode ser enviada para e-mails da empresa."

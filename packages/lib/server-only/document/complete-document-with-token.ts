@@ -38,6 +38,7 @@ import { getIsRecipientsTurnToSign } from '../recipient/get-is-recipient-turn';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { holdSealForFinance } from '../revalle/finance/seal-hold'; // REVALLE:
 import { assertRevalleAccessCode } from '../revalle/gate/access-code'; // REVALLE:
+import { assertSentInvoiceRecipientEmails } from '../revalle/invoice/external-recipients'; // REVALLE:
 import { createRevalleSignatureProof, loadProofExternals } from '../revalle/proof/create-signature-proof'; // REVALLE:
 import { insertRevalleStampOnlySignatures } from '../revalle/proof/insert-stamp-only-signatures'; // REVALLE:
 import { assertSenderNotDisabled } from '../user/assert-user-not-disabled';
@@ -107,6 +108,7 @@ export const completeDocumentWithToken = async ({
   await assertSenderNotDisabled({ userId: envelope.userId });
 
   assertRecipientEmailsAllowed([dictatedNextSigner?.email, recipientOverride?.email]); // REVALLE:
+  await assertSentInvoiceRecipientEmails(envelope.id, [dictatedNextSigner?.email, recipientOverride?.email]); // REVALLE:
 
   const legacyDocumentId = mapSecondaryIdToDocumentId(envelope.secondaryId);
 

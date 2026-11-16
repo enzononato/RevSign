@@ -9,7 +9,6 @@ import type { UseFormReturn } from 'react-hook-form';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
-import { refineRecipientDomains } from '../../revalle/recipient-domains'; // REVALLE:
 import { normalizeGroupedSigningOrders } from '../../utils/recipient-groups';
 import { canRecipientBeModified, isCcRecipient, sortRecipientsForSigningOrder } from '../../utils/recipients';
 
@@ -85,8 +84,7 @@ export const ZEditorRecipientsFormSchema = z
 
       seenSigningOrders.add(signer.signingOrder);
     });
-  })
-  .superRefine(refineRecipientDomains); // REVALLE:
+  });
 
 export type TEditorRecipientsFormSchema = z.infer<typeof ZEditorRecipientsFormSchema>;
 

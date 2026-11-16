@@ -3,8 +3,10 @@ import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
 import { costCenterLabel } from '@documenso/lib/revalle/invoice/cost-centers';
 import { formatInvoiceDataLine } from '@documenso/lib/revalle/invoice/invoice-data';
 import { isInvoiceReady } from '@documenso/lib/revalle/invoice/invoice-ready';
+import { findExternalEmail, formatDomainList, getClientAllowedDomains } from '@documenso/lib/revalle/recipient-domains';
 import { trpc } from '@documenso/trpc/react';
 import type { TInvoiceState } from '@documenso/trpc/server/revalle-router/invoice/invoice-state.types';
+import { Alert, AlertDescription } from '@documenso/ui/primitives/alert';
 import { Button } from '@documenso/ui/primitives/button';
 import { Spinner } from '@documenso/ui/primitives/spinner';
 import { useToast } from '@documenso/ui/primitives/use-toast';
@@ -27,6 +29,11 @@ export type InvoiceAccountPanelProps = {
    * caixa "Sei disso e quero enviar mesmo assim", que ali não destravaria nada.
    */
   hasDuplicateAcknowledgement?: boolean;
+  /**
+   * E-mails dos destinatários do rascunho: nota fiscal só vai para e-mails da empresa. Com um e-mail de fora, o bloco
+   * avisa (com o mesmo texto da recusa do servidor) e o envio fica bloqueado.
+   */
+  recipientEmails?: string[];
 };
 
 const POLL_INTERVAL_MS = 2_000;
@@ -45,6 +52,7 @@ export const InvoiceAccountPanel = ({
   envelopeId,
   onReadyChange,
   hasDuplicateAcknowledgement = true,
+  recipientEmails = [],
 }: InvoiceAccountPanelProps) => {
   const { t } = useLingui();
   const { toast } = useToast();
@@ -147,16 +155,20 @@ export const InvoiceAccountPanel = ({
   const isReleased = isInvoice && state?.isFinanceSendReleased === true;
   const isHeld = isInvoice && !isReleased && state?.financeStatus === 'APPROVED';
   const hasNoAccounts = isInvoice && accountsData !== undefined && accountsData.accounts.length === 0;
-  const isReady = isInvoiceReady({
-    isClassified,
-    isError,
-    isHeld,
-    hasNoAccounts,
-    requiresChoice: !isReleased,
-    requiresCostCenter: !isReleased,
-    duplicateAcknowledged: isDuplicateAcknowledged,
-    state,
-  });
+  const allowedDomains = getClientAllowedDomains();
+  const externalRecipientEmail = isInvoice ? findExternalEmail(recipientEmails, allowedDomains) : null;
+  const isReady =
+    !externalRecipientEmail &&
+    isInvoiceReady({
+      isClassified,
+      isError,
+      isHeld,
+      hasNoAccounts,
+      requiresChoice: !isReleased,
+      requiresCostCenter: !isReleased,
+      duplicateAcknowledged: isDuplicateAcknowledged,
+      state,
+    });
 
   useEffect(() => {
     onReadyChange(isReady);
@@ -221,6 +233,15 @@ export const InvoiceAccountPanel = ({
   }
 
   const isBusy = isSavingChoice || isSavingCostCenter || isSavingFlag || isResuggesting;
+  const domainList = formatDomainList(allowedDomains);
+  // Mesmo texto da recusa do servidor (`formatInvoiceExternalRecipientMessage`).
+  const externalNotice = externalRecipientEmail ? (
+    <Alert variant="destructive" className="py-3" data-testid="invoice-external-recipient">
+      <AlertDescription className="break-words">
+        {t`Invoices can only be sent to company e-mails (${domainList}). Change the e-mail of ${externalRecipientEmail}.`}
+      </AlertDescription>
+    </Alert>
+  ) : null;
   const duplicateNotice = (
     <InvoiceDuplicateNotice
       duplicates={duplicates}
@@ -291,6 +312,7 @@ export const InvoiceAccountPanel = ({
         <h3 className="font-medium text-sm">
           <Trans>Nota fiscal · Conta contábil</Trans>
         </h3>
+        {externalNotice}
         {duplicateNotice}
         <p className="text-sm">
           {state.choice?.name ? `${state.choice.code} – ${state.choice.name}` : (state.choice?.code ?? '-')}
@@ -352,6 +374,8 @@ export const InvoiceAccountPanel = ({
           <Trans>Não é nota fiscal</Trans>
         </Button>
       </div>
+
+      {externalNotice}
 
       {duplicateNotice}
 

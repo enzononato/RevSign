@@ -13,6 +13,7 @@ import { isAdmin } from '../../../utils/is-admin';
 import type { InvoiceState } from './classify';
 import { getInvoiceState, toInvoiceState } from './classify';
 import { filesKey, loadEnvelopeFiles } from './envelope-files';
+import { assertInvoiceRecipientEmails } from './external-recipients';
 
 /**
  * Documento JÁ ENVIADO (pendente ou concluído) que não ficou como NF (`UNKNOWN`, `NO` ou sem classificação, ex.: NF
@@ -20,6 +21,7 @@ import { filesKey, loadEnvelopeFiles } from './envelope-files';
  * A classificação continua congelada (nada é relido nem reclassificado) e a IA não é chamada: grava `isInvoice = YES`,
  * `detectedBy = SENDER`, quem/quando e (Fase 6) `PENDING_APPROVAL`: a NF passa pelo Financeiro. A primeira conta vem
  * em seguida, no mesmo cartão (`setInvoiceChoice`). Já marcado como NF: devolve o estado, sem gravar.
+ * Com um destinatário de fora da empresa, recusa (`INVOICE_EXTERNAL_RECIPIENT`): NF só vai para e-mails da empresa.
  */
 export const markSentEnvelopeAsInvoice = async ({
   envelopeId,
@@ -56,6 +58,11 @@ export const markSentEnvelopeAsInvoice = async ({
   if (row?.isInvoice === RevalleInvoiceStatus.YES) {
     return await toInvoiceState(row);
   }
+
+  // Nota fiscal só vai para e-mails da empresa: com um destinatário de fora, o documento continua comum.
+  const recipients = await prisma.recipient.findMany({ where: { envelopeId }, select: { email: true } });
+
+  assertInvoiceRecipientEmails(recipients.map((recipient) => recipient.email));
 
   const marked = {
     isInvoice: RevalleInvoiceStatus.YES,

@@ -162,6 +162,24 @@ describe('buildRevalleCertificateRows', () => {
     expect(rowValue(rows, 'Verificação')).toBe('Vínculo de colaborador já confirmado (28/10/2026 09:00)');
   });
 
+  it('e-mail externo à empresa: fator sem horário, depois da confirmação', () => {
+    const rows = buildRevalleCertificateRows(
+      {
+        ...completeProof,
+        factors: [
+          { factor: 'EMAIL_LINK', at: '2026-10-29T17:30:00.000Z' },
+          { factor: 'EMPLOYEE_CONFIRMATION', at: '2026-10-29T17:31:00.000Z' },
+          { factor: 'EXTERNAL_EMAIL', at: '2026-10-29T17:34:00.000Z' },
+        ],
+      },
+      { role: 'SIGNER' },
+    );
+
+    expect(rowValue(rows, 'Verificação')).toBe(
+      'Link por e-mail (29/10/2026 14:30) · Confirmação de colaborador (29/10/2026 14:31) · E-mail externo à empresa',
+    );
+  });
+
   it('ordem sequencial: "Ordem de assinatura" logo depois do termo; sem posição, a linha não existe', () => {
     const rows = buildRevalleCertificateRows(completeProof, {
       role: 'SIGNER',

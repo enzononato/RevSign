@@ -45,6 +45,11 @@ export default function PrivacidadePage() {
           dados a cada assinatura.
         </p>
         <p>
+          Se o documento chegar a um e-mail que não é da empresa (por exemplo, um e-mail pessoal), você assina pelo
+          link, sem criar conta, e confirma o CPF e a data de nascimento em toda assinatura. Esse e-mail não fica ligado
+          ao seu CPF, e o certificado do documento registra que a assinatura foi feita por um e-mail externo à empresa.
+        </p>
+        <p>
           Não coletamos nada além do que está descrito nesta página. A data de nascimento é usada apenas para conferir
           com o cadastro de colaboradores e não é gravada pelo RevSign.
         </p>
@@ -100,9 +105,9 @@ export default function PrivacidadePage() {
         <p>
           Usamos medidas técnicas e administrativas para proteger os dados: acesso restrito, comunicação protegida e
           registro das ações feitas no sistema. O CPF aparece apenas mascarado (por exemplo, ***.456.789-**) nos
-          registros de auditoria e no certificado anexado ao documento. O vínculo entre o seu e-mail e o seu CPF fica
-          guardado no banco de dados do sistema para que você não precise confirmar seus dados a cada assinatura; ele
-          pode ser removido pelo administrador.
+          registros de auditoria e no certificado anexado ao documento. O vínculo entre o seu e-mail da empresa e o seu
+          CPF fica guardado no banco de dados do sistema para que você não precise confirmar seus dados a cada
+          assinatura; ele pode ser removido pelo administrador. Um e-mail de fora da empresa nunca é ligado ao CPF.
         </p>
       </section>
 
