@@ -542,6 +542,18 @@ continua em `NEXT_PRIVATE_ALLOWED_SIGNUP_DOMAINS`, mas muda o que ela decide:
    na linha **Verificação** (documentos já assinados não mudam).
 7. **Backup antes**, como sempre (seção "Backup antes de atualizar").
 
+## Antes de atualizar (comprovante de envio e conta obrigatória)
+
+Sem migração e sem variável obrigatória.
+
+1. **Conta obrigatória para quem assina com e-mail da empresa.** Depois de atualizar, quem recebe um documento num
+   e-mail `@revalle.com.br`, `@revallenordeste.com.br` ou `@revallepe.com.br` precisa entrar na própria conta (ou
+   criar, com CPF e data de nascimento) para assinar. Vale também para documentos pendentes enviados antes. Avise a
+   equipe. Quem tem e-mail de fora da empresa continua assinando sem conta. Chave de emergência (só se algo travar):
+   `NEXT_PRIVATE_REVALLE_ACCOUNT_REQUIRED=disabled`.
+2. **Comprovante de envio.** Cada e-mail com o link de assinatura grava um comprovante no histórico; o PDF sai pelo
+   botão "Baixar comprovante" na página do documento. Envios feitos antes da atualização não têm comprovante.
+
 ## Atualizar a versão depois
 
 0. Antes de trocar a versão, confirme que as DUAS imagens existem para a tag nova: `ghcr.io/enzononato/revsign:<tag>` e `ghcr.io/enzononato/revsign-backup:<tag>` (GitHub → Packages; os dois jobs de publicação são independentes e um pode falhar sozinho).

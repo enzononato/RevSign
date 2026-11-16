@@ -5312,3 +5312,33 @@ msgstr "Nota fiscal com e-mail de fora da empresa"
 
 msgid "Invoices can only be sent to company e-mails."
 msgstr "Nota fiscal só pode ser enviada para e-mails da empresa."
+
+msgid "Comprovante de envio — {who}"
+msgstr "Comprovante de envio — {who}"
+
+msgid "Comprovante de envio (reenvio) — {who}"
+msgstr "Comprovante de envio (reenvio) — {who}"
+
+msgid "Este documento é para outra conta"
+msgstr "Este documento é para outra conta"
+
+msgid "Este documento foi enviado para <0>{recipientEmail}</0>. Você está conectado como <1>{sessionEmail}</1>."
+msgstr "Este documento foi enviado para <0>{recipientEmail}</0>. Você está conectado como <1>{sessionEmail}</1>."
+
+msgid "Para assinar, saia e entre com a conta do RevSign de {recipientEmail}."
+msgstr "Para assinar, saia e entre com a conta do RevSign de {recipientEmail}."
+
+msgid "Sair e entrar com {recipientEmail}"
+msgstr "Sair e entrar com {recipientEmail}"
+
+msgid "Entre com a sua conta do RevSign para assinar. Depois de entrar, você volta direto ao documento."
+msgstr "Entre com a sua conta do RevSign para assinar. Depois de entrar, você volta direto ao documento."
+
+msgid "Este é o e-mail que recebeu o documento. Depois de criar a conta, confirme o e-mail pelo link que vamos enviar e você volta direto ao documento."
+msgstr "Este é o e-mail que recebeu o documento. Depois de criar a conta, confirme o e-mail pelo link que vamos enviar e você volta direto ao documento."
+
+msgid "Para assinar, confirme o e-mail primeiro. Ao abrir o link de confirmação neste navegador, você volta direto ao documento; em outro aparelho, abra de novo o link do e-mail do documento."
+msgstr "Para assinar, confirme o e-mail primeiro. Ao abrir o link de confirmação neste navegador, você volta direto ao documento; em outro aparelho, abra de novo o link do e-mail do documento."
+
+msgid "Ir para o documento"
+msgstr "Ir para o documento"
