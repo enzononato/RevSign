@@ -19,6 +19,7 @@ import { buildEnvelopeEmailHeaders } from '../../../server-only/email/build-enve
 import { getEmailContext } from '../../../server-only/email/get-email-context';
 import { assertOrganisationRatesAndLimits } from '../../../server-only/rate-limit/assert-organisation-rates-and-limits';
 import { updateRecipientNextReminder } from '../../../server-only/recipient/update-recipient-next-reminder';
+import { recordSendReceipt } from '../../../server-only/revalle/receipts/record-send-receipt'; // REVALLE:
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import { extractDerivedDocumentEmailSettings } from '../../../types/document-email';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
@@ -240,6 +241,18 @@ export const run = async ({ payload, io }: { payload: TSendSigningEmailJobDefini
           envelopeId: envelope.id,
           teamId: envelope.teamId,
         }),
+      });
+    });
+
+    // REVALLE: comprovante de envio, só depois que o servidor de e-mail aceitou a mensagem. Tarefa própria: se falhar,
+    // o job tenta de novo sem reenviar o e-mail (a tarefa acima fica concluída).
+    await io.runTask('revalle-send-receipt', async () => {
+      await recordSendReceipt({
+        envelopeId: envelope.id,
+        recipient: { id: recipient.id, name: recipient.name, email: recipient.email, role: recipient.role },
+        kind: 'SEND',
+        user,
+        requestMetadata,
       });
     });
   }

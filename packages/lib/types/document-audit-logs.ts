@@ -79,6 +79,7 @@ export const ZDocumentAuditLogTypeSchema = z.enum([
   'REVALLE_FINANCE_ACCOUNT_CHANGED', // REVALLE: o Financeiro trocou a conta: versão substituída e nova versão
   'REVALLE_COST_CENTER_VALIDATED', // REVALLE: a Contabilidade validou o centro de custo (fora do PDF selado)
   'REVALLE_COST_CENTER_CHANGED', // REVALLE: a Contabilidade corrigiu o centro: versão substituída e nova versão
+  'REVALLE_SEND_RECEIPT', // REVALLE: comprovante de envio do e-mail com o link de assinatura (um por e-mail entregue ao servidor)
 ]);
 
 export const ZDocumentAuditLogEmailTypeSchema = z.enum([
@@ -960,6 +961,30 @@ export const ZDocumentAuditLogEventRevalleCostCenterChangedSchema = z.object({
   }),
 });
 
+// REVALLE: comprovante de envio. Gravado só depois que o servidor de e-mail aceitou a mensagem com o link de assinatura
+// (primeiro envio, reenvio e lembrete). A data e hora é o `createdAt` do próprio evento. Nunca gravar CPF nem token.
+// `documents`: título e SHA-256 do arquivo original (`initialData`) de cada item, na ordem do envelope.
+// `envelopeTitle`: o título na hora do envio (o PDF do comprovante sai sempre igual, mesmo se o título mudar depois).
+export const ZRevalleSendReceiptDataSchema = z.object({
+  receiptId: z.string(),
+  recipientId: z.number(),
+  recipientName: z.string(),
+  recipientEmail: z.string(),
+  recipientRole: z.string(),
+  channel: z.literal('EMAIL'),
+  isResend: z.boolean(),
+  kind: z.enum(['SEND', 'RESEND', 'REMINDER']).optional(),
+  envelopeTitle: z.string().optional(),
+  documents: z.array(z.object({ title: z.string(), sha256: z.string() })),
+});
+
+export type TRevalleSendReceiptData = z.infer<typeof ZRevalleSendReceiptDataSchema>;
+
+export const ZDocumentAuditLogEventRevalleSendReceiptSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_SEND_RECEIPT),
+  data: ZRevalleSendReceiptDataSchema,
+});
+
 export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
   z.union([
     ZDocumentAuditLogEventEnvelopeItemCreatedSchema,
@@ -1018,6 +1043,7 @@ export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
     ZDocumentAuditLogEventRevalleFinanceAccountChangedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleCostCenterValidatedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleCostCenterChangedSchema, // REVALLE:
+    ZDocumentAuditLogEventRevalleSendReceiptSchema, // REVALLE:
   ]),
 );
 

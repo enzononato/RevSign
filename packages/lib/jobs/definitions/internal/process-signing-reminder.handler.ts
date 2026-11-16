@@ -19,6 +19,7 @@ import { buildEnvelopeEmailHeaders } from '../../../server-only/email/build-enve
 import { getEmailContext } from '../../../server-only/email/get-email-context';
 import { assertOrganisationRatesAndLimits } from '../../../server-only/rate-limit/assert-organisation-rates-and-limits';
 import { updateRecipientNextReminder } from '../../../server-only/recipient/update-recipient-next-reminder';
+import { recordSendReceiptSafely } from '../../../server-only/revalle/receipts/record-send-receipt'; // REVALLE:
 import { triggerWebhook } from '../../../server-only/webhooks/trigger/trigger-webhook';
 import { DOCUMENT_AUDIT_LOG_TYPE, DOCUMENT_EMAIL_TYPE } from '../../../types/document-audit-logs';
 import { extractDerivedDocumentEmailSettings } from '../../../types/document-email';
@@ -228,6 +229,13 @@ export const run = async ({ payload, io }: { payload: TProcessSigningReminderJob
         envelopeId: envelope.id,
         teamId: envelope.teamId,
       }),
+    });
+
+    // REVALLE: comprovante de envio do lembrete (leva o link de assinatura), depois que o servidor aceitou o e-mail.
+    await recordSendReceiptSafely({
+      envelopeId: envelope.id,
+      recipient: { id: recipient.id, name: recipient.name, email: recipient.email, role: recipient.role },
+      kind: 'REMINDER',
     });
 
     await prisma.documentAuditLog.create({

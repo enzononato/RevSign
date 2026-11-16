@@ -34,6 +34,7 @@ import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { assertOrganisationRatesAndLimits } from '../rate-limit/assert-organisation-rates-and-limits';
 import { updateRecipientNextReminder } from '../recipient/update-recipient-next-reminder';
 import { assertNotPatrimonioTermo } from '../revalle/patrimonio/guard'; // REVALLE:
+import { computeReceiptDocuments, recordSendReceiptSafely } from '../revalle/receipts/record-send-receipt'; // REVALLE:
 import { assertUserNotDisabled } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
 
@@ -216,6 +217,10 @@ export const resendDocument = async ({
     type: 'email',
   });
 
+  // REVALLE: os SHA-256 dos arquivos originais, calculados uma vez para todos os comprovantes deste reenvio. Se falhar
+  // aqui, cada comprovante calcula de novo (`undefined` = calcular).
+  const receiptDocuments = computeReceiptDocuments(envelope.id).catch(() => undefined);
+
   const isNewAccountSender = shouldShowNewAccountWarning({
     userCreatedAt: user.createdAt,
     organisationClaim: claims,
@@ -320,6 +325,15 @@ export const resendDocument = async ({
           envelopeId: envelope.id,
           teamId: envelope.teamId,
         }),
+      });
+
+      // REVALLE: comprovante de envio, só depois que o servidor de e-mail aceitou a mensagem (o reenvio não falha por ele).
+      await recordSendReceiptSafely({
+        envelopeId: envelope.id,
+        recipient: { id: recipient.id, name: recipient.name, email: recipient.email, role: recipient.role },
+        kind: 'RESEND',
+        metadata: requestMetadata,
+        documents: await receiptDocuments,
       });
 
       // Mark the recipient as sent if they were not already sent.

@@ -780,6 +780,13 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
 
       return { anonymous: text, you: text, user: text };
     })
+    // REVALLE: comprovante de envio (o link "Baixar comprovante" fica na tela; aqui só o texto).
+    .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_SEND_RECEIPT }, ({ data }) => {
+      const who = data.recipientName ? `${data.recipientName} (${data.recipientEmail})` : data.recipientEmail;
+      const text = data.isResend ? msg`Comprovante de envio (reenvio) — ${who}` : msg`Comprovante de envio — ${who}`;
+
+      return { anonymous: text, you: text, user: text };
+    })
     .exhaustive();
 
   let selectedDescription = description.anonymous;
