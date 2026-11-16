@@ -5342,3 +5342,6 @@ msgstr "Para assinar, confirme o e-mail primeiro. Ao abrir o link de confirma√ß√
 
 msgid "Ir para o documento"
 msgstr "Ir para o documento"
+
+msgid "Create your account and start using state-of-the-art document signing. Open and beautiful signing is within your grasp."
+msgstr "Crie sua conta de colaborador da Revalle para assinar e acompanhar seus documentos."
