@@ -1,4 +1,5 @@
 import { useUpdateSearchParams } from '@documenso/lib/client-only/hooks/use-update-search-params';
+import { DOCUMENT_AUDIT_LOG_TYPE } from '@documenso/lib/types/document-audit-logs'; // REVALLE:
 import { ZUrlSearchParamsSchema } from '@documenso/lib/types/search-params';
 import { formatDocumentAuditLogAction } from '@documenso/lib/utils/document-audit-logs';
 import { trpc } from '@documenso/trpc/react';
@@ -10,6 +11,7 @@ import { TableCell } from '@documenso/ui/primitives/table';
 import { msg } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
+import { DownloadIcon } from 'lucide-react'; // REVALLE:
 import type { DateTimeFormatOptions } from 'luxon';
 import { DateTime } from 'luxon';
 import { useMemo } from 'react';
@@ -19,6 +21,8 @@ import { UAParser } from 'ua-parser-js';
 export type DocumentLogsTableProps = {
   documentId: number;
   userId?: number;
+  /** REVALLE: link do PDF de um comprovante de envio (linha "Comprovante de envio" ganha "Baixar comprovante"). */
+  receiptHref?: (receiptId: string) => string;
 };
 
 const dateFormat: DateTimeFormatOptions = {
@@ -26,7 +30,7 @@ const dateFormat: DateTimeFormatOptions = {
   hourCycle: 'h12',
 };
 
-export const DocumentLogsTable = ({ documentId, userId }: DocumentLogsTableProps) => {
+export const DocumentLogsTable = ({ documentId, userId, receiptHref }: DocumentLogsTableProps) => {
   const { _, i18n } = useLingui();
 
   const [searchParams] = useSearchParams();
@@ -95,7 +99,29 @@ export const DocumentLogsTable = ({ documentId, userId }: DocumentLogsTableProps
       {
         header: _(msg`Action`),
         accessorKey: 'type',
-        cell: ({ row }) => <span>{formatDocumentAuditLogAction(i18n, row.original, userId).description}</span>,
+        cell: ({ row }) => {
+          const description = formatDocumentAuditLogAction(i18n, row.original, userId).description;
+
+          // REVALLE: comprovante de envio com o link do PDF.
+          if (row.original.type === DOCUMENT_AUDIT_LOG_TYPE.REVALLE_SEND_RECEIPT && receiptHref) {
+            return (
+              <div className="flex flex-col gap-0.5">
+                <span>{description}</span>
+                <a
+                  href={receiptHref(row.original.data.receiptId)}
+                  download
+                  className="inline-flex min-h-8 items-center gap-1 font-semibold text-brand-text hover:underline"
+                  data-testid="send-receipt-download"
+                >
+                  <DownloadIcon className="h-3 w-3" aria-hidden />
+                  Baixar comprovante
+                </a>
+              </div>
+            );
+          }
+
+          return <span>{description}</span>;
+        },
       },
       {
         header: _(msg`IP Address`),

@@ -3,10 +3,12 @@ import {
   DocumentStatus,
   EnvelopeType,
   Prisma,
+  type ReadStatus,
   RecipientRole,
   RevalleFinanceStatus,
   RevalleInvoiceStatus,
   RevalleSuggestionStatus,
+  type SendStatus,
   SigningStatus,
 } from '@prisma/client';
 
@@ -43,6 +45,8 @@ export type InvoiceListRecipient = {
   email: string;
   signingStatus: SigningStatus;
   role: RecipientRole;
+  sendStatus: SendStatus; // REVALLE: estágio no tooltip dos encaixes (só leitura)
+  readStatus: ReadStatus; // REVALLE:
 };
 
 /** Quem vê a lista, com as marcas do Financeiro e da Contabilidade lidas do banco uma vez por pedido. */
@@ -289,7 +293,7 @@ const select = {
   recipients: {
     where: { role: { notIn: [RecipientRole.CC, RecipientRole.VIEWER] } },
     orderBy: [{ signingOrder: { sort: 'asc', nulls: 'last' } }, { id: 'asc' }],
-    select: { name: true, email: true, signingStatus: true, role: true },
+    select: { name: true, email: true, signingStatus: true, role: true, sendStatus: true, readStatus: true }, // REVALLE: estágio no tooltip
   },
   revalleInvoice: {
     select: {

@@ -1,6 +1,7 @@
+import { recipientStageLabel } from '@documenso/lib/revalle/receipts/recipient-stage'; // REVALLE:
 import { cn } from '@documenso/ui/lib/utils';
 import { Plural, Trans } from '@lingui/react/macro';
-import { DocumentStatus, RecipientRole, SigningStatus } from '@prisma/client';
+import { DocumentStatus, type ReadStatus, RecipientRole, type SendStatus, SigningStatus } from '@prisma/client';
 
 import { type SignerSlot, SignerSlots } from '~/components/revalle/shell/signer-slots';
 
@@ -9,7 +10,14 @@ export type SlotRecipient = {
   email: string;
   role: RecipientRole;
   signingStatus: SigningStatus;
+  /** REVALLE: com estes dois, o tooltip diz o estágio ("Enviado", "Visualizado", "Assinou", "Recusou"). */
+  sendStatus?: SendStatus;
+  readStatus?: ReadStatus;
 };
+
+/** REVALLE: o estágio do tooltip, só quando a lista carregou `sendStatus`/`readStatus` (senão fica o texto padrão). */
+const stageDetail = (recipient: SlotRecipient) =>
+  recipient.sendStatus !== undefined || recipient.readStatus !== undefined ? recipientStageLabel(recipient) : undefined;
 
 /** Quem só recebe cópia ou só visualiza não assina: fica fora dos encaixes. */
 export const isSlotRecipient = (recipient: SlotRecipient) =>
@@ -18,19 +26,20 @@ export const isSlotRecipient = (recipient: SlotRecipient) =>
 export const toSignerSlots = (recipients: SlotRecipient[], currentUserEmail?: string): SignerSlot[] =>
   recipients.filter(isSlotRecipient).map((recipient) => {
     const name = recipient.name?.trim() || recipient.email;
+    const detail = stageDetail(recipient);
 
     if (recipient.signingStatus === SigningStatus.SIGNED) {
-      return { name, state: 'signed' };
+      return { name, state: 'signed', detail };
     }
 
     if (recipient.signingStatus === SigningStatus.REJECTED) {
-      return { name, state: 'rejected' };
+      return { name, state: 'rejected', detail };
     }
 
     const isCurrentUser =
       currentUserEmail !== undefined && recipient.email.toLowerCase() === currentUserEmail.toLowerCase();
 
-    return { name, state: isCurrentUser ? 'you' : 'pending' };
+    return { name, state: isCurrentUser ? 'you' : 'pending', detail };
   });
 
 export type RecipientSignerSlotsProps = {

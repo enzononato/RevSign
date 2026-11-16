@@ -11,6 +11,7 @@ import {
   invoiceSignerSummary,
   signerFirstName,
 } from '@documenso/lib/revalle/invoice/invoice-list-row';
+import { recipientStageLabel } from '@documenso/lib/revalle/receipts/recipient-stage'; // REVALLE:
 import type { TFindInvoicesResponse } from '@documenso/trpc/server/revalle-router/invoice/find.types';
 import { cn } from '@documenso/ui/lib/utils';
 import { Button } from '@documenso/ui/primitives/button';
@@ -46,6 +47,7 @@ export const InvoiceRowCard = ({ row, viewer }: InvoiceRowCardProps) => {
     name: recipient.name.trim() || recipient.email,
     state:
       recipient.signingStatus === 'SIGNED' ? 'signed' : recipient.signingStatus === 'REJECTED' ? 'rejected' : 'pending',
+    detail: recipientStageLabel(recipient), // REVALLE: Enviado / Visualizado / Assinou / Recusou
   }));
 
   return (

@@ -1,5 +1,6 @@
 import { DOCUMENT_AUDIT_LOG_TYPE } from '@documenso/lib/types/document-audit-logs';
 import { formatDocumentAuditLogAction } from '@documenso/lib/utils/document-audit-logs';
+import { formatDocumentsPath } from '@documenso/lib/utils/teams'; // REVALLE:
 import { trpc } from '@documenso/trpc/react';
 import { AnimateGenericFadeInOut } from '@documenso/ui/components/animate/animate-generic-fade-in-out';
 import { cn } from '@documenso/ui/lib/utils';
@@ -9,7 +10,12 @@ import { Trans } from '@lingui/react/macro';
 import { AlertTriangle, CheckCheckIcon, CheckIcon, Loader, MailOpen } from 'lucide-react';
 import { DateTime } from 'luxon';
 import { useMemo } from 'react';
+import { useParams } from 'react-router'; // REVALLE:
 import { match } from 'ts-pattern';
+
+import { SendReceiptList } from '~/components/revalle/receipts/send-receipt-list'; // REVALLE:
+import { useSendStatus } from '~/components/revalle/receipts/use-send-status'; // REVALLE:
+import { useOptionalCurrentTeam } from '~/providers/team'; // REVALLE:
 
 export type DocumentPageViewRecentActivityProps = {
   documentId: number;
@@ -34,6 +40,11 @@ export const DocumentPageViewRecentActivity = ({ documentId, userId }: DocumentP
     );
 
   const documentAuditLogs = useMemo(() => (data?.pages ?? []).flatMap((page) => page.data), [data]);
+
+  // REVALLE: os comprovantes de envio, com o link do PDF, numa parte própria embaixo da atividade.
+  const team = useOptionalCurrentTeam();
+  const { id: envelopeId } = useParams();
+  const { data: sendStatus } = useSendStatus({ teamUrl: team?.url, envelopeId });
 
   return (
     // REVALLE v3: cartão macio
@@ -149,6 +160,15 @@ export const DocumentPageViewRecentActivity = ({ documentId, userId }: DocumentP
           </ul>
         )}
       </AnimateGenericFadeInOut>
+
+      {sendStatus && sendStatus.receipts.length > 0 && team && envelopeId && (
+        <SendReceiptList
+          receipts={sendStatus.receipts}
+          max={5}
+          moreHref={`${formatDocumentsPath(team.url)}/${envelopeId}/logs`}
+          className="border-t px-4 py-4"
+        />
+      )}
     </section>
   );
 };

@@ -1,4 +1,5 @@
 import { getSession } from '@documenso/auth/server/lib/utils/get-session';
+import { sendReceiptPath } from '@documenso/lib/revalle/receipts/send-receipt'; // REVALLE:
 import { getEnvelopeById } from '@documenso/lib/server-only/envelope/get-envelope-by-id';
 import { getTeamByUrl } from '@documenso/lib/server-only/team/get-team';
 import { mapSecondaryIdToDocumentId } from '@documenso/lib/utils/envelope';
@@ -80,11 +81,12 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     })),
     documentRootPath,
     userId: user.id,
+    teamUrl: team.url, // REVALLE: link dos comprovantes de envio
   };
 }
 
 export default function DocumentsLogsPage({ loaderData }: Route.ComponentProps) {
-  const { document, recipients, documentRootPath, userId } = loaderData;
+  const { document, recipients, documentRootPath, userId, teamUrl } = loaderData;
 
   const { _, i18n } = useLingui();
 
@@ -193,7 +195,11 @@ export default function DocumentsLogsPage({ loaderData }: Route.ComponentProps) 
       </section>
 
       <section className="mt-6">
-        <DocumentLogsTable documentId={document.id} userId={userId} />
+        <DocumentLogsTable
+          documentId={document.id}
+          userId={userId}
+          receiptHref={(receiptId) => sendReceiptPath({ teamUrl, envelopeId: document.envelopeId, receiptId })}
+        />
       </section>
     </div>
   );

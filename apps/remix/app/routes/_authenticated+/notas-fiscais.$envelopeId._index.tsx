@@ -3,7 +3,9 @@ import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
 import { formatRevalleDateTime } from '@documenso/lib/revalle/date-format';
 import { financeStatusLabel, invoiceViewPath } from '@documenso/lib/revalle/finance/finance-status';
 import { formatInvoiceAmount } from '@documenso/lib/revalle/invoice/invoice-data'; // REVALLE: Fase 8
+import { SEND_STATUS_EXPLANATION } from '@documenso/lib/revalle/receipts/recipient-stage'; // REVALLE: situação de envio
 import { getInvoiceView } from '@documenso/lib/server-only/revalle/finance/invoice-view';
+import { getEnvelopeSendStatus } from '@documenso/lib/server-only/revalle/receipts/send-status'; // REVALLE:
 import { Button } from '@documenso/ui/primitives/button';
 import { Card, CardContent } from '@documenso/ui/primitives/card';
 import { msg } from '@lingui/core/macro';
@@ -27,6 +29,7 @@ import {
   InvoiceStatePill,
   splitCodeLabel,
 } from '~/components/revalle/invoice/invoice-ui';
+import { RecipientSendTimeline } from '~/components/revalle/receipts/recipient-send-timeline'; // REVALLE:
 import { RecipientSignerSlots } from '~/components/tables/recipient-signer-slots';
 import { appMetaTags } from '~/utils/meta';
 
@@ -52,7 +55,11 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     throw err;
   });
 
-  return { view };
+  // REVALLE: Enviado / Visualizado / Assinado de cada destinatário (o acesso já foi conferido acima).
+  const sendStatus = await getEnvelopeSendStatus(view.id);
+  const sendSteps = Object.fromEntries(sendStatus.recipients.map((item) => [String(item.recipientId), item.steps]));
+
+  return { view, sendSteps };
 }
 
 /** REVALLE v3: a situação de cada destinatário em pílula (verde assinou, âmbar falta, vermelho recusou). */
@@ -176,8 +183,9 @@ const InvoiceDuplicates = ({
 );
 
 export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
-  const { view } = loaderData;
+  const { view, sendSteps } = loaderData;
   const { finance, invoiceData } = view;
+  const isSent = view.status !== 'DRAFT'; // REVALLE:
   const revalidator = useRevalidator();
 
   const situation = financeStatusLabel(finance.status, view.status);
@@ -281,9 +289,17 @@ export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
                         {recipient.name && <p className="break-all text-muted-foreground text-xs">{recipient.email}</p>}
                       </div>
                       <RecipientStatus recipient={recipient} />
+                      {isSent && sendSteps[String(recipient.id)] && (
+                        <RecipientSendTimeline steps={sendSteps[String(recipient.id)]} className="mt-0.5" />
+                      )}
                     </li>
                   ))}
                 </ul>
+                {isSent && view.recipients.some((recipient) => recipient.role !== RecipientRole.CC) && (
+                  <p className="text-muted-foreground text-xs" data-testid="recipient-send-explanation">
+                    {SEND_STATUS_EXPLANATION}
+                  </p>
+                )}
               </>
             )}
           </InvoiceCard>
