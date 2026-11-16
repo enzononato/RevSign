@@ -89,10 +89,20 @@ export const DocumentRecipientLinkCopyDialog = ({ trigger, recipients }: Documen
           )}
 
           {recipients.map((recipient) => (
-            <li key={recipient.id} className="flex items-center justify-between px-4 py-3 text-sm">
+            // REVALLE: no celular o e-mail longo corta com reticências e o botão Copiar fica inteiro na tela (a janela abre
+            // sozinha depois do envio).
+            <li
+              key={recipient.id}
+              className="flex items-center justify-between gap-3 px-4 py-3 text-sm [&>*:last-child]:shrink-0"
+            >
               <AvatarWithText
+                className="min-w-0 flex-1"
                 avatarFallback={recipient.email.slice(0, 1).toUpperCase()}
-                primaryText={<p className="text-muted-foreground text-sm">{recipient.email}</p>}
+                primaryText={
+                  <span className="block truncate text-muted-foreground text-sm" title={recipient.email}>
+                    {recipient.email}
+                  </span>
+                }
                 secondaryText={
                   <p className="text-muted-foreground/70 text-xs">
                     {_(RECIPIENT_ROLES_DESCRIPTION[recipient.role].roleName)}
