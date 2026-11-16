@@ -28,7 +28,7 @@ por IP.
 | `kind` | sim | `ENTREGA` ou `DEVOLUCAO` |
 | `title` | sim | título do documento (aparece no e-mail e no PDF), até 200 caracteres |
 | `signerName` | sim | nome do colaborador, até 255 caracteres |
-| `signerEmail` | sim | e-mail do colaborador; **pode ser pessoal** (só nesta integração) |
+| `signerEmail` | sim | e-mail do colaborador; **pode ser pessoal** (desde 16/11/2026, qualquer documento comum também pode) |
 | `signerCpf` | sim | CPF, com ou sem pontuação; tem de ser válido e estar na base do RH |
 | `message` | não | texto do e-mail de convite, até 2000 caracteres |
 
@@ -212,7 +212,9 @@ Formato: `{"error": {"code": "…", "message": "…"}}` (às vezes com um campo 
 E-mail "Você tem um novo documento para assinar" com o link. Ao abrir: termo de assinatura eletrônica, **CPF e data de
 nascimento sempre** (só o CPF informado pelo Patrimônio passa; 5 erros bloqueiam o link), confirmação do nome, a
 assinatura no campo e o código de 6 dígitos enviado ao mesmo e-mail. O e-mail pessoal não vira credencial para outros
-documentos do RevSign. Ao concluir, o colaborador recebe o PDF assinado por e-mail.
+documentos do RevSign. É a mesma regra de qualquer documento enviado a um e-mail de fora da empresa (`verificacao.md`,
+"E-mail de fora da empresa"), mais a exigência do CPF do termo; no termo ela vale até para e-mail da empresa. Num e-mail
+pessoal, a prova e o certificado trazem o fator "E-mail externo à empresa". Ao concluir, o colaborador recebe o PDF assinado por e-mail.
 
 ## 11. Configuração no EasyPanel (RevSign)
 

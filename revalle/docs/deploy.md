@@ -383,7 +383,7 @@ Legenda de "segredo?": **sim** = nunca no repositório, só no EasyPanel e no co
 | `NEXT_PRIVATE_SIGNING_TRANSPORT` | Onde fica o certificado de assinatura | `local` | não |
 | `DOCUMENSO_DISABLE_TELEMETRY` | Desliga o envio de estatísticas ao upstream | `true` | não |
 | `NEXT_PUBLIC_REVALLE_SOURCE_URL` | Link "Código-fonte" no rodapé (exigência da AGPL) | `https://github.com/enzononato/RevSign` | não |
-| `NEXT_PRIVATE_ALLOWED_SIGNUP_DOMAINS` | Só e-mails destes domínios podem se cadastrar | `revalle.com.br,revallenordeste.com.br,revallepe.com.br` | não |
+| `NEXT_PRIVATE_ALLOWED_SIGNUP_DOMAINS` | Domínios da empresa: só eles se cadastram e recebem nota fiscal; e-mail de fora deles assina documento comum com CPF e data sempre | `revalle.com.br,revallenordeste.com.br,revallepe.com.br` | não |
 | `NEXT_PRIVATE_REVALLE_RATE_LIMITS` | (Opcional) muda limites de tentativas. Sem ela valem os padrões do RevSign (cadastro, login, código por e-mail etc.; tabela em `verificacao.md`) | não definir | não |
 | `NEXT_PRIVATE_SIGNING_REASON` | Motivo gravado na assinatura digital do PDF (aparece no leitor de PDF, no painel de assinaturas) | `Selado pelo RevSign da Revalle`. Um EasyPanel que já tenha o valor antigo `Selado pelo RevSign (Revalle)` precisa ser atualizado (os parênteses saíam com barras no PDF) | não |
 | `NEXT_PUBLIC_SUPPORT_EMAIL` | E-mail de suporte mostrado nas telas (Suporte, avisos) e nos e-mails | `projetos.ti@revalle.com.br` | não |
@@ -517,6 +517,30 @@ pode montar no editor:
    e por modelo; documentos já enviados antes desta versão não são conferidos de novo. Integrações que mandam um
    envelope com vários arquivos precisam pôr a assinatura de cada signatário em todos eles (o Patrimônio já põe).
 3. **Backup antes**, como sempre (seção "Backup antes de atualizar").
+
+## Antes de atualizar (e-mail externo em documentos)
+
+Vale para quem atualiza uma instalação que já está em uso. **Não há migração nem variável nova.** A lista de domínios
+continua em `NEXT_PRIVATE_ALLOWED_SIGNUP_DOMAINS`, mas muda o que ela decide:
+
+1. **Documento comum vai para qualquer e-mail** (pessoal ou de outra empresa), pela tela, pela API (v1, v2, tRPC) e por
+   modelo. Integrações que contavam com a recusa `O e-mail … não é de um domínio da empresa.` não a recebem mais. O
+   placeholder de modelo (`recipient.N@documenso.com`, `direct.link@documenso.com`) continua recusado num documento,
+   com `O e-mail … é um exemplo do modelo, não de uma pessoa.`; e-mail vazio no envio dá `Todo destinatário precisa de
+   um e-mail.`
+2. **Nota fiscal continua só para e-mails da empresa.** O envio de uma NF com destinatário de fora é recusado com
+   `400 INVOICE_EXTERNAL_RECIPIENT` ("Nota fiscal só pode ser enviada para e-mails da empresa (…). Troque o e-mail de
+   …."), em todos os caminhos de envio, e **Marcar como nota fiscal** também recusa (`notas-fiscais.md`).
+3. **Cadastro continua só com e-mail da empresa.** Quem recebe num e-mail de fora assina pelo link, sem conta.
+4. **Quem assina por e-mail de fora** confirma CPF e data de nascimento (precisa estar na base do RH) **em todo
+   documento**, e nenhum vínculo e-mail ↔ CPF é criado (`verificacao.md`). Sem a base do RH no ar, essas pessoas não
+   conseguem assinar ("Não foi possível confirmar agora"). Vínculos que já existam para e-mails de fora (não deveriam,
+   fora testes) passam a ser ignorados pelo portão; o admin pode removê-los em **Admin → Verificações**.
+5. **Depois de enviar pelo editor**, a página do documento abre com a janela **Copiar links de assinatura**, para quem
+   envia mandar o link por outro meio; os e-mails saem como antes.
+6. A prova, o certificado e o `/verificar` de quem assina por e-mail de fora trazem o fator "E-mail externo à empresa"
+   na linha **Verificação** (documentos já assinados não mudam).
+7. **Backup antes**, como sempre (seção "Backup antes de atualizar").
 
 ## Atualizar a versão depois
 

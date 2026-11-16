@@ -158,6 +158,31 @@ nota fiscal** na página do documento (item 5).
 **NFs enviadas antes desta atualização** não têm classificação: não aparecem em **Notas fiscais** nem na planilha. Para
 colocar uma delas no fluxo, use **Marcar como nota fiscal** (item 5).
 
+### Nota fiscal só para e-mails da empresa (16/11/2026)
+
+Desde 16/11/2026 um documento comum pode ir para qualquer e-mail (`verificacao.md`, "E-mail de fora da empresa"). A
+**nota fiscal não**: todos os destinatários de uma NF precisam ter e-mail da empresa (`@revalle.com.br`,
+`@revallenordeste.com.br` ou `@revallepe.com.br`). A regra vale em todos os caminhos:
+
+- **Envio** (tela, API v1/v2, modelo, envio em lote e a nova versão do Financeiro ou da Contabilidade): o servidor
+  recusa com `400 INVOICE_EXTERNAL_RECIPIENT` e a mensagem "Nota fiscal só pode ser enviada para e-mails da empresa
+  (@revalle.com.br, @revallenordeste.com.br ou @revallepe.com.br). Troque o e-mail de fulano@gmail.com." O documento
+  continua rascunho. A recusa vem antes da conferência da conta e do centro de custo. Na nova versão do Financeiro, o
+  motivo aparece no erro `FINANCE_NEW_VERSION_NOT_SENT`, e a versão fica parada em rascunho como em qualquer envio que
+  falha.
+- **Diálogo de envio** (e o bloco da NF no editor antigo): o bloco **Nota fiscal · Conta contábil** mostra a mesma
+  mensagem em vermelho e o botão **Enviar** fica bloqueado até o e-mail ser trocado. Vale também quando a NF foi
+  detectada no upload, quando a pessoa responde "Sim" a "Este documento é uma nota fiscal?" e na nova versão parada.
+- **Rascunho**: pôr um e-mail de fora num rascunho de NF é aceito (o editor salva sozinho enquanto a pessoa digita); a
+  recusa é no envio, e o editor já avisa abaixo do e-mail ("Nota fiscal só vai para e-mails da empresa").
+- **NF já enviada**: acrescentar ou trocar destinatário por um e-mail de fora, ditar um próximo assinante de fora ou
+  informar um e-mail de fora ao assinar é recusado com a mesma mensagem.
+- **Marcar como nota fiscal** (documento já enviado): com algum destinatário de fora, é recusado com a mesma mensagem
+  (aparece num aviso na página do documento) e o documento continua comum.
+- A **sugestão da IA** não muda: ela olha o arquivo, não os destinatários.
+- **Não é nota fiscal**: quem envia pode desmarcar a NF (como antes). Aí o documento segue como documento comum e pode
+  ir para o e-mail de fora; a troca fica registrada (quem e quando), como toda marcação.
+
 ### Dados da nota lidos pela IA (Fase 8)
 
 Junto com a conta, a IA copia do documento o **fornecedor** (razão social de quem emitiu), o **número da nota**, o

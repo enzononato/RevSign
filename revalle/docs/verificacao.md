@@ -2,7 +2,7 @@
 
 Para quem: Enzo (TI) e o time de TI da Revalle.
 
-Resumo: antes de assinar, cada pessoa aceita um termo e, na primeira vez, confirma o CPF e a data de nascimento com a base de colaboradores. Depois disso o sistema "lembra" quem é a pessoa. Ao concluir, o RevSign sempre pede um código enviado por e-mail.
+Resumo: antes de assinar, cada pessoa aceita um termo e, na primeira vez, confirma o CPF e a data de nascimento com a base de colaboradores. Depois disso o sistema "lembra" quem é a pessoa pelo e-mail da empresa. Quem recebe o documento num e-mail de fora da empresa (pessoal) confirma CPF e data em **todo** documento (seção "E-mail de fora da empresa"). Ao concluir, o RevSign sempre pede um código enviado por e-mail.
 
 Esta etapa se chama **portão** nos textos técnicos. Quem **cria conta** passa por uma conferência parecida no cadastro (seção "Cadastro: só colaborador cria conta").
 
@@ -14,7 +14,8 @@ As telas, na ordem em que a pessoa vê:
 
 1. **Termo** ("Antes de assinar"): texto curto sobre a assinatura eletrônica, o link "Política de privacidade" e a caixa "Li e concordo". Botão "Continuar". Aparece em todo documento novo.
 2. **CPF e data de nascimento** ("Confirme que é você"): campos "CPF" e "Data de nascimento" (dd/mm/aaaa). Botão "Confirmar".
-   - Só aparece na primeira vez de cada pessoa (e-mail ainda sem vínculo).
+   - Num e-mail da empresa, só aparece na primeira vez de cada pessoa (e-mail ainda sem vínculo). Num e-mail de fora da
+     empresa, aparece **em todo documento** (seção "E-mail de fora da empresa").
    - Se os dados estiverem certos, a tela mostra "Você é <primeiro nome>" (com cargo e unidade) e os botões "Sim, sou eu" e "Não sou eu".
    - Se estiverem errados, a mensagem é sempre a mesma: `CPF ou data de nascimento não conferem.` (vale para CPF que não existe na base e para data errada). A tela informa quantas tentativas restam.
 3. **Documento**: a pessoa lê o PDF e assina cada posição de assinatura, uma por uma (o único campo que o remetente
@@ -31,20 +32,43 @@ Depois da primeira confirmação ("Sim, sou eu"), o sistema guarda a ligação *
 
 Se o e-mail da pessoa já constar na base de colaboradores (coluna `email` da view), o vínculo é feito sozinho, sem pedir CPF.
 
+### E-mail de fora da empresa (desde 16/11/2026)
+
+Documento comum pode ser enviado para **qualquer e-mail** (pessoal ou de outra empresa), pela tela, pela API e por
+modelo. **Nota fiscal** continua só para e-mails da empresa (`notas-fiscais.md`, "Nota fiscal só para e-mails da
+empresa"), e **criar conta** continua só com e-mail da empresa: quem recebe num e-mail de fora assina pelo link, sem
+conta (a página de conclusão nem oferece "Criar conta").
+
+Para quem assina ou aprova por um e-mail de fora dos domínios da empresa (`NEXT_PRIVATE_ALLOWED_SIGNUP_DOMAINS`), o
+portão é mais rígido:
+
+- A tela de **CPF e data de nascimento aparece em todo documento**: o vínculo salvo daquele e-mail (se houver) e o
+  e-mail da base não dispensam a etapa.
+- A pessoa precisa estar na **base de colaboradores**: a mesma consulta, a mesma mensagem `CPF ou data de nascimento
+  não conferem.` e o mesmo limite de 5 tentativas (o 5º erro bloqueia o link).
+- Não há bloqueio por "CPF já ligado a outro e-mail" nem por "e-mail da base diferente": o colaborador que já tem o CPF
+  ligado ao e-mail da empresa assina normalmente pelo e-mail pessoal.
+- **Nenhum vínculo é criado**: um e-mail de fora nunca vira credencial para outros documentos (nem trava o CPF para o
+  e-mail da empresa).
+- O resto é igual: termo, código de 6 dígitos no mesmo e-mail, prova, carimbo, certificado e `/verificar`. O CPF
+  confirmado fica na linha do portão (para a prova). Na prova, o certificado e o `/verificar` mostram, na linha
+  **Verificação**, o fator **"E-mail externo à empresa"** (ver `prova.md`).
+- No editor, abaixo do e-mail de fora, aparece o aviso "E-mail de fora da empresa: a pessoa precisa estar na base do RH
+  e confirma CPF e data de nascimento em todo documento. Nota fiscal só vai para e-mails da empresa."
+
+E-mail da empresa continua exatamente como antes (vínculo na primeira confirmação, vínculo pelo e-mail da base,
+checagens de conflito).
+
 ### Termos do Patrimônio (e-mail pessoal)
 
-Os termos de equipamento criados pela integração com o Patrimônio (`patrimonio.md`) são os únicos documentos que aceitam
-e-mail fora dos domínios da empresa, e o portão deles é mais rígido:
+Os termos de equipamento criados pela integração com o Patrimônio (`patrimonio.md`) seguem a regra do e-mail de fora
+da empresa (acima), com o e-mail que for (da empresa ou pessoal), e mais uma:
 
-- A tela de **CPF e data de nascimento aparece sempre**: o vínculo salvo e o e-mail da base não dispensam a etapa.
 - Só passa o **CPF que o Patrimônio informou** no termo, com a data de nascimento da base. Outro CPF (mesmo de outro
   colaborador, com a data certa) dá a mesma mensagem `CPF ou data de nascimento não conferem.` e conta tentativa
   (5 erros bloqueiam o link, como nos outros documentos).
-- Não há bloqueio por "CPF já ligado a outro e-mail" nem por "e-mail da base diferente": o Patrimônio responde pela
-  ligação e-mail ↔ colaborador.
-- **Nenhum vínculo é criado**: um e-mail pessoal nunca vira credencial para outros documentos.
-- O CPF confirmado fica na linha do portão (para a prova); auditoria, certificado e `/verificar` mostram só o CPF
-  mascarado, como sempre. Termo, código por e-mail, prova, carimbo e certificado são os mesmos.
+- Assim como no e-mail de fora: CPF e data sempre, sem as checagens de conflito (o Patrimônio responde pela ligação
+  e-mail ↔ colaborador) e **nenhum vínculo criado**.
 
 ### Quem não passa pelo portão
 
@@ -230,7 +254,7 @@ Os limites do upstream contam por IP, e na Revalle cada unidade inteira sai para
 
 | Ação (nome técnico) | Limite padrão | Por quê |
 |---|---|---|
-| `auth.signup` | 30 cadastros por hora, por IP | Uma unidade inteira cadastrando gente no mesmo dia. Só e-mails dos domínios da empresa se cadastram |
+| `auth.signup` | 30 cadastros por hora, por IP | Uma unidade inteira cadastrando gente no mesmo dia. Só e-mails dos domínios da empresa se cadastram (documentos vão para qualquer e-mail, mas conta não) |
 | `revalle.signup-identity` | 10 conferências de CPF a cada 24 horas, por CPF (não por IP) | Quem sabe um CPF não consegue testar datas de nascimento pelo cadastro. A janela é fixa (zera à meia-noite UTC). Ajuste com `revalle.signup-identity=10/24h` |
 | `auth.request-2fa-email` | 5 pedidos de código em 15 min por destinatário; 200 por IP | O código por e-mail é pedido a cada conclusão. O teto por destinatário evita abuso; o por IP cabe a unidade toda |
 | `auth.login` | 10 tentativas em 15 min por e-mail; 200 por IP | Protege contra adivinhar senha sem travar a unidade |

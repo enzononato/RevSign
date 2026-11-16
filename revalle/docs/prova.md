@@ -94,8 +94,9 @@ As formas de **Verificação**:
 |---|---|
 | Link por e-mail | Abriu o link pessoal que chegou no e-mail dele |
 | Código por e-mail | Digitou o código de 6 dígitos enviado ao e-mail dele para concluir |
-| Confirmação de colaborador | Primeira assinatura desse e-mail: digitou CPF e data de nascimento, que conferiram com a base, e confirmou "Sim, sou eu" |
+| Confirmação de colaborador | Digitou CPF e data de nascimento, que conferiram com a base, e confirmou "Sim, sou eu". No e-mail da empresa, só na primeira assinatura desse e-mail; no e-mail de fora da empresa (e no termo do Patrimônio), em toda assinatura |
 | Vínculo de colaborador já confirmado | O e-mail já tinha sido ligado ao CPF numa assinatura anterior (ou pela base de RH), então não precisou digitar de novo |
+| E-mail externo à empresa | O documento foi assinado por um e-mail de fora dos domínios da empresa (pessoal, por exemplo). Aparece sem horário, depois dos outros fatores. Quem assina assim sempre confirma CPF e data de nascimento (desde 16/11/2026) |
 
 Destinatário de documento assinado antes da Fase 4 não tem prova congelada: o bloco dele fica igual ao do Documenso original, sem as linhas acima.
 

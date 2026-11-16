@@ -40,6 +40,8 @@ Pulados aparecem como `skipped` no resumo. "Tudo verde" de verdade é: `fail 0`.
 
 `branding.test.mjs` (marca RevSign) cria a cada execução uma conta nova `marca-…@revalle.com.br` (cadastro, confirmação pelo link do Mailpit, login e início do 2FA, sem ativar) e um documento assinado pelo Fernando fictício do `dev-seed.sql`; o vínculo do CPF dele é solto antes e depois. Ele confere o título `· RevSign`, o manifest, os e-mails (remetente `RevSign`; assunto do convite "Você tem um novo documento para assinar"), o certificado/log e o motivo da assinatura no PDF: rode-o com a stack subida pelo `compose.hml.yml` atual (padrões `NEXT_PRIVATE_SMTP_FROM_NAME=RevSign` e `NEXT_PRIVATE_SIGNING_REASON`).
 
+`external-email.test.mjs` (e-mail externo, 16/11/2026) confere: documento comum para um gmail criado e enviado pela API v2 e, com o destinatário trocado pela tela (`envelope.recipient.set`), enviado pelo tRPC; NF (DANFE fictício sem dependências, `helpers.danfePdfFile`) com um gmail recusada no envio pela v2 e pela tela (`INVOICE_EXTERNAL_RECIPIENT`, com o e-mail na mensagem), que sai depois de trocado o e-mail, e destinatário de fora acrescentado à NF enviada recusado; **Marcar como nota fiscal** recusado num documento enviado a um gmail (e aceito no mesmo documento para e-mail da empresa); o portão do gmail pede CPF mesmo com um vínculo posto no banco para aquele e-mail, conta a tentativa errada, passa com o CPF e a data da base mesmo com o CPF já ligado a um e-mail da empresa (e com outro e-mail na base), não cria vínculo, pede CPF de novo no documento seguinte e bloqueia no 5º erro; o e-mail da empresa continua igual (vínculo na primeira confirmação, segundo documento sem CPF, conflito bloqueia); a assinatura completa de um gmail com o código do Mailpit chega a `COMPLETED`, com a prova trazendo o fator `EXTERNAL_EMAIL` e sem vínculo; e o cadastro com gmail continua `SIGNUP_DISABLED`. Usa `REVSIGN_USER_*` e `REVSIGN_ADMIN_*` (só para importar a lista de contas quando a 2.1.03 não está ativa) e precisa do servidor falso do Gemini (`compose.test.yml`). Os vínculos dos CPFs fictícios da Maria, do João e da Ana são soltos antes e depois.
+
 `share-hardening.test.mjs` confere que o RevSign não cria link público de compartilhamento: `document.share` (tRPC) é recusado com o token do destinatário e com o dono logado (sem gravar linha em `DocumentShareLink`), e `/share/<slug>/opengraph` responde 404 (o teste insere e apaga uma linha própria).
 
 `invoice-admin.test.mjs` (Fase 5) usa as sessões de `REVSIGN_ADMIN_*` (rotas `revalle.invoice.admin*`) e de `REVSIGN_USER_*` (recusa ao usuário comum). Ele **apaga e recria a lista de contas contábeis** da stack local e grava o prompt. O teste do estado da IA lê dentro do container se `GEMINI_API_KEY` está definida (sem mostrar o valor) e `NEXT_PRIVATE_REVALLE_INVOICE_AI`; vale para a stack subida com ou sem a chave.
@@ -140,8 +142,9 @@ node --test --test-concurrency=1 scripts/revalle/tests/invoice-classify.test.mjs
 `patrimonio.test.mjs` só roda com a stack subida com `compose.test.yml`, que liga a integração com valores de teste (chave,
 conta remetente `admin@hml.local`, webhook em `http://patrimonio-hook:8799/hook`, um nome de uma parte só que aponta
 para a máquina, sem `NEXT_PRIVATE_WEBHOOK_SSRF_BYPASS_HOSTS`). O teste sobe o receptor dos avisos na porta **8799** da
-máquina (precisa estar livre) e confere o HMAC de cada aviso. Usa `REVSIGN_API_TOKEN` e `REVSIGN_USER_*` (recusa do
-e-mail externo pela API comum e pela tela, termo travado), `REVSIGN_ADMIN_*` (exclusão pelo admin recusada),
+máquina (precisa estar livre) e confere o HMAC de cada aviso. Usa `REVSIGN_API_TOKEN` e `REVSIGN_USER_*` (o
+mesmo e-mail externo aceito pela API comum e pela tela num documento comum e recusado no envio de uma NF, termo
+travado), `REVSIGN_ADMIN_*` (exclusão pelo admin recusada),
 `REVSIGN_SENDER_API_TOKEN` (token de conta ADMIN: o Zapier aceita) e o João e a Maria fictícios do `dev-seed.sql` (o
 vínculo do CPF deles é solto antes e depois). Alguns estados são postos no banco por instantes e desfeitos (vencido,
 assinado sem selar, exclusão branda).
@@ -330,7 +333,7 @@ node scripts/revalle/smoke-test.mjs smoke-output/
   ```sh
   docker exec revsign-hml-database-1 psql -U documenso -d documenso -c "DELETE FROM \"RevalleEmailLink\" WHERE cpf = '93457210888';"
   ```
-- O e-mail do assinante precisa ser de um domínio permitido (`NEXT_PRIVATE_ALLOWED_SIGNUP_DOMAINS`).
+- O e-mail do assinante pode ser de fora da empresa (desde 16/11/2026), mas aí o portão pede CPF e data de nascimento em toda execução e nenhum vínculo é criado. Com e-mail da empresa, o vínculo vale como descrito acima.
 
 ## Verificar o PDF assinado
 
@@ -370,4 +373,4 @@ REVSIGN_API_TOKEN=api_... node scripts/revalle/mobile-check.mjs /tmp/prints-celu
 
 ## Testes e2e do upstream (Playwright)
 
-Os testes em `packages/app-tests` vêm do Documenso e **não são mantidos** pelo RevSign: o portão, o código por e-mail obrigatório e a exigência de domínio da empresa mudam os fluxos que eles esperam. Não use o resultado deles como critério.
+Os testes em `packages/app-tests` vêm do Documenso e **não são mantidos** pelo RevSign: o portão, o código por e-mail obrigatório e a regra de domínio (placeholder de modelo recusado em documento, nota fiscal e cadastro só com e-mail da empresa) mudam os fluxos que eles esperam. Não use o resultado deles como critério.
