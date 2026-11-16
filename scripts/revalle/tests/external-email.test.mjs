@@ -9,6 +9,7 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, test } from 'node:test';
 
+import './account-autologin.mjs'; // conta obrigatória (16/11/2026): entra na conta de quem assina pelo e-mail da empresa
 import {
   api,
   assertNoPaidGeminiCalls,

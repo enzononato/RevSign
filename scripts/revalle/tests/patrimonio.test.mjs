@@ -10,6 +10,7 @@ import path from 'node:path';
 import { after, before, beforeEach, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import './account-autologin.mjs'; // conta obrigatória (16/11/2026): entra na conta de quem assina pelo e-mail da empresa
 import {
   APP_CONTAINER,
   api,

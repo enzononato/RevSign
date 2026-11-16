@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict';
 import { before, beforeEach, test } from 'node:test';
 
+import './account-autologin.mjs'; // conta obrigatória (16/11/2026): entra na conta de quem assina pelo e-mail da empresa
 import { createEnvelope, db, distribute, signIn, trpc, trpcAs } from './helpers.mjs';
 
 const MARIA = { cpf: '39053344705', birthDate: '07/03/1990' };

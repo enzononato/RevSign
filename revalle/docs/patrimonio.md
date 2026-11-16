@@ -209,7 +209,13 @@ Formato: `{"error": {"code": "…", "message": "…"}}` (às vezes com um campo 
 
 ## 10. O que o colaborador vê
 
-E-mail "Você tem um novo documento para assinar" com o link. Ao abrir: termo de assinatura eletrônica, **CPF e data de
+E-mail "Você tem um novo documento para assinar" com o link. **Termo enviado a um e-mail da empresa** (desde
+16/11/2026): antes de tudo, o colaborador precisa estar **logado na conta do RevSign desse e-mail**. Sem estar logado,
+o link leva a **Entrar** (com o e-mail preenchido) ou, se ainda não tem conta, a **Criar conta** com o e-mail travado
+(CPF e data de nascimento conferidos na base e confirmação do e-mail); depois disso ele volta direto ao termo. Logado
+com outra conta, vê "Este documento é para outra conta" e o botão para sair e entrar com a conta certa. Termo enviado a
+um **e-mail pessoal** continua sem conta, só pelo link. A regra é a mesma de qualquer documento (`verificacao.md`,
+"E-mail da empresa: assinar com a conta"). Em seguida, nos dois casos: termo de assinatura eletrônica, **CPF e data de
 nascimento sempre** (só o CPF informado pelo Patrimônio passa; 5 erros bloqueiam o link), confirmação do nome, a
 assinatura no campo e o código de 6 dígitos enviado ao mesmo e-mail. O e-mail pessoal não vira credencial para outros
 documentos do RevSign. É a mesma regra de qualquer documento enviado a um e-mail de fora da empresa (`verificacao.md`,

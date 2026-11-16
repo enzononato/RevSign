@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import './account-autologin.mjs'; // conta obrigatória (16/11/2026): entra na conta de quem assina pelo e-mail da empresa
 import { api, createEnvelope, db, distribute, trpc } from './helpers.mjs';
 
 const PLACEHOLDER_MESSAGE = 'é um exemplo do modelo, não de uma pessoa';

@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
 
+import './account-autologin.mjs'; // conta obrigatória (16/11/2026): entra na conta de quem assina pelo e-mail da empresa
 import { BASE_URL, createEnvelope, db, distribute, trpc } from './helpers.mjs';
 
 const MARIA = { cpf: '39053344705', birthDate: '07/03/1990' };
@@ -15,7 +16,9 @@ beforeEach(() => {
   db(`delete from "RevalleEmailLink" where cpf = '${MARIA.cpf}'`);
 });
 
-test('gate-page: antes do portão a página não traz documento; depois traz, e a abertura só é registrada depois', async () => {
+// Desde 16/11/2026 (Visualizado = abriu o link) a abertura (DOCUMENT_OPENED) é gravada já na tela do portão, uma vez;
+// a visualização do documento (DOCUMENT_VIEWED) continua só depois do portão.
+test('gate-page: antes do portão a página não traz documento; depois traz; abertura no portão, visualização depois', async () => {
   const title = `[TESTE] titulo-secreto-${Date.now()}`;
   const created = await createEnvelope({ recipients: [{ email: unique() }], title });
 
@@ -31,11 +34,12 @@ test('gate-page: antes do portão a página não traz documento; depois traz, e 
   assert.ok(!before.includes('/api/files/'), 'nenhuma URL de arquivo antes do portão');
 
   const opened = () =>
-    db(
-      `select count(*) from "DocumentAuditLog" where "envelopeId" = '${created.id}' and type in ('DOCUMENT_OPENED','DOCUMENT_VIEWED')`,
-    );
+    db(`select count(*) from "DocumentAuditLog" where "envelopeId" = '${created.id}' and type = 'DOCUMENT_VIEWED'`);
+  const linkOpened = () =>
+    db(`select count(*) from "DocumentAuditLog" where "envelopeId" = '${created.id}' and type = 'DOCUMENT_OPENED'`);
 
   assert.equal(opened(), '0');
+  assert.equal(linkOpened(), '1', 'abrir o link na tela do portão grava a abertura');
 
   for (const sub of ['complete', 'rejected']) {
     const res = await fetch(`${BASE_URL}/sign/${token}/${sub}`, { redirect: 'manual' });
@@ -77,8 +81,10 @@ test('gate-page: antes do portão a página não traz documento; depois traz, e 
   assert.ok(!after.includes('Antes de assinar'));
   assert.ok(after.includes(title), 'depois do portão a página normal traz o documento');
 
+  assert.equal(linkOpened(), '1', 'a abertura é gravada uma vez só');
+
   const firstOpen = db(
-    `select min(extract(epoch from "createdAt")) from "DocumentAuditLog" where "envelopeId" = '${created.id}' and type in ('DOCUMENT_OPENED','DOCUMENT_VIEWED')`,
+    `select min(extract(epoch from "createdAt")) from "DocumentAuditLog" where "envelopeId" = '${created.id}' and type = 'DOCUMENT_VIEWED'`,
   );
   const gatePassed = db(
     `select max(extract(epoch from "createdAt")) from "DocumentAuditLog" where "envelopeId" = '${created.id}' and type in ('REVALLE_TERM_ACCEPTED','REVALLE_IDENTITY_CONFIRMED')`,

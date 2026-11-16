@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import './account-autologin.mjs'; // conta obrigatória (16/11/2026): entra na conta de quem assina pelo e-mail da empresa
 import { BASE_URL, createEnvelope, db, distribute, postSignup, trpc } from './helpers.mjs';
 
 const enabled = process.env.REVSIGN_IDENTITY_CHECK_DISABLED === '1';

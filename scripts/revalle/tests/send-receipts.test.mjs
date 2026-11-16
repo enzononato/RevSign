@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { before, test } from 'node:test';
 
+import { sessionFor } from './account-helpers.mjs'; // conta obrigatória: sessão de quem recebe no e-mail da empresa
 import {
   api,
   BASE_URL,
@@ -324,13 +325,10 @@ test('situação: Enviado → Visualizado → Assinado; recusa = Recusado', { sk
   assert.ok(!otherSteps.some((step) => step.key === 'SIGNED'));
 });
 
-// Pedido fora do escopo deste item: a página de assinatura só grava a abertura (DOCUMENT_OPENED) depois do portão. Quem
-// só abriu o link e parou no termo ainda não conta como Visualizado. Fica como `todo` até a tela do portão gravar a
-// abertura.
-test('GET da página de assinatura sozinho já conta como Visualizado', {
-  skip,
-  todo: 'depende de a página do portão registrar a abertura do link',
-}, async () => {
+// Abrir o link já conta como Visualizado, mesmo parando no termo (a tela do portão grava a abertura, uma vez por
+// destinatário). E-mail da empresa: só conta quando quem abre está logado na conta dele; o pedido sem sessão vai para
+// Entrar/Criar conta e não é o destinatário (conta obrigatória, 16/11/2026).
+test('GET da página de assinatura sozinho já conta como Visualizado', { skip }, async () => {
   const created = await createEnvelope({
     title: `[TESTE] comprovante aberto ${randomUUID().slice(0, 8)}`,
     meta: { distributionMethod: 'EMAIL' },
@@ -355,4 +353,38 @@ test('GET da página de assinatura sozinho já conta como Visualizado', {
     VIEWED: true,
     SIGNED: false,
   });
+
+  // Abrir de novo não grava outra abertura.
+  await get(`/sign/${recipient.token}`).then((res) => res.text());
+  assert.equal(
+    db(
+      `select count(*) from "DocumentAuditLog" where "envelopeId" = '${created.id}' and type = 'DOCUMENT_OPENED' and data->>'recipientId' = '${recipient.id}'`,
+    ),
+    '1',
+  );
+
+  // E-mail da empresa: sem sessão o link redireciona e não conta; logado na conta dele, conta.
+  const companyDoc = await createEnvelope({
+    title: `[TESTE] comprovante aberto empresa ${randomUUID().slice(0, 8)}`,
+    meta: { distributionMethod: 'EMAIL' },
+    recipients: [{ email: companyEmail('comprovante-e'), name: 'Elisa Comprovante' }],
+  });
+
+  assert.equal(companyDoc.status, 200, companyDoc.text);
+
+  const [companyRecipient] = await distribute(companyDoc.id);
+
+  await waitReceipts(companyDoc.id, 1);
+
+  const anonymous = await get(`/sign/${companyRecipient.token}`);
+
+  assert.equal(anonymous.status, 302, 'sem sessão vai para Entrar/Criar conta');
+  await anonymous.text();
+  assert.equal(stepsOf(await sendStatus(companyDoc.id, fx.cookie), companyRecipient.id).VIEWED, false);
+
+  const own = await get(`/sign/${companyRecipient.token}`, await sessionFor(companyRecipient.email));
+
+  assert.equal(own.status, 200);
+  await own.text();
+  assert.equal(stepsOf(await sendStatus(companyDoc.id, fx.cookie), companyRecipient.id).VIEWED, true);
 });

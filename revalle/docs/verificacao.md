@@ -56,8 +56,49 @@ portão é mais rígido:
 - No editor, abaixo do e-mail de fora, aparece o aviso "E-mail de fora da empresa: a pessoa precisa estar na base do RH
   e confirma CPF e data de nascimento em todo documento. Nota fiscal só vai para e-mails da empresa."
 
-E-mail da empresa continua exatamente como antes (vínculo na primeira confirmação, vínculo pelo e-mail da base,
-checagens de conflito).
+E-mail da empresa continua como antes no portão (vínculo na primeira confirmação, vínculo pelo e-mail da base,
+checagens de conflito), e desde 16/11/2026 também exige a conta do RevSign (seção "E-mail da empresa: assinar com a
+conta").
+
+### E-mail da empresa: assinar com a conta (desde 16/11/2026)
+
+Quem recebe o documento num **e-mail da empresa** (`NEXT_PRIVATE_ALLOWED_SIGNUP_DOMAINS`) e precisa agir nele
+(**assinar, aprovar ou recusar**) só age **logado na conta do RevSign desse mesmo e-mail** (maiúsculas não importam).
+Vale sozinho, pelo domínio do e-mail: o remetente não marca nada e não tem como esquecer. Vale também para documentos
+enviados antes desta versão que ainda estão pendentes (a regra é sobre como se assina daqui para frente).
+
+Ao abrir o link do e-mail (o mesmo link de sempre):
+
+- **Sem estar logado, com conta**: vai para **Entrar**, com o e-mail preenchido e o aviso "Depois de entrar, você volta
+  direto ao documento". Depois do login, cai no documento.
+- **Sem estar logado, sem conta**: vai para **Criar conta**, com o e-mail do documento **travado** (não dá para trocar).
+  É o cadastro normal: CPF e data de nascimento conferidos na base de colaboradores e confirmação do e-mail. Ao abrir o
+  link de confirmação **no mesmo navegador**, a pessoa já entra na conta e volta direto ao documento. Em outro aparelho,
+  basta abrir de novo o link do e-mail do documento, agora com a conta.
+- **Logado com outra conta**: a tela "Este documento é para outra conta", com o e-mail do documento, o e-mail da conta
+  logada e o botão **"Sair e entrar com <e-mail do documento>"** (leva a Entrar ou a Criar conta, como acima). Nada do
+  documento aparece nessa tela.
+- **Logado na conta certa**: o portão de sempre. Como o cadastro já cria o vínculo e-mail ↔ CPF, a tela de CPF
+  normalmente não aparece; o **termo** e o **código de 6 dígitos** por e-mail continuam.
+
+O que **não** muda:
+
+- **E-mail de fora da empresa**: sem conta, pelo link, com CPF e data de nascimento em todo documento.
+- **Só visualizar** e **cópia** (CC), e quem **já assinou** (ou recusou): abrem o link como antes, sem login. O
+  documento concluído continua abrindo pelo link (a pessoa já assinou com a conta; o link e o PDF assinado já eram dela).
+- **Criar conta** continua só para e-mail da empresa. A página de conclusão não oferece mais "Criar conta" (quem assina
+  pelo e-mail da empresa já tem a conta).
+- **Termos do Patrimônio**: num e-mail da empresa, a conta também é exigida, além do CPF do termo; num e-mail pessoal,
+  nada muda (`patrimonio.md`, seção 10).
+
+No servidor, a regra vale em **toda ação pelo link**, não só na página: assinar e desfazer campo, concluir, recusar, as
+etapas do portão (termo, CPF, "Sim, sou eu"), pedir o código por e-mail, os anexos e o PDF do documento pendente. Sem
+sessão, a resposta é `REVALLE_ACCOUNT_REQUIRED` (401); logado com outra conta, `REVALLE_ACCOUNT_MISMATCH` (403). A
+sessão só vale para conta com e-mail confirmado e ativa. A volta para o documento só aceita o caminho `/sign/<token>`
+(nunca outro endereço).
+
+Emergência: `NEXT_PRIVATE_REVALLE_ACCOUNT_REQUIRED=disabled` desliga a regra (volta a assinatura só pelo link, com o
+portão de sempre). Não use no dia a dia.
 
 ### Termos do Patrimônio (e-mail pessoal)
 
@@ -114,7 +155,7 @@ Quando o vínculo e-mail ↔ CPF nasce:
 Quem se cadastra **sem** informar CPF:
 
 - A conta de `NEXT_PRIVATE_REVALLE_ADMIN_EMAIL`, que pode nem estar na base de colaboradores (é a conta do passo "Criar a conta do administrador", no `deploy.md`).
-- O e-mail que **já passou pelo portão**: tem vínculo, ou já está na base de colaboradores. É o caso do botão **Criar conta** na página de conclusão da assinatura. Se esse e-mail não se encaixa em nenhum dos dois, aparece a mensagem `Para criar a conta, informe o CPF e a data de nascimento na página de cadastro.` e a pessoa se cadastra em **Criar conta** com CPF e data.
+- O e-mail que **já passou pelo portão**: tem vínculo, ou já está na base de colaboradores. Se esse e-mail não se encaixa em nenhum dos dois, aparece a mensagem `Para criar a conta, informe o CPF e a data de nascimento na página de cadastro.` e a pessoa se cadastra em **Criar conta** com CPF e data. (Desde 16/11/2026 a página de conclusão não tem mais o botão **Criar conta**: quem assina pelo e-mail da empresa cria a conta antes de assinar.)
 
 Outras regras:
 
