@@ -665,6 +665,7 @@ export const fieldRouter = router({
         return await removeSignedFieldWithToken({
           token,
           fieldId,
+          userId: ctx.user?.id, // REVALLE: conta obrigatória para o e-mail da empresa
           requestMetadata: ctx.metadata.requestMetadata,
         });
       } catch (err) {

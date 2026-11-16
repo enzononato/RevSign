@@ -1,7 +1,10 @@
+import { AppError } from '@documenso/lib/errors/app-error'; // REVALLE:
+import { isRevalleAccountErrorCode } from '@documenso/lib/revalle/account-required/rule'; // REVALLE:
 import { TWO_FACTOR_EMAIL_EXPIRATION_MINUTES } from '@documenso/lib/server-only/2fa/email/constants';
 import { send2FATokenEmail } from '@documenso/lib/server-only/2fa/email/send-2fa-token-email';
 import { assertRateLimit } from '@documenso/lib/server-only/rate-limit/rate-limit-middleware';
 import { request2FAEmailRateLimit } from '@documenso/lib/server-only/rate-limit/rate-limits';
+import { assertRevalleRecipientAccount } from '@documenso/lib/server-only/revalle/account-required/account-required'; // REVALLE:
 import {
   isSupersededPendingVersion,
   SUPERSEDED_VERSION_MESSAGE,
@@ -71,6 +74,9 @@ export const accessAuthRequest2FAEmailRoute = procedure
         throw new TRPCError({ code: 'CONFLICT', message: SUPERSEDED_VERSION_MESSAGE });
       }
 
+      // REVALLE: e-mail da empresa: o código só vai para quem está logado na conta do próprio e-mail.
+      await assertRevalleRecipientAccount(recipient, { userId: user?.id });
+
       // REVALLE: o código por e-mail vale para qualquer documento (a conclusão o exige sempre), então não há recusa aqui.
 
       // if (user && recipient.email !== user.email) {
@@ -96,6 +102,11 @@ export const accessAuthRequest2FAEmailRoute = procedure
       console.error('Error sending access auth 2FA email:', error);
 
       if (error instanceof TRPCError) {
+        throw error;
+      }
+
+      // REVALLE: conta obrigatória (401/403 com o código), não "falha ao enviar".
+      if (error instanceof AppError && isRevalleAccountErrorCode(error.code)) {
         throw error;
       }
 

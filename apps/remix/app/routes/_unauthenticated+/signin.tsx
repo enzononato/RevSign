@@ -9,6 +9,7 @@ import {
   isSignupEnabledForProvider,
   OIDC_PROVIDER_LABEL,
 } from '@documenso/lib/constants/auth';
+import { sanitizeSigningReturnTo } from '@documenso/lib/revalle/account-required/return-to'; // REVALLE:
 import { isValidReturnTo, normalizeReturnTo } from '@documenso/lib/utils/is-valid-return-to';
 import { Alert, AlertDescription } from '@documenso/ui/primitives/alert';
 import { msg } from '@lingui/core/macro';
@@ -55,13 +56,20 @@ export async function loader({ request }: Route.LoaderArgs) {
     (IS_MICROSOFT_SSO_ENABLED && isSignupEnabledForProvider('microsoft')) ||
     (IS_OIDC_SSO_ENABLED && isSignupEnabledForProvider('oidc'));
 
-  let returnTo = new URL(request.url).searchParams.get('returnTo') ?? undefined;
+  const searchParams = new URL(request.url).searchParams; // REVALLE:
+
+  let returnTo = searchParams.get('returnTo') ?? undefined;
 
   returnTo = isValidReturnTo(returnTo) ? normalizeReturnTo(returnTo) : undefined;
 
   if (isAuthenticated) {
     throw redirect(returnTo || '/');
   }
+
+  // REVALLE: vindo do link de assinatura (conta obrigatória para o e-mail da empresa): e-mail preenchido e o aviso de
+  // que a pessoa volta ao documento. O e-mail só preenche o campo; nada é decidido por ele.
+  const revalleSigningReturnTo = sanitizeSigningReturnTo(returnTo);
+  const revalleEmail = (searchParams.get('email') ?? '').trim().slice(0, 254) || undefined;
 
   return {
     isEmailPasswordSigninEnabled,
@@ -72,6 +80,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     oidcProviderLabel,
     returnTo,
     shouldAutoRedirectToOIDC,
+    revalleSigningReturnTo, // REVALLE:
+    revalleEmail, // REVALLE:
   };
 }
 
@@ -85,6 +95,8 @@ export default function SignIn({ loaderData }: Route.ComponentProps) {
     oidcProviderLabel,
     returnTo,
     shouldAutoRedirectToOIDC,
+    revalleSigningReturnTo,
+    revalleEmail,
   } = loaderData;
 
   const { _ } = useLingui();
@@ -129,7 +141,14 @@ export default function SignIn({ loaderData }: Route.ComponentProps) {
         </h1>
 
         <p className="mt-2 text-muted-foreground text-sm">
-          <Trans>Welcome back, we are lucky to have you.</Trans>
+          {/* REVALLE: vindo do link de assinatura, o texto diz o que acontece depois de entrar */}
+          {revalleSigningReturnTo ? (
+            <Trans>
+              Entre com a sua conta do RevSign para assinar. Depois de entrar, você volta direto ao documento.
+            </Trans>
+          ) : (
+            <Trans>Welcome back, we are lucky to have you.</Trans>
+          )}
         </p>
         <div className="my-5" />
 
@@ -140,6 +159,7 @@ export default function SignIn({ loaderData }: Route.ComponentProps) {
           isOIDCSSOEnabled={isOIDCSSOEnabled}
           oidcProviderLabel={oidcProviderLabel}
           returnTo={returnTo}
+          initialEmail={revalleEmail} // REVALLE:
         />
 
         {isSignupEnabled && (
@@ -147,7 +167,7 @@ export default function SignIn({ loaderData }: Route.ComponentProps) {
             <Trans>
               Don't have an account?{' '}
               <Link
-                to={returnTo ? `/signup?returnTo=${encodeURIComponent(returnTo)}` : '/signup'}
+                to={revalleSignupPath({ returnTo, email: revalleEmail })} // REVALLE: mantém o e-mail do link de assinatura
                 className="text-brand-text duration-200 hover:opacity-70"
               >
                 Sign up
@@ -159,3 +179,20 @@ export default function SignIn({ loaderData }: Route.ComponentProps) {
     </div>
   );
 }
+
+// REVALLE: o link "Criar conta" leva a volta e, vindo do link de assinatura, o e-mail.
+const revalleSignupPath = ({ returnTo, email }: { returnTo?: string; email?: string }) => {
+  const params = new URLSearchParams();
+
+  if (email && sanitizeSigningReturnTo(returnTo)) {
+    params.set('email', email);
+  }
+
+  if (returnTo) {
+    params.set('returnTo', returnTo);
+  }
+
+  const query = params.toString();
+
+  return query ? `/signup?${query}` : '/signup';
+};

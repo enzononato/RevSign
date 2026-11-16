@@ -122,7 +122,7 @@ export const completeDocumentWithToken = async ({
   const [recipient] = envelope.recipients;
 
   // REVALLE: o portão (termo + identidade) vale também na API; sem isso a tela seria contornável
-  await assertRevalleGatePassed(recipient, requestMetadata);
+  await assertRevalleGatePassed(recipient, requestMetadata, { userId }); // REVALLE: conta do e-mail da empresa
 
   // A retried or duplicate completion request for an already signed
   // recipient throws a code the router resolves idempotently. This must be

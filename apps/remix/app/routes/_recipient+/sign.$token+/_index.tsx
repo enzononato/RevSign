@@ -21,6 +21,8 @@ import { getNextPendingRecipient } from '@documenso/lib/server-only/recipient/ge
 import { getRecipientByToken } from '@documenso/lib/server-only/recipient/get-recipient-by-token';
 import { getRecipientSignatures } from '@documenso/lib/server-only/recipient/get-recipient-signatures';
 import { getRecipientsForAssistant } from '@documenso/lib/server-only/recipient/get-recipients-for-assistant';
+import { recordRevalleLinkOpened } from '@documenso/lib/server-only/revalle/account-required/record-link-opened'; // REVALLE:
+import { getRevalleSigningAccountState } from '@documenso/lib/server-only/revalle/account-required/signing-page'; // REVALLE:
 import { getRevalleGateLoaderPayload } from '@documenso/lib/server-only/revalle/gate/get-gate-state-for-loader'; // REVALLE:
 import { showSigningInvoiceAccountForToken } from '@documenso/lib/server-only/revalle/invoice/signing-account'; // REVALLE:
 import { getTeamSettings } from '@documenso/lib/server-only/team/get-team-settings';
@@ -50,6 +52,7 @@ import { DocumentSigningProvider } from '~/components/general/document-signing/d
 import { DocumentSigningSenderDisabledPage } from '~/components/general/document-signing/document-signing-sender-disabled-page';
 import { EnvelopeSigningProvider } from '~/components/general/document-signing/envelope-signing-provider';
 import { RecipientBranding } from '~/components/general/recipient-branding';
+import { RevalleAccountMismatchPage } from '~/components/revalle/account-required/account-mismatch-page'; // REVALLE:
 import { SigningInvoiceAccountProvider } from '~/components/revalle/invoice/signing-invoice-account'; // REVALLE:
 import { GateStatusIcon } from '~/components/revalle/signing-gate/gate-status-icon'; // REVALLE:
 import { SigningPageFrame } from '~/components/revalle/signing-gate/signing-band'; // REVALLE:
@@ -74,6 +77,11 @@ const handleV1Loader = async ({ params, request }: Route.LoaderArgs) => {
   const revalleGate = await getRevalleGateLoaderPayload(token, requestMetadata);
 
   if (revalleGate) {
+    // REVALLE: o destinatário abriu o link (a regra da conta já passou no loader principal): conta como Visualizado.
+    if (revalleGate.revalleGate.status !== 'SUPERSEDED') {
+      await recordRevalleLinkOpened({ token, requestMetadata });
+    }
+
     return revalleGate;
   }
 
@@ -208,6 +216,11 @@ const handleV2Loader = async ({ params, request }: Route.LoaderArgs) => {
   const revalleGate = await getRevalleGateLoaderPayload(token, requestMetadata);
 
   if (revalleGate) {
+    // REVALLE: o destinatário abriu o link (a regra da conta já passou no loader principal): conta como Visualizado.
+    if (revalleGate.revalleGate.status !== 'SUPERSEDED') {
+      await recordRevalleLinkOpened({ token, requestMetadata });
+    }
+
     return revalleGate;
   }
 
@@ -392,6 +405,24 @@ export async function loader(loaderArgs: Route.LoaderArgs) {
     teamId: foundRecipient.envelope.teamId,
   });
 
+  // REVALLE: conta obrigatória para o e-mail da empresa (16/11/2026), antes do portão e de qualquer dado do documento.
+  // Sem sessão: entrar (a conta existe) ou criar a conta, com o e-mail e a volta para cá. Com outra conta: a página de
+  // troca. As ações por token conferem a mesma regra no servidor (`assertRevalleGatePassed`).
+  const { user: revalleSessionUser } = await getOptionalSession(loaderArgs.request);
+  const revalleAccount = await getRevalleSigningAccountState({ token, sessionUser: revalleSessionUser });
+
+  if (revalleAccount.type === 'REDIRECT') {
+    throw redirect(revalleAccount.to);
+  }
+
+  if (revalleAccount.type === 'MISMATCH') {
+    return superLoaderJson({
+      isSenderDisabled: false,
+      revalleAccountMismatch: revalleAccount,
+      branding,
+    } as const);
+  }
+
   if (foundRecipient.envelope.internalVersion === 2) {
     const payloadV2 = await handleV2Loader(loaderArgs);
 
@@ -439,6 +470,16 @@ export default function SigningPage() {
 
   if (data.isSenderDisabled) {
     return <DocumentSigningSenderDisabledPage />;
+  }
+
+  // REVALLE: logado com outra conta (conta obrigatória para o e-mail da empresa).
+  if ('revalleAccountMismatch' in data) {
+    return (
+      <>
+        <RecipientBranding branding={data.branding} cspNonce={cspNonce} />
+        <RevalleAccountMismatchPage {...data.revalleAccountMismatch} />
+      </>
+    );
   }
 
   return (

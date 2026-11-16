@@ -1,4 +1,5 @@
 import { getOptionalNonEmbedSession } from '@documenso/auth/server/lib/session/embed-session-restrictions';
+import { getOptionalSession } from '@documenso/auth/server/lib/utils/get-session'; // REVALLE: conta obrigatória
 import { APP_DOCUMENT_UPLOAD_SIZE_LIMIT } from '@documenso/lib/constants/app';
 import { AppError } from '@documenso/lib/errors/app-error';
 import { verifyEmbeddingPresignToken } from '@documenso/lib/server-only/embedding-presign/verify-embedding-presign-token';
@@ -262,7 +263,11 @@ export const filesRoute = new Hono<HonoEnv>()
       }
 
       // REVALLE: o portão (termo + identidade) vale também no PDF; tokens qr_ (documento concluído) seguem livres
-      if (await isRevalleGateBlockingToken(token, extractRequestMetadata(c.req.raw))) {
+      if (
+        await isRevalleGateBlockingToken(token, extractRequestMetadata(c.req.raw), {
+          userId: (await getOptionalSession(c)).user?.id,
+        })
+      ) {
         return c.json({ error: 'Conclua a verificação antes de continuar.' }, 403);
       }
 
@@ -319,7 +324,11 @@ export const filesRoute = new Hono<HonoEnv>()
       }
 
       // REVALLE: o portão (termo + identidade) vale também no PDF; tokens qr_ (documento concluído) seguem livres
-      if (await isRevalleGateBlockingToken(token, extractRequestMetadata(c.req.raw))) {
+      if (
+        await isRevalleGateBlockingToken(token, extractRequestMetadata(c.req.raw), {
+          userId: (await getOptionalSession(c)).user?.id,
+        })
+      ) {
         return c.json({ error: 'Conclua a verificação antes de continuar.' }, 403);
       }
 

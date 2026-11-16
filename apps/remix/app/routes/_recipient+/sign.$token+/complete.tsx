@@ -1,6 +1,5 @@
 import { getOptionalSession } from '@documenso/auth/server/lib/utils/get-session';
 import { useOptionalSession } from '@documenso/lib/client-only/providers/session';
-import { isEmailDomainAllowedForSignup, isSignupEnabledForProvider } from '@documenso/lib/constants/auth'; // REVALLE: isEmailDomainAllowedForSignup
 import { loadRecipientBrandingByTeamId } from '@documenso/lib/server-only/branding/load-recipient-branding';
 import { getDocumentAndSenderByToken } from '@documenso/lib/server-only/document/get-document-by-token';
 import { isRecipientAuthorized } from '@documenso/lib/server-only/document/is-recipient-authorized';
@@ -12,7 +11,6 @@ import {
   getRevalleGateLoaderPayload, // REVALLE:
   isRevalleGatePendingForToken, // REVALLE:
 } from '@documenso/lib/server-only/revalle/gate/get-gate-state-for-loader'; // REVALLE:
-import { getUserByEmail } from '@documenso/lib/server-only/user/get-user-by-email';
 import { isDocumentCompleted } from '@documenso/lib/utils/document';
 import { getEnvelopeItemPdfUrl } from '@documenso/lib/utils/envelope-download'; // REVALLE:
 import { prisma } from '@documenso/prisma'; // REVALLE: encaixes de quem assina (só leitura)
@@ -20,7 +18,6 @@ import { trpc } from '@documenso/trpc/react';
 import { SigningCard } from '@documenso/ui/components/signing-card'; // REVALLE: cartão 2D, sem a imagem de comemoração
 import { cn } from '@documenso/ui/lib/utils';
 import { Button } from '@documenso/ui/primitives/button';
-import { Card } from '@documenso/ui/primitives/card'; // REVALLE:
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
 import { DocumentStatus, FieldType, RecipientRole, SigningStatus } from '@prisma/client'; // REVALLE: SigningStatus
@@ -29,7 +26,6 @@ import { Link, redirect } from 'react-router'; // REVALLE: redirect
 import { getOptionalLoaderContext } from 'server/utils/get-loader-session'; // REVALLE:
 import { match } from 'ts-pattern';
 import { EnvelopeDownloadDialog } from '~/components/dialogs/envelope-download-dialog';
-import { ClaimAccount } from '~/components/general/claim-account';
 import { DocumentSigningAuthPageView } from '~/components/general/document-signing/document-signing-auth-page';
 import { RecipientBranding } from '~/components/general/recipient-branding';
 import { type SignerSlot, SignerSlots } from '~/components/revalle/shell/signer-slots'; // REVALLE:
@@ -95,16 +91,11 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   }
 
   const signatures = await getRecipientSignatures({ recipientId: recipient.id });
-  const isExistingUser = await getUserByEmail({ email: recipient.email })
-    .then((u) => !!u)
-    .catch(() => false);
-
   const recipientName =
     recipient.name || fields.find((field) => field.type === FieldType.NAME)?.customText || recipient.email;
 
-  // REVALLE: só e-mail da empresa cria conta; quem assinou por um e-mail de fora não vê o convite para criar conta.
-  const canSignUp =
-    !isExistingUser && isSignupEnabledForProvider('email') && isEmailDomainAllowedForSignup(recipient.email);
+  // REVALLE: sem o convite "Crie sua conta" (16/11/2026): quem assina pelo e-mail da empresa já entrou na própria conta
+  // para assinar (conta obrigatória), e o e-mail de fora da empresa não cria conta.
 
   const canRedirectToFolder = user && document.userId === user.id && document.folderId && document.team?.url;
 
@@ -126,7 +117,6 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 
   return {
     isDocumentAccessValid: true,
-    canSignUp,
     recipientName,
     recipientEmail: recipient.email,
     signatures,
@@ -153,7 +143,6 @@ export default function CompletedSigningPage({ loaderData }: Route.ComponentProp
 
   const {
     isDocumentAccessValid,
-    canSignUp,
     recipientName,
     signatures,
     document,
@@ -263,25 +252,7 @@ export default function CompletedSigningPage({ loaderData }: Route.ComponentProp
   return (
     <>
       <RecipientBranding branding={branding} cspNonce={cspNonce} />
-      <SigningPageFrame
-        titleAs="p"
-        title={<span title={document.title}>{document.title}</span>}
-        after={
-          canSignUp ? (
-            <Card backdropBlur={false} className="mt-4 p-5 sm:p-7">
-              <h2 className="font-black font-display text-[20px] leading-tight tracking-[-0.02em]">
-                <Trans>Need to sign documents?</Trans>
-              </h2>
-
-              <p className="mt-2 text-muted-foreground leading-normal">
-                <Trans>Create your account and start using state-of-the-art document signing.</Trans>
-              </p>
-
-              <ClaimAccount defaultName={recipientName} defaultEmail={recipient.email} />
-            </Card>
-          ) : null
-        }
-      >
+      <SigningPageFrame titleAs="p" title={<span title={document.title}>{document.title}</span>}>
         <div className="flex flex-col items-center text-center">
           {/* REVALLE: quem assina vê o engradado no lugar do selo genérico; leitor continua com o selo */}
           {showSlots ? (

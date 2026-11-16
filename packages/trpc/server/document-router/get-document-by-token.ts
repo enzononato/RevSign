@@ -45,7 +45,7 @@ export const getDocumentByTokenRoute = authenticatedProcedure
     }
 
     // REVALLE: o PDF por token só depois do portão (termo + identidade), como nas demais rotas por token.
-    await assertRevalleGatePassed(envelope.recipients[0], ctx.metadata.requestMetadata);
+    await assertRevalleGatePassed(envelope.recipients[0], ctx.metadata.requestMetadata, { userId: ctx.user.id });
 
     if (envelope.envelopeItems.length !== 1) {
       throw new AppError(AppErrorCode.INVALID_REQUEST, {

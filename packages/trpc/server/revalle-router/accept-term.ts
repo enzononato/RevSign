@@ -11,7 +11,7 @@ export const acceptTermRoute = procedure
   .mutation(async ({ input, ctx }) => {
     await assertRevalleGateRateLimit(ctx.metadata.requestMetadata);
 
-    const recipient = await findRevalleGateRecipient(input.token);
+    const recipient = await findRevalleGateRecipient(input.token, { userId: ctx.user?.id });
 
     return await acceptRevalleTerm({
       recipientId: recipient.id,

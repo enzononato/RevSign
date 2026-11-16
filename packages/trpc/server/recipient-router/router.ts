@@ -693,6 +693,7 @@ export const recipientRouter = router({
         id: documentId,
       },
       reason,
+      userId: ctx.user?.id, // REVALLE: conta obrigatória para o e-mail da empresa
       requestMetadata: ctx.metadata.requestMetadata,
     });
   }),

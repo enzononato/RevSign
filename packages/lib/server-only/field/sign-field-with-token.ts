@@ -98,7 +98,7 @@ export const signFieldWithToken = async ({
   await assertSenderNotDisabled({ userId: envelope.userId });
 
   // REVALLE: o portão (termo + identidade) vale também na API; sem isso a tela seria contornável
-  await assertRevalleGatePassed(recipient, requestMetadata);
+  await assertRevalleGatePassed(recipient, requestMetadata, { userId }); // REVALLE: conta do e-mail da empresa
 
   if (envelope.deletedAt) {
     throw new Error(`Document ${envelope.id} has been deleted`);

@@ -6,6 +6,7 @@ import {
   NEXT_PUBLIC_TERMS_OF_SERVICE_URL,
 } from '@documenso/lib/constants/app';
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
+import { rememberSigningReturnTo } from '@documenso/lib/revalle/account-required/return-to'; // REVALLE:
 import { parseBirthDateInput } from '@documenso/lib/revalle/birth-date';
 import { isValidCpf } from '@documenso/lib/revalle/cpf';
 import { formatBirthDateInput, formatCpfInput } from '@documenso/lib/revalle/input-masks';
@@ -104,6 +105,10 @@ export type SignUpFormProps = {
   returnTo?: string;
   /** REVALLE: o cadastro pede CPF e data de nascimento (falso com a verificação de identidade desligada). */
   identityRequired?: boolean;
+  /** REVALLE: vindo do link de assinatura, o e-mail do destinatário não muda (conta obrigatória). */
+  emailLocked?: boolean;
+  /** REVALLE: `/sign/<token>` já validado; depois da confirmação do e-mail a pessoa volta para lá. */
+  signingReturnTo?: string;
 };
 
 export const SignUpForm = ({
@@ -115,6 +120,8 @@ export const SignUpForm = ({
   isOidcSignupEnabled,
   returnTo,
   identityRequired = false,
+  emailLocked = false,
+  signingReturnTo,
 }: SignUpFormProps) => {
   const { _ } = useLingui();
   const { toast } = useToast();
@@ -199,7 +206,15 @@ export const SignUpForm = ({
         revalleBirthDate: identityRequired ? revalleBirthDate : undefined,
       });
 
-      await navigate(returnTo ? returnTo : '/unverified-account');
+      // REVALLE: vindo do link de assinatura, a conta só vale depois de confirmar o e-mail: a página de confirmação
+      // guarda a volta para o documento (o link de confirmação abre a página que leva de volta a ele).
+      if (signingReturnTo) {
+        rememberSigningReturnTo(signingReturnTo);
+
+        await navigate(`/unverified-account?returnTo=${encodeURIComponent(signingReturnTo)}`);
+      } else {
+        await navigate(returnTo ? returnTo : '/unverified-account');
+      }
 
       toast({
         title: _(msg`Registration Successful`),
@@ -266,6 +281,11 @@ export const SignUpForm = ({
   };
 
   useEffect(() => {
+    // REVALLE: e-mail travado (link de assinatura) não é trocado pelo #email=
+    if (emailLocked) {
+      return;
+    }
+
     const hash = window.location.hash.slice(1);
 
     const params = new URLSearchParams(hash);
@@ -275,7 +295,7 @@ export const SignUpForm = ({
     if (email) {
       form.setValue('email', email);
     }
-  }, [form]);
+  }, [form, emailLocked]);
 
   return (
     <div className={cn('flex justify-center', className)}>
@@ -326,8 +346,17 @@ export const SignUpForm = ({
                           <Trans>Email Address</Trans>
                         </FormLabel>
                         <FormControl>
-                          <Input type="email" {...field} />
+                          {/* REVALLE: e-mail do link de assinatura, sem edição */}
+                          <Input type="email" {...field} readOnly={emailLocked} aria-readonly={emailLocked} />
                         </FormControl>
+                        {emailLocked && (
+                          <p className="text-muted-foreground text-xs md:text-sm">
+                            <Trans>
+                              Este é o e-mail que recebeu o documento. Depois de criar a conta, confirme o e-mail pelo
+                              link que vamos enviar e você volta direto ao documento.
+                            </Trans>
+                          </p>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}
@@ -501,7 +530,14 @@ export const SignUpForm = ({
               <p className="mt-4 text-muted-foreground text-sm">
                 <Trans>
                   Already have an account?{' '}
-                  <Link to="/signin" className="text-brand-text duration-200 hover:opacity-70">
+                  <Link
+                    to={
+                      signingReturnTo
+                        ? `/signin?${new URLSearchParams({ email: form.getValues('email'), returnTo: signingReturnTo })}`
+                        : '/signin'
+                    } // REVALLE: vindo do link de assinatura, entrar volta ao documento
+                    className="text-brand-text duration-200 hover:opacity-70"
+                  >
                     Sign in instead
                   </Link>
                 </Trans>

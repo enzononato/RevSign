@@ -70,7 +70,7 @@ export const signEnvelopeFieldRoute = procedure
     await assertSenderNotDisabled({ userId: envelope.userId });
 
     // REVALLE: o portão (termo + identidade) vale também na API; sem isso a tela seria contornável
-    await assertRevalleGatePassed(recipient, metadata.requestMetadata);
+    await assertRevalleGatePassed(recipient, metadata.requestMetadata, { userId: user?.id });
 
     if (envelope.internalVersion !== 2) {
       throw new AppError(AppErrorCode.NOT_FOUND, {

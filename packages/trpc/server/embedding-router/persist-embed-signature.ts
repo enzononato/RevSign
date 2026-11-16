@@ -17,7 +17,8 @@ import {
 export const persistEmbedSignatureRoute = procedure
   .input(ZPersistEmbedSignatureRequestSchema)
   .output(ZPersistEmbedSignatureResponseSchema)
-  .mutation(async ({ input, ctx: { metadata } }) => {
+  .mutation(async ({ input, ctx: { metadata, user } }) => {
+    // REVALLE: user
     const { token, clientUserId, signature } = input;
 
     const recipient = await prisma.recipient.findFirst({
@@ -51,7 +52,7 @@ export const persistEmbedSignatureRoute = procedure
     }
 
     // REVALLE: o portão (termo + identidade) vale também na assinatura persistida do embed
-    await assertRevalleGatePassed(recipient, metadata.requestMetadata);
+    await assertRevalleGatePassed(recipient, metadata.requestMetadata, { userId: user?.id });
 
     const { organisationId, isEnabled } = await getEmbedSignatureSettingsByTeamId({
       teamId: recipient.envelope.teamId,

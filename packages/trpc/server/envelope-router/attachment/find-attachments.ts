@@ -30,7 +30,7 @@ export const findAttachmentsRoute = maybeAuthenticatedProcedure
       });
 
       if (gateRecipient) {
-        await assertRevalleGatePassed(gateRecipient, ctx.metadata.requestMetadata);
+        await assertRevalleGatePassed(gateRecipient, ctx.metadata.requestMetadata, { userId: ctx.user?.id });
       }
 
       const data = await findAttachmentsByToken({ envelopeId, token });

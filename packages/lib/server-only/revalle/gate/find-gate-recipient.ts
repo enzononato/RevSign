@@ -2,9 +2,11 @@ import { prisma } from '@documenso/prisma';
 import { DocumentStatus, EnvelopeType, RecipientRole, SigningStatus } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
+import { assertRevalleRecipientAccount, type RevalleSigningActor } from '../account-required/account-required';
 import { isSupersededPendingVersion, supersededVersionError } from './superseded-version';
 
-export const findRevalleGateRecipient = async (token: string) => {
+/** Etapas do portão (termo, CPF, confirmação): também só com a conta do e-mail da empresa, quando ela é exigida. */
+export const findRevalleGateRecipient = async (token: string, actor: RevalleSigningActor) => {
   const recipient = await prisma.recipient.findFirst({
     where: {
       token,
@@ -23,6 +25,8 @@ export const findRevalleGateRecipient = async (token: string) => {
   if (await isSupersededPendingVersion({ recipientId: recipient.id })) {
     throw supersededVersionError();
   }
+
+  await assertRevalleRecipientAccount(recipient, actor);
 
   return recipient;
 };

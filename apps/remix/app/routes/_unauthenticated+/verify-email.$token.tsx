@@ -1,6 +1,7 @@
 import { authClient } from '@documenso/auth/client';
 import { useOptionalSession } from '@documenso/lib/client-only/providers/session';
 import { EMAIL_VERIFICATION_STATE } from '@documenso/lib/constants/email';
+import { takeSigningReturnTo } from '@documenso/lib/revalle/account-required/return-to'; // REVALLE:
 import { Button } from '@documenso/ui/primitives/button';
 import { useToast } from '@documenso/ui/primitives/use-toast';
 import { msg } from '@lingui/core/macro';
@@ -35,6 +36,8 @@ export default function VerifyEmailPage({ loaderData }: Route.ComponentProps) {
 
   const [state, setState] = useState<keyof typeof EMAIL_VERIFICATION_STATE | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  // REVALLE: volta para o documento guardada no cadastro (conta obrigatória para o e-mail da empresa).
+  const [signingReturnTo, setSigningReturnTo] = useState<string | null>(null);
 
   const verifyToken = async () => {
     setIsLoading(true);
@@ -46,6 +49,20 @@ export default function VerifyEmailPage({ loaderData }: Route.ComponentProps) {
 
       await refreshSession();
 
+      // REVALLE: e-mail confirmado (a confirmação já entra na conta): volta direto ao documento que pediu a conta.
+      const revalleReturnTo =
+        response.state === EMAIL_VERIFICATION_STATE.VERIFIED ||
+        response.state === EMAIL_VERIFICATION_STATE.ALREADY_VERIFIED
+          ? takeSigningReturnTo()
+          : null;
+
+      if (revalleReturnTo && response.state === EMAIL_VERIFICATION_STATE.VERIFIED) {
+        window.location.assign(revalleReturnTo);
+
+        return;
+      }
+
+      setSigningReturnTo(revalleReturnTo);
       setState(response.state);
     } catch (err) {
       console.error(err);
@@ -146,8 +163,9 @@ export default function VerifyEmailPage({ loaderData }: Route.ComponentProps) {
             </p>
 
             <Button className="mt-4" asChild>
-              <Link to="/">
-                <Trans>Continue</Trans>
+              {/* REVALLE: volta ao documento quando a conta foi criada pelo link de assinatura */}
+              <Link to={signingReturnTo ?? '/'}>
+                {signingReturnTo ? <Trans>Ir para o documento</Trans> : <Trans>Continue</Trans>}
               </Link>
             </Button>
           </div>
@@ -171,8 +189,9 @@ export default function VerifyEmailPage({ loaderData }: Route.ComponentProps) {
             </p>
 
             <Button className="mt-4" asChild>
-              <Link to="/">
-                <Trans>Go back home</Trans>
+              {/* REVALLE: volta ao documento quando a conta foi criada pelo link de assinatura */}
+              <Link to={signingReturnTo ?? '/'}>
+                {signingReturnTo ? <Trans>Ir para o documento</Trans> : <Trans>Go back home</Trans>}
               </Link>
             </Button>
           </div>

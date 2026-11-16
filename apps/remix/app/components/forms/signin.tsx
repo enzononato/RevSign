@@ -2,6 +2,7 @@ import { authClient } from '@documenso/auth/client';
 import { AuthenticationErrorCode } from '@documenso/auth/server/lib/errors/error-codes';
 import { formatPath } from '@documenso/lib/constants/app';
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
+import { rememberSigningReturnTo, sanitizeSigningReturnTo } from '@documenso/lib/revalle/account-required/return-to'; // REVALLE:
 import { env } from '@documenso/lib/utils/env';
 import { zEmail } from '@documenso/lib/utils/zod';
 import { trpc } from '@documenso/trpc/react';
@@ -250,7 +251,16 @@ export const SignInForm = ({
           return;
         }
 
-        await navigate('/unverified-account');
+        // REVALLE: conta obrigatória: a volta para o documento sobrevive à confirmação do e-mail.
+        const revalleSigningReturnTo = sanitizeSigningReturnTo(returnTo);
+
+        rememberSigningReturnTo(revalleSigningReturnTo);
+
+        await navigate(
+          revalleSigningReturnTo
+            ? `/unverified-account?returnTo=${encodeURIComponent(revalleSigningReturnTo)}`
+            : '/unverified-account',
+        );
 
         toast({
           title: _(msg`Unable to sign in`),

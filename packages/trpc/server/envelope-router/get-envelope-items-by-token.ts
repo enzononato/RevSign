@@ -51,6 +51,7 @@ export const getEnvelopeItemsByTokenRoute = maybeAuthenticatedProcedure
       envelopeId,
       token: access.token,
       requestMetadata: ctx.metadata.requestMetadata, // REVALLE:
+      userId: user?.id, // REVALLE: conta obrigatória para o e-mail da empresa
     });
 
     return {
@@ -63,10 +64,12 @@ const handleGetEnvelopeItemsByToken = async ({
   envelopeId,
   token,
   requestMetadata,
+  userId,
 }: {
   envelopeId: string;
   token: string;
   requestMetadata: RequestMetadata;
+  userId: number | undefined; // REVALLE: sessão (conta obrigatória para o e-mail da empresa)
 }) => {
   const envelope = await prisma.envelope.findFirst({
     where: {
@@ -99,7 +102,7 @@ const handleGetEnvelopeItemsByToken = async ({
     select: { id: true, email: true, role: true, signingStatus: true },
   });
 
-  await assertRevalleGatePassed(recipient, requestMetadata);
+  await assertRevalleGatePassed(recipient, requestMetadata, { userId });
 
   return {
     envelopeItems: envelope.envelopeItems,

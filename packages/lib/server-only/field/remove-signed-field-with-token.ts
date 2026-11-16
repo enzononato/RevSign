@@ -11,12 +11,15 @@ import { DocumentStatus, RecipientRole, SigningStatus } from '@prisma/client';
 export type RemovedSignedFieldWithTokenOptions = {
   token: string;
   fieldId: number;
+  /** REVALLE: usuário da sessão (conta obrigatória para o e-mail da empresa). */
+  userId?: number;
   requestMetadata?: RequestMetadata;
 };
 
 export const removeSignedFieldWithToken = async ({
   token,
   fieldId,
+  userId, // REVALLE:
   requestMetadata,
 }: RemovedSignedFieldWithTokenOptions) => {
   const recipient = await prisma.recipient.findFirstOrThrow({
@@ -48,7 +51,7 @@ export const removeSignedFieldWithToken = async ({
   await assertSenderNotDisabled({ userId: envelope.userId });
 
   // REVALLE: o portão (termo + identidade) vale também na API; sem isso a tela seria contornável
-  await assertRevalleGatePassed(recipient, requestMetadata);
+  await assertRevalleGatePassed(recipient, requestMetadata, { userId }); // REVALLE: conta do e-mail da empresa
 
   if (envelope.status !== DocumentStatus.PENDING) {
     throw new Error(`Document ${envelope.id} must be pending`);

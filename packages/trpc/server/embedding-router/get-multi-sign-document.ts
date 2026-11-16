@@ -15,7 +15,8 @@ import {
 export const getMultiSignDocumentRoute = procedure
   .input(ZGetMultiSignDocumentRequestSchema)
   .output(ZGetMultiSignDocumentResponseSchema)
-  .query(async ({ input, ctx: { metadata } }) => {
+  .query(async ({ input, ctx: { metadata, user } }) => {
+    // REVALLE: user
     try {
       const { token } = input;
 
@@ -36,7 +37,7 @@ export const getMultiSignDocumentRoute = procedure
       }
 
       // REVALLE: o portão (termo + identidade) vale também na API
-      await assertRevalleGatePassed(recipient, metadata.requestMetadata);
+      await assertRevalleGatePassed(recipient, metadata.requestMetadata, { userId: user?.id });
 
       await viewedDocument({
         token,

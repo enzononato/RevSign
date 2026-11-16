@@ -24,10 +24,18 @@ export type RejectDocumentWithTokenOptions = {
   token: string;
   id: EnvelopeIdOptions;
   reason: string;
+  /** REVALLE: usuário da sessão (conta obrigatória para o e-mail da empresa). */
+  userId?: number;
   requestMetadata?: RequestMetadata;
 };
 
-export async function rejectDocumentWithToken({ token, id, reason, requestMetadata }: RejectDocumentWithTokenOptions) {
+export async function rejectDocumentWithToken({
+  token,
+  id,
+  reason,
+  userId, // REVALLE:
+  requestMetadata,
+}: RejectDocumentWithTokenOptions) {
   // Find the recipient and document in a single query
   const recipient = await prisma.recipient.findFirst({
     where: {
@@ -50,7 +58,7 @@ export async function rejectDocumentWithToken({ token, id, reason, requestMetada
   await assertSenderNotDisabled({ userId: envelope.userId });
 
   // REVALLE: o portão (termo + identidade) vale também na API; sem isso a tela seria contornável
-  await assertRevalleGatePassed(recipient, requestMetadata);
+  await assertRevalleGatePassed(recipient, requestMetadata, { userId }); // REVALLE: conta do e-mail da empresa
 
   if (envelope.status !== DocumentStatus.PENDING) {
     throw new AppError(AppErrorCode.INVALID_REQUEST, {
