@@ -70,7 +70,8 @@ export const DocumentRecipientLinkCopyDialog = ({ trigger, recipients }: Documen
         {trigger}
       </DialogTrigger>
 
-      <DialogContent position="center">
+      {/* REVALLE: coluna que encolhe (sem ela, o e-mail longo alargava a janela além da tela do celular). */}
+      <DialogContent position="center" className="grid-cols-[minmax(0,1fr)]">
         <DialogHeader>
           <DialogTitle className="pb-0.5">
             <Trans>Copy Signing Links</Trans>
