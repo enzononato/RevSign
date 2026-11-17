@@ -16,6 +16,7 @@ import { getI18nInstance } from '../../../client-only/providers/i18n-server';
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../../constants/app';
 import { RECIPIENT_ROLE_TO_EMAIL_TYPE, RECIPIENT_ROLES_DESCRIPTION } from '../../../constants/recipient-roles';
 import { revalleInviteReplyTo, revalleInviteSubject } from '../../../revalle/invite-email'; // REVALLE:
+import { greetingName } from '../../../revalle/recipient-name'; // REVALLE:
 import { buildEnvelopeEmailHeaders } from '../../../server-only/email/build-envelope-email-headers';
 import { getEmailContext } from '../../../server-only/email/get-email-context';
 import { assertOrganisationRatesAndLimits } from '../../../server-only/rate-limit/assert-organisation-rates-and-limits';
@@ -174,7 +175,7 @@ export const run = async ({ payload, io }: { payload: TSendSigningEmailJobDefini
   );
 
   const customEmailTemplate = {
-    'signer.name': name,
+    'signer.name': greetingName(name, email), // REVALLE: sem nome ainda, o e-mail
     'signer.email': email,
     'document.name': envelope.title,
   };
