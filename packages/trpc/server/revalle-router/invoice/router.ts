@@ -14,6 +14,7 @@ import { invoicePendingCountsRoute } from './pending-counts';
 import { resuggestInvoiceRoute } from './resuggest';
 import { setInvoiceChoiceRoute } from './set-choice';
 import { setInvoiceCostCenterRoute } from './set-cost-center';
+import { setInvoiceFileKindRoute } from './set-file-kind';
 import { setInvoiceFlagRoute } from './set-invoice-flag';
 
 export const invoiceRouter = router({
@@ -25,6 +26,7 @@ export const invoiceRouter = router({
   get: getInvoiceRoute,
   classify: classifyInvoiceRoute,
   setInvoiceFlag: setInvoiceFlagRoute,
+  setFileKind: setInvoiceFileKindRoute,
   resuggest: resuggestInvoiceRoute,
   setChoice: setInvoiceChoiceRoute,
   setCostCenter: setInvoiceCostCenterRoute,

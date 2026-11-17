@@ -47,6 +47,7 @@ import {
   db,
   distribute,
   fetchIdempotent,
+  forceInvoiceColumns,
   retryCreateOnStaleSocket,
   signIn,
   trpc,
@@ -626,9 +627,7 @@ sessionTest('validação: motivo, mesma conta, conta inativa e estados que não 
   );
   assert.equal((await change(draft.id)).status, 400);
 
-  db(
-    `update "RevalleInvoiceClassification" set "financeStatus" = 'APPROVED', "approvedAt" = null where "envelopeId" = '${draft.id}'`,
-  );
+  forceInvoiceColumns(draft.id, '"approvedAt" = null', '"financeStatus" = \'APPROVED\'');
   assert.equal((await change(draft.id)).status, 400);
   assert.equal(status(draft.id), 'DRAFT');
 
@@ -773,9 +772,7 @@ sessionTest(
     // NF enviada antes do centro de custo existir: a v2 também fica sem, e o envio dela não exige.
     const legacy = await newInvoice('sem-centro', { signers: 1 });
 
-    db(
-      `update "RevalleInvoiceClassification" set "costCenterCode" = null, "costCenterById" = null, "costCenterAt" = null where "envelopeId" = '${legacy.id}'`,
-    );
+    forceInvoiceColumns(legacy.id, '"costCenterCode" = null, "costCenterById" = null, "costCenterAt" = null');
 
     const legacyV2 = changed(await change(legacy.id));
 

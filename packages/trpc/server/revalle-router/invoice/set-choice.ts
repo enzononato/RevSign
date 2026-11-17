@@ -4,17 +4,18 @@ import { setInvoiceChoice } from '@documenso/lib/server-only/revalle/invoice/cho
 import { authenticatedProcedure } from '../../trpc';
 import { ZSetInvoiceChoiceRequestSchema, ZSetInvoiceChoiceResponseSchema } from './set-choice.types';
 
-/** Conta contábil da NF. Depois do envio, quem troca é o Financeiro. */
+/** Conta contábil da NF (Fase 9: de uma nota, `envelopeItemId`). Depois do envio, quem troca é o Financeiro. */
 export const setInvoiceChoiceRoute = authenticatedProcedure
   .input(ZSetInvoiceChoiceRequestSchema)
   .output(ZSetInvoiceChoiceResponseSchema)
   .mutation(async ({ input, ctx }) => {
-    const { envelopeId, choice } = input;
+    const { envelopeId, envelopeItemId, choice } = input;
 
     await assertInvoiceEnvelopeAccess({ envelopeId, userId: ctx.user.id });
 
     return await setInvoiceChoice({
       envelopeId,
+      envelopeItemId,
       choice,
       user: { id: ctx.user.id, name: ctx.user.name, email: ctx.user.email },
       requestMetadata: ctx.metadata.requestMetadata,

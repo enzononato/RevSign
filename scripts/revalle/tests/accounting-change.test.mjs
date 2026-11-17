@@ -48,6 +48,7 @@ import {
   distribute,
   downloadItem,
   fetchIdempotent,
+  forceInvoiceColumns,
   poppler,
   retryCreateOnStaleSocket,
   signIn,
@@ -599,9 +600,7 @@ sessionTest('validar: rascunho, versão substituída, NF sem centro e documento 
 
   const noCenter = await newInvoice('validar-sem-centro');
 
-  db(
-    `update "RevalleInvoiceClassification" set "costCenterCode" = null, "costCenterById" = null, "costCenterAt" = null where "envelopeId" = '${noCenter.id}'`,
-  );
+  forceInvoiceColumns(noCenter.id, '"costCenterCode" = null, "costCenterById" = null, "costCenterAt" = null');
   refused(await validate(noCenter.id), NO_CENTER_MESSAGE);
 
   const rejected = await newInvoice('validar-recusada');
@@ -646,9 +645,7 @@ sessionTest('corrigir: motivo curto, mesmo centro, centro fora da lista e NF sem
 
   const noCenter = await newInvoice('corrigir-sem-centro');
 
-  db(
-    `update "RevalleInvoiceClassification" set "costCenterCode" = null, "costCenterById" = null, "costCenterAt" = null where "envelopeId" = '${noCenter.id}'`,
-  );
+  forceInvoiceColumns(noCenter.id, '"costCenterCode" = null, "costCenterById" = null, "costCenterAt" = null');
   refused(await correct(noCenter.id), NO_CENTER_MESSAGE);
   assert.deepEqual(successors(noCenter.id), []);
 });
@@ -1323,9 +1320,7 @@ sessionTest(
 sessionTest('setCostCenter recusa a versão substituída: a nova versão é que vale', async () => {
   const doc = await newInvoice('sem-centro-substituida');
 
-  db(
-    `update "RevalleInvoiceClassification" set "costCenterCode" = null, "costCenterById" = null, "costCenterAt" = null where "envelopeId" = '${doc.id}'`,
-  );
+  forceInvoiceColumns(doc.id, '"costCenterCode" = null, "costCenterById" = null, "costCenterAt" = null');
   changed(await changeAccount(doc.id));
 
   const res = await trpcAs(userCookie, 'mutation', 'revalle.invoice.setCostCenter', {

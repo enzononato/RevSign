@@ -41,6 +41,7 @@ import {
   distribute,
   downloadItem,
   fetchIdempotent,
+  forceInvoiceColumns,
   poppler,
   retryCreateOnStaleSocket,
   signIn,
@@ -572,8 +573,10 @@ sessionTest(
       [recent, 5],
     ]) {
       assert.equal(status(doc.id), 'PENDING');
-      db(
-        `update "RevalleInvoiceClassification" set "financeStatus" = 'APPROVED', "approvedById" = ${adminId}, "approvedAt" = now() - interval '${minutes} minutes' where "envelopeId" = '${doc.id}'`,
+      forceInvoiceColumns(
+        doc.id,
+        `"approvedById" = ${adminId}, "approvedAt" = now() - interval '${minutes} minutes'`,
+        `"financeStatus" = 'APPROVED'`,
       );
       // Fora da janela de 6 horas das assinaturas: só a aprovação recente põe o documento na varredura.
       db(`update "Recipient" set "signedAt" = now() - interval '7 hours' where "envelopeId" = '${doc.id}'`);

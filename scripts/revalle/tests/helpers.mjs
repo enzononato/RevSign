@@ -782,3 +782,89 @@ export const runInvoiceFilesBackfill = () => {
     { input: block, encoding: 'utf8' },
   ).trim();
 };
+
+// Fase 9: força colunas "da nota" num teste, nas duas tabelas: `perNfSet` (SQL do SET) vale nas linhas NF do envio
+// (`RevalleInvoiceFile`) e na linha do envio (`RevalleInvoiceClassification`, o espelho); `envelopeOnlySet` só na linha do
+// envio (o que é do envio: `financeStatus`, versão). Só para os testes que forçam estado direto no banco. Uma chamada do
+// psql só (uma transação): `now()` dá o mesmo instante nas duas tabelas.
+export const forceInvoiceColumns = (envelopeId, perNfSet, envelopeOnlySet) =>
+  db(
+    [
+      `update "RevalleInvoiceFile" set ${perNfSet} where "envelopeId" = '${envelopeId}' and kind = 'NF';`,
+      `update "RevalleInvoiceClassification" set ${perNfSet}${envelopeOnlySet ? `, ${envelopeOnlySet}` : ''} where "envelopeId" = '${envelopeId}';`,
+    ].join('\n'),
+  );
+
+const cnpjCheckDigit = (digits) => {
+  let weight = digits.length - 7;
+  let sum = 0;
+
+  for (const digit of digits) {
+    sum += digit * weight;
+    weight = weight === 2 ? 9 : weight - 1;
+  }
+
+  const rest = sum % 11;
+
+  return rest < 2 ? 0 : 11 - rest;
+};
+
+const randomDigits = (length) =>
+  Array.from({ length }, () => Math.floor(Math.random() * 10))
+    .join('')
+    .replace(/^0/, '7');
+
+// Fase 9: chave de acesso válida (UF 29, mês 10/2024, dígitos certos) e nova a cada chamada. `cnpj` (14 dígitos, válido)
+// fixa o emitente; sem ele, um CNPJ novo. `model` '55' (NF-e) ou '57' (CT-e).
+export const makeAccessKey = ({ cnpj, model = '55' } = {}) => {
+  let issuer = cnpj;
+
+  if (!issuer) {
+    const base = `${randomDigits(8)}0001`;
+    const first = [...base].map(Number);
+    const d1 = cnpjCheckDigit(first);
+
+    issuer = `${base}${d1}${cnpjCheckDigit([...first, d1])}`;
+  }
+
+  const first43 = `292410${issuer}${model}001${randomDigits(9)}1${randomDigits(8)}`;
+  let sum = 0;
+  let weight = 2;
+
+  for (let index = 42; index >= 0; index -= 1) {
+    sum += Number(first43[index]) * weight;
+    weight = weight === 9 ? 2 : weight + 1;
+  }
+
+  const rest = sum % 11;
+
+  return `${first43}${rest < 2 ? 0 : 11 - rest}`;
+};
+
+// Fase 9: DANFE fictício em `{variant}.pdf` (o título do arquivo no envio), com a chave dada (ou uma nova), as marcas do
+// servidor falso (`markers`: { conta: '2.1.03', fornecedor: 'Fornecedor_A', valor: '100.00' } → a linha
+// `FAKEGEMINI:conta=2.1.03 fornecedor=Fornecedor_A valor=100.00`) e linhas a mais no fim. Devolve o caminho.
+export const invoicePdfFile = ({ variant, accessKey = makeAccessKey(), markers = {}, extraLines = [] }) => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'revsign-nf-'));
+  const file = path.join(dir, `${variant}.pdf`);
+  const marks = Object.entries(markers).map(([field, value]) => `${field}=${value}`);
+  const cnpj = accessKey.slice(6, 20);
+
+  writeFileSync(
+    file,
+    textPdfBuffer([
+      'DANFE - Documento Auxiliar da Nota Fiscal Eletronica',
+      'No 000.012.345   Serie 001',
+      'Chave de Acesso',
+      accessKey.replace(/(\d{4})(?=\d)/g, '$1 '),
+      'Natureza da Operacao: Venda de mercadoria adquirida de terceiros',
+      `Emitente: Distribuidora Ficticia Ltda   CNPJ ${cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')}`,
+      `Referencia do teste: ${variant} ${accessKey.slice(-12)}`,
+      ...(marks.length > 0 ? [`FAKEGEMINI:${marks.join(' ')}`] : []),
+      'Valor Total da Nota: R$ 150,00',
+      ...extraLines,
+    ]),
+  );
+
+  return file;
+};

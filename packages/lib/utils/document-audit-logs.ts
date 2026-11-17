@@ -720,8 +720,14 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
         defer ? i18n._(msg`deixar para o Financeiro`) : (code ?? '');
       const from = label(data.fromCode, data.fromDefer);
       const to = label(data.toCode, data.toDefer);
-      const text =
-        data.reason === 'FILES_CHANGED'
+      const doc = data.document; // REVALLE: Fase 9, a nota num envio com 2+ notas
+      const text = doc
+        ? data.reason === 'FILES_CHANGED'
+          ? msg`Conta contábil apagada porque o arquivo foi alterado (era ${from}) (nota ${doc.index} de ${doc.total}: ${doc.title})`
+          : from
+            ? msg`Conta contábil trocada: ${from} → ${to} (nota ${doc.index} de ${doc.total}: ${doc.title})`
+            : msg`Conta contábil escolhida: ${to} (nota ${doc.index} de ${doc.total}: ${doc.title})`
+        : data.reason === 'FILES_CHANGED'
           ? msg`Conta contábil apagada porque o arquivo foi alterado (era ${from})`
           : from
             ? msg`Conta contábil trocada: ${from} → ${to}`
@@ -733,7 +739,14 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
     .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_COST_CENTER_SET }, ({ data }) => {
       const to = costCenterLabel(data.toCode);
       const from = data.fromCode ? costCenterLabel(data.fromCode) : null;
-      const text = from ? msg`Centro de custo trocado: ${from} → ${to}` : msg`Centro de custo escolhido: ${to}`;
+      const doc = data.document; // REVALLE: Fase 9, a nota num envio com 2+ notas
+      const text = doc
+        ? from
+          ? msg`Centro de custo trocado: ${from} → ${to} (nota ${doc.index} de ${doc.total}: ${doc.title})`
+          : msg`Centro de custo escolhido: ${to} (nota ${doc.index} de ${doc.total}: ${doc.title})`
+        : from
+          ? msg`Centro de custo trocado: ${from} → ${to}`
+          : msg`Centro de custo escolhido: ${to}`;
 
       return { anonymous: text, you: text, user: text };
     })

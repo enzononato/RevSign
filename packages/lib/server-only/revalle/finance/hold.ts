@@ -4,6 +4,7 @@ import { RevalleFinanceStatus, RevalleInvoiceStatus } from '@prisma/client';
 
 import { jobs } from '../../../jobs/client';
 import { logger } from '../../../utils/logger';
+import { syncInvoiceEnvelopeMirror } from '../invoice/invoice-files';
 
 /**
  * Primeiro envio de uma NF com conta: aguardando a aprovação do Financeiro. Vale também sobre `LEGACY` (rascunho de
@@ -31,22 +32,31 @@ export const markInvoiceAwaitingApproval = async (envelopeId: string) => {
  * `choiceAt`, para o certificado ter a data. Só grava junto com o envio: um envio que falha deixa a reserva solta.
  */
 export const stampReleasedApproval = async (envelopeId: string, tx: Prisma.TransactionClient) => {
-  // Os nomes congelados vêm da reserva (a troca); sem eles, os atuais, junto com a data.
-  await tx.$executeRaw`
-    UPDATE "RevalleInvoiceClassification" c
-    SET "approvedAt" = c."choiceAt",
+  // Fase 9: na linha da nota (o envio continua `APPROVED`), e o espelho em seguida. Os nomes congelados vêm da reserva
+  // (a troca); sem eles, os atuais, junto com a data.
+  const count = await tx.$executeRaw`
+    UPDATE "RevalleInvoiceFile" f
+    SET "approvedAt" = f."choiceAt",
       "approvedAccountName" = COALESCE(
-        c."approvedAccountName",
-        (SELECT a.name FROM "RevalleAccountingAccount" a WHERE a.code = c."choiceCode")
+        f."approvedAccountName",
+        (SELECT a.name FROM "RevalleAccountingAccount" a WHERE a.code = f."choiceCode")
       ),
       "approvedByName" = COALESCE(
-        c."approvedByName",
-        (SELECT NULLIF(btrim(u.name), '') FROM "User" u WHERE u.id = c."approvedById")
-      )
-    WHERE c."envelopeId" = ${envelopeId}
+        f."approvedByName",
+        (SELECT NULLIF(btrim(u.name), '') FROM "User" u WHERE u.id = f."approvedById")
+      ),
+      "updatedAt" = now()
+    FROM "RevalleInvoiceClassification" c
+    WHERE c."envelopeId" = f."envelopeId"
+      AND f."envelopeId" = ${envelopeId}
+      AND f.kind = 'NF'
       AND c."financeStatus" = 'APPROVED'
-      AND c."approvedAt" IS NULL
-      AND c."choiceAt" IS NOT NULL`;
+      AND f."approvedAt" IS NULL
+      AND f."choiceAt" IS NOT NULL`;
+
+  if (count > 0) {
+    await syncInvoiceEnvelopeMirror(tx, envelopeId);
+  }
 };
 
 /**

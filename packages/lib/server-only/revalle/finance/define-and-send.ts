@@ -1,12 +1,24 @@
 import { prisma } from '@documenso/prisma';
 import type { RevalleInvoiceClassification } from '@prisma/client';
-import { DocumentStatus, RevalleFinanceStatus, RevalleInvoiceStatus, RevalleSupersedeKind } from '@prisma/client';
+import {
+  DocumentStatus,
+  RevalleFinanceStatus,
+  RevalleInvoiceFileKind,
+  RevalleInvoiceStatus,
+  RevalleSupersedeKind,
+} from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { isNewVersionDraftRow } from '../../../revalle/finance/finance-status';
 import type { ApiRequestMetadata } from '../../../universal/extract-request-metadata';
 import { logger } from '../../../utils/logger';
 import { DOCUMENT_ALREADY_SENT_CODE, sendDocument } from '../../document/send-document';
+import {
+  ensureLegacyInvoiceFiles,
+  lockInvoiceEnvelope,
+  resolveInvoiceFile,
+  syncInvoiceEnvelopeMirror,
+} from '../invoice/invoice-files';
 import { findNewVersionKind } from './successor';
 
 export type ResendInvoiceVersionResult = { sent: boolean };
@@ -42,8 +54,9 @@ const hasFileChanged = (
   latest: Pick<RevalleInvoiceClassification, 'fileSha256' | 'financeStatus'> | null,
 ) => !latest || latest.financeStatus === null || latest.fileSha256 !== read.fileSha256;
 
-const isStaleLease = (row: RevalleInvoiceClassification, now: Date) =>
-  row.approvedAt === null || now.getTime() - row.approvedAt.getTime() >= FINANCE_SEND_LEASE_MS;
+/** Fase 9: a reserva é a `approvedAt` da nota (a linha do arquivo). */
+const isStaleLease = (file: { approvedAt: Date | null }, now: Date) =>
+  file.approvedAt === null || now.getTime() - file.approvedAt.getTime() >= FINANCE_SEND_LEASE_MS;
 
 /**
  * A reserva só marcou o envio em andamento: a aprovação continua sendo a da troca (mesmo instante da escolha, como no
@@ -51,14 +64,26 @@ const isStaleLease = (row: RevalleInvoiceClassification, now: Date) =>
  */
 const restoreApprovalDate = async (envelopeId: string) => {
   try {
-    await prisma.$executeRaw`
-      UPDATE "RevalleInvoiceClassification"
-      SET "approvedAt" = "choiceAt"
-      WHERE "envelopeId" = ${envelopeId}
-        AND "financeStatus" = 'APPROVED'
-        AND "previousEnvelopeId" IS NOT NULL
-        AND "approvedAt" IS NOT NULL
-        AND "choiceAt" IS NOT NULL`;
+    await prisma.$transaction(async (tx) => {
+      await lockInvoiceEnvelope(tx, envelopeId);
+
+      // Fase 9: na linha da nota, com o envio aprovado e numa nova versão; o espelho em seguida.
+      const count = await tx.$executeRaw`
+        UPDATE "RevalleInvoiceFile" f
+        SET "approvedAt" = f."choiceAt", "updatedAt" = now()
+        FROM "RevalleInvoiceClassification" c
+        WHERE c."envelopeId" = f."envelopeId"
+          AND f."envelopeId" = ${envelopeId}
+          AND f.kind = 'NF'
+          AND c."financeStatus" = 'APPROVED'
+          AND c."previousEnvelopeId" IS NOT NULL
+          AND f."approvedAt" IS NOT NULL
+          AND f."choiceAt" IS NOT NULL`;
+
+      if (count > 0) {
+        await syncInvoiceEnvelopeMirror(tx, envelopeId);
+      }
+    });
   } catch (error) {
     logger.warn({ msg: 'revalle finance: falha ao restaurar a data da aprovação', envelopeId, error: String(error) });
   }
@@ -127,20 +152,45 @@ export const resendInvoiceVersion = async ({
 
   const now = new Date();
 
-  if (!isStaleLease(row, now)) {
+  // Fase 9: a reserva fica na linha da nota (rascunho de antes da Fase 9: as linhas são refeitas antes).
+  await ensureLegacyInvoiceFiles(envelopeId, { allowDraft: true });
+
+  const file = await resolveInvoiceFile({ envelopeId }).catch(async (error: unknown) => {
+    // O dono trocou o arquivo (a nota pode ter deixado de ser NF): a mensagem de sempre.
+    if (hasFileChanged(row, await prisma.revalleInvoiceClassification.findUnique({ where: { envelopeId } }))) {
+      throw fileChangedError();
+    }
+
+    throw error;
+  });
+
+  if (!isStaleLease(file, now)) {
     throw inProgressError();
   }
 
-  // Condicionada ao que foi lido: a mesma reserva (`approvedAt`) e os mesmos arquivos.
-  const { count } = await prisma.revalleInvoiceClassification.updateMany({
-    where: {
-      envelopeId,
-      isInvoice: RevalleInvoiceStatus.YES,
-      fileSha256: row.fileSha256,
-      financeStatus: RevalleFinanceStatus.APPROVED,
-      approvedAt: row.approvedAt,
-    },
-    data: { approvedAt: now },
+  // Condicionada ao que foi lido: a mesma reserva (`approvedAt`) e os mesmos arquivos, com o envio travado.
+  const count = await prisma.$transaction(async (tx) => {
+    const locked = await lockInvoiceEnvelope(tx, envelopeId);
+
+    if (locked?.fileSha256 !== row.fileSha256 || locked.financeStatus !== RevalleFinanceStatus.APPROVED) {
+      return 0;
+    }
+
+    const updated = await tx.revalleInvoiceFile.updateMany({
+      where: {
+        id: file.id,
+        kind: RevalleInvoiceFileKind.NF,
+        fileSha256: file.fileSha256,
+        approvedAt: file.approvedAt,
+      },
+      data: { approvedAt: now },
+    });
+
+    if (updated.count > 0) {
+      await syncInvoiceEnvelopeMirror(tx, envelopeId);
+    }
+
+    return updated.count;
   });
 
   if (count === 0) {
@@ -171,10 +221,7 @@ export const resendInvoiceVersion = async ({
 
     if (current?.status === DocumentStatus.DRAFT) {
       // Só solta a própria reserva (a mesma `approvedAt`): o próximo envio sai na hora.
-      await prisma.revalleInvoiceClassification.updateMany({
-        where: { envelopeId, financeStatus: RevalleFinanceStatus.APPROVED, approvedAt: now },
-        data: { approvedAt: null },
-      });
+      await releaseOwnLease(envelopeId, now);
 
       // O dono trocou o arquivo durante o envio: a classificação foi zerada e o envio recusou a NF sem conta.
       if (hasFileChanged(row, await prisma.revalleInvoiceClassification.findUnique({ where: { envelopeId } }))) {
@@ -196,6 +243,29 @@ export const resendInvoiceVersion = async ({
   await restoreApprovalDate(envelopeId);
 
   return { sent: true };
+};
+
+/**
+ * Solta a reserva gravada por este pedido (a mesma `approvedAt`, na nota de um envio ainda `APPROVED`): o próximo envio
+ * sai na hora, sem esperar o prazo. Também usada pela nova versão (`new-version.ts`) quando o envio dela falha.
+ */
+export const releaseOwnLease = async (envelopeId: string, leaseAt: Date) => {
+  await prisma.$transaction(async (tx) => {
+    const locked = await lockInvoiceEnvelope(tx, envelopeId);
+
+    if (locked?.financeStatus !== RevalleFinanceStatus.APPROVED) {
+      return;
+    }
+
+    const { count } = await tx.revalleInvoiceFile.updateMany({
+      where: { envelopeId, kind: RevalleInvoiceFileKind.NF, approvedAt: leaseAt },
+      data: { approvedAt: null },
+    });
+
+    if (count > 0) {
+      await syncInvoiceEnvelopeMirror(tx, envelopeId);
+    }
+  });
 };
 
 /** O envio de uma nova versão cuja situação veio da anterior: nada na classificação é gravado aqui, nem em caso de erro. */

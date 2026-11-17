@@ -5345,3 +5345,19 @@ msgstr "Ir para o documento"
 
 msgid "Create your account and start using state-of-the-art document signing. Open and beautiful signing is within your grasp."
 msgstr "Crie sua conta de colaborador da Revalle para assinar e acompanhar seus documentos."
+
+# Fase 9: eventos da conta e do centro de uma nota num envio com várias notas.
+msgid "Conta contábil escolhida: {to} (nota {0} de {1}: {2})"
+msgstr "Conta contábil escolhida: {to} (nota {0} de {1}: {2})"
+
+msgid "Conta contábil trocada: {from} → {to} (nota {0} de {1}: {2})"
+msgstr "Conta contábil trocada: {from} → {to} (nota {0} de {1}: {2})"
+
+msgid "Conta contábil apagada porque o arquivo foi alterado (era {from}) (nota {0} de {1}: {2})"
+msgstr "Conta contábil apagada porque o arquivo foi alterado (era {from}) (nota {0} de {1}: {2})"
+
+msgid "Centro de custo escolhido: {to} (nota {0} de {1}: {2})"
+msgstr "Centro de custo escolhido: {to} (nota {0} de {1}: {2})"
+
+msgid "Centro de custo trocado: {from} → {to} (nota {0} de {1}: {2})"
+msgstr "Centro de custo trocado: {from} → {to} (nota {0} de {1}: {2})"

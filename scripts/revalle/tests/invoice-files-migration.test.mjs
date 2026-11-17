@@ -7,8 +7,8 @@
 //     hash do envio (`RevalleDocumentHash`), a conta e o centro; rodar de novo não duplica;
 //   - rascunho antigo de um arquivo (sem hash do envio): usa o hash da classificação.
 //
-// Até a Task 2 o app ainda não cria linhas de arquivo: o primeiro caso só vale logo depois da subida (a partir da Task 2,
-// vale sempre). Sem IA: só a detecção pelo texto. Sessões: REVSIGN_USER_* (dono do REVSIGN_API_TOKEN) e REVSIGN_ADMIN_*
+// Desde a Task 2 o app grava "da nota" na linha do arquivo e o espelho em seguida: o primeiro caso vale sempre, e confere
+// todas as colunas espelhadas. Sem IA: só a detecção pelo texto. Sessões: REVSIGN_USER_* (dono do REVSIGN_API_TOKEN) e REVSIGN_ADMIN_*
 // (garante a conta 2.1.03 ativa). Ver revalle/docs/testes.md.
 
 import assert from 'node:assert/strict';
@@ -109,6 +109,21 @@ test('toda NF de um arquivo tem a linha da nota, igual ao espelho', () => {
         or c."approvedAt" is distinct from f."approvedAt"
         or c."accessKeys" is distinct from f."accessKeys"
         or c."suggestionStatus" is distinct from f."suggestionStatus"
+        or c.suggestion is distinct from f.suggestion
+        or c."suggestionAttempts" is distinct from f."suggestionAttempts"
+        or c."supplierName" is distinct from f."supplierName"
+        or c."invoiceNumber" is distinct from f."invoiceNumber"
+        or c."totalAmountCents" is distinct from f."totalAmountCents"
+        or c."choiceById" is distinct from f."choiceById"
+        or c."choiceAt" is distinct from f."choiceAt"
+        or c."acceptedSuggestion" is distinct from f."acceptedSuggestion"
+        or c."costCenterById" is distinct from f."costCenterById"
+        or c."costCenterAt" is distinct from f."costCenterAt"
+        or c."costCenterValidatedById" is distinct from f."costCenterValidatedById"
+        or c."costCenterValidatedByName" is distinct from f."costCenterValidatedByName"
+        or c."approvedById" is distinct from f."approvedById"
+        or c."approvedAccountName" is distinct from f."approvedAccountName"
+        or c."approvedByName" is distinct from f."approvedByName"
       )`);
 
   assert.ok(Number(total) > 0, 'a stack local tem NFs de um arquivo (rode a suíte de notas antes, se estiver vazia)');

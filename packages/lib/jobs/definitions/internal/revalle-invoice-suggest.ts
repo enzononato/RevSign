@@ -2,13 +2,18 @@ import { z } from 'zod';
 
 import type { JobDefinition } from '../../client/_internal/job';
 
-// REVALLE: sugestão de conta contábil para nota fiscal (Fase 5). O payload nunca leva o conteúdo da NF: o handler
-// relê o arquivo pelo envelope (o log do job mostra o payload).
+// REVALLE: sugestão de conta contábil para nota fiscal (Fase 5); Fase 9: uma leitura por arquivo de nota. O payload nunca
+// leva o conteúdo da NF: o handler relê o arquivo (o log do job mostra o payload).
 const REVALLE_INVOICE_SUGGEST_JOB_DEFINITION_ID = 'internal.revalle-invoice-suggest';
 
 const REVALLE_INVOICE_SUGGEST_JOB_DEFINITION_SCHEMA = z.object({
   envelopeId: z.string(),
-  /** Chave do conjunto de arquivos no momento do pedido; se mudou, o resultado é descartado. */
+  /**
+   * Fase 9: o arquivo da nota. Ausente = job enfileirado antes da Fase 9 (era do envio inteiro): sai sem fazer nada, e o
+   * PENDING vira TIMEOUT pela regra de sempre.
+   */
+  envelopeItemId: z.string().optional(),
+  /** SHA-256 do arquivo no momento do pedido; se mudou, o resultado é descartado. */
   fileSha256: z.string(),
   /** "Sugerir de novo": ignora o cache e o substitui. */
   force: z.boolean(),

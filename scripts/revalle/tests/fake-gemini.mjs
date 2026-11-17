@@ -17,7 +17,12 @@
 //        envio com a sugestão ainda em andamento (a chamada já consta em /__calls). Padrão 0.
 //   GET  /__calls                                    chamadas recebidas (modelo, se veio PDF ou texto, tamanhos,
 //                                                    thinkingConfig, códigos da trava, o `responseSchema` inteiro, as
-//                                                    partes da mensagem)
+//                                                    partes da mensagem; Fase 9: `kind` 'NF' ou 'BOLETO' e as `markers`)
+//
+// Fase 9: marcas no TEXTO do documento trocam a resposta só daquela chamada: `FAKEGEMINI:<campo>=<valor>` (sem espaço no
+// valor; `_` vira espaço), várias na mesma linha separadas por espaço (`FAKEGEMINI:conta=2.1.03 fornecedor=Fornecedor_A`).
+// Campos: conta → accountCode, fornecedor → supplierName, numero → invoiceNumber, valor → totalAmount (número),
+// chave → accessKey, modo → o modo só desta chamada (error, garbage...). Ordem: marca > /__program > padrão.
 //   POST /__reset                                    apaga as chamadas e volta ao modo ok
 //
 // Uso: node scripts/revalle/tests/fake-gemini.mjs   (porta: FAKE_GEMINI_PORT, padrão 8787)
@@ -76,6 +81,38 @@ const textOf = (content) =>
     .filter(Boolean)
     .join('\n');
 
+const MARKER_FIELDS = new Set(['conta', 'fornecedor', 'numero', 'valor', 'chave', 'modo']);
+
+// As marcas FAKEGEMINI do texto: { campo: valor }. Depois de `FAKEGEMINI:`, os pares campo=valor seguidos (para no
+// primeiro pedaço que não é um campo conhecido).
+const markersOf = (texts) => {
+  const markers = {};
+
+  for (const text of texts) {
+    for (const match of text.matchAll(/FAKEGEMINI:(\S+(?:\s+\S+)*)/g)) {
+      for (const token of match[1].split(/\s+/)) {
+        const [field, ...rest] = token.replace(/^FAKEGEMINI:/, '').split('=');
+
+        if (!MARKER_FIELDS.has(field) || rest.length === 0) {
+          break;
+        }
+
+        markers[field] = rest.join('=').replace(/_/g, ' ');
+      }
+    }
+  }
+
+  return markers;
+};
+
+// O que as marcas mudam na resposta da NF.
+const markerInvoiceData = (markers) => ({
+  ...(markers.fornecedor !== undefined ? { supplierName: markers.fornecedor } : {}),
+  ...(markers.numero !== undefined ? { invoiceNumber: markers.numero } : {}),
+  ...(markers.valor !== undefined ? { totalAmount: Number(markers.valor) } : {}),
+  ...(markers.chave !== undefined ? { accessKey: markers.chave } : {}),
+});
+
 // Primeiro código da lista de contas que o app manda nas instruções ("- 2.1.03 — Fornecedores ...").
 const firstAccountCode = (system) => /^- (\S+) — /m.exec(system)?.[1] ?? null;
 
@@ -120,11 +157,17 @@ const handleGenerate = async (req, res, model) => {
   // A 1ª parte de texto do usuário é a linha fixa do app ("O conteúdo a seguir é o documento..."); o texto do
   // documento, quando há, vem nas seguintes.
   const texts = parts.filter((part) => part.type === 'text').slice(1);
+  const markers = markersOf(texts.map((part) => part.text));
+  const responseSchema = body.generationConfig?.responseSchema ?? null;
+  const mode = MODES.has(markers.modo) ? markers.modo : program.mode;
   const call = {
     at: new Date().toISOString(),
     model,
+    // A leitura da NF pede a conta; a do boleto (Task 3), não.
+    kind: responseSchema?.properties?.accountCode ? 'NF' : 'BOLETO',
+    markers,
     authorized: req.headers['x-goog-api-key'] === API_KEY,
-    mode: program.mode,
+    mode,
     hasPdf: files.some((part) => part.mimeType === 'application/pdf'),
     hasText: texts.some((part) => part.length > 0),
     textLength: texts.reduce((total, part) => total + part.length, 0),
@@ -146,9 +189,9 @@ const handleGenerate = async (req, res, model) => {
     return;
   }
 
-  const accountCode = program.accountCode ?? firstAccountCode(system) ?? '0';
+  const accountCode = markers.conta ?? program.accountCode ?? firstAccountCode(system) ?? '0';
 
-  switch (program.mode) {
+  switch (mode) {
     case 'ok':
       if (program.responseDelayMs > 0) {
         await new Promise((resolve) => setTimeout(resolve, program.responseDelayMs));
@@ -164,6 +207,7 @@ const handleGenerate = async (req, res, model) => {
             confidence: 'alta',
             reason: 'Compra de mercadoria de fornecedor (falso).',
             ...(program.invoiceData === undefined ? DEFAULT_INVOICE_DATA : (program.invoiceData ?? {})),
+            ...markerInvoiceData(markers),
           }),
         ),
       );

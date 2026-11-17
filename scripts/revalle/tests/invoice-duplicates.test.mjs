@@ -44,6 +44,7 @@ import {
   distribute,
   drawingPng,
   fetchIdempotent,
+  forceInvoiceColumns,
   hasPlaywrightImage,
   PLAYWRIGHT_IMAGE,
   retryCreateOnStaleSocket,
@@ -1044,9 +1045,8 @@ sessionTest('fileSha256 nulo nunca casa: duas NFs sem chave e sem hash não se a
   assert.equal((await findRow(adminCookie, first.id))?.isPossibleDuplicate, true);
   assert.equal((await findRow(adminCookie, second.id))?.isPossibleDuplicate, true);
 
-  db(
-    `update "RevalleInvoiceClassification" set "fileSha256" = null where "envelopeId" in ('${first.id}', '${second.id}')`,
-  );
+  forceInvoiceColumns(first.id, '"fileSha256" = null');
+  forceInvoiceColumns(second.id, '"fileSha256" = null');
   assert.equal(columnOf(first.id, '"fileSha256" is null'), 't');
   assert.equal(columnOf(second.id, '"fileSha256" is null'), 't');
 

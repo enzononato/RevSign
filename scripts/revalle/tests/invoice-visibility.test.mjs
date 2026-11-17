@@ -40,6 +40,7 @@ import {
   db,
   distribute,
   fetchIdempotent,
+  forceInvoiceColumns,
   hasPlaywrightImage,
   PLAYWRIGHT_IMAGE,
   retryCreateOnStaleSocket,
@@ -644,9 +645,7 @@ sessionTest('lista: centro, validação e quem validou; filtro da Contabilidade 
   const validated = await newInvoice('lista-validada', { center: '201' });
   const noCenter = await newInvoice('lista-sem-centro');
 
-  db(
-    `update "RevalleInvoiceClassification" set "costCenterCode" = null, "costCenterById" = null, "costCenterAt" = null where "envelopeId" = '${noCenter.id}'`,
-  );
+  forceInvoiceColumns(noCenter.id, '"costCenterCode" = null, "costCenterById" = null, "costCenterAt" = null');
   assert.equal((await validate(validated.id)).status, 200);
 
   const rowOf = (list, doc) => list.data.find((row) => row.id === doc.id);
@@ -708,9 +707,7 @@ sessionTest(
     const validated = await newInvoice('csv-validada', { center: '401' });
     const noCenter = await newInvoice('csv-sem-centro');
 
-    db(
-      `update "RevalleInvoiceClassification" set "costCenterCode" = null, "costCenterById" = null, "costCenterAt" = null where "envelopeId" = '${noCenter.id}'`,
-    );
+    forceInvoiceColumns(noCenter.id, '"costCenterCode" = null, "costCenterById" = null, "costCenterAt" = null');
     assert.equal((await validate(validated.id)).status, 200);
 
     // O nome congelado vale: trocar o nome da pessoa depois não muda a planilha.

@@ -419,8 +419,21 @@ agora há texto lido de um documento qualquer na planilha.
 - A IA tem 20 segundos para responder. Se demorar, errar o formato ou sugerir uma conta que não existe (ou está
   inativa), fica "sem sugestão" e o remetente escolhe na lista. Nada trava. Um dado da nota (fornecedor, número, valor
   ou chave) em formato errado só fica vazio: não custa a sugestão da conta.
-- 60 sugestões por usuário por hora, e no máximo 6 chamadas à IA por documento (a automática + 5 "Sugerir de novo" ou
-  "Sim"/"Não").
+- Fase 9: a IA lê **cada nota** do envio numa chamada só dela (o texto daquele arquivo, ou o PDF dele se for
+  escaneado). No máximo 6 chamadas à IA por **nota** (a automática + 5 "Sugerir de novo" ou "Sim"/"Não"), 120 por usuário
+  por hora e 1.440 por usuário em 24 horas (o mesmo teto diário de antes). Num envio, no máximo 20 notas são lidas pela
+  IA (pela ordem dos arquivos); as seguintes ficam "sem sugestão" e o remetente escolhe a conta na lista. O mesmo arquivo
+  em outro envio não chama a IA de novo (a sugestão é guardada por arquivo).
+
+### Várias notas no mesmo envio (em construção, Fase 9)
+
+Um envio pode ter várias notas fiscais (e outros arquivos, como um contrato). Cada arquivo é classificado pelo texto:
+nota fiscal, outro, ou "sem texto" (escaneado: o remetente diz o que é). Cada nota tem a sua leitura da IA, a sua conta e
+o seu centro de custo, e o envio só sai com conta e centro em **todas** as notas (a recusa diz em qual falta: "Falta em:
+nf-c.pdf."). Trocar ou remover qualquer arquivo do rascunho apaga a escolha de todas as notas, como antes. Pela API, as
+rotas da nota ganharam o arquivo da nota (`envelopeItemId`); sem ele, valem para o envio de uma nota só e, com duas ou
+mais, respondem `400 INVOICE_FILE_REQUIRED`. Envios de uma nota continuam exatamente como antes. A tela, o Financeiro, a
+Contabilidade, a lista, a prova e o PDF por nota chegam nas próximas etapas da Fase 9.
 
 ## 7. Privacidade
 

@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
-import { ZInvoiceEnvelopeRequestSchema, ZInvoiceStateSchema } from './invoice-state.types';
+import { ZInvoiceFileRequestSchema, ZInvoiceStateSchema } from './invoice-state.types';
 
-export const ZSetInvoiceCostCenterRequestSchema = ZInvoiceEnvelopeRequestSchema.extend({
+export const ZSetInvoiceCostCenterRequestSchema = ZInvoiceFileRequestSchema.extend({
   code: z.string().trim().min(1).max(100),
 });
 

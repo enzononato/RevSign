@@ -15,7 +15,17 @@ import path from 'node:path';
 import { before, test } from 'node:test';
 import { PDFDocument, rgb, StandardFonts } from '@cantoo/pdf-lib';
 
-import { api, assertNoPaidGeminiCalls, BASE_URL, createEnvelope, db, drawingPng, signIn, trpcAs } from './helpers.mjs';
+import {
+  api,
+  assertNoPaidGeminiCalls,
+  BASE_URL,
+  createEnvelope,
+  db,
+  drawingPng,
+  forceInvoiceColumns,
+  signIn,
+  trpcAs,
+} from './helpers.mjs';
 
 // Para antes de criar qualquer NF se o app puder chamar o Gemini de verdade (pago). Ver helpers.mjs.
 assertNoPaidGeminiCalls();
@@ -739,8 +749,9 @@ aiTest('PENDING esquecido (job perdido) vira FAILED/TIMEOUT', async () => {
 
   await classify(env.id);
   await waitSettled(env.id);
-  db(
-    `update "RevalleInvoiceClassification" set "suggestionStatus" = 'PENDING', suggestion = null, "updatedAt" = now() - interval '5 minutes' where "envelopeId" = '${env.id}'`,
+  forceInvoiceColumns(
+    env.id,
+    `"suggestionStatus" = 'PENDING', suggestion = null, "updatedAt" = now() - interval '5 minutes'`,
   );
 
   const state = await getState(env.id);

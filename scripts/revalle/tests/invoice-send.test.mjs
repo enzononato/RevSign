@@ -25,6 +25,7 @@ import {
   chooseInvoice,
   createEnvelope,
   db,
+  forceInvoiceColumns,
   mailIdsTo,
   poppler,
   signIn,
@@ -590,9 +591,7 @@ sessionTest('reenvio de um documento já enviado não é bloqueado', async () =>
   assert.ok(sentId, 'depende do caso "conta ativa"');
 
   // Simula uma NF enviada sem escolha (ex.: antes desta versão): o reenvio aos destinatários continua livre.
-  db(
-    `update "RevalleInvoiceClassification" set "choiceCode" = null, "costCenterCode" = null where "envelopeId" = '${sentId}'`,
-  );
+  forceInvoiceColumns(sentId, '"choiceCode" = null, "costCenterCode" = null');
 
   const recipientIds = db(`select id from "Recipient" where "envelopeId" = '${sentId}'`).split('\n').map(Number);
   const res = await api('POST', '/envelope/redistribute', { envelopeId: sentId, recipients: recipientIds });

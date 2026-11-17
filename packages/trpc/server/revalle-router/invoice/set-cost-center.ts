@@ -9,12 +9,13 @@ export const setInvoiceCostCenterRoute = authenticatedProcedure
   .input(ZSetInvoiceCostCenterRequestSchema)
   .output(ZSetInvoiceCostCenterResponseSchema)
   .mutation(async ({ input, ctx }) => {
-    const { envelopeId, code } = input;
+    const { envelopeId, envelopeItemId, code } = input;
 
     await assertInvoiceEnvelopeAccess({ envelopeId, userId: ctx.user.id });
 
     return await setInvoiceCostCenter({
       envelopeId,
+      envelopeItemId,
       code,
       user: { id: ctx.user.id, name: ctx.user.name, email: ctx.user.email },
       requestMetadata: ctx.metadata.requestMetadata,

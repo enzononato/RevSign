@@ -14,5 +14,9 @@ export const markAsInvoiceRoute = authenticatedProcedure
   .mutation(async ({ input, ctx }) => {
     await assertInvoiceEnvelopeAccess({ envelopeId: input.envelopeId, userId: ctx.user.id });
 
-    return await markSentEnvelopeAsInvoice({ envelopeId: input.envelopeId, user: { id: ctx.user.id } });
+    return await markSentEnvelopeAsInvoice({
+      envelopeId: input.envelopeId,
+      envelopeItemId: input.envelopeItemId,
+      user: { id: ctx.user.id },
+    });
   });

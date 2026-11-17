@@ -1,5 +1,5 @@
 import { prisma } from '@documenso/prisma';
-import type { EnvelopeAttachment, Recipient, RevalleInvoiceClassification } from '@prisma/client';
+import type { EnvelopeAttachment, Recipient, RevalleInvoiceClassification, RevalleInvoiceFile } from '@prisma/client';
 import {
   DocumentStatus,
   EnvelopeType,
@@ -27,8 +27,18 @@ import { logger } from '../../../utils/logger';
 import { sendDocument } from '../../document/send-document';
 import { duplicateEnvelope } from '../../envelope/duplicate-envelope';
 import { revalleErrorCode } from '../error-code';
-import { toInvoiceStateBase } from '../invoice/classify';
+import { invoiceFileSuggestion } from '../invoice/classify';
+import type { InvoiceEnvelopeFile } from '../invoice/envelope-files';
 import { filesKey, loadEnvelopeFiles } from '../invoice/envelope-files';
+import type { LoadedInvoiceFile } from '../invoice/invoice-files';
+import {
+  ensureLegacyInvoiceFiles,
+  loadInvoiceFiles,
+  lockInvoiceEnvelope,
+  resolveInvoiceFile,
+  syncInvoiceEnvelopeMirror,
+} from '../invoice/invoice-files';
+import { releaseOwnLease } from './define-and-send';
 import { isStaleChangeClaim } from './successor';
 
 export type { InvoiceVersionChange };
@@ -191,34 +201,54 @@ export const createInvoiceNewVersion = async ({
     throw invalid(messages.notChangeable);
   }
 
-  const account = await assertChangeAllowed({ row, change });
+  // Fase 9: a nota que muda (a linha do arquivo); com 2+ notas, ainda não por aqui (INVOICE_FILE_REQUIRED).
+  await ensureLegacyInvoiceFiles(envelopeId);
+
+  const file = await resolveInvoiceFile({ envelopeId });
+  const note = noteVersionRow(row, file);
+  const account = await assertChangeAllowed({ row: note, change });
 
   if (envelope.user.disabled) {
     throw invalid(OWNER_UNAVAILABLE_MESSAGE);
   }
 
-  const { count } = await prisma.revalleInvoiceClassification.updateMany({
-    where: {
-      envelopeId,
-      isInvoice: RevalleInvoiceStatus.YES,
-      choiceCode: row.choiceCode,
-      // O centro e a validação também são lidos aqui: a nova versão copia o que a antiga tem, e um primeiro centro
-      // escolhido ou uma validação no meio devem fazer este pedido recomeçar.
-      costCenterCode: row.costCenterCode,
-      costCenterValidatedAt: row.costCenterValidatedAt,
-      // O estado exato que foi lido (com a selagem, que trava esta linha antes de concluir, a ordem fica definida).
-      financeStatus: row.financeStatus,
-      supersededAt: row.supersededAt,
-      supersededByEnvelopeId: row.supersededByEnvelopeId,
-    },
-    data: {
-      financeStatus: RevalleFinanceStatus.SUPERSEDED,
-      supersededAt: now,
-      supersededById: user.id,
-      supersedeReason,
-      supersedeKind: change.kind,
-      supersededByEnvelopeId: null,
-    },
+  const count = await prisma.$transaction(async (tx) => {
+    // A trava do envio antes de tudo (com a selagem, que trava esta linha antes de concluir, a ordem fica definida).
+    await lockInvoiceEnvelope(tx, envelopeId);
+
+    // O centro e a validação também são lidos aqui: a nova versão copia o que a antiga tem, e um primeiro centro
+    // escolhido ou uma validação no meio devem fazer este pedido recomeçar.
+    const current = await tx.revalleInvoiceFile.findUnique({ where: { id: file.id } });
+
+    if (
+      !current ||
+      current.choiceCode !== file.choiceCode ||
+      current.costCenterCode !== file.costCenterCode ||
+      current.costCenterValidatedAt?.getTime() !== file.costCenterValidatedAt?.getTime()
+    ) {
+      return 0;
+    }
+
+    const marked = await tx.revalleInvoiceClassification.updateMany({
+      where: {
+        envelopeId,
+        isInvoice: RevalleInvoiceStatus.YES,
+        // O estado exato que foi lido.
+        financeStatus: row.financeStatus,
+        supersededAt: row.supersededAt,
+        supersededByEnvelopeId: row.supersededByEnvelopeId,
+      },
+      data: {
+        financeStatus: RevalleFinanceStatus.SUPERSEDED,
+        supersededAt: now,
+        supersededById: user.id,
+        supersedeReason,
+        supersedeKind: change.kind,
+        supersededByEnvelopeId: null,
+      },
+    });
+
+    return marked.count;
   });
 
   if (count === 0) {
@@ -234,7 +264,7 @@ export const createInvoiceNewVersion = async ({
   }
 
   const { newEnvelopeId, title: newTitle } = await createNewVersionOrUndo({
-    previous: { envelopeId, envelope, row },
+    previous: { envelopeId, envelope, row, file },
     change,
     accountName: account?.name ?? null,
     supersedeReason,
@@ -249,17 +279,51 @@ export const createInvoiceNewVersion = async ({
   return { newEnvelopeId };
 };
 
+/** O que a nova versão lê da versão atual: a situação do envio e as colunas da nota (a linha do arquivo). */
+type NoteVersionRow = Pick<RevalleInvoiceClassification, 'financeStatus' | 'supersededAt' | 'supersededByEnvelopeId'> &
+  Pick<
+    RevalleInvoiceFile,
+    | 'choiceCode'
+    | 'choiceById'
+    | 'choiceAt'
+    | 'acceptedSuggestion'
+    | 'costCenterCode'
+    | 'costCenterById'
+    | 'costCenterAt'
+    | 'costCenterValidatedAt'
+    | 'costCenterValidatedById'
+    | 'costCenterValidatedByName'
+    | 'approvedById'
+    | 'approvedAt'
+    | 'approvedAccountName'
+    | 'approvedByName'
+  >;
+
+const noteVersionRow = (row: RevalleInvoiceClassification, file: LoadedInvoiceFile): NoteVersionRow => ({
+  financeStatus: row.financeStatus,
+  supersededAt: row.supersededAt,
+  supersededByEnvelopeId: row.supersededByEnvelopeId,
+  choiceCode: file.choiceCode,
+  choiceById: file.choiceById,
+  choiceAt: file.choiceAt,
+  acceptedSuggestion: file.acceptedSuggestion,
+  costCenterCode: file.costCenterCode,
+  costCenterById: file.costCenterById,
+  costCenterAt: file.costCenterAt,
+  costCenterValidatedAt: file.costCenterValidatedAt,
+  costCenterValidatedById: file.costCenterValidatedById,
+  costCenterValidatedByName: file.costCenterValidatedByName,
+  approvedById: file.approvedById,
+  approvedAt: file.approvedAt,
+  approvedAccountName: file.approvedAccountName,
+  approvedByName: file.approvedByName,
+});
+
 /**
  * O que é próprio de cada tipo antes da marca. A conta devolvida é a nova da troca (o nome dela fica congelado na
  * aprovação da nova versão); a correção do centro não lê conta nenhuma.
  */
-const assertChangeAllowed = async ({
-  row,
-  change,
-}: {
-  row: RevalleInvoiceClassification;
-  change: InvoiceVersionChange;
-}) => {
+const assertChangeAllowed = async ({ row, change }: { row: NoteVersionRow; change: InvoiceVersionChange }) => {
   if (change.kind === 'COST_CENTER') {
     // Sem centro não há o que corrigir: o primeiro centro não gera nova versão (`defineInvoiceCostCenter`).
     if (!row.costCenterCode) {
@@ -305,6 +369,8 @@ type PreviousVersion = {
     recipients: Pick<Recipient, 'email' | 'authOptions'>[];
   };
   row: RevalleInvoiceClassification;
+  /** Fase 9: a nota que muda. */
+  file: LoadedInvoiceFile;
 };
 
 type NewVersionOptions = {
@@ -357,20 +423,41 @@ const createNewVersion = async ({
   now,
   requestMetadata,
 }: NewVersionOptions & { newEnvelopeId: string }) => {
-  const { envelopeId, envelope, row } = previous;
+  const { envelopeId, envelope, row, file } = previous;
   const version = row.version + 1;
   const title = nextVersionTitle(envelope.title, version);
   // A chave dos arquivos da cópia, como a classificação calcula: no envio, o rascunho com a mesma chave mantém a conta.
-  const fileSha256 = filesKey(await loadEnvelopeFiles(newEnvelopeId));
-  const { suggestion } = await toInvoiceStateBase(row);
-  const fromAccount = row.choiceCode;
+  const newFiles = await loadEnvelopeFiles(newEnvelopeId);
+  const fileSha256 = filesKey(newFiles);
+  const suggestion = await invoiceFileSuggestion(file);
+  const fromAccount = file.choiceCode;
   const fromName =
     change.kind === 'ACCOUNT' && fromAccount
       ? ((await prisma.revalleAccountingAccount.findUnique({ where: { code: fromAccount }, select: { name: true } }))
           ?.name ?? null)
       : null;
-  const isSuggestionPending = row.suggestionStatus === RevalleSuggestionStatus.PENDING;
+  const { financeStatus, ...nextNote } = nextClassification(noteVersionRow(row, file), change, user, now, accountName);
 
+  // Fase 9: TODAS as linhas de arquivo vão para os arquivos da cópia (pela ordem, depois pelo título). A nota que muda
+  // ganha a conta/o centro da nova versão (`nextClassification`); as outras ficam como estão.
+  const pairs = pairCopiedFiles(await loadInvoiceFiles(envelopeId), newFiles);
+  const fileRows = pairs.map(([old, copy]) => ({
+    ...copiedFileRow(old, copy, newEnvelopeId),
+    ...(old.id === file.id
+      ? {
+          ...nextNote,
+          // Fica fora da função pura: depende da sugestão ainda ativa na lista, lida do banco.
+          acceptedSuggestion:
+            change.kind === 'ACCOUNT'
+              ? suggestion
+                ? suggestion.accountCode === change.code
+                : null
+              : file.acceptedSuggestion,
+        }
+      : {}),
+  }));
+
+  // O que é do envio. As colunas "da nota" (o espelho) vêm das linhas de arquivo (`syncInvoiceEnvelopeMirror`).
   const classification = {
     isInvoice: RevalleInvoiceStatus.YES,
     detectedBy: row.detectedBy,
@@ -378,27 +465,15 @@ const createNewVersion = async ({
     flagChangedAt: row.flagChangedAt,
     signals: row.signals,
     fileSha256,
-    suggestionStatus: isSuggestionPending ? RevalleSuggestionStatus.SKIPPED : row.suggestionStatus,
-    suggestion: isSuggestionPending || row.suggestion === null ? Prisma.DbNull : row.suggestion,
-    suggestionAttempts: row.suggestionAttempts,
-    // Fase 8: a cópia tem os mesmos arquivos, então leva as chaves de acesso e o que a IA leu da NF (sem sugestão, sem dados).
-    accessKeys: row.accessKeys,
-    ...(isSuggestionPending
-      ? NO_INVOICE_DATA_COLUMNS
-      : {
-          supplierName: row.supplierName,
-          invoiceNumber: row.invoiceNumber,
-          totalAmountCents: row.totalAmountCents,
-        }),
-    ...nextClassification(row, change, user, now, accountName),
-    // Fica fora da função pura: depende da sugestão ainda ativa na lista, lida do banco.
-    acceptedSuggestion:
-      change.kind === 'ACCOUNT' ? (suggestion ? suggestion.accountCode === change.code : null) : row.acceptedSuggestion,
+    financeStatus,
     previousEnvelopeId: envelopeId,
     version,
   };
 
   await prisma.$transaction(async (tx) => {
+    // A trava da versão atual antes de tudo (a mesma ordem da selagem e das gravações da nota).
+    await lockInvoiceEnvelope(tx, envelopeId);
+
     await tx.envelope.update({
       where: { id: newEnvelopeId },
       data: { title, folderId: envelope.folderId, externalId: envelope.externalId },
@@ -427,6 +502,11 @@ const createNewVersion = async ({
       create: { envelopeId: newEnvelopeId, ...classification },
       update: classification,
     });
+
+    // As linhas que uma classificação na hora possa ter criado dão lugar às copiadas.
+    await tx.revalleInvoiceFile.deleteMany({ where: { envelopeId: newEnvelopeId } });
+    await tx.revalleInvoiceFile.createMany({ data: fileRows });
+    await syncInvoiceEnvelopeMirror(tx, newEnvelopeId);
 
     const linked = await tx.revalleInvoiceClassification.updateMany({
       where: {
@@ -474,7 +554,7 @@ const createNewVersion = async ({
             ? createDocumentAuditLogData({
                 ...base,
                 type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_COST_CENTER_CHANGED,
-                data: { fromCode: row.costCenterCode ?? '', toCode: change.code, ...link },
+                data: { fromCode: file.costCenterCode ?? '', toCode: change.code, ...link },
               })
             : createDocumentAuditLogData({
                 ...base,
@@ -486,6 +566,80 @@ const createNewVersion = async ({
   });
 
   return { title };
+};
+
+/**
+ * Fase 9: cada linha de arquivo da versão atual com o arquivo da cópia (`duplicateEnvelope` copia título e ordem): pela
+ * ordem, e no empate pelo título. Contagem diferente (ou arquivo sem par) é erro, e a troca é desfeita.
+ */
+const pairCopiedFiles = (
+  rows: LoadedInvoiceFile[],
+  copies: InvoiceEnvelopeFile[],
+): Array<[LoadedInvoiceFile, InvoiceEnvelopeFile]> => {
+  if (rows.length !== copies.length) {
+    throw new Error('A cópia não tem os mesmos arquivos da versão atual.');
+  }
+
+  const free = [...copies];
+
+  return rows.map((row) => {
+    const sameOrder = free.filter((copy) => copy.order === row.order);
+    const match =
+      (sameOrder.length === 1 ? sameOrder[0] : undefined) ??
+      sameOrder.find((copy) => copy.title === row.title) ??
+      free.find((copy) => copy.title === row.title);
+
+    if (!match) {
+      throw new Error('Um arquivo da versão atual não tem par na cópia.');
+    }
+
+    free.splice(free.indexOf(match), 1);
+
+    return [row, match];
+  });
+};
+
+const jsonOrDbNull = (value: unknown) => (value === null ? Prisma.DbNull : (value as Prisma.InputJsonValue));
+
+/**
+ * A linha de um arquivo copiada para a nova versão: o mesmo arquivo, então o tipo, as chaves de acesso, o que a IA leu, a
+ * conta, o centro, a validação e a aprovação vão juntos. Uma leitura em andamento não vai (fica SKIPPED, sem dados).
+ */
+const copiedFileRow = (old: LoadedInvoiceFile, copy: InvoiceEnvelopeFile, newEnvelopeId: string) => {
+  const isSuggestionPending = old.suggestionStatus === RevalleSuggestionStatus.PENDING;
+
+  return {
+    envelopeId: newEnvelopeId,
+    envelopeItemId: copy.envelopeItemId,
+    kind: old.kind,
+    detectedBy: old.detectedBy,
+    kindChangedById: old.kindChangedById,
+    kindChangedAt: old.kindChangedAt,
+    signals: old.signals,
+    fileSha256: copy.sha256,
+    suggestionStatus: isSuggestionPending ? RevalleSuggestionStatus.SKIPPED : old.suggestionStatus,
+    suggestion: isSuggestionPending ? Prisma.DbNull : jsonOrDbNull(old.suggestion),
+    suggestionAttempts: old.suggestionAttempts,
+    ...(isSuggestionPending
+      ? NO_INVOICE_DATA_COLUMNS
+      : { supplierName: old.supplierName, invoiceNumber: old.invoiceNumber, totalAmountCents: old.totalAmountCents }),
+    accessKeys: old.accessKeys,
+    boletoData: jsonOrDbNull(old.boletoData),
+    choiceCode: old.choiceCode,
+    choiceById: old.choiceById,
+    choiceAt: old.choiceAt,
+    acceptedSuggestion: old.acceptedSuggestion,
+    costCenterCode: old.costCenterCode,
+    costCenterById: old.costCenterById,
+    costCenterAt: old.costCenterAt,
+    costCenterValidatedAt: old.costCenterValidatedAt,
+    costCenterValidatedById: old.costCenterValidatedById,
+    costCenterValidatedByName: old.costCenterValidatedByName,
+    approvedById: old.approvedById,
+    approvedAt: old.approvedAt,
+    approvedAccountName: old.approvedAccountName,
+    approvedByName: old.approvedByName,
+  };
 };
 
 /**
@@ -588,10 +742,7 @@ const sendNewVersion = async ({
     // Solta a própria reserva: `resendVersion` reenvia na hora, sem esperar o prazo da reserva. Só na troca de conta, em
     // que `approvedAt` é o desta troca; na correção do centro, ela é a aprovação copiada da versão anterior.
     if (change.kind === 'ACCOUNT') {
-      await prisma.revalleInvoiceClassification.updateMany({
-        where: { envelopeId: newEnvelopeId, financeStatus: RevalleFinanceStatus.APPROVED, approvedAt: now },
-        data: { approvedAt: null },
-      });
+      await releaseOwnLease(newEnvelopeId, now);
     }
 
     logger.error({

@@ -1,8 +1,10 @@
 import { prisma } from '@documenso/prisma';
+import type { Prisma } from '@prisma/client';
 import {
   DocumentStatus,
   RecipientRole,
   RevalleFinanceStatus,
+  RevalleInvoiceFileKind,
   RevalleInvoiceStatus,
   SigningStatus,
 } from '@prisma/client';
@@ -13,7 +15,14 @@ import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { ApiRequestMetadata } from '../../../universal/extract-request-metadata';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { mapSecondaryIdToDocumentId } from '../../../utils/envelope';
-import { toInvoiceStateBase } from '../invoice/classify';
+import { invoiceFileSuggestion } from '../invoice/classify';
+import type { LoadedInvoiceFile } from '../invoice/invoice-files';
+import {
+  ensureLegacyInvoiceFiles,
+  lockInvoiceEnvelope,
+  resolveInvoiceFile,
+  syncInvoiceEnvelopeMirror,
+} from '../invoice/invoice-files';
 
 export type ApproveInvoiceAccountResult = { approved: boolean };
 
@@ -83,12 +92,17 @@ export const approveInvoiceAccount = async ({
     throw invalid(NOT_SENT_MESSAGE);
   }
 
-  if (!row.choiceCode) {
+  // Fase 9: a aprovação vale para a nota (a linha do arquivo); com 2+ notas, ainda não por aqui (INVOICE_FILE_REQUIRED).
+  await ensureLegacyInvoiceFiles(envelopeId);
+
+  const file = await resolveInvoiceFile({ envelopeId });
+
+  if (!file.choiceCode) {
     if (!definedCode) {
       throw invalid(NO_ACCOUNT_MESSAGE);
     }
 
-    const defined = await defineSentInvoiceAccount({ envelopeId, code: definedCode, user, requestMetadata });
+    const defined = await defineSentInvoiceAccount({ envelopeId, file, code: definedCode, user, requestMetadata });
 
     if (defined) {
       await releaseHeldSeal({ envelopeId, secondaryId: envelope.secondaryId, requestMetadata });
@@ -97,23 +111,21 @@ export const approveInvoiceAccount = async ({
     return { approved: defined };
   }
 
-  if (definedCode && definedCode !== row.choiceCode) {
+  if (definedCode && definedCode !== file.choiceCode) {
     throw invalid(HAS_ACCOUNT_MESSAGE);
   }
 
-  const code = row.choiceCode;
+  const code = file.choiceCode;
   const account = await prisma.revalleAccountingAccount.findUnique({ where: { code }, select: { name: true } });
 
   const approved = await prisma.$transaction(async (tx) => {
-    const { count } = await tx.revalleInvoiceClassification.updateMany({
-      where: {
-        envelopeId,
-        isInvoice: RevalleInvoiceStatus.YES,
-        financeStatus: RevalleFinanceStatus.PENDING_APPROVAL,
-        choiceCode: code,
-      },
+    if (!(await claimPendingApproval(tx, envelopeId))) {
+      return false;
+    }
+
+    const { count } = await tx.revalleInvoiceFile.updateMany({
+      where: { id: file.id, kind: RevalleInvoiceFileKind.NF, choiceCode: code },
       data: {
-        financeStatus: RevalleFinanceStatus.APPROVED,
         approvedById: user.id,
         approvedAt: new Date(),
         approvedAccountName: account?.name ?? null,
@@ -124,6 +136,8 @@ export const approveInvoiceAccount = async ({
     if (count === 0) {
       return false;
     }
+
+    await markApproved(tx, envelopeId);
 
     await tx.documentAuditLog.create({
       data: createDocumentAuditLogData({
@@ -160,17 +174,39 @@ export const approveInvoiceAccount = async ({
 };
 
 /**
+ * Trava o envio (a mesma linha que a selagem trava, antes dela) e confere que ele ainda aguarda o Financeiro: de dois
+ * pedidos ao mesmo tempo, só o primeiro passa; o outro encontra a nota já aprovada.
+ */
+const claimPendingApproval = async (tx: Prisma.TransactionClient, envelopeId: string) => {
+  const locked = await lockInvoiceEnvelope(tx, envelopeId);
+
+  return locked?.financeStatus === RevalleFinanceStatus.PENDING_APPROVAL;
+};
+
+/** O envio aprovado (a situação é do envio) e o espelho da nota. */
+const markApproved = async (tx: Prisma.TransactionClient, envelopeId: string) => {
+  await tx.revalleInvoiceClassification.updateMany({
+    where: { envelopeId, isInvoice: RevalleInvoiceStatus.YES, financeStatus: RevalleFinanceStatus.PENDING_APPROVAL },
+    data: { financeStatus: RevalleFinanceStatus.APPROVED },
+  });
+
+  await syncInvoiceEnvelopeMirror(tx, envelopeId);
+};
+
+/**
  * "Definir e aprovar": grava a conta (como escolha do Financeiro) e a aprovação numa gravação condicionada a "ainda sem
  * conta", junto com o evento. `false` = outro pedido gravou a mesma conta antes (repetição); qualquer outra mudança no
  * meio é um 400 para atualizar a página.
  */
 const defineSentInvoiceAccount = async ({
   envelopeId,
+  file,
   code,
   user,
   requestMetadata,
 }: {
   envelopeId: string;
+  file: LoadedInvoiceFile;
   code: string;
   user: { id: number; name: string | null; email: string };
   requestMetadata: ApiRequestMetadata;
@@ -184,24 +220,21 @@ const defineSentInvoiceAccount = async ({
     throw invalid(INACTIVE_ACCOUNT_MESSAGE);
   }
 
-  const row = await prisma.revalleInvoiceClassification.findUniqueOrThrow({ where: { envelopeId } });
-  const { suggestion } = await toInvoiceStateBase(row);
+  const suggestion = await invoiceFileSuggestion(file);
   const now = new Date();
 
   const defined = await prisma.$transaction(async (tx) => {
-    const { count } = await tx.revalleInvoiceClassification.updateMany({
-      where: {
-        envelopeId,
-        isInvoice: RevalleInvoiceStatus.YES,
-        financeStatus: RevalleFinanceStatus.PENDING_APPROVAL,
-        choiceCode: null,
-      },
+    if (!(await claimPendingApproval(tx, envelopeId))) {
+      return false;
+    }
+
+    const { count } = await tx.revalleInvoiceFile.updateMany({
+      where: { id: file.id, kind: RevalleInvoiceFileKind.NF, choiceCode: null },
       data: {
         choiceCode: code,
         choiceById: user.id,
         choiceAt: now,
         acceptedSuggestion: suggestion ? suggestion.accountCode === code : null,
-        financeStatus: RevalleFinanceStatus.APPROVED,
         approvedById: user.id,
         approvedAt: now,
         approvedAccountName: account.name,
@@ -212,6 +245,8 @@ const defineSentInvoiceAccount = async ({
     if (count === 0) {
       return false;
     }
+
+    await markApproved(tx, envelopeId);
 
     await tx.documentAuditLog.create({
       data: createDocumentAuditLogData({

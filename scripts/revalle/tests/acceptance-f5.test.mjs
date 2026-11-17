@@ -42,6 +42,7 @@ import {
   distribute,
   downloadItem,
   fetchIdempotent,
+  forceInvoiceColumns,
   poppler,
   retryCreateOnStaleSocket,
   signIn,
@@ -470,8 +471,10 @@ before(async () => {
   // A NFS-e (criada depois) é enviada ANTES do DANFE: a ordem por data de envio difere da ordem de criação.
   await signAll(fx.nfse, {
     afterSend: (id) =>
-      db(
-        `update "RevalleInvoiceClassification" set "choiceCode" = null, "acceptedSuggestion" = null, "costCenterCode" = null, "financeStatus" = 'LEGACY' where "envelopeId" = '${id}'`,
+      forceInvoiceColumns(
+        id,
+        '"choiceCode" = null, "acceptedSuggestion" = null, "costCenterCode" = null',
+        '"financeStatus" = \'LEGACY\'',
       ),
   });
   // Fase 6: o DANFE fica retido depois das duas assinaturas e o Financeiro aprova pela rota.

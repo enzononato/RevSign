@@ -3,6 +3,7 @@ import {
   DocumentStatus,
   EnvelopeType,
   RevalleFinanceStatus,
+  RevalleInvoiceFileKind,
   RevalleInvoiceStatus,
   SigningStatus,
 } from '@prisma/client';
@@ -12,6 +13,12 @@ import { isCostCenterCode } from '../../../revalle/invoice/cost-centers';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { ApiRequestMetadata } from '../../../universal/extract-request-metadata';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
+import {
+  ensureLegacyInvoiceFiles,
+  lockInvoiceEnvelope,
+  resolveInvoiceFile,
+  syncInvoiceEnvelopeMirror,
+} from '../invoice/invoice-files';
 
 type AccountingUser = { id: number; name: string | null; email: string };
 
@@ -69,6 +76,17 @@ export const loadActionableInvoice = async (envelopeId: string) => {
 };
 
 /**
+ * Fase 9: a NF em que a Contabilidade age (`loadActionableInvoice`) e a nota dela (a linha do arquivo). Com 2+ notas,
+ * ainda não por aqui (INVOICE_FILE_REQUIRED).
+ */
+const loadActionableInvoiceFile = async (envelopeId: string) => {
+  await loadActionableInvoice(envelopeId);
+  await ensureLegacyInvoiceFiles(envelopeId);
+
+  return await resolveInvoiceFile({ envelopeId });
+};
+
+/**
  * "Validar centro de custo": a qualquer momento depois do envio, antes ou depois do Financeiro (o membro já foi conferido
  * pela rota). Registra quem e quando, com o nome congelado. Não segura a conclusão. Repetir não faz nada: quem validou
  * primeiro fica, e a resposta é `{ validated: false }`.
@@ -85,26 +103,26 @@ export const validateInvoiceCostCenter = async ({
   user: AccountingUser;
   requestMetadata: ApiRequestMetadata;
 }): Promise<{ validated: boolean }> => {
-  const row = await loadActionableInvoice(envelopeId);
-  const code = row.costCenterCode;
+  const file = await loadActionableInvoiceFile(envelopeId);
+  const code = file.costCenterCode;
 
   if (!code) {
     throw invalid(NO_COST_CENTER_MESSAGE);
   }
 
-  if (row.costCenterValidatedAt) {
+  if (file.costCenterValidatedAt) {
     return { validated: false };
   }
 
   const validated = await prisma.$transaction(async (tx) => {
-    const { count } = await tx.revalleInvoiceClassification.updateMany({
-      where: {
-        envelopeId,
-        isInvoice: RevalleInvoiceStatus.YES,
-        costCenterCode: code,
-        costCenterValidatedAt: null,
-        financeStatus: { not: RevalleFinanceStatus.SUPERSEDED },
-      },
+    const locked = await lockInvoiceEnvelope(tx, envelopeId);
+
+    if (!locked || locked.financeStatus === RevalleFinanceStatus.SUPERSEDED) {
+      return false;
+    }
+
+    const { count } = await tx.revalleInvoiceFile.updateMany({
+      where: { id: file.id, kind: RevalleInvoiceFileKind.NF, costCenterCode: code, costCenterValidatedAt: null },
       data: {
         costCenterValidatedAt: new Date(),
         costCenterValidatedById: user.id,
@@ -115,6 +133,8 @@ export const validateInvoiceCostCenter = async ({
     if (count === 0) {
       return false;
     }
+
+    await syncInvoiceEnvelopeMirror(tx, envelopeId);
 
     await tx.documentAuditLog.create({
       data: createDocumentAuditLogData({
@@ -170,22 +190,23 @@ export const defineInvoiceCostCenter = async ({
     throw invalid(UNKNOWN_COST_CENTER_MESSAGE);
   }
 
-  const row = await loadActionableInvoice(envelopeId);
+  const file = await loadActionableInvoiceFile(envelopeId);
 
-  if (row.costCenterCode) {
+  if (file.costCenterCode) {
     throw invalid(HAS_COST_CENTER_MESSAGE);
   }
 
   const now = new Date();
 
   await prisma.$transaction(async (tx) => {
-    const { count } = await tx.revalleInvoiceClassification.updateMany({
-      where: {
-        envelopeId,
-        isInvoice: RevalleInvoiceStatus.YES,
-        costCenterCode: null,
-        financeStatus: { not: RevalleFinanceStatus.SUPERSEDED },
-      },
+    const locked = await lockInvoiceEnvelope(tx, envelopeId);
+
+    if (!locked || locked.financeStatus === RevalleFinanceStatus.SUPERSEDED) {
+      throw invalid(STATE_CHANGED_MESSAGE);
+    }
+
+    const { count } = await tx.revalleInvoiceFile.updateMany({
+      where: { id: file.id, kind: RevalleInvoiceFileKind.NF, costCenterCode: null },
       data: {
         costCenterCode: code,
         costCenterById: user.id,
@@ -199,6 +220,8 @@ export const defineInvoiceCostCenter = async ({
     if (count === 0) {
       throw invalid(STATE_CHANGED_MESSAGE);
     }
+
+    await syncInvoiceEnvelopeMirror(tx, envelopeId);
 
     for (const log of [
       createDocumentAuditLogData({

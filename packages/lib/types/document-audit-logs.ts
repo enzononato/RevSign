@@ -891,6 +891,14 @@ export const ZDocumentAuditLogEventRevalleSignatureStampedSchema = z.object({
   data: z.object({ recipientId: z.number(), signatureKind: z.enum(['IMAGE', 'TYPED', 'NONE']) }),
 });
 
+// REVALLE: (Fase 9) a nota do evento, só num envio com 2+ notas (com uma, o evento fica como antes).
+const ZRevalleInvoiceAuditDocumentSchema = z.object({
+  envelopeItemId: z.string(),
+  title: z.string(),
+  index: z.number(),
+  total: z.number(),
+});
+
 // REVALLE: conta contábil da nota fiscal (de → para); `null` = nenhuma.
 // `reason: FILES_CHANGED`: a escolha foi apagada porque os arquivos do documento mudaram.
 // `*Defer`: só nos eventos de antes da Fase 7 ("Deixar para o Financeiro" saiu); os novos não gravam.
@@ -902,6 +910,7 @@ export const ZDocumentAuditLogEventRevalleInvoiceAccountSetSchema = z.object({
     toCode: z.string().nullable(),
     toDefer: z.boolean().optional(),
     reason: z.enum(['FILES_CHANGED']).optional(),
+    document: ZRevalleInvoiceAuditDocumentSchema.optional(), // REVALLE: Fase 9
   }),
 });
 
@@ -911,6 +920,7 @@ export const ZDocumentAuditLogEventRevalleInvoiceCostCenterSetSchema = z.object(
   data: z.object({
     fromCode: z.string().nullable(),
     toCode: z.string(),
+    document: ZRevalleInvoiceAuditDocumentSchema.optional(), // REVALLE: Fase 9
   }),
 });
 

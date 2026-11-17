@@ -30,6 +30,7 @@ import {
   createEnvelope,
   db,
   fetchIdempotent,
+  forceInvoiceColumns,
   signIn,
   trpcAs,
 } from './helpers.mjs';
@@ -426,10 +427,7 @@ sessionTest(
     fixRecipient(v2, fixed);
 
     // O envio de outro pedido está em andamento (ou caiu): a reserva vale 5 minutos, o envio de um PDF grande demora.
-    const reserve = (age) =>
-      db(
-        `update "RevalleInvoiceClassification" set "approvedAt" = now() - interval '${age}' where "envelopeId" = '${v2}'`,
-      );
+    const reserve = (age) => forceInvoiceColumns(v2, `"approvedAt" = now() - interval '${age}'`);
 
     reserve('4 minutes');
 
