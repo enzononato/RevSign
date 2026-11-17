@@ -186,10 +186,11 @@ if (payload.case === 'phone') {
     const { context, page } = await openAs(ownerCookie, PHONE);
     const dialog = await openSendDialog(page);
 
-    report(
-      await page.evaluate(() => document.documentElement.scrollWidth <= 390),
-      'a página não rola para o lado com o diálogo aberto',
-    );
+    // O editor do upstream atrás do diálogo não é feito para celular (o painel lateral ocupa a tela e o conteúdo passa da
+    // borda, igual na v.19); o que a Fase 9 entrega é o diálogo, que precisa caber inteiro nos 390 px.
+    const box = await dialog.boundingBox();
+
+    report(box !== null && box.x >= 0 && box.x + box.width <= 390, 'o diálogo cabe inteiro na largura do celular');
     report(
       await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
       'o diálogo não rola para o lado',

@@ -1036,7 +1036,18 @@ sessionTest('várias notas: o texto azul em cada nota, nada no boleto nem no con
   assert.equal(count(a.flat, 'CC: 101 - Puxada'), 1);
   assert.equal(count(b.flat, 'Conta: 3.1.01 - Serviços de terceiros'), 1);
   assert.equal(count(b.flat, 'CC: 201 - Armazém'), 1);
-  assert.ok(!a.flat.includes('3.1.01') && !b.flat.includes('2.1.03'), 'a conta de uma nota apareceu na outra');
+  // Só as páginas da nota: o certificado anexado ao fim de cada arquivo lista as contas de todas as notas (Task 7).
+  const notePages = (sealed) =>
+    sealed.pages
+      .slice(0, sealed.pages.findIndex((p) => p.words.some((w) => w.text === 'Certificado')) >>> 0)
+      .flatMap((p) => p.words.map((w) => w.text))
+      .join(' ');
+
+  assert.ok(notePages(a).length > 0 && notePages(b).length > 0, 'nota sem páginas antes do certificado');
+  assert.ok(
+    !notePages(a).includes('3.1.01') && !notePages(b).includes('2.1.03'),
+    'a conta de uma nota apareceu na outra',
+  );
 
   for (const [name, other] of [
     ['contrato', contract],
