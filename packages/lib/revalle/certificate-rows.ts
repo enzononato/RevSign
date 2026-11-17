@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { groupRecipientsBySigningOrder } from '../utils/recipient-groups';
 import { formatRevalleDateTime } from './date-format';
 import { costCenterLabel } from './invoice/cost-centers';
+import { formatInvoicePosition, type InvoicePosition } from './invoice/invoice-files';
 
 // REVALLE: linhas da prova congelada de cada destinatário no certificado de assinatura (Fase 4).
 
@@ -52,6 +53,21 @@ export type RevalleCertificateProof = {
   invoiceAccount?: unknown;
   /** Fase 7: { code, name } do centro de custo da NF visto ao assinar; nulo em NF sem centro e nas provas anteriores. */
   invoiceCostCenter?: unknown;
+  /**
+   * Fase 9: com 2+ notas no envio, a conta e o centro vistos ao assinar em cada nota (`RevalleProofInvoiceDocument[]`);
+   * nulo com uma nota (valem as duas colunas de cima) e nas provas anteriores.
+   */
+  invoiceDocuments?: unknown;
+};
+
+/** Fase 9: uma nota da prova (`RevalleSignatureProof.invoiceDocuments`), congelada como a página mostrou. */
+export type RevalleProofInvoiceDocument = {
+  envelopeItemId: string;
+  title: string;
+  index: number;
+  total: number;
+  account: { code: string; name: string } | null;
+  costCenter: { code: string; name: string } | null;
 };
 
 const EMPTY = '—';
@@ -76,6 +92,17 @@ const ZIpLocation = z.object({
 
 const ZInvoiceAccount = z.object({ code: z.string().min(1), name: z.string() });
 const ZInvoiceCostCenter = z.object({ code: z.string().min(1), name: z.string() });
+
+const ZInvoiceDocuments = z
+  .array(
+    z.object({
+      index: z.number().int().positive(),
+      total: z.number().int().positive(),
+      account: ZInvoiceAccount.nullish(),
+      costCenter: ZInvoiceCostCenter.nullish(),
+    }),
+  )
+  .min(2);
 
 const ZDeviceLocation = z.object({
   status: z.string(),
@@ -221,6 +248,28 @@ export const buildRevalleCertificateRows = (
     rows.push({ label: 'Assinatura visual', value: SIGNATURE_KIND_LABELS[proof.signatureKind] ?? EMPTY });
   }
 
+  // Fase 9: com 2+ notas, uma linha da conta e uma do centro por nota, cada uma com a posição dela; as colunas de uma nota
+  // ficam nulas nessa prova. Uma nota (ou nenhuma lista): as linhas de sempre.
+  const invoiceDocuments = ZInvoiceDocuments.safeParse(proof.invoiceDocuments);
+
+  if (invoiceDocuments.success) {
+    for (const document of invoiceDocuments.data) {
+      const position = formatInvoicePosition(document);
+
+      if (document.account) {
+        rows.push({ label: `Conta contábil vista ao assinar (${position})`, value: document.account.code });
+      }
+
+      if (document.costCenter) {
+        rows.push({ label: `Centro de custo visto ao assinar (${position})`, value: document.costCenter.code });
+      }
+    }
+
+    rows.push({ label: 'Código de verificação', value: proof.verificationCode });
+
+    return rows;
+  }
+
   const invoiceAccount = ZInvoiceAccount.safeParse(proof.invoiceAccount);
 
   if (invoiceAccount.success) {
@@ -239,29 +288,41 @@ export const buildRevalleCertificateRows = (
   return rows;
 };
 
+/** Fase 9: o rótulo de uma nota no certificado, "Nota 1 de 3 (nf-a.pdf)" (só com 2+ notas no envio). */
+export const invoiceDocumentLabel = (position: InvoicePosition, title: string) =>
+  `Nota ${position.index} de ${position.total} (${title})`;
+
+const withDocumentLabel = (line: string, documentLabel?: string) =>
+  documentLabel ? `${documentLabel}: ${line}` : line;
+
 /**
  * Linha do certificado no nível do documento, só para NF aprovada pelo Financeiro (Fase 6): a conta, quem aprovou e
- * quando, em horário de Brasília.
+ * quando, em horário de Brasília. Fase 9: com 2+ notas, uma por nota, com o rótulo dela na frente (`documentLabel`).
  */
 export const buildRevalleInvoiceCertificateLine = ({
   code,
   name,
   approverName,
   approvedAt,
+  documentLabel,
 }: {
   code: string;
   name: string;
   approverName: string;
   approvedAt: Date | string;
+  documentLabel?: string;
 }) => {
   const account = name.trim() ? `${code} – ${name.trim()}` : code;
 
-  return `Conta contábil: ${account} · aprovada pelo Financeiro (${approverName}) em ${formatRevalleDateTime(approvedAt, { withZoneLabel: true })}`;
+  return withDocumentLabel(
+    `Conta contábil: ${account} · aprovada pelo Financeiro (${approverName}) em ${formatRevalleDateTime(approvedAt, { withZoneLabel: true })}`,
+    documentLabel,
+  );
 };
 
 /**
  * Linha do certificado no nível do documento para qualquer NF com centro de custo (Fase 7), com ou sem aprovação do
  * Financeiro. Só diz qual é o centro: a validação da Contabilidade pode acontecer depois da selagem e não entra aqui.
  */
-export const buildRevalleInvoiceCostCenterCertificateLine = (code: string) =>
-  `Centro de custo: ${costCenterLabel(code)}`;
+export const buildRevalleInvoiceCostCenterCertificateLine = (code: string, documentLabel?: string) =>
+  withDocumentLabel(`Centro de custo: ${costCenterLabel(code)}`, documentLabel);

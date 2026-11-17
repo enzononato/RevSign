@@ -5,6 +5,7 @@ import {
   buildRevalleInvoiceCertificateLine,
   buildRevalleInvoiceCostCenterCertificateLine,
   getRevalleSigningPositions,
+  invoiceDocumentLabel,
   type RevalleCertificateProof,
 } from './certificate-rows';
 
@@ -349,5 +350,105 @@ describe('centro de custo da NF no certificado (Fase 7)', () => {
     expect(buildRevalleInvoiceCostCenterCertificateLine('401')).toBe('Centro de custo: 401 – Vendas');
     expect(buildRevalleInvoiceCostCenterCertificateLine('101')).toBe('Centro de custo: 101 – Puxada');
     expect(buildRevalleInvoiceCostCenterCertificateLine('101')).not.toMatch(/valid|aprovad/i);
+  });
+});
+
+describe('várias notas no mesmo envio (Fase 9)', () => {
+  const documents = [
+    {
+      envelopeItemId: 'item-a',
+      title: 'nf-a.pdf',
+      index: 1,
+      total: 2,
+      account: { code: '2.1.03', name: 'Fornecedores' },
+      costCenter: { code: '101', name: 'Puxada' },
+    },
+    {
+      envelopeItemId: 'item-b',
+      title: 'nf-b.pdf',
+      index: 2,
+      total: 2,
+      account: { code: '3.1.01', name: 'Serviços de terceiros' },
+      costCenter: { code: '201', name: 'Armazém' },
+    },
+  ];
+
+  it('prova com duas notas: uma linha de conta e uma de centro por nota, com o rótulo, sem as linhas sem rótulo', () => {
+    const rows = buildRevalleCertificateRows({ ...minimalProof, invoiceDocuments: documents }, { role: 'SIGNER' });
+
+    expect(rows.slice(-5)).toEqual([
+      { label: 'Conta contábil vista ao assinar (nota 1 de 2)', value: '2.1.03' },
+      { label: 'Centro de custo visto ao assinar (nota 1 de 2)', value: '101' },
+      { label: 'Conta contábil vista ao assinar (nota 2 de 2)', value: '3.1.01' },
+      { label: 'Centro de custo visto ao assinar (nota 2 de 2)', value: '201' },
+      { label: 'Código de verificação', value: 'ABCD-2345' },
+    ]);
+    expect(rows.some((row) => row.label === 'Conta contábil vista ao assinar')).toBe(false);
+    expect(rows.some((row) => row.label === 'Centro de custo visto ao assinar')).toBe(false);
+  });
+
+  it('nota com só a conta (ou só o centro) vista: só a linha que a página mostrou', () => {
+    const rows = buildRevalleCertificateRows(
+      {
+        ...minimalProof,
+        invoiceDocuments: [
+          { ...documents[0], costCenter: null },
+          { ...documents[1], account: null },
+        ],
+      },
+      { role: 'SIGNER' },
+    );
+
+    expect(rows.slice(-3)).toEqual([
+      { label: 'Conta contábil vista ao assinar (nota 1 de 2)', value: '2.1.03' },
+      { label: 'Centro de custo visto ao assinar (nota 2 de 2)', value: '201' },
+      { label: 'Código de verificação', value: 'ABCD-2345' },
+    ]);
+  });
+
+  it('uma entrada só (ou lista malformada) com a conta de sempre: exatamente as linhas de hoje', () => {
+    const today = buildRevalleCertificateRows(
+      {
+        ...minimalProof,
+        invoiceAccount: { code: '2.1.03', name: 'Fornecedores' },
+        invoiceCostCenter: { code: '101', name: 'Puxada' },
+      },
+      { role: 'SIGNER' },
+    );
+
+    for (const invoiceDocuments of [[{ ...documents[0], total: 1 }], null, undefined, 'texto', [{ index: 1 }]]) {
+      expect(
+        buildRevalleCertificateRows(
+          {
+            ...minimalProof,
+            invoiceAccount: { code: '2.1.03', name: 'Fornecedores' },
+            invoiceCostCenter: { code: '101', name: 'Puxada' },
+            invoiceDocuments,
+          },
+          { role: 'SIGNER' },
+        ),
+      ).toEqual(today);
+    }
+  });
+
+  it('linhas do documento com o rótulo da nota; sem ele, as de hoje', () => {
+    const label = invoiceDocumentLabel({ index: 1, total: 3 }, 'nf-a.pdf');
+
+    expect(label).toBe('Nota 1 de 3 (nf-a.pdf)');
+    expect(
+      buildRevalleInvoiceCertificateLine({
+        code: '2.1.03',
+        name: 'Fornecedores',
+        approverName: 'Rosa do Financeiro',
+        approvedAt: new Date('2026-10-30T21:05:00.000Z'),
+        documentLabel: label,
+      }),
+    ).toBe(
+      'Nota 1 de 3 (nf-a.pdf): Conta contábil: 2.1.03 – Fornecedores · aprovada pelo Financeiro (Rosa do Financeiro) em 30/10/2026 18:05 (horário de Brasília)',
+    );
+    expect(buildRevalleInvoiceCostCenterCertificateLine('201', 'Nota 2 de 3 (nf-b.pdf)')).toBe(
+      'Nota 2 de 3 (nf-b.pdf): Centro de custo: 201 – Armazém',
+    );
+    expect(buildRevalleInvoiceCostCenterCertificateLine('201')).toBe('Centro de custo: 201 – Armazém');
   });
 });

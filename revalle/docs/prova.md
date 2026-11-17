@@ -45,6 +45,12 @@ No topo de cada página do certificado:
 - `SHA-256 do original: <64 letras e números>`: a "impressão digital" do PDF **como foi enviado**, antes de qualquer assinatura. Se alguém tiver uma cópia do original, dá para conferir que é o mesmo arquivo.
 - Só em nota fiscal aprovada pelo Financeiro (Fase 6): `Conta contábil: <código> – <nome> · aprovada pelo Financeiro (<nome>) em <dd/MM/aaaa HH:mm> (horário de Brasília)`. O nome da conta é o do momento da aprovação (se a lista de contas for reimportada com outro nome, o certificado não muda); sem o nome de quem aprovou, aparece `Financeiro`.
 - Em qualquer nota fiscal que tenha centro de custo (Fase 7): `Centro de custo: <código> – <nome>`, por exemplo `Centro de custo: 101 – Puxada`. Essa linha não depende do Financeiro: sai mesmo em nota que concluiu sem aprovação (as de antes da Fase 6) e vem na linha logo abaixo da conta. O certificado só informa qual é o centro. Ele não diz que a Contabilidade validou, porque a validação pode acontecer depois que o PDF foi selado. Nota sem centro (marcada como nota fiscal depois do envio, ou enviada antes da Fase 7) não tem essa linha.
+- Envio com **duas ou mais notas fiscais** (Fase 9): as duas linhas acima aparecem **uma vez por nota**, na ordem dos
+  arquivos, com a nota e o arquivo na frente: `Nota 1 de 3 (nf-a.pdf): Conta contábil: 2.1.03 – Fornecedores ·
+  aprovada pelo Financeiro (<nome>) em <dd/MM/aaaa HH:mm> (horário de Brasília)` e `Nota 1 de 3 (nf-a.pdf): Centro de
+  custo: 101 – Puxada`. Cada nota tem a própria aprovação (quem aprovou aquela nota e quando). O certificado de **cada
+  arquivo** do envio (também o do boleto ou do contrato) lista todas as notas. Boleto e outros arquivos não são notas:
+  não têm linha. Com uma nota só, as linhas são as de sempre, sem o rótulo.
 
 No rodapé: o **ID do Envelope** (identificador único do documento), um **QR code** que leva à página pública do documento (ver seção 3) e, quando o documento tem prova congelada, a atribuição "IP Geolocation by DB-IP".
 
@@ -86,6 +92,8 @@ Cada pessoa ocupa um bloco com três colunas. Em ordem, para cada uma:
 | Assinatura visual | `imagem (desenho/arquivo)`, `texto digitado` ou `somente carimbo`. Só para quem assina | Prova congelada |
 | Conta contábil vista ao assinar | Só em nota fiscal (Fase 6): o número da conta contábil que a pessoa viu na tela ao assinar | Prova congelada |
 | Centro de custo visto ao assinar | Só em nota fiscal com centro (Fase 7): o número do centro de custo (101, 201, 301, 401 ou 501) que a pessoa viu na tela ao assinar, com ou sem conta contábil (numa nota fiscal sem conta, a tela mostra `Nota fiscal · Centro de custo: 101 – Puxada`). Vale a mesma regra da conta: só aparece se a página de assinatura mostrou esse centro. Quem assina sem abrir a página do RevSign (como pelo embed), ou com a página aberta antes de o centro ser definido, fica sem a linha | Prova congelada |
+| Conta contábil vista ao assinar (nota 1 de 3) | Envio com 2+ notas (Fase 9): no lugar da linha sem rótulo, uma por nota, com a conta que a pessoa viu **naquela nota** (a tela de assinatura mostra, em cada documento de nota, a conta e o centro dele). Mesma regra: só o que a página mostrou e ainda era o atual na hora de assinar | Prova congelada |
+| Centro de custo visto ao assinar (nota 1 de 3) | Envio com 2+ notas (Fase 9): uma por nota, como a linha de cima, com o centro visto naquela nota | Prova congelada |
 | Código de verificação | O mesmo código do carimbo | Prova congelada |
 
 As formas de **Verificação**:
@@ -110,6 +118,7 @@ Destinatário de documento assinado antes da Fase 4 não tem prova congelada: o 
    - **Participantes**: nome (o da base de RH; sem ele, por exemplo para quem só visualiza, o nome cadastrado no documento), CPF mascarado e a data em que cada um assinou (ou aprovou, visualizou…);
    - em nota fiscal (Fase 6): a conta contábil e a aprovação do Financeiro (quem e quando), ou `Aguardando aprovação do Financeiro`. Se a conta foi trocada, a versão antiga mostra `Substituído por uma nova versão em <data> (conta contábil alterada)`; se a Contabilidade corrigiu o centro de custo (Fase 7), `Substituído por uma nova versão em <data> (centro de custo corrigido)`. Nada da nova versão aparece (ela tem os próprios códigos);
    - em nota fiscal com centro de custo (Fase 7): `Centro de custo: <código> – <nome>`, no mesmo quadro da nota fiscal, com ou sem passagem pelo Financeiro. É o centro daquela versão do documento; a página não diz se a Contabilidade já validou. Corrigir o centro cria uma nova versão que todos assinam de novo: a prova de cada versão guarda o centro que a pessoa viu naquela versão;
+   - envio com **duas ou mais notas fiscais** (Fase 9): um quadro **por nota**, com o título `Nota 1 de 3 · nf-a.pdf`, a conta, a aprovação daquela nota (ou `Aguardando aprovação do Financeiro`, se ela ainda não foi aprovada) e o centro. Boleto e outros arquivos não têm quadro. Na versão substituída, a frase diz em qual nota foi a mudança: `Substituído por uma nova versão em <data> (conta contábil alterada na nota 2 de 3)` ou `(centro de custo corrigido na nota 3 de 3)`;
    - **SHA-256 do documento final** (só quando concluído). Se o documento foi **reselado** (ex.: troca do certificado da empresa), aparecem também as **versões seladas anteriores**, cada uma com a data da selagem.
 4. Para saber se o PDF que você tem nas mãos é o mesmo que foi assinado, vá em **"Conferir um arquivo"** (aparece quando o documento já foi concluído) e escolha o PDF. A conta é feita no seu próprio navegador: o arquivo **não é enviado** para lugar nenhum. Resultado:
    - `Este arquivo confere com a versão selada em <data> (horário de Brasília).`: é um PDF final selado deste documento, sem nenhuma alteração;

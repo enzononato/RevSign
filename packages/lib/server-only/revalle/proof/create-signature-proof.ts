@@ -2,6 +2,7 @@ import { prisma } from '@documenso/prisma';
 import { FieldType, Prisma } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
+import type { RevalleProofInvoiceDocument } from '../../../revalle/certificate-rows';
 import { maskCpf } from '../../../revalle/cpf';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { RequestMetadata } from '../../../universal/extract-request-metadata';
@@ -9,7 +10,12 @@ import { logger } from '../../../utils/logger';
 import { isRevalleExternalEmail } from '../assert-recipient-domains';
 import { getColaboradoresRepository } from '../colaboradores/repository';
 import { type IpLocation, lookupIpLocation } from '../geoip';
-import { findSigningInvoiceAccount } from '../invoice/signing-account';
+import {
+  findSigningInvoiceAccount,
+  parseInvoiceShown,
+  type RevalleInvoiceShown,
+  type RevalleSigningInvoice,
+} from '../invoice/signing-account';
 import { classifySignature } from './signature-kind';
 import { describeUserAgent } from './user-agent';
 import { generateVerificationCode } from './verification-code';
@@ -91,6 +97,44 @@ export const loadProofExternals = async (
   ]);
 
   return { baseEmployee, ipLocation };
+};
+
+/**
+ * Fase 9: com 2+ notas no envio, por nota, só o que a página de assinatura mostrou a esta pessoa (`invoiceShown` do
+ * portão) e ainda é o atual na transação que marca a assinatura; a conta e o centro, cada um por si (a mesma regra da
+ * nota única). Nulo com uma nota (valem `invoiceAccount` e `invoiceCostCenter`) e sem o registro da página (quem assina
+ * sem abrir a página, como pelo embed): a prova não afirma o que a página não mostrou. Nota que a página não mostrou fica
+ * de fora.
+ */
+export const freezeInvoiceDocuments = (
+  current: RevalleSigningInvoice | null,
+  shown: RevalleInvoiceShown | null,
+): RevalleProofInvoiceDocument[] | null => {
+  if (!current || current.documents.length < 2 || !shown) {
+    return null;
+  }
+
+  const documents = current.documents.flatMap((document) => {
+    const seen = shown[document.envelopeItemId];
+
+    if (!seen) {
+      return [];
+    }
+
+    return [
+      {
+        envelopeItemId: document.envelopeItemId,
+        title: document.title,
+        index: document.position.index,
+        total: document.position.total,
+        account: document.account && seen.accountCode === document.account.code ? document.account : null,
+        costCenter:
+          document.costCenter && seen.costCenterCode === document.costCenter.code ? document.costCenter : null,
+      },
+    ];
+  });
+
+  return documents.length > 0 ? documents : null;
 };
 
 export type CreateRevalleSignatureProofOptions = {
@@ -195,6 +239,8 @@ export const createRevalleSignatureProof = async ({
   // congelada só se é a mesma que a página de assinatura mostrou a esta pessoa. Assinatura pelo embed (sem o bloco) ou
   // conta escolhida depois que a página abriu: nula, e o certificado fica sem a linha "Conta contábil vista ao assinar".
   const currentInvoice = await findSigningInvoiceAccount(recipient.envelopeId, tx);
+  // Fase 9: com 2+ notas, a mesma regra por nota (`invoiceDocuments`), e as duas colunas de uma nota ficam nulas.
+  const invoiceDocuments = freezeInvoiceDocuments(currentInvoice, parseInvoiceShown(gate?.invoiceShown));
   const currentAccount = currentInvoice?.account ?? null;
   const invoiceAccount =
     currentAccount && gate?.invoiceAccountShownCode === currentAccount.code ? currentAccount : null;
@@ -234,6 +280,7 @@ export const createRevalleSignatureProof = async ({
     signatureKind,
     invoiceAccount: invoiceAccount ?? Prisma.JsonNull,
     invoiceCostCenter: invoiceCostCenter ?? Prisma.JsonNull,
+    invoiceDocuments: invoiceDocuments ?? Prisma.JsonNull,
   };
 
   // O código é aleatório e único. Dentro da transação um erro de unicidade abortaria tudo,

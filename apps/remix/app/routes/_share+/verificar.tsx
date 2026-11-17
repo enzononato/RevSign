@@ -73,7 +73,38 @@ type LoaderData =
       } | null;
       /** Fase 7, NF com centro de custo (com ou sem passagem pelo Financeiro): "Centro de custo: 101 – Puxada". */
       costCenterLabel: string | null;
+      /**
+       * Fase 9, só com 2+ notas no envio: um bloco por nota ("Nota 1 de 3 · nf-a.pdf"), com as mesmas linhas do bloco
+       * da nota única. Nesse caso `invoice` só traz a substituição e `costCenterLabel` fica nulo.
+       */
+      invoiceDocuments: InvoiceDocumentLabels[] | null;
     };
+
+type InvoiceDocumentLabels = {
+  title: string;
+  accountLabel: string | null;
+  approvalLabel: string | null;
+  costCenterLabel: string | null;
+  isAwaitingApproval: boolean;
+};
+
+const accountLabelOf = (account: { code: string; name: string } | null) =>
+  account ? `Conta contábil: ${account.code}${account.name ? ` – ${account.name}` : ''}` : null;
+
+const approvalLabelOf = (approval: { approverName: string | null; approvedAt: Date } | null) =>
+  approval
+    ? `Aprovada pelo Financeiro${approval.approverName ? ` (${approval.approverName})` : ''} em ${formatRevalleDateTime(approval.approvedAt, { withZoneLabel: true })}`
+    : null;
+
+const supersedeReasonOf = (
+  kind: 'ACCOUNT' | 'COST_CENTER' | null,
+  position: { index: number; total: number } | null,
+) => {
+  const reason = kind === 'COST_CENTER' ? 'centro de custo corrigido' : 'conta contábil alterada';
+
+  // Fase 9: com 2+ notas, em qual nota foi a mudança.
+  return position ? `${reason} na nota ${position.index} de ${position.total}` : reason;
+};
 
 export const loader = async ({ request }: Route.LoaderArgs) => {
   const raw = new URL(request.url).searchParams.get('codigo');
@@ -176,18 +207,22 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
       termLabel: formatRevalleProofTerm(s.termVersion, s.termAcceptedAt),
     })),
     invoice: result.invoice && {
-      accountLabel: result.invoice.account
-        ? `Conta contábil: ${result.invoice.account.code}${result.invoice.account.name ? ` – ${result.invoice.account.name}` : ''}`
-        : null,
-      approvalLabel: result.invoice.approval
-        ? `Aprovada pelo Financeiro${result.invoice.approval.approverName ? ` (${result.invoice.approval.approverName})` : ''} em ${formatRevalleDateTime(result.invoice.approval.approvedAt, { withZoneLabel: true })}`
-        : null,
+      accountLabel: accountLabelOf(result.invoice.account),
+      approvalLabel: approvalLabelOf(result.invoice.approval),
       isAwaitingApproval: result.invoice.isAwaitingApproval,
       supersededLabel: result.invoice.supersededAt
-        ? `Substituído por uma nova versão em ${formatRevalleDateTime(result.invoice.supersededAt)} (${result.invoice.supersedeKind === 'COST_CENTER' ? 'centro de custo corrigido' : 'conta contábil alterada'})`
+        ? `Substituído por uma nova versão em ${formatRevalleDateTime(result.invoice.supersededAt)} (${supersedeReasonOf(result.invoice.supersedeKind, result.invoice.supersededPosition)})`
         : null,
     },
     costCenterLabel: result.costCenter ? `Centro de custo: ${costCenterLabel(result.costCenter.code)}` : null,
+    invoiceDocuments:
+      result.invoiceDocuments?.map((document) => ({
+        title: document.label,
+        accountLabel: accountLabelOf(document.account),
+        approvalLabel: approvalLabelOf(document.approval),
+        costCenterLabel: document.costCenter ? `Centro de custo: ${costCenterLabel(document.costCenter.code)}` : null,
+        isAwaitingApproval: document.isAwaitingApproval,
+      })) ?? null,
   });
 };
 
@@ -424,6 +459,21 @@ export default function VerificarPage() {
                   )}
                 </div>
               )}
+
+              {/* Fase 9: com 2+ notas, um bloco por nota, com as mesmas linhas do bloco da nota única. */}
+              {result.invoiceDocuments
+                ?.filter((document) => document.accountLabel || document.isAwaitingApproval || document.costCenterLabel)
+                .map((document) => (
+                  <div key={document.title} className="space-y-1 text-sm" data-testid="verify-invoice">
+                    <h3 className="break-words font-semibold text-base">{document.title}</h3>
+                    {document.accountLabel && <p className="break-words">{document.accountLabel}</p>}
+                    {document.approvalLabel && <p>{document.approvalLabel}</p>}
+                    {document.costCenterLabel && <p className="break-words">{document.costCenterLabel}</p>}
+                    {document.isAwaitingApproval && (
+                      <p className="text-muted-foreground">Aguardando aprovação do Financeiro</p>
+                    )}
+                  </div>
+                ))}
             </section>
 
             <section className="rounded-card bg-card p-5 shadow-card sm:p-6">

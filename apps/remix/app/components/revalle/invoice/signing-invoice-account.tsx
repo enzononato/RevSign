@@ -3,9 +3,19 @@ import { cn } from '@documenso/ui/lib/utils';
 import { Trans, useLingui } from '@lingui/react/macro';
 import { createContext, type ReactNode, useContext } from 'react';
 
+export type SigningInvoiceDocument = {
+  envelopeItemId: string;
+  title: string;
+  position: { index: number; total: number };
+  account: { code: string; name: string } | null;
+  costCenter: { code: string; name: string } | null;
+};
+
 export type SigningInvoiceAccount = {
   account: { code: string; name: string } | null;
   costCenter: { code: string; name: string } | null;
+  /** Fase 9: as notas do envio; com 2+, cada documento mostra a conta e o centro dele. */
+  documents?: SigningInvoiceDocument[];
 };
 
 const SigningInvoiceAccountContext = createContext<SigningInvoiceAccount | null>(null);
@@ -33,13 +43,20 @@ export const useSigningInvoiceAccount = () => useContext(SigningInvoiceAccountCo
  * Redesign v3: o bloco "O que você está assinando" mostra a conta e o centro em linhas. A frase de sempre continua no HTML,
  * inteira, como texto do leitor de tela (as linhas são só a apresentação dela). Valor, fornecedor e número lidos pela IA
  * não entram aqui: não fazem parte do que é assinado (revalle/docs/verificacao.md).
+ *
+ * Fase 9: com 2+ notas no envio, o bloco é o do documento aberto (`envelopeItemId`): na nota, a conta e o centro dela, com
+ * a frase do envio acima ("Este envio tem 3 notas fiscais..."); em documento que não é nota, só a frase do envio. Com uma
+ * nota, como antes (o mesmo bloco em qualquer documento aberto).
  */
 export const SigningInvoiceAccountBlock = ({
   className,
   titleClassName,
+  envelopeItemId,
 }: {
   className?: string;
   titleClassName?: string;
+  /** Fase 9: o documento aberto na tela de assinatura (V2). */
+  envelopeItemId?: string | null;
 }) => {
   const invoice = useSigningInvoiceAccount();
   const { t } = useLingui();
@@ -48,7 +65,11 @@ export const SigningInvoiceAccountBlock = ({
     return null;
   }
 
-  const { account, costCenter } = invoice;
+  const documents = invoice.documents ?? [];
+  const count = documents.length;
+  const isMulti = count >= 2;
+  const opened = isMulti ? (documents.find((document) => document.envelopeItemId === envelopeItemId) ?? null) : null;
+  const { account, costCenter } = isMulti ? (opened ?? { account: null, costCenter: null }) : invoice;
   const label = account?.name ? `${account.code} – ${account.name}` : (account?.code ?? null);
   const centerLabel = costCenter ? costCenterLabel(costCenter.code) : null;
 
@@ -69,24 +90,37 @@ export const SigningInvoiceAccountBlock = ({
         <Trans>What you are signing</Trans>
       </h2>
 
-      <div data-testid="invoice-signing-account">
-        {/* Um só nó de texto: a frase sai inteira no HTML do servidor. */}
-        <span className="sr-only">{sentence()}</span>
+      {isMulti && (
+        <p className="mb-2 text-[14px] text-muted-foreground" data-testid="invoice-signing-envelope">
+          {/* Um só nó de texto, como a frase da nota. */}
+          {t`Este envio tem ${count} notas fiscais. A conta e o centro de custo de cada uma aparecem no documento dela.`}
+        </p>
+      )}
 
-        <dl aria-hidden className="divide-y divide-border">
-          {account && (
-            <SigningInvoiceRow label={<Trans>Conta contábil</Trans>} code={account.code} name={account.name || null} />
-          )}
+      {(account || costCenter) && (
+        <div data-testid="invoice-signing-account">
+          {/* Um só nó de texto: a frase sai inteira no HTML do servidor. */}
+          <span className="sr-only">{sentence()}</span>
 
-          {costCenter && (
-            <SigningInvoiceRow
-              label={<Trans>Centro de custo</Trans>}
-              code={costCenter.code}
-              name={costCenterName(costCenter.code)}
-            />
-          )}
-        </dl>
-      </div>
+          <dl aria-hidden className="divide-y divide-border">
+            {account && (
+              <SigningInvoiceRow
+                label={<Trans>Conta contábil</Trans>}
+                code={account.code}
+                name={account.name || null}
+              />
+            )}
+
+            {costCenter && (
+              <SigningInvoiceRow
+                label={<Trans>Centro de custo</Trans>}
+                code={costCenter.code}
+                name={costCenterName(costCenter.code)}
+              />
+            )}
+          </dl>
+        </div>
+      )}
     </section>
   );
 };

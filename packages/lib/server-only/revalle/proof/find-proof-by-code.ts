@@ -3,12 +3,15 @@ import {
   DocumentStatus,
   type RecipientRole,
   RevalleFinanceStatus,
+  RevalleInvoiceFileKind,
   RevalleInvoiceStatus,
   type RevalleSupersedeKind,
   SigningStatus,
 } from '@prisma/client';
 
 import { REVALLE_COST_CENTERS } from '../../../revalle/invoice/cost-centers';
+import { fileFinanceStatus, type InvoicePosition, invoicePositions } from '../../../revalle/invoice/invoice-files';
+import { type LoadedInvoiceFile, loadInvoiceFiles } from '../invoice/invoice-files';
 import { VERIFICATION_CODE_ALPHABET, VERIFICATION_CODE_REGEX } from './verification-code';
 
 /**
@@ -58,12 +61,28 @@ export type RevalleProofLookup = {
     isAwaitingApproval: boolean;
     supersededAt: Date | null;
     supersedeKind: RevalleSupersedeKind | null;
+    /** Fase 9: com 2+ notas, a nota cuja conta (ou centro) mudou nesta substituição; nulo com uma nota. */
+    supersededPosition: InvoicePosition | null;
   } | null;
   /**
    * Fase 7, em qualquer NF com centro de custo (também a concluída como `LEGACY`, sem passar pelo Financeiro): o centro
    * desta versão. Não afirma validação da Contabilidade.
    */
   costCenter: { code: string; name: string } | null;
+  /**
+   * Fase 9, só com 2+ notas no envio: por nota, na ordem dos arquivos, o rótulo ("Nota 1 de 3 · nf-a.pdf"), a conta e a
+   * aprovação dela (pela mesma regra de `invoice`), o centro (pela regra de `costCenter`) e se ela aguarda o Financeiro.
+   * Nesse caso `invoice.account`, `invoice.approval` e `costCenter` ficam nulos e `invoice.isAwaitingApproval` falso.
+   */
+  invoiceDocuments: RevalleProofInvoiceDocumentLookup[] | null;
+};
+
+export type RevalleProofInvoiceDocumentLookup = {
+  label: string;
+  account: { code: string; name: string } | null;
+  approval: { approverName: string | null; approvedAt: Date } | null;
+  costCenter: { code: string; name: string } | null;
+  isAwaitingApproval: boolean;
 };
 
 const FINANCE_STATUSES_SHOWN: RevalleFinanceStatus[] = [
@@ -90,6 +109,7 @@ export const findRevalleProofByCode = async (code: string): Promise<RevalleProof
         select: {
           envelope: {
             select: {
+              id: true,
               title: true,
               status: true,
               completedAt: true,
@@ -128,6 +148,7 @@ export const findRevalleProofByCode = async (code: string): Promise<RevalleProof
                   approvedByName: true,
                   supersededAt: true,
                   supersedeKind: true,
+                  supersededEnvelopeItemId: true,
                   costCenterCode: true,
                 },
               },
@@ -191,15 +212,83 @@ export const findRevalleProofByCode = async (code: string): Promise<RevalleProof
     })
     .sort((a, b) => a.signedAt.getTime() - b.signedAt.getTime());
 
-  return {
+  const base = {
     documentTitle: envelope.title,
-    status: completed ? 'COMPLETED' : rejected ? 'REJECTED' : 'PENDING',
+    status: completed ? ('COMPLETED' as const) : rejected ? ('REJECTED' as const) : ('PENDING' as const),
     completedAt: completed ? envelope.completedAt : rejected ? rejectedAt : null,
     finalSha256: items.length === 1 ? items[0].finalSha256 : null,
     items,
     signers,
+  };
+
+  // Fase 9: com 2+ notas, um bloco por nota; com uma (ou envio de antes da Fase 9 sem as linhas por arquivo), como antes.
+  const files = invoiceRow?.isInvoice === RevalleInvoiceStatus.YES ? await loadInvoiceFiles(envelope.id) : [];
+  const nfs = files.filter((file) => file.kind === RevalleInvoiceFileKind.NF);
+
+  if (invoiceRow && nfs.length >= 2) {
+    const positions = invoicePositions(files);
+    const summary = await loadInvoiceSummary(invoiceRow, { rejected });
+    const supersededFile = nfs.find((file) => file.envelopeItemId === invoiceRow.supersededEnvelopeItemId);
+
+    return {
+      ...base,
+      invoice: summary && {
+        ...summary,
+        account: null,
+        approval: null,
+        isAwaitingApproval: false,
+        supersededPosition: summary.supersededAt && supersededFile ? (positions.get(supersededFile.id) ?? null) : null,
+      },
+      costCenter: null,
+      invoiceDocuments: await Promise.all(
+        nfs.flatMap((file) => {
+          const position = positions.get(file.id);
+
+          return position ? [loadInvoiceDocument(invoiceRow, file, position, { rejected })] : [];
+        }),
+      ),
+    };
+  }
+
+  return {
+    ...base,
     invoice: await loadInvoiceSummary(invoiceRow, { rejected }),
     costCenter: toCostCenter(invoiceRow),
+    invoiceDocuments: null,
+  };
+};
+
+/**
+ * Fase 9: uma nota de um envio com 2+ notas, pelas regras da nota única: a conta só se o envio passou pelo Financeiro
+ * (o nome congelado na aprovação, se aprovada), a aprovação dela (`fileFinanceStatus`), o centro em qualquer situação.
+ */
+const loadInvoiceDocument = async (
+  row: InvoiceRow,
+  file: LoadedInvoiceFile,
+  position: InvoicePosition,
+  { rejected }: { rejected: boolean },
+): Promise<RevalleProofInvoiceDocumentLookup> => {
+  const label = `Nota ${position.index} de ${position.total} · ${file.title}`;
+  const costCenter = toCostCenter({ isInvoice: row.isInvoice, costCenterCode: file.costCenterCode });
+  const summary = await loadInvoiceSummary(
+    {
+      ...row,
+      financeStatus: row.financeStatus && fileFinanceStatus(row.financeStatus, file.approvedAt),
+      choiceCode: file.choiceCode,
+      approvedById: file.approvedById,
+      approvedAt: file.approvedAt,
+      approvedAccountName: file.approvedAccountName,
+      approvedByName: file.approvedByName,
+    },
+    { rejected },
+  );
+
+  return {
+    label,
+    account: summary?.account ?? null,
+    approval: summary?.approval ?? null,
+    costCenter,
+    isAwaitingApproval: summary?.isAwaitingApproval ?? false,
   };
 };
 
@@ -223,6 +312,7 @@ type InvoiceRow = {
   approvedByName: string | null;
   supersededAt: Date | null;
   supersedeKind: RevalleSupersedeKind | null;
+  supersededEnvelopeItemId: string | null;
   costCenterCode: string | null;
 };
 
@@ -264,5 +354,6 @@ const loadInvoiceSummary = async (
     isAwaitingApproval: row.financeStatus === RevalleFinanceStatus.PENDING_APPROVAL && !rejected,
     supersededAt: row.financeStatus === RevalleFinanceStatus.SUPERSEDED ? row.supersededAt : null,
     supersedeKind: row.financeStatus === RevalleFinanceStatus.SUPERSEDED ? row.supersedeKind : null,
+    supersededPosition: null,
   };
 };

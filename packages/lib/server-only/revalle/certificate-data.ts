@@ -1,15 +1,18 @@
 import { prisma } from '@documenso/prisma';
 import type { RecipientRole } from '@prisma/client';
-import { RevalleFinanceStatus, RevalleInvoiceStatus } from '@prisma/client';
+import { RevalleFinanceStatus, RevalleInvoiceFileKind, RevalleInvoiceStatus } from '@prisma/client';
 
 import {
   buildRevalleCertificateRows,
   buildRevalleInvoiceCertificateLine,
   buildRevalleInvoiceCostCenterCertificateLine,
   getRevalleSigningPositions,
+  invoiceDocumentLabel,
   type RevalleCertificateRow,
 } from '../../revalle/certificate-rows';
+import { fileFinanceStatus, invoicePositions } from '../../revalle/invoice/invoice-files';
 import { revalleRoleVerb } from '../../revalle/role-verbs';
+import { loadInvoiceFiles } from './invoice/invoice-files';
 
 export type RevalleCertificateRecipient = {
   rows: RevalleCertificateRow[];
@@ -40,7 +43,7 @@ export const loadRevalleCertificateData = async ({
   recipients,
   envelopeItemId,
 }: LoadRevalleCertificateDataOptions): Promise<RevalleCertificateData> => {
-  const [proofs, hashes, meta, invoiceLine, costCenterLine] = await Promise.all([
+  const [proofs, hashes, meta, invoiceLines, costCenterLine] = await Promise.all([
     prisma.revalleSignatureProof.findMany({
       where: { recipientId: { in: recipients.map((recipient) => recipient.id) } },
     }),
@@ -52,7 +55,7 @@ export const loadRevalleCertificateData = async ({
       where: { id: envelopeId },
       select: { documentMeta: { select: { signingOrder: true } } },
     }),
-    loadInvoiceLine(envelopeId),
+    loadInvoiceLines(envelopeId),
     loadCostCenterLine(envelopeId),
   ]);
 
@@ -87,15 +90,76 @@ export const loadRevalleCertificateData = async ({
     wrap: 'char',
   }));
 
-  if (invoiceLine) {
-    headerLines.push({ text: invoiceLine, wrap: 'word' });
-  }
+  // Fase 9: com 2+ notas, as linhas de cada nota (conta aprovada e centro, com o rótulo dela), na ordem dos arquivos, em
+  // todo arquivo selado do envio; com uma nota, as duas linhas de sempre.
+  if (Array.isArray(invoiceLines)) {
+    headerLines.push(...invoiceLines.map((text) => ({ text, wrap: 'word' as const })));
+  } else {
+    if (invoiceLines) {
+      headerLines.push({ text: invoiceLines, wrap: 'word' });
+    }
 
-  if (costCenterLine) {
-    headerLines.push({ text: costCenterLine, wrap: 'word' });
+    if (costCenterLine) {
+      headerLines.push({ text: costCenterLine, wrap: 'word' });
+    }
   }
 
   return { recipients: byRecipient, headerLines };
+};
+
+/**
+ * Fase 9: com 2+ notas no envio, as linhas de cada nota (a conta aprovada, como `loadInvoiceLine`, e o centro, como
+ * `loadCostCenterLine`), cada uma com "Nota 1 de 3 (nf-a.pdf): " na frente. Com uma nota (ou envio de antes da Fase 9
+ * sem as linhas por arquivo), a linha de sempre (string ou null), lida da linha do envio.
+ */
+const loadInvoiceLines = async (envelopeId: string): Promise<string[] | string | null> => {
+  const row = await prisma.revalleInvoiceClassification.findUnique({
+    where: { envelopeId },
+    select: { isInvoice: true, financeStatus: true },
+  });
+
+  if (!row || row.isInvoice !== RevalleInvoiceStatus.YES) {
+    return null;
+  }
+
+  const files = await loadInvoiceFiles(envelopeId);
+  const nfs = files.filter((file) => file.kind === RevalleInvoiceFileKind.NF);
+
+  if (nfs.length < 2) {
+    return await loadInvoiceLine(envelopeId);
+  }
+
+  const positions = invoicePositions(files);
+  const lines: string[] = [];
+
+  for (const file of nfs) {
+    const position = positions.get(file.id);
+
+    if (!position) {
+      continue;
+    }
+
+    const documentLabel = invoiceDocumentLabel(position, file.title);
+    const accountLine = await buildApprovedAccountLine({
+      financeStatus: fileFinanceStatus(row.financeStatus, file.approvedAt),
+      choiceCode: file.choiceCode,
+      approvedById: file.approvedById,
+      approvedAt: file.approvedAt,
+      approvedAccountName: file.approvedAccountName,
+      approvedByName: file.approvedByName,
+      documentLabel,
+    });
+
+    if (accountLine) {
+      lines.push(accountLine);
+    }
+
+    if (file.costCenterCode) {
+      lines.push(buildRevalleInvoiceCostCenterCertificateLine(file.costCenterCode, documentLabel));
+    }
+  }
+
+  return lines;
 };
 
 /**
@@ -117,18 +181,31 @@ const loadInvoiceLine = async (envelopeId: string): Promise<string | null> => {
     },
   });
 
-  const isApproved =
-    row?.financeStatus === RevalleFinanceStatus.APPROVED ||
-    (row?.financeStatus === RevalleFinanceStatus.SUPERSEDED && row.approvedAt !== null);
+  if (!row || row.isInvoice !== RevalleInvoiceStatus.YES) {
+    return null;
+  }
 
-  if (
-    !row ||
-    row.isInvoice !== RevalleInvoiceStatus.YES ||
-    !isApproved ||
-    !row.choiceCode ||
-    !row.approvedAt ||
-    row.approvedById === null
-  ) {
+  return await buildApprovedAccountLine(row);
+};
+
+/**
+ * A linha da conta aprovada (de uma nota ou da nota única): só aprovada, ou já aprovada numa versão depois substituída
+ * (a reselagem dela mantém a linha), com a conta, quem aprovou e quando.
+ */
+const buildApprovedAccountLine = async (row: {
+  financeStatus: RevalleFinanceStatus | null;
+  choiceCode: string | null;
+  approvedById: number | null;
+  approvedAt: Date | null;
+  approvedAccountName: string | null;
+  approvedByName: string | null;
+  documentLabel?: string;
+}): Promise<string | null> => {
+  const isApproved =
+    row.financeStatus === RevalleFinanceStatus.APPROVED ||
+    (row.financeStatus === RevalleFinanceStatus.SUPERSEDED && row.approvedAt !== null);
+
+  if (!isApproved || !row.choiceCode || !row.approvedAt || row.approvedById === null) {
     return null;
   }
 
@@ -149,6 +226,7 @@ const loadInvoiceLine = async (envelopeId: string): Promise<string | null> => {
     // de quem aprovou não vai para o PDF.
     approverName: row.approvedByName ?? (approver?.name?.trim() || 'Financeiro'),
     approvedAt: row.approvedAt,
+    documentLabel: row.documentLabel,
   });
 };
 

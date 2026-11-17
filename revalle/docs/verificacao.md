@@ -20,6 +20,13 @@ As telas, na ordem em que a pessoa vê:
    - Se estiverem errados, a mensagem é sempre a mesma: `CPF ou data de nascimento não conferem.` (vale para CPF que não existe na base e para data errada). A tela informa quantas tentativas restam.
 3. **Documento**: a pessoa lê o PDF e assina cada posição de assinatura, uma por uma (o único campo que o remetente
    pode pôr; documentos antigos podem ter outros campos, que continuam funcionando).
+   - Em nota fiscal, o quadro **"O que você está assinando"** mostra a conta contábil e o centro de custo da nota
+     (`Nota fiscal · Conta contábil: 2.1.03 – Fornecedores · Centro de custo: 101 – Puxada`). Eles fazem parte do que é
+     assinado e ficam na prova (ver `prova.md`).
+   - **Envio com duas ou mais notas fiscais** (Fase 9): o quadro acompanha o documento aberto. Acima dele vem
+     `Este envio tem 3 notas fiscais. A conta e o centro de custo de cada uma aparecem no documento dela.`; com uma nota
+     aberta, aparecem a conta e o centro **dela**; com um boleto ou outro arquivo aberto, só essa frase. A prova guarda,
+     por nota, a conta e o centro que a página mostrou. Com uma nota só, o quadro é o de sempre, em qualquer documento.
 4. **Assinar**: botão de concluir.
 5. **Código por e-mail**: botão "Enviar código para meu e-mail", depois o código de 6 dígitos que chega na caixa de entrada.
    - Só esse código conclui a assinatura: nenhum outro meio (autenticador de conta, login) substitui o código enviado ao e-mail do destinatário.

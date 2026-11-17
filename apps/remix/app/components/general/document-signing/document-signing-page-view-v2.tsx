@@ -174,8 +174,11 @@ export const DocumentSigningPageViewV2 = () => {
             {/* Celular: o PDF com os campos fica logo abaixo dos cartões */}
             <SigningDocumentCard isInvoice={isInvoice} className={cn(PHONE_CARD, 'lg:hidden')} />
 
-            {/* REVALLE: conta da NF (Fase 6), o que é assinado */}
-            <SigningInvoiceAccountBlock className={cn(PHONE_CARD, PANEL_BLOCK)} />
+            {/* REVALLE: conta da NF (Fase 6), o que é assinado; Fase 9: a do documento aberto */}
+            <SigningInvoiceAccountBlock
+              className={cn(PHONE_CARD, PANEL_BLOCK)}
+              envelopeItemId={currentEnvelopeItem?.id}
+            />
 
             <EnvelopeSignerSlotsBlock className={cn(PHONE_CARD, PANEL_BLOCK)} />
 
