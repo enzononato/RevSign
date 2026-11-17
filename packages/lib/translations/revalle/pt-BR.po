@@ -5489,3 +5489,55 @@ msgstr "No PDF: conta e centro acima da assinatura (envio de antes da atualizaç
 # Diálogo de envio: aviso em âmbar do bloco num arquivo que não é nota.
 msgid "O bloco de conta e centro em {title} não será impresso: só sai em nota fiscal."
 msgstr "O bloco de conta e centro em {title} não será impresso: só sai em nota fiscal."
+
+
+# REVALLE: destinatário só com e-mail e envio simplificado (17/11/2026).
+msgid "Nome do destinatário atualizado pela base do RH: {from} → {to}"
+msgstr "Nome do destinatário atualizado pela base do RH: {from} → {to}"
+
+msgid "Nome do destinatário definido pela base do RH: {to}"
+msgstr "Nome do destinatário definido pela base do RH: {to}"
+
+msgid "Conta: {name}"
+msgstr "Conta: {name}"
+
+#: packages/lib/revalle/invite-email.ts
+msgid "{sender} enviou \"{documentTitle}\" para você assinar"
+msgstr "{sender} enviou \"{documentTitle}\" para você assinar"
+
+#: packages/lib/revalle/invite-email.ts
+msgid "{sender} enviou \"{documentTitle}\" para você aprovar"
+msgstr "{sender} enviou \"{documentTitle}\" para você aprovar"
+
+#: packages/lib/revalle/invite-email.ts
+msgid "{sender} enviou \"{documentTitle}\" para você ver"
+msgstr "{sender} enviou \"{documentTitle}\" para você ver"
+
+#: packages/lib/revalle/invite-email.ts
+msgid "{sender} enviou \"{documentTitle}\" para você preencher"
+msgstr "{sender} enviou \"{documentTitle}\" para você preencher"
+
+#: apps/remix/app/components/dialogs/envelope-distribute-dialog.tsx
+msgid "Como enviar"
+msgstr "Como enviar"
+
+#: apps/remix/app/components/dialogs/envelope-distribute-dialog.tsx
+msgid "Enviar por e-mail (recomendado)"
+msgstr "Enviar por e-mail (recomendado)"
+
+#: apps/remix/app/components/dialogs/envelope-distribute-dialog.tsx
+msgid "Cada signatário recebe o próprio e-mail com o próprio link."
+msgstr "Cada signatário recebe o próprio e-mail com o próprio link."
+
+#: apps/remix/app/components/dialogs/envelope-distribute-dialog.tsx
+msgid "Só gerar os links"
+msgstr "Só gerar os links"
+
+#: apps/remix/app/components/dialogs/envelope-distribute-dialog.tsx
+msgid "Nenhum e-mail sai. Você recebe os links para mandar a cada pessoa como quiser."
+msgstr "Nenhum e-mail sai. Você recebe os links para mandar a cada pessoa como quiser."
+
+# Reenvio ("Reenviar") e lembrete automático: "Lembrete: " + o assunto (gravado ou o padrão acima).
+#: packages/lib/revalle/invite-email.ts
+msgid "Lembrete: {subject}"
+msgstr "Lembrete: {subject}"
