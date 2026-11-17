@@ -13,6 +13,10 @@ import {
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { isNewVersionDraftRow } from '../../../revalle/finance/finance-status';
+import type { BoletoData } from '../../../revalle/invoice/boleto';
+import { boletoLineData, mergeBoletoData, readStoredBoletoData } from '../../../revalle/invoice/boleto';
+import type { BoletoWarning } from '../../../revalle/invoice/boleto-match';
+import { boletoWarningMessage, checkBoleto, issuerCnpjFromAccessKey } from '../../../revalle/invoice/boleto-match';
 import { REVALLE_COST_CENTERS } from '../../../revalle/invoice/cost-centers';
 import { extractAccessKeys } from '../../../revalle/invoice/detect-invoice';
 import {
@@ -22,17 +26,19 @@ import {
 } from '../../../revalle/invoice/invoice-data';
 import {
   aggregateIsInvoice,
+  classifyFileKind,
   type InvoiceFileKind,
   type InvoicePosition,
   invoicePositions,
 } from '../../../revalle/invoice/invoice-files';
+import { brasiliaToday } from '../../../revalle/invoice/invoice-filters';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { findNewVersionKind, findVisibleSuccessor } from '../finance/successor';
 import type { InvoiceDuplicate } from './duplicates';
 import { findInvoiceDuplicatesOrEmpty } from './duplicates';
-import type { InvoiceEnvelopeFile } from './envelope-files';
-import { filesKey, loadEnvelopeFiles, readFilesContent } from './envelope-files';
+import type { InvoiceEnvelopeFile, InvoiceFileContent } from './envelope-files';
+import { filesKey, loadEnvelopeFile, loadEnvelopeFiles, readFilesContent } from './envelope-files';
 import type { LoadedInvoiceFile } from './invoice-files';
 import {
   ensureLegacyInvoiceFiles,
@@ -113,8 +119,19 @@ export type InvoiceDocumentState = {
   duplicateInEnvelope: { index: number } | null;
   choice: InvoiceState['choice'];
   costCenter: InvoiceState['costCenter'];
-  /** Task 3 (boleto). */
-  boleto: null;
+  /** Só BOLETO: a leitura do boleto e a conferência com as notas do envio (nulo nos outros tipos). */
+  boleto: InvoiceBoletoState | null;
+};
+
+/**
+ * Fase 9: o boleto no estado. `status` é a leitura da IA (SKIPPED quando o envio não tem nota: boleto sozinho não vai para
+ * a IA). `data` junta o que a linha digitável deu (vale desde a classificação) com o que a IA leu. `warnings`: a
+ * conferência com as notas do envio (vazia sem nota), só aviso, com a mensagem pronta.
+ */
+export type InvoiceBoletoState = {
+  status: 'PENDING' | 'DONE' | 'FAILED' | 'SKIPPED';
+  data: BoletoData | null;
+  warnings: Array<BoletoWarning & { message: string }>;
 };
 
 type StoredSuggestion = {
@@ -255,10 +272,54 @@ export const toInvoiceStateBase = async (row: RevalleInvoiceClassification): Pro
   };
 };
 
+/**
+ * Os boletos do envio conferidos com as notas: o CNPJ do emitente sai da primeira chave de cada nota; o valor de cada
+ * boleto soma com o dos outros (parcelas). `today` em Brasília, na hora da leitura (nada é gravado sobre o vencimento).
+ */
+const boletoStates = (files: LoadedInvoiceFile[]): Map<string, InvoiceBoletoState> => {
+  const nfs = files.filter((file) => file.kind === RevalleInvoiceFileKind.NF);
+  const boletos = files
+    .filter((file) => file.kind === RevalleInvoiceFileKind.BOLETO)
+    .map((file) => ({ file, data: readStoredBoletoData(file.boletoData) }));
+  const invoices = nfs.map((file) => ({
+    totalAmountCents: file.totalAmountCents,
+    issuerCnpj: file.accessKeys[0] ? issuerCnpjFromAccessKey(file.accessKeys[0]) : null,
+    supplierName: file.supplierName,
+  }));
+  const today = brasiliaToday();
+
+  return new Map(
+    boletos.map(({ file, data }) => {
+      const warnings =
+        data && nfs.length > 0
+          ? checkBoleto({
+              boleto: data,
+              otherBoletoAmounts: boletos
+                .filter((other) => other.file.id !== file.id)
+                .map((other) => other.data?.amountCents ?? null)
+                .filter((amount): amount is number => amount !== null),
+              invoices,
+              today,
+            })
+          : [];
+
+      return [
+        file.id,
+        {
+          status: file.suggestionStatus,
+          data,
+          warnings: warnings.map((warning) => ({ ...warning, message: boletoWarningMessage(warning) })),
+        },
+      ];
+    }),
+  );
+};
+
 /** Fase 9: os arquivos do envio no estado, na ordem dos arquivos. */
 export const toInvoiceDocuments = async (files: LoadedInvoiceFile[]): Promise<InvoiceDocumentState[]> => {
   const accounts = await loadAccounts(files);
   const positions = invoicePositions(files);
+  const boletos = boletoStates(files);
 
   return files.map((file) => ({
     envelopeItemId: file.envelopeItemId,
@@ -270,7 +331,7 @@ export const toInvoiceDocuments = async (files: LoadedInvoiceFile[]): Promise<In
     ...noteState(file, accounts),
     duplicates: [],
     duplicateInEnvelope: null,
-    boleto: null,
+    boleto: boletos.get(file.id) ?? null,
   }));
 };
 
@@ -433,12 +494,21 @@ const isUpToDate = (
     rows.some((row) => row.envelopeItemId === file.envelopeItemId && row.fileSha256 === file.sha256),
   );
 
-const kindOf = (content: { detection: { status: 'YES' | 'NO' | 'UNKNOWN' }; isSparse: boolean }) =>
-  content.detection.status === 'YES'
-    ? RevalleInvoiceFileKind.NF
-    : content.isSparse
-      ? RevalleInvoiceFileKind.UNKNOWN
-      : RevalleInvoiceFileKind.OTHER;
+/** O tipo de um arquivo pelo texto (`classifyFileKind`): DANFE e boleto juntos = nota. */
+const textKindOf = (content: InvoiceFileContent): RevalleInvoiceFileKind => classifyFileKind(content);
+
+/** O `boletoData` inicial de um boleto: o que a linha digitável do texto deu (a IA completa depois). */
+const initialBoletoData = (content: InvoiceFileContent) =>
+  jsonValue(mergeBoletoData(boletoLineData(content.boleto.digitableLine, new Date()), null));
+
+const jsonValue = (data: BoletoData): Prisma.InputJsonValue => ({ ...data });
+
+/**
+ * "Não" do remetente: as notas e os sem texto viram "outro", sem a leitura da IA e sem a conta e o centro (um arquivo que
+ * deixa de ser nota não leva escolha velha). Os boletos ficam.
+ */
+const demotedByNo = (kind: RevalleInvoiceFileKind) =>
+  kind === RevalleInvoiceFileKind.NF || kind === RevalleInvoiceFileKind.UNKNOWN ? RevalleInvoiceFileKind.OTHER : kind;
 
 /** Fase 9: o arquivo da nota no evento, só com 2+ notas (com uma, o evento é igual ao de antes). */
 export const invoiceAuditDocument = (
@@ -461,9 +531,14 @@ export const invoiceAuditDocument = (
 
 /**
  * Refaz as linhas de arquivo de um rascunho quando os arquivos mudaram (ou na primeira vez). Detecta cada arquivo pelo
- * texto (até 5 páginas): NF se o texto é de nota; sem texto (escaneado) fica em dúvida (`UNKNOWN`, o remetente decide);
- * senão "outro". Zera a leitura da IA e a escolha (conta, centro, aprovação, validação) de TODAS as notas, com um evento
- * `FILES_CHANGED` por nota que tinha conta; o envio volta a ser rascunho comum (`financeStatus` nulo).
+ * texto (até 5 páginas, `classifyFileKind`): nota, boleto (com o que a linha digitável deu), sem texto (escaneado: em
+ * dúvida, `UNKNOWN`, o remetente decide) ou "outro". Zera a leitura da IA e a escolha (conta, centro, aprovação, validação)
+ * de TODAS as notas, com um evento `FILES_CHANGED` por nota que tinha conta; o envio volta a ser rascunho comum
+ * (`financeStatus` nulo).
+ *
+ * Rascunho de antes da Fase 9 (sem linhas de arquivo) com os mesmos arquivos: com "Sim" (`YES`), as linhas são refeitas
+ * sem apagar a escolha (`ensureLegacyInvoiceFiles`); com "Não" (`NO`), a resposta vale até um arquivo mudar: as notas e os
+ * sem texto ficam "outro", e quem decidiu continua o mesmo (nada vai para a IA).
  *
  * Numa transação com o envio travado e conferida de novo depois da trava: de vários pedidos ao mesmo tempo, o primeiro
  * refaz e os outros encontram as linhas em dia (e não desfazem o trabalho dele, inclusive uma leitura já em andamento).
@@ -472,6 +547,7 @@ const refreshDraftInvoiceFiles = async (envelopeId: string, requester: InvoiceRe
   const row = await prisma.revalleInvoiceClassification.findUnique({ where: { envelopeId } });
   const files = await loadEnvelopeFiles(envelopeId);
   const key = filesKey(files);
+  let legacyNo = false;
 
   if (row) {
     let rows = await loadInvoiceFiles(envelopeId);
@@ -489,26 +565,28 @@ const refreshDraftInvoiceFiles = async (envelopeId: string, requester: InvoiceRe
         return;
       }
     }
+
+    legacyNo = rows.length === 0 && row.fileSha256 === key && row.isInvoice === RevalleInvoiceStatus.NO;
   }
 
   const contents = await readFilesContent(files);
-  const kinds = new Map(contents.map((content) => [content.file.envelopeItemId, kindOf(content)]));
+  const textKinds = new Map(contents.map((content) => [content.file.envelopeItemId, textKindOf(content)]));
+  const kinds = new Map(
+    [...textKinds].map(([envelopeItemId, kind]) => [envelopeItemId, legacyNo ? demotedByNo(kind) : kind]),
+  );
   const envelopeData = {
     isInvoice: aggregateIsInvoice([...kinds.values()]),
-    detectedBy: RevalleInvoiceDetectedBy.TEXT,
+    detectedBy: legacyNo && row ? row.detectedBy : RevalleInvoiceDetectedBy.TEXT,
     signals: [
       ...new Set(
         contents
-          .filter((content) => content.detection.status === 'YES')
+          .filter((content) => textKinds.get(content.file.envelopeItemId) === RevalleInvoiceFileKind.NF)
           .flatMap((content) => content.detection.signals),
       ),
     ],
     fileSha256: key,
   };
-  const user =
-    requester.userId !== undefined
-      ? await prisma.user.findUnique({ where: { id: requester.userId }, select: { id: true, name: true, email: true } })
-      : null;
+  const user = await auditUser(requester);
 
   await prisma.$transaction(async (tx) => {
     const created = row
@@ -538,18 +616,21 @@ const refreshDraftInvoiceFiles = async (envelopeId: string, requester: InvoiceRe
 
     for (const content of contents) {
       const kind = kinds.get(content.file.envelopeItemId) ?? RevalleInvoiceFileKind.OTHER;
+      const textKind = textKinds.get(content.file.envelopeItemId);
+      const keptBySender = legacyNo && kind !== textKind && row !== null;
       // Fase 8: as chaves de acesso do alerta de duplicada vêm do texto de cada arquivo (só a chave própria de cada
       // página). Ficam também nos arquivos "outro": se o remetente disser que é nota, já estão lá. Só as das notas vão
-      // para o espelho.
+      // para o espelho. Os sinais de nota ficam no arquivo que o texto diz ser nota, mesmo que o remetente tenha dito
+      // "Não": é por eles que o "Sim" seguinte sabe qual arquivo volta a ser nota.
       const data = {
         kind,
-        detectedBy: RevalleInvoiceDetectedBy.TEXT,
-        kindChangedById: null,
-        kindChangedAt: null,
-        signals: kind === RevalleInvoiceFileKind.NF ? content.detection.signals : [],
+        detectedBy: keptBySender ? RevalleInvoiceDetectedBy.SENDER : RevalleInvoiceDetectedBy.TEXT,
+        kindChangedById: keptBySender ? (row?.flagChangedById ?? null) : null,
+        kindChangedAt: keptBySender ? (row?.flagChangedAt ?? null) : null,
+        signals: textKind === RevalleInvoiceFileKind.NF ? content.detection.signals : [],
         fileSha256: content.file.sha256,
         accessKeys: content.isSparse ? [] : extractAccessKeys(content.pages),
-        boletoData: Prisma.DbNull,
+        boletoData: kind === RevalleInvoiceFileKind.BOLETO ? initialBoletoData(content) : Prisma.DbNull,
         ...CLEARED_FILE_READ,
         ...CLEARED_FILE_CHOICE,
       };
@@ -593,8 +674,9 @@ const refreshDraftInvoiceFiles = async (envelopeId: string, requester: InvoiceRe
       });
     }
 
-    // Envio de antes da Fase 9 (sem linha de arquivo) que tinha conta: o evento de sempre.
-    if (previous.length === 0 && row?.choiceCode) {
+    // Envio de antes da Fase 9 (sem linha de arquivo) que tinha conta: o evento de sempre. Com o "Não" mantido, os arquivos
+    // não mudaram.
+    if (previous.length === 0 && row?.choiceCode && !legacyNo) {
       await tx.documentAuditLog.create({
         data: createDocumentAuditLogData({
           type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_ACCOUNT_SET,
@@ -608,12 +690,21 @@ const refreshDraftInvoiceFiles = async (envelopeId: string, requester: InvoiceRe
   });
 };
 
-/** Começa a leitura de toda nota que ainda não foi lida (SKIPPED): cache, job em segundo plano ou nada (IA desligada). */
+/**
+ * Começa a leitura de toda nota que ainda não foi lida (SKIPPED) e, se o envio tem nota, de todo boleto: cache, job em
+ * segundo plano ou nada (IA desligada). Boleto sozinho não vai para a IA.
+ */
 const startPendingReads = async (envelopeId: string, requester: InvoiceRequester) => {
-  for (const file of await loadInvoiceFiles(envelopeId)) {
-    if (file.kind === RevalleInvoiceFileKind.NF && file.suggestionStatus === RevalleSuggestionStatus.SKIPPED) {
-      await startInvoiceFileRead({ fileId: file.id, fileSha256: file.fileSha256, requester });
-    }
+  const files = await loadInvoiceFiles(envelopeId);
+  const hasInvoice = files.some((file) => file.kind === RevalleInvoiceFileKind.NF);
+  const toRead = files.filter(
+    (file) =>
+      file.suggestionStatus === RevalleSuggestionStatus.SKIPPED &&
+      (file.kind === RevalleInvoiceFileKind.NF || (hasInvoice && file.kind === RevalleInvoiceFileKind.BOLETO)),
+  );
+
+  for (const file of toRead) {
+    await startInvoiceFileRead({ fileId: file.id, fileSha256: file.fileSha256, requester });
   }
 };
 
@@ -668,9 +759,11 @@ export const getInvoiceState = async (envelopeId: string, requester: InvoiceRequ
   return await toInvoiceState(await expireStalePending(row));
 };
 
+const alreadySentError = () => new AppError(AppErrorCode.INVALID_REQUEST, { message: 'O documento já foi enviado.' });
+
 const requireEditableDraft = async (envelopeId: string) => {
   if (!(await isEnvelopeDraft(envelopeId))) {
-    throw new AppError(AppErrorCode.INVALID_REQUEST, { message: 'O documento já foi enviado.' });
+    throw alreadySentError();
   }
 
   if (await isDraftLockedForOwner(envelopeId)) {
@@ -679,10 +772,96 @@ const requireEditableDraft = async (envelopeId: string) => {
 };
 
 /**
+ * A mesma conferência de `requireEditableDraft`, de novo com o envio travado (`lockInvoiceEnvelope`): fecha a corrida com
+ * o envio, que pode ter saído entre a primeira conferência e a trava.
+ */
+const requireEditableDraftLocked = async (tx: Prisma.TransactionClient, envelopeId: string) => {
+  const [envelope, row] = await Promise.all([
+    tx.envelope.findUnique({ where: { id: envelopeId }, select: { status: true } }),
+    tx.revalleInvoiceClassification.findUnique({
+      where: { envelopeId },
+      select: { financeStatus: true, previousEnvelopeId: true },
+    }),
+  ]);
+
+  if (envelope?.status !== DocumentStatus.DRAFT) {
+    throw alreadySentError();
+  }
+
+  if (isDraftFinanceStatusLocked(row)) {
+    throw financeDecidesError();
+  }
+};
+
+/**
+ * Os arquivos "outro" sem texto (escaneados) de um envio sem nota, sem arquivo em dúvida e sem arquivo que o texto
+ * reconheça como nota: é onde o "Sim" procura a nota antes de transformar todos os "outro". Só lê os PDFs nesse caso.
+ */
+const scannedOtherItemIds = async (envelopeId: string): Promise<Set<string>> => {
+  const files = await loadInvoiceFiles(envelopeId);
+  const needsText =
+    !files.some((file) => file.kind === RevalleInvoiceFileKind.NF || file.kind === RevalleInvoiceFileKind.UNKNOWN) &&
+    !files.some((file) => file.kind === RevalleInvoiceFileKind.OTHER && file.signals.length > 0);
+
+  if (!needsText) {
+    return new Set();
+  }
+
+  const others = new Set(
+    files.filter((file) => file.kind === RevalleInvoiceFileKind.OTHER).map((file) => file.envelopeItemId),
+  );
+  const contents = await readFilesContent(
+    (await loadEnvelopeFiles(envelopeId)).filter((file) => others.has(file.envelopeItemId)),
+  );
+
+  return new Set(contents.filter((content) => content.isSparse).map((content) => content.file.envelopeItemId));
+};
+
+/** O usuário que aparece no histórico (nulo = o próprio sistema). */
+const auditUser = async (requester: InvoiceRequester) =>
+  requester.userId !== undefined
+    ? await prisma.user.findUnique({ where: { id: requester.userId }, select: { id: true, name: true, email: true } })
+    : null;
+
+/**
+ * A conta apagada de cada nota que deixa de ser nota ("Não" do remetente, ou o tipo trocado para boleto/outro) vai para o
+ * histórico, uma por nota que tinha conta (de → nenhuma). `positions` são as de antes da troca.
+ */
+const logClearedChoices = async (
+  tx: Prisma.TransactionClient,
+  input: {
+    envelopeId: string;
+    files: LoadedInvoiceFile[];
+    positions: Map<string, InvoicePosition>;
+    user: Awaited<ReturnType<typeof auditUser>>;
+    requester: InvoiceRequester;
+  },
+) => {
+  for (const file of input.files) {
+    if (file.kind !== RevalleInvoiceFileKind.NF || file.choiceCode === null) {
+      continue;
+    }
+
+    await tx.documentAuditLog.create({
+      data: createDocumentAuditLogData({
+        type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_ACCOUNT_SET,
+        envelopeId: input.envelopeId,
+        data: { fromCode: file.choiceCode, toCode: null, ...invoiceAuditDocument(file, input.positions) },
+        user: input.user,
+        requestMetadata: input.requester.ipAddress ? { ipAddress: input.requester.ipAddress } : undefined,
+      }),
+    });
+  }
+};
+
+/**
  * O remetente diz se o envio é nota fiscal (`detectedBy = SENDER`, com `flagChangedById`/`flagChangedAt`). "Sim": os
- * arquivos sem texto viram nota (sem eles e sem nenhuma nota, os arquivos "outro"), e começa a leitura de cada nota (o PDF
- * quando o arquivo não tem texto). "Não": as notas e os sem texto viram "outro", e a leitura da IA deles sai (sem custo).
- * Vale até um arquivo mudar.
+ * arquivos sem texto viram nota; sem eles e sem nenhuma nota, os que o texto reconheceu como nota (os sinais ficam depois
+ * de um "Não"); sem nenhum desses, os "outro" sem texto (a nota escaneada que levou um "Não"); só então todos os "outro"
+ * (e, sem eles, os boletos). Começa a leitura de cada nota (o PDF
+ * quando o arquivo não tem texto). Assim um contrato ao lado do DANFE nunca vira nota nem vai para a IA num "Não" →
+ * "Sim". "Não": as notas e os sem texto viram "outro", sem a leitura da IA e sem a conta e o centro. Os boletos ficam
+ * boletos. Vale até um arquivo mudar.
  */
 export const setInvoiceFlag = async ({
   envelopeId,
@@ -699,18 +878,36 @@ export const setInvoiceFlag = async ({
   await classifyEnvelope(envelopeId, requester);
 
   const now = new Date();
+  const user = isInvoice ? null : await auditUser(requester);
+  const scannedItemIds = isInvoice ? await scannedOtherItemIds(envelopeId) : new Set<string>();
 
   await prisma.$transaction(async (tx) => {
     await lockInvoiceEnvelope(tx, envelopeId);
+    await requireEditableDraftLocked(tx, envelopeId);
 
     const files = await loadInvoiceFiles(envelopeId, tx);
     const ofKind = (kind: RevalleInvoiceFileKind) => files.filter((file) => file.kind === kind);
     const unknown = ofKind(RevalleInvoiceFileKind.UNKNOWN);
-    const targets = isInvoice
-      ? unknown.length > 0 || ofKind(RevalleInvoiceFileKind.NF).length > 0
-        ? unknown
-        : ofKind(RevalleInvoiceFileKind.OTHER)
-      : [...ofKind(RevalleInvoiceFileKind.NF), ...unknown];
+    const other = ofKind(RevalleInvoiceFileKind.OTHER);
+    const detectedAsInvoice = other.filter((file) => file.signals.length > 0);
+    const yesTargets = () => {
+      if (unknown.length > 0 || ofKind(RevalleInvoiceFileKind.NF).length > 0) {
+        return unknown;
+      }
+
+      if (detectedAsInvoice.length > 0) {
+        return detectedAsInvoice;
+      }
+
+      const scanned = other.filter((file) => scannedItemIds.has(file.envelopeItemId));
+
+      if (scanned.length > 0) {
+        return scanned;
+      }
+
+      return other.length > 0 ? other : ofKind(RevalleInvoiceFileKind.BOLETO);
+    };
+    const targets = isInvoice ? yesTargets() : [...ofKind(RevalleInvoiceFileKind.NF), ...unknown];
     const changed = {
       detectedBy: RevalleInvoiceDetectedBy.SENDER,
       kindChangedById: requester.userId ?? null,
@@ -721,9 +918,13 @@ export const setInvoiceFlag = async ({
       await tx.revalleInvoiceFile.updateMany({
         where: { id: { in: targets.map((file) => file.id) } },
         data: isInvoice
-          ? { ...changed, kind: RevalleInvoiceFileKind.NF }
-          : { ...changed, kind: RevalleInvoiceFileKind.OTHER, ...CLEARED_FILE_READ },
+          ? { ...changed, kind: RevalleInvoiceFileKind.NF, ...CLEARED_FILE_READ, boletoData: Prisma.DbNull }
+          : { ...changed, kind: RevalleInvoiceFileKind.OTHER, ...CLEARED_FILE_READ, ...CLEARED_FILE_CHOICE },
       });
+    }
+
+    if (!isInvoice) {
+      await logClearedChoices(tx, { envelopeId, files, positions: invoicePositions(files), user, requester });
     }
 
     const targetIds = new Set(targets.map((file) => file.id));
@@ -760,8 +961,9 @@ export const setInvoiceFlag = async ({
 
 /**
  * Fase 9: o remetente diz o tipo de UM arquivo do rascunho (nota, boleto ou outro), com quem e quando (no arquivo e no
- * envio). "Outro"/"Boleto" apaga a leitura da IA e a escolha daquele arquivo; "Nota" começa a leitura dele. Só rascunho que
- * não esteja travado para o dono (nova versão do Financeiro).
+ * envio). "Outro"/"Boleto" apaga a leitura da IA e a escolha daquele arquivo (a conta apagada vai para o histórico);
+ * "Boleto" guarda o que a linha digitável do texto dá; "Nota" começa a leitura dele, e "Boleto" também, se o envio tem
+ * nota. Só rascunho que não esteja travado para o dono (nova versão do Financeiro), conferido de novo com o envio travado.
  */
 export const setInvoiceFileKind = async ({
   envelopeId,
@@ -779,9 +981,17 @@ export const setInvoiceFileKind = async ({
   await classifyEnvelope(envelopeId, requester, { startSuggestion: false });
 
   const now = new Date();
+  const user = await auditUser(requester);
+  const boletoContent =
+    kind === RevalleInvoiceFileKind.BOLETO
+      ? await loadEnvelopeFile(envelopeItemId)
+          .then(async (envelopeFile) => (await readFilesContent([envelopeFile]))[0])
+          .catch(() => null)
+      : null;
 
   await prisma.$transaction(async (tx) => {
     await lockInvoiceEnvelope(tx, envelopeId);
+    await requireEditableDraftLocked(tx, envelopeId);
 
     const files = await loadInvoiceFiles(envelopeId, tx);
     const file = files.find((candidate) => candidate.envelopeItemId === envelopeItemId);
@@ -805,10 +1015,17 @@ export const setInvoiceFileKind = async ({
               ...changed,
               kind,
               ...CLEARED_FILE_READ,
-              boletoData: Prisma.DbNull,
+              boletoData:
+                kind === RevalleInvoiceFileKind.BOLETO && boletoContent
+                  ? initialBoletoData(boletoContent)
+                  : Prisma.DbNull,
               ...(kind === RevalleInvoiceFileKind.NF ? {} : CLEARED_FILE_CHOICE),
             },
     });
+
+    if (file.kind !== kind && kind !== RevalleInvoiceFileKind.NF) {
+      await logClearedChoices(tx, { envelopeId, files: [file], positions: invoicePositions(files), user, requester });
+    }
 
     await tx.revalleInvoiceClassification.update({
       where: { envelopeId },
@@ -823,7 +1040,7 @@ export const setInvoiceFileKind = async ({
     await syncInvoiceEnvelopeMirror(tx, envelopeId);
   });
 
-  if (kind === RevalleInvoiceFileKind.NF) {
+  if (kind === RevalleInvoiceFileKind.NF || kind === RevalleInvoiceFileKind.BOLETO) {
     await startPendingReads(envelopeId, requester);
   }
 

@@ -7,12 +7,14 @@
 //
 // Rotas:
 //   POST /v1beta/models/{modelo}:generateContent   resposta no formato do Gemini, conforme o modo programado
-//   POST /__program { mode, accountCode?, delayMs?, apiKey?, invoiceData?, responseDelayMs? }
+//   POST /__program { mode, accountCode?, delayMs?, apiKey?, invoiceData?, boletoData?, responseDelayMs? }
 //        modos: ok | unknown-account | garbage | slow (25 s) | error (HTTP 500) | proxy (repassa ao Gemini de verdade
 //        com `apiKey`; perna opcional dos testes, chave só na memória, nunca devolvida nem registrada)
 //        `invoiceData` (Fase 8, só no modo ok): objeto com os campos que a resposta leva no lugar dos padrões
 //        (supplierName 'Fornecedor Falso LTDA', invoiceNumber '12345', totalAmount 1234.56, accessKey null); `null`
 //        omite todos. Sem a chave, vale o padrão.
+//        `boletoData` (Fase 9, só no modo ok): o mesmo para a leitura de boleto (padrão: beneficiaryName 'Fornecedor
+//        Falso LTDA', beneficiaryCnpj null, amount 1234.56, dueDate hoje + 10 dias em Brasília, digitableLine null).
 //        `responseDelayMs` (Fase 8, só no modo ok): espera esse tanto antes de responder, para o teste abrir o diálogo de
 //        envio com a sugestão ainda em andamento (a chamada já consta em /__calls). Padrão 0.
 //   GET  /__calls                                    chamadas recebidas (modelo, se veio PDF ou texto, tamanhos,
@@ -23,6 +25,8 @@
 // valor; `_` vira espaço), várias na mesma linha separadas por espaço (`FAKEGEMINI:conta=2.1.03 fornecedor=Fornecedor_A`).
 // Campos: conta → accountCode, fornecedor → supplierName, numero → invoiceNumber, valor → totalAmount (número),
 // chave → accessKey, modo → o modo só desta chamada (error, garbage...). Ordem: marca > /__program > padrão.
+// Boleto (Task 3; o pedido de boleto é o que tem `dueDate` no `responseSchema`): beneficiario → beneficiaryName,
+// cnpj → beneficiaryCnpj, valor → amount (número), vencimento → dueDate, linha → digitableLine.
 //   POST /__reset                                    apaga as chamadas e volta ao modo ok
 //
 // Uso: node scripts/revalle/tests/fake-gemini.mjs   (porta: FAKE_GEMINI_PORT, padrão 8787)
@@ -44,12 +48,23 @@ const DEFAULT_INVOICE_DATA = {
   accessKey: null,
 };
 
+// Fase 9: o que a leitura de boleto devolve no modo `ok`. O vencimento é daqui a 10 dias (em Brasília): o boleto padrão
+// não está vencido.
+const defaultBoletoData = () => ({
+  beneficiaryName: 'Fornecedor Falso LTDA',
+  beneficiaryCnpj: null,
+  amount: 1234.56,
+  dueDate: new Date(Date.now() + 10 * 86_400_000).toLocaleDateString('en-CA', { timeZone: 'America/Bahia' }),
+  digitableLine: null,
+});
+
 const initialProgram = () => ({
   mode: 'ok',
   accountCode: null,
   delayMs: 25_000,
   apiKey: null,
   invoiceData: undefined,
+  boletoData: undefined,
   responseDelayMs: 0,
 });
 const publicProgram = () => ({ ...program, apiKey: program.apiKey ? '(definida)' : null });
@@ -81,7 +96,18 @@ const textOf = (content) =>
     .filter(Boolean)
     .join('\n');
 
-const MARKER_FIELDS = new Set(['conta', 'fornecedor', 'numero', 'valor', 'chave', 'modo']);
+const MARKER_FIELDS = new Set([
+  'conta',
+  'fornecedor',
+  'numero',
+  'valor',
+  'chave',
+  'modo',
+  'beneficiario',
+  'cnpj',
+  'vencimento',
+  'linha',
+]);
 
 // As marcas FAKEGEMINI do texto: { campo: valor }. Depois de `FAKEGEMINI:`, os pares campo=valor seguidos (para no
 // primeiro pedaço que não é um campo conhecido).
@@ -111,6 +137,15 @@ const markerInvoiceData = (markers) => ({
   ...(markers.numero !== undefined ? { invoiceNumber: markers.numero } : {}),
   ...(markers.valor !== undefined ? { totalAmount: Number(markers.valor) } : {}),
   ...(markers.chave !== undefined ? { accessKey: markers.chave } : {}),
+});
+
+// O que as marcas mudam na resposta do boleto.
+const markerBoletoData = (markers) => ({
+  ...(markers.beneficiario !== undefined ? { beneficiaryName: markers.beneficiario } : {}),
+  ...(markers.cnpj !== undefined ? { beneficiaryCnpj: markers.cnpj } : {}),
+  ...(markers.valor !== undefined ? { amount: Number(markers.valor) } : {}),
+  ...(markers.vencimento !== undefined ? { dueDate: markers.vencimento } : {}),
+  ...(markers.linha !== undefined ? { digitableLine: markers.linha } : {}),
 });
 
 // Primeiro código da lista de contas que o app manda nas instruções ("- 2.1.03 — Fornecedores ...").
@@ -163,8 +198,8 @@ const handleGenerate = async (req, res, model) => {
   const call = {
     at: new Date().toISOString(),
     model,
-    // A leitura da NF pede a conta; a do boleto (Task 3), não.
-    kind: responseSchema?.properties?.accountCode ? 'NF' : 'BOLETO',
+    // A leitura do boleto (Task 3) pede o vencimento; a da NF, não.
+    kind: responseSchema?.properties?.dueDate ? 'BOLETO' : 'NF',
     markers,
     authorized: req.headers['x-goog-api-key'] === API_KEY,
     mode,
@@ -195,6 +230,22 @@ const handleGenerate = async (req, res, model) => {
     case 'ok':
       if (program.responseDelayMs > 0) {
         await new Promise((resolve) => setTimeout(resolve, program.responseDelayMs));
+      }
+
+      if (call.kind === 'BOLETO') {
+        sendJson(
+          res,
+          200,
+          geminiResponse(
+            model,
+            JSON.stringify({
+              ...(program.boletoData === undefined ? defaultBoletoData() : (program.boletoData ?? {})),
+              ...markerBoletoData(markers),
+            }),
+          ),
+        );
+
+        return;
       }
 
       sendJson(
@@ -296,6 +347,7 @@ const server = createServer(async (req, res) => {
         delayMs: Number(input.delayMs ?? 25_000),
         apiKey: input.mode === 'proxy' ? (input.apiKey ?? null) : null,
         invoiceData: Object.hasOwn(input, 'invoiceData') ? input.invoiceData : undefined,
+        boletoData: Object.hasOwn(input, 'boletoData') ? input.boletoData : undefined,
         responseDelayMs: input.mode === 'ok' ? Number(input.responseDelayMs ?? 0) : 0,
       };
       sendJson(res, 200, publicProgram());

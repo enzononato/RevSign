@@ -4,6 +4,7 @@ import type { InvoiceMirrorSource } from './invoice-files';
 import {
   aggregateIsInvoice,
   aggregateSuggestionStatus,
+  classifyFileKind,
   fileFinanceStatus,
   formatInvoicePosition,
   invoiceMirrorColumns,
@@ -186,5 +187,32 @@ describe('espelho na linha do envio', () => {
     const only = nf({ accessKeys: [K1] });
 
     expect(invoiceMirrorColumns([only]).accessKeys).not.toBe(only.accessKeys);
+  });
+});
+
+describe('classifyFileKind', () => {
+  const none = { isBoleto: false };
+  const boleto = { isBoleto: true };
+
+  it('sinal forte de nota vence o boleto (DANFE e boleto no mesmo PDF)', () => {
+    expect(
+      classifyFileKind({ detection: { status: 'YES', signals: ['DANFE', 'CHAVE_ACESSO'] }, boleto, isSparse: false }),
+    ).toBe('NF');
+  });
+
+  it('o boleto vence o sinal fraco de nota', () => {
+    expect(
+      classifyFileKind({ detection: { status: 'YES', signals: ['NF_CNPJ_VALOR'] }, boleto, isSparse: false }),
+    ).toBe('BOLETO');
+    expect(
+      classifyFileKind({ detection: { status: 'YES', signals: ['NF_CNPJ_VALOR'] }, boleto: none, isSparse: false }),
+    ).toBe('NF');
+  });
+
+  it('texto comum é OTHER; sem texto, UNKNOWN', () => {
+    expect(classifyFileKind({ detection: { status: 'NO', signals: [] }, boleto: none, isSparse: false })).toBe('OTHER');
+    expect(classifyFileKind({ detection: { status: 'UNKNOWN', signals: [] }, boleto: none, isSparse: true })).toBe(
+      'UNKNOWN',
+    );
   });
 });

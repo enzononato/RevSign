@@ -1,6 +1,7 @@
 import type { RevalleInvoiceFile } from '@prisma/client';
 
 import type { FinanceStatus } from '../finance/finance-status';
+import type { InvoiceDetection, InvoiceSignal } from './detect-invoice';
 
 /**
  * Fase 9: várias notas fiscais (e boletos) no mesmo envio. Cada arquivo do envio tem uma linha (`RevalleInvoiceFile`)
@@ -14,6 +15,38 @@ export type InvoiceSuggestionStatus = 'PENDING' | 'DONE' | 'FAILED' | 'SKIPPED';
 
 /** Posição de uma nota entre as notas do envio (1 de 3, 2 de 3...). Só arquivos NF têm posição. */
 export type InvoicePosition = { index: number; total: number };
+
+// Sinais que só uma nota fiscal tem. `NF_CNPJ_VALOR` (CNPJ, "nota fiscal", R$ e termos de nota) também aparece num boleto
+// que cita a nota, então sozinho perde para o boleto.
+const STRONG_INVOICE_SIGNALS: InvoiceSignal[] = ['CHAVE_ACESSO', 'DANFE', 'NFSE'];
+
+/**
+ * Tipo de um arquivo pelo texto: sinal forte de nota → NF (um PDF com DANFE e boleto juntos é nota); senão boleto →
+ * BOLETO; senão o sinal fraco de nota → NF; senão sem texto → UNKNOWN (o remetente diz); senão OTHER.
+ */
+export const classifyFileKind = ({
+  detection,
+  boleto,
+  isSparse,
+}: {
+  detection: InvoiceDetection;
+  boleto: { isBoleto: boolean };
+  isSparse: boolean;
+}): InvoiceFileKind => {
+  if (detection.signals.some((signal) => STRONG_INVOICE_SIGNALS.includes(signal))) {
+    return 'NF';
+  }
+
+  if (boleto.isBoleto) {
+    return 'BOLETO';
+  }
+
+  if (detection.status === 'YES') {
+    return 'NF';
+  }
+
+  return isSparse ? 'UNKNOWN' : 'OTHER';
+};
 
 /** O envio é NF se tem pelo menos uma; sem NF, um arquivo sem texto deixa em dúvida; senão (ou vazio), não é. */
 export const aggregateIsInvoice = (kinds: InvoiceFileKind[]): 'YES' | 'NO' | 'UNKNOWN' => {

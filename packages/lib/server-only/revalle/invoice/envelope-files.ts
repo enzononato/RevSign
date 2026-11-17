@@ -1,5 +1,6 @@
 import { prisma } from '@documenso/prisma';
 
+import { detectBoleto } from '../../../revalle/invoice/boleto';
 import type { InvoiceDetection } from '../../../revalle/invoice/detect-invoice';
 import { detectInvoice } from '../../../revalle/invoice/detect-invoice';
 import { sha256Hex } from '../../../revalle/sha256';
@@ -80,6 +81,8 @@ export type InvoiceFileContent = {
   isSparse: boolean;
   /** Detecção só deste arquivo: só arquivos YES vão para a IA (os outros podem ser contratos com dados pessoais). */
   detection: InvoiceDetection;
+  /** Fase 9: boleto pelo texto (linha digitável válida ou marcas), com a linha quando achou. */
+  boleto: { isBoleto: boolean; digitableLine: string | null };
 };
 
 export const readFilesContent = async (files: InvoiceEnvelopeFile[], maxPages = 5): Promise<InvoiceFileContent[]> => {
@@ -94,6 +97,7 @@ export const readFilesContent = async (files: InvoiceEnvelopeFile[], maxPages = 
       pages,
       isSparse: pages.length === 0 || chars / pages.length < MIN_CHARS_PER_PAGE,
       detection: detectInvoice(pages),
+      boleto: detectBoleto(pages),
     });
   }
 

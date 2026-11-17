@@ -868,3 +868,98 @@ export const invoicePdfFile = ({ variant, accessKey = makeAccessKey(), markers =
 
   return file;
 };
+
+// Fase 9 (Task 3): linha digitável de boleto bancário (47 dígitos, formatada como os bancos imprimem), calculada aqui de
+// propósito sem o código do app, para conferir a leitura dele. `dueDate` 'AAAA-MM-DD' (fator a partir de 22/02/2025 = 1000;
+// antes disso, dias desde 07/10/1997); `amountCents` 0 ou ausente = sem valor. O campo livre é novo a cada chamada.
+export const digitableLine = ({ bank = '341', amountCents = 0, dueDate } = {}) => {
+  const day = (iso) => Date.parse(`${iso}T00:00:00Z`) / 86_400_000;
+  const restart = day('2025-02-22');
+  const factor = !dueDate
+    ? 0
+    : day(dueDate) >= restart
+      ? 1000 + day(dueDate) - restart
+      : day(dueDate) - day('1997-10-07');
+  const factorValue = `${String(factor).padStart(4, '0')}${String(amountCents).padStart(10, '0')}`;
+  const freeField = randomDigits(25);
+  const head = `${bank}9`;
+  const mod10 = (digits) => {
+    let sum = 0;
+    let weight = 2;
+
+    for (let index = digits.length - 1; index >= 0; index -= 1) {
+      const product = Number(digits[index]) * weight;
+
+      sum += Math.floor(product / 10) + (product % 10);
+      weight = weight === 2 ? 1 : 2;
+    }
+
+    return (10 - (sum % 10)) % 10;
+  };
+  const barcode = `${head}${factorValue}${freeField}`;
+  let sum = 0;
+  let weight = 2;
+
+  for (let index = barcode.length - 1; index >= 0; index -= 1) {
+    sum += Number(barcode[index]) * weight;
+    weight = weight === 9 ? 2 : weight + 1;
+  }
+
+  const rest = 11 - (sum % 11);
+  const generalDv = rest === 0 || rest === 10 || rest === 11 ? 1 : rest;
+  const field1 = `${head}${freeField.slice(0, 5)}`;
+  const field2 = freeField.slice(5, 15);
+  const field3 = freeField.slice(15, 25);
+  const withDv = (field) => `${field}${mod10(field)}`;
+  const dotted = (field, at) => `${field.slice(0, at)}.${field.slice(at)}`;
+
+  return [
+    dotted(withDv(field1), 5),
+    dotted(withDv(field2), 5),
+    dotted(withDv(field3), 5),
+    String(generalDv),
+    factorValue,
+  ].join(' ');
+};
+
+const formatBrl = (cents) =>
+  `${String(Math.floor(cents / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${String(cents % 100).padStart(2, '0')}`;
+
+// Fase 9 (Task 3): as linhas de um boleto fictício (sem nada de nota fiscal), para `boletoPdfFile` ou para juntar a um
+// DANFE (`invoicePdfFile({ extraLines })`). `line` é a linha digitável (padrão: `digitableLine` com o valor e o vencimento).
+export const boletoLines = ({
+  amountCents = 150000,
+  dueDate,
+  beneficiary = 'Distribuidora Ficticia Ltda',
+  cnpj = '12345678000195',
+  line = digitableLine({ amountCents, dueDate }),
+} = {}) => [
+  'Banco Itau S.A.   341-7',
+  line,
+  'Local de pagamento: Pagavel em qualquer banco ate o vencimento',
+  `Beneficiário: ${beneficiary}   CNPJ ${cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')}`,
+  `Vencimento ${dueDate ? dueDate.split('-').reverse().join('/') : 'Contra apresentacao'}`,
+  `Valor do Documento R$ ${formatBrl(amountCents)}`,
+  `Nosso Número 109/${randomDigits(8)}-${randomDigits(1)}`,
+  'Ficha de Compensação',
+];
+
+// Fase 9 (Task 3): boleto fictício em `{variant}.pdf` (o título do arquivo no envio): as linhas de `boletoLines`, uma
+// referência única (outra SHA-256 a cada chamada) e as marcas do servidor falso (`markers`: { cnpj: '98765432000198' } →
+// `FAKEGEMINI:cnpj=98765432000198`). Devolve o caminho.
+export const boletoPdfFile = ({ variant, amountCents, dueDate, beneficiary, cnpj, markers = {} }) => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'revsign-boleto-'));
+  const file = path.join(dir, `${variant}.pdf`);
+  const marks = Object.entries(markers).map(([field, value]) => `${field}=${value}`);
+
+  writeFileSync(
+    file,
+    textPdfBuffer([
+      ...boletoLines({ amountCents, dueDate, beneficiary, cnpj }),
+      `Referencia do teste: ${variant} ${randomDigits(10)}`,
+      ...(marks.length > 0 ? [`FAKEGEMINI:${marks.join(' ')}`] : []),
+    ]),
+  );
+
+  return file;
+};

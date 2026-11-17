@@ -52,6 +52,33 @@ const ZInvoiceChoiceSchema = z.object({ code: z.string(), name: z.string().optio
 
 const ZInvoiceCostCenterSchema = z.object({ code: z.string(), name: z.string() }).nullable();
 
+const ZSuggestionStatusSchema = z.enum(['PENDING', 'DONE', 'FAILED', 'SKIPPED']);
+
+/** Fase 9: o que se sabe do boleto: a linha digitável (valor, vencimento) junto com o que a IA leu. */
+export const ZBoletoDataSchema = z.object({
+  beneficiaryName: z.string().nullable(),
+  beneficiaryCnpj: z.string().nullable(),
+  amountCents: z.number().nullable(),
+  /** AAAA-MM-DD. */
+  dueDate: z.string().nullable(),
+  /** 47 dígitos. */
+  digitableLine: z.string().nullable(),
+});
+
+/** Fase 9: aviso da conferência do boleto com as notas do envio (só aviso, nunca trava), com a mensagem pronta. */
+export const ZBoletoWarningSchema = z.discriminatedUnion('code', [
+  z.object({ code: z.literal('AMOUNT_MISMATCH'), amountCents: z.number(), message: z.string() }),
+  z.object({ code: z.literal('BENEFICIARY_MISMATCH'), message: z.string() }),
+  z.object({ code: z.literal('OVERDUE'), dueDate: z.string(), message: z.string() }),
+]);
+
+/** Fase 9: o boleto no estado (só nos arquivos BOLETO). `status` SKIPPED = não foi para a IA (envio sem nota). */
+export const ZInvoiceBoletoStateSchema = z.object({
+  status: ZSuggestionStatusSchema,
+  data: ZBoletoDataSchema.nullable(),
+  warnings: z.array(ZBoletoWarningSchema),
+});
+
 /** Fase 9: um arquivo do envio (na ordem dos arquivos), com o tipo e o que é "da nota". */
 export const ZInvoiceDocumentStateSchema = z.object({
   envelopeItemId: z.string(),
@@ -69,7 +96,8 @@ export const ZInvoiceDocumentStateSchema = z.object({
   duplicateInEnvelope: z.object({ index: z.number() }).nullable(),
   choice: ZInvoiceChoiceSchema,
   costCenter: ZInvoiceCostCenterSchema,
-  boleto: z.null(),
+  /** Só BOLETO (nulo nos outros tipos). */
+  boleto: ZInvoiceBoletoStateSchema.nullable(),
 });
 
 export const ZInvoiceStateSchema = z.object({

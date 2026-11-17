@@ -3,9 +3,15 @@ import { Prisma, RevalleInvoiceFileKind, RevalleInvoiceStatus, RevalleSuggestion
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { jobs } from '../../../jobs/client';
+import type { BoletoData } from '../../../revalle/invoice/boleto';
+import {
+  boletoLineData,
+  mergeBoletoData,
+  normalizeBoletoData,
+  readStoredBoletoData,
+} from '../../../revalle/invoice/boleto';
 import { firstPagesPdf } from '../../../revalle/invoice/first-pages-pdf';
 import { NO_INVOICE_DATA_COLUMNS, normalizeInvoiceData } from '../../../revalle/invoice/invoice-data';
-import { invoicePositions } from '../../../revalle/invoice/invoice-files';
 import { buildInvoicePrompt } from '../../../revalle/invoice/prompt';
 import { providerStatusCode } from '../../../revalle/invoice/provider-status';
 import type { InvoiceSuggestion } from '../../../revalle/invoice/suggestion';
@@ -13,8 +19,9 @@ import { validateSuggestion, ZInvoiceAccountSuggestionSchema } from '../../../re
 import { logger } from '../../../utils/logger';
 import { createRateLimit } from '../../rate-limit/rate-limit';
 import { assertRateLimit } from '../../rate-limit/rate-limit-middleware';
+import type { InvoiceFileContent } from './envelope-files';
 import { loadEnvelopeFile, readFilesContent } from './envelope-files';
-import { requestGeminiSuggestion } from './gemini';
+import { requestGeminiBoletoData, requestGeminiSuggestion } from './gemini';
 import { loadInvoiceFiles, resolveInvoiceFile, updateInvoiceFiles } from './invoice-files';
 import { getAccountingSettings, getRevalleInvoiceAiConfig } from './settings';
 
@@ -33,7 +40,10 @@ const MAX_INLINE_PDF_BYTES = 12 * 1024 * 1024;
  */
 export const INVOICE_MAX_AI_CALLS_PER_FILE = 6;
 
-/** Fase 9: no máximo 20 notas de um envio são lidas pela IA (pela ordem dos arquivos); as seguintes ficam sem sugestão. */
+/**
+ * Fase 9: no máximo 20 arquivos de um envio são lidos pela IA (notas e boletos, pela ordem dos arquivos); os seguintes ficam
+ * sem leitura (`RATE_LIMITED`).
+ */
 export const INVOICE_MAX_AI_FILES_PER_ENVELOPE = 20;
 
 /** Motivo curto gravado no FAILED. Nunca o texto da NF nem a mensagem do provedor. */
@@ -46,8 +56,17 @@ export type InvoiceFailureReason =
   | 'RATE_LIMITED'
   | 'NO_CONTENT';
 
-/** Formato de `RevalleInvoiceFile.suggestion` da NF (e do espelho na linha do envio). */
-export type StoredInvoiceSuggestion = (InvoiceSuggestion & { model: string }) | { failure: InvoiceFailureReason };
+/**
+ * Formato de `RevalleInvoiceFile.suggestion`: da NF (e do espelho na linha do envio), ou do boleto (o que a IA leu dele,
+ * antes de juntar com a linha digitável), ou a falha.
+ */
+export type StoredInvoiceSuggestion =
+  | (InvoiceSuggestion & { model: string })
+  | (BoletoData & { model: string })
+  | { failure: InvoiceFailureReason };
+
+/** Os tipos de arquivo que a IA lê: a nota e, com pelo menos uma nota no envio, o boleto. */
+const AI_READ_KINDS = new Set<RevalleInvoiceFileKind>([RevalleInvoiceFileKind.NF, RevalleInvoiceFileKind.BOLETO]);
 
 // Fase 9: 120 chamadas à IA por usuário por hora (uma por nota: primeira leitura, "Sim" do remetente e "Sugerir de novo")
 // e no máximo 1.440 em 24 h (o mesmo teto diário de antes, 60 × 24). Ajustáveis por NEXT_PRIVATE_REVALLE_RATE_LIMITS (ver
@@ -119,12 +138,53 @@ const storedJson = (value: unknown) =>
     : // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
       (value as Prisma.InputJsonValue);
 
-/** A posição da NF entre as notas do envio, pela ordem dos arquivos (1 = a primeira). */
-const nfIndexOf = async (envelopeId: string, fileId: string) =>
-  invoicePositions(await loadInvoiceFiles(envelopeId)).get(fileId)?.index ?? Number.POSITIVE_INFINITY;
+/**
+ * O boleto do cache (pela SHA-256 do arquivo): o que a IA leu dele. Sem dependência da lista de contas, vale sempre.
+ */
+const readCachedBoleto = async (fileSha256: string) => {
+  const cached = await prisma.revalleBoletoCache.findUnique({ where: { fileSha256 } });
+
+  return cached ? { data: readStoredBoletoData(cached.data) ?? normalizeBoletoData(null), model: cached.model } : null;
+};
+
+/** A posição do arquivo entre os que a IA lê (notas e boletos), pela ordem dos arquivos (1 = o primeiro). */
+const aiReadIndexOf = async (envelopeId: string, fileId: string) => {
+  const index = (await loadInvoiceFiles(envelopeId))
+    .filter((candidate) => AI_READ_KINDS.has(candidate.kind))
+    .findIndex((candidate) => candidate.id === fileId);
+
+  return index === -1 ? Number.POSITIVE_INFINITY : index + 1;
+};
+
+/** O boleto só é lido quando o envio tem pelo menos uma nota (boleto sozinho é documento comum, sem IA e sem custo). */
+const envelopeHasInvoice = async (envelopeId: string) =>
+  (await prisma.revalleInvoiceFile.count({ where: { envelopeId, kind: RevalleInvoiceFileKind.NF } })) > 0;
+
+const boletoJson = (data: BoletoData): Prisma.InputJsonValue => ({ ...data });
+
+/** Grava o boleto lido: a resposta da IA em `suggestion` e, em `boletoData`, ela junta com a linha digitável. */
+const boletoDoneColumns = (
+  line: ReturnType<typeof boletoLineData>,
+  fromAi: BoletoData,
+  model: string,
+): Prisma.RevalleInvoiceFileUpdateManyMutationInput => ({
+  suggestionStatus: RevalleSuggestionStatus.DONE,
+  suggestion: { ...fromAi, model },
+  boletoData: boletoJson(mergeBoletoData(line, fromAi)),
+});
+
+/** O que a linha digitável deu, tirado do `boletoData` gravado na classificação (antes de qualquer leitura da IA). */
+const storedLineData = (boletoData: unknown) => {
+  const stored = readStoredBoletoData(boletoData);
+
+  return stored
+    ? { amountCents: stored.amountCents, dueDate: stored.dueDate, digitableLine: stored.digitableLine }
+    : null;
+};
 
 /**
- * Fase 9: começa a leitura de UM arquivo NF pela IA (a sugestão de conta e os dados da nota). Automática (`force` falso)
+ * Fase 9: começa a leitura de UM arquivo pela IA: a NF (a sugestão de conta e os dados da nota) ou o boleto (beneficiário,
+ * CNPJ, valor, vencimento e linha; só com pelo menos uma NF no envio, e sem depender da lista de contas). Automática (`force` falso)
  * só a partir de SKIPPED: um DONE/FAILED nunca volta sozinho para PENDING. "Sugerir de novo" (`force`) parte de qualquer
  * estado que não seja PENDING e ignora o cache.
  *
@@ -147,9 +207,11 @@ export const startInvoiceFileRead = async ({
 }) => {
   const file = await prisma.revalleInvoiceFile.findUnique({ where: { id: fileId } });
 
-  if (!file || !fileSha256 || file.fileSha256 !== fileSha256 || file.kind !== RevalleInvoiceFileKind.NF) {
+  if (!file || !fileSha256 || file.fileSha256 !== fileSha256 || !AI_READ_KINDS.has(file.kind)) {
     return;
   }
+
+  const isBoleto = file.kind === RevalleInvoiceFileKind.BOLETO;
 
   const canStart = force
     ? file.suggestionStatus !== RevalleSuggestionStatus.PENDING
@@ -160,9 +222,14 @@ export const startInvoiceFileRead = async ({
   }
 
   const { envelopeId } = file;
+
+  if (isBoleto && !(await envelopeHasInvoice(envelopeId))) {
+    return;
+  }
+
   const guard = {
     id: fileId,
-    kind: RevalleInvoiceFileKind.NF,
+    kind: file.kind,
     fileSha256,
     suggestionStatus: file.suggestionStatus,
     suggestionAttempts: file.suggestionAttempts,
@@ -172,34 +239,44 @@ export const startInvoiceFileRead = async ({
     data: Prisma.RevalleInvoiceFileUpdateManyMutationInput,
   ) => await updateInvoiceFiles({ envelopeId, where, data });
 
-  const activeCodes = await activeAccountCodes();
+  if (isBoleto) {
+    const cachedBoleto = force ? null : await readCachedBoleto(fileSha256);
 
-  if (activeCodes.size === 0) {
-    // Sem contas, o "Sugerir de novo" de uma sugestão pronta não deixa os dados da anterior para trás.
-    await write(guard, {
-      suggestionStatus: RevalleSuggestionStatus.FAILED,
-      suggestion: failure('NO_ACCOUNTS'),
-      ...NO_INVOICE_DATA_COLUMNS,
-    });
+    if (cachedBoleto) {
+      await write(guard, boletoDoneColumns(storedLineData(file.boletoData), cachedBoleto.data, cachedBoleto.model));
 
-    return;
-  }
+      return;
+    }
+  } else {
+    const activeCodes = await activeAccountCodes();
 
-  const cached = force ? null : await readCachedSuggestion(fileSha256, activeCodes);
+    if (activeCodes.size === 0) {
+      // Sem contas, o "Sugerir de novo" de uma sugestão pronta não deixa os dados da anterior para trás.
+      await write(guard, {
+        suggestionStatus: RevalleSuggestionStatus.FAILED,
+        suggestion: failure('NO_ACCOUNTS'),
+        ...NO_INVOICE_DATA_COLUMNS,
+      });
 
-  if (cached) {
-    await write(guard, {
-      suggestionStatus: RevalleSuggestionStatus.DONE,
-      suggestion: cached,
-      ...invoiceDataColumns(cached, file.accessKeys),
-    });
+      return;
+    }
 
-    return;
+    const cached = force ? null : await readCachedSuggestion(fileSha256, activeCodes);
+
+    if (cached) {
+      await write(guard, {
+        suggestionStatus: RevalleSuggestionStatus.DONE,
+        suggestion: cached,
+        ...invoiceDataColumns(cached, file.accessKeys),
+      });
+
+      return;
+    }
   }
 
   const overLimit =
     file.suggestionAttempts >= INVOICE_MAX_AI_CALLS_PER_FILE ||
-    (await nfIndexOf(envelopeId, fileId)) > INVOICE_MAX_AI_FILES_PER_ENVELOPE;
+    (await aiReadIndexOf(envelopeId, fileId)) > INVOICE_MAX_AI_FILES_PER_ENVELOPE;
 
   if (overLimit) {
     if (force) {
@@ -320,6 +397,33 @@ export const resuggestInvoice = async ({
   await startInvoiceFileRead({ fileId: file.id, fileSha256: file.fileSha256, requester, force: true });
 };
 
+/** O que vai para a IA: o texto do arquivo ou, sem texto (escaneado), SÓ o PDF dele (as primeiras páginas). */
+const aiInputOf = async (content: InvoiceFileContent) => {
+  const text = content.isSparse ? '' : content.pages.join('\n');
+  const pdf = content.isSparse ? await firstPagesPdf(content.file.bytes) : null;
+  const pdfs = pdf && pdf.length <= MAX_INLINE_PDF_BYTES ? [pdf] : [];
+  const input: 'text' | 'pdf' | 'none' = text.trim() ? 'text' : pdfs.length > 0 ? 'pdf' : 'none';
+
+  return { input, text, pdfs };
+};
+
+/** A resposta da IA ao boleto: um objeto (os campos são limpos em `normalizeBoletoData`), ou o texto se for JSON. */
+const interpretBoletoRaw = (raw: unknown): BoletoData | null => {
+  let candidate = raw;
+
+  if (typeof raw === 'string') {
+    try {
+      candidate = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  return candidate !== null && typeof candidate === 'object' && !Array.isArray(candidate)
+    ? normalizeBoletoData(candidate)
+    : null;
+};
+
 type SuggestionOutcome =
   | { status: 'DONE'; suggestion: InvoiceSuggestion }
   | { status: 'FAILED'; reason: InvoiceFailureReason };
@@ -350,10 +454,11 @@ const interpretRaw = (raw: unknown, activeCodes: Set<string>): SuggestionOutcome
 };
 
 /**
- * Corpo do job: lê o arquivo original da nota, monta o pedido (o texto dele, ou o PDF quando ele não tem texto), chama o
+ * Corpo do job: lê o arquivo original da nota (ou do boleto, `kind BOLETO`), monta o pedido (o texto dele, ou o PDF quando ele não tem texto), chama o
  * Gemini com 20 s de limite e grava DONE (e o cache) ou FAILED com um código curto na linha do arquivo (e o espelho). Nunca
  * lança. Se o arquivo mudou (ou deixou de ser NF) no meio do caminho, o resultado é descartado (a nova classificação cuida).
- * Só o arquivo desta nota vai para a IA: os outros (um contrato com dados pessoais, outra nota) ficam de fora.
+ * Só o arquivo desta nota vai para a IA: os outros (um contrato com dados pessoais, outra nota) ficam de fora. O boleto
+ * grava o que a IA leu em `suggestion` e, em `boletoData`, isso junto com o que a linha digitável deu (a linha vence).
  */
 export const runInvoiceFileRead = async ({
   fileId,
@@ -384,6 +489,7 @@ export const runInvoiceFileRead = async ({
   // As chaves da linha quando o job começou: a chave lida pela IA soma-se a elas. Só a troca de arquivo as muda, e ela
   // também muda `fileSha256`, que o `pendingWhere` confere.
   let storedAccessKeys: string[] = [];
+  let kind: 'NF' | 'BOLETO' = 'NF';
 
   const write = async (data: Prisma.RevalleInvoiceFileUpdateManyMutationInput) =>
     await updateInvoiceFiles({ envelopeId, where: pendingWhere, data });
@@ -394,7 +500,7 @@ export const runInvoiceFileRead = async ({
       msg: 'revalle.invoice.suggestion',
       envelopeId,
       envelopeItemId,
-      kind: 'NF',
+      kind,
       result,
       reason,
       discarded,
@@ -456,8 +562,85 @@ export const runInvoiceFileRead = async ({
 
     const current = await loadEnvelopeFile(file.envelopeItemId).catch(() => null);
 
-    if (!current || current.sha256 !== fileSha256 || file.kind !== RevalleInvoiceFileKind.NF) {
+    if (!current || current.sha256 !== fileSha256 || !AI_READ_KINDS.has(file.kind)) {
       await write({ suggestionStatus: RevalleSuggestionStatus.SKIPPED, suggestion: Prisma.DbNull });
+
+      return;
+    }
+
+    if (file.kind === RevalleInvoiceFileKind.BOLETO) {
+      kind = 'BOLETO';
+
+      const [content] = await readFilesContent([current]);
+      const line = boletoLineData(content.boleto.digitableLine, new Date());
+
+      const finishBoleto = async (
+        outcome: { status: 'DONE'; data: BoletoData } | { status: 'FAILED'; reason: InvoiceFailureReason },
+      ) => {
+        if (outcome.status === 'DONE') {
+          const count = await write(boletoDoneColumns(line, outcome.data, model));
+          const data = boletoJson(outcome.data);
+
+          await prisma.revalleBoletoCache.upsert({
+            where: { fileSha256 },
+            create: { fileSha256, data, model },
+            update: { data, model, createdAt: new Date() },
+          });
+
+          logResult('DONE', undefined, count === 0);
+
+          return;
+        }
+
+        const count = await write({
+          suggestionStatus: RevalleSuggestionStatus.FAILED,
+          suggestion: failure(outcome.reason),
+          boletoData: boletoJson(mergeBoletoData(line, null)),
+        });
+
+        logResult('FAILED', outcome.reason, count === 0);
+      };
+
+      if (!force) {
+        const cachedBoleto = await readCachedBoleto(fileSha256);
+
+        if (cachedBoleto) {
+          model = cachedBoleto.model;
+          await finishBoleto({ status: 'DONE', data: cachedBoleto.data });
+
+          return;
+        }
+      }
+
+      const boletoInput = await aiInputOf(content);
+
+      input = boletoInput.input;
+
+      if (input === 'none') {
+        await finishBoleto({ status: 'FAILED', reason: 'NO_CONTENT' });
+
+        return;
+      }
+
+      const boletoSignal = AbortSignal.timeout(INVOICE_SUGGESTION_TIMEOUT_MS);
+
+      try {
+        const result = await requestGeminiBoletoData({
+          text: input === 'text' ? boletoInput.text : undefined,
+          pdf: input === 'pdf' ? boletoInput.pdfs[0] : undefined,
+          signal: boletoSignal,
+        });
+
+        model = result.model;
+        usage = result.usage;
+
+        const data = interpretBoletoRaw(result.raw);
+
+        await finishBoleto(data ? { status: 'DONE', data } : { status: 'FAILED', reason: 'INVALID_RESPONSE' });
+      } catch (error) {
+        providerStatus = providerStatusCode(error);
+        await finishBoleto({ status: 'FAILED', reason: boletoSignal.aborted ? 'TIMEOUT' : 'PROVIDER_ERROR' });
+      }
 
       return;
     }
@@ -491,12 +674,9 @@ export const runInvoiceFileRead = async ({
       readFilesContent([current]),
     ]);
 
-    // Arquivo com texto: vai o texto. Sem texto (escaneado): vai SÓ o PDF dele (as primeiras páginas).
-    const text = content.isSparse ? '' : content.pages.join('\n');
-    const pdf = content.isSparse ? await firstPagesPdf(content.file.bytes) : null;
-    const pdfs = pdf && pdf.length <= MAX_INLINE_PDF_BYTES ? [pdf] : [];
+    const { text, pdfs, input: nfInput } = await aiInputOf(content);
 
-    input = text.trim() ? 'text' : pdfs.length > 0 ? 'pdf' : 'none';
+    input = nfInput;
 
     if (input === 'none') {
       await finish({ status: 'FAILED', reason: 'NO_CONTENT' });
