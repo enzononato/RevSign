@@ -5434,8 +5434,8 @@ msgstr "Todas as notas do envio voltam a aguardar a aprovação do Financeiro (a
 msgid "Todas as notas do envio voltam a aguardar a aprovação do Financeiro."
 msgstr "Todas as notas do envio voltam a aguardar a aprovação do Financeiro."
 
-msgid "Conta contábil definida pelo Financeiro: {account} (já aprovada) (nota {index} de {total}: {title})"
-msgstr "Conta contábil definida pelo Financeiro: {account} (já aprovada) (nota {index} de {total}: {title})"
+msgid "Conta contábil definida pelo Financeiro: {account} (já aprovada; nota {index} de {total}: {title})"
+msgstr "Conta contábil definida pelo Financeiro: {account} (já aprovada; nota {index} de {total}: {title})"
 
 msgid "Conta contábil aprovada pelo Financeiro: {account} (nota {index} de {total}: {title})"
 msgstr "Conta contábil aprovada pelo Financeiro: {account} (nota {index} de {total}: {title})"
