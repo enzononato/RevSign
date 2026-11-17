@@ -213,9 +213,12 @@ const findRows = async (cookie) => {
   return data(res).data;
 };
 
+// Só o período de hoje: a stack local acumula mais de 10.000 notas de teste e a planilha sem período passa do limite.
+const todayParam = () => `de=${new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bahia' }).format(new Date())}`;
+
 const csv = (cookie) =>
   fetchIdempotent(
-    `${BASE_URL}/notas-fiscais/csv`,
+    `${BASE_URL}/notas-fiscais/csv?${todayParam()}`,
     { headers: { Cookie: cookie }, redirect: 'manual' },
     async (res) => ({
       status: res.status,

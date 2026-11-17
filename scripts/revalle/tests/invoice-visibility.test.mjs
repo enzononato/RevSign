@@ -311,12 +311,19 @@ const changeCostCenter = (envelopeId, cookie = accountant.cookie) =>
 const resendVersion = (envelopeId, cookie) =>
   trpcAs(cookie, 'mutation', 'revalle.finance.resendVersion', { envelopeId });
 
+// Só o período de hoje: a stack local acumula mais de 10.000 notas de teste e a planilha sem período passa do limite.
+const todayParam = () => `de=${new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bahia' }).format(new Date())}`;
+
 // O texto sai do corpo em bytes: `res.text()` descarta o BOM, e a planilha precisa dele (o Excel abre em UTF-8).
 const csv = async (cookie, query = '') =>
-  fetchIdempotent(`${BASE_URL}/notas-fiscais/csv${query}`, { headers: { Cookie: cookie } }, async (res) => ({
-    status: res.status,
-    text: Buffer.from(await res.arrayBuffer()).toString('utf8'),
-  }));
+  fetchIdempotent(
+    `${BASE_URL}/notas-fiscais/csv${query ? `${query}&` : '?'}${todayParam()}`,
+    { headers: { Cookie: cookie } },
+    async (res) => ({
+      status: res.status,
+      text: Buffer.from(await res.arrayBuffer()).toString('utf8'),
+    }),
+  );
 
 const csvRows = (text) =>
   text
