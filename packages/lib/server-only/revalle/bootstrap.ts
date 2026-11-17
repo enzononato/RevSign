@@ -3,7 +3,7 @@ import { prisma } from '@documenso/prisma';
 import { env } from '../../utils/env';
 import { mergeRevalleClaimFlags, REVALLE_CLAIM_LIMITS, revalleEnvelopeItemCount } from './claim-defaults';
 import { checkRevalleGeoIpDatabase } from './geoip';
-import { backfillLegacyInvoiceFiles } from './invoice/invoice-files';
+import { backfillLegacyInvoiceFiles, countInvoicesWithoutFileRows } from './invoice/invoice-files';
 
 const toFlagsRecord = (flags: unknown): Record<string, unknown> => {
   if (typeof flags === 'object' && flags !== null && !Array.isArray(flags)) {
@@ -110,6 +110,16 @@ export const runRevalleBootstrap = async () => {
     }
   } catch (err) {
     console.error('[RevSign] bootstrap: falha ao refazer as linhas por arquivo das notas antigas', err);
+  }
+
+  // Só a contagem (sem ids nem dados): o que sobrou sem linha por arquivo some da lista e das filas até ser refeito.
+  try {
+    console.log(`[RevSign] notas sem linha por arquivo: ${await countInvoicesWithoutFileRows()}`);
+  } catch (err) {
+    console.error(
+      '[RevSign] bootstrap: falha ao contar as notas sem linha por arquivo',
+      err instanceof Error ? err.name : 'unknown',
+    );
   }
 
   // Fora do try acima: a base GeoIP não depende do banco. Base ausente ou vazia gera um aviso no log.

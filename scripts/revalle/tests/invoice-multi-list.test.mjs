@@ -14,8 +14,9 @@
 //
 // Sessões: REVSIGN_USER_* (dono do REVSIGN_API_TOKEN, cria, escolhe e envia) e REVSIGN_ADMIN_* (rsadmin: admin e
 // Financeiro, importa a lista de contas). Uma conta de teste nova da Contabilidade (criada no banco, ver
-// account-helpers.mjs), desmarcada no fim. Este teste SUBSTITUI a lista de contas da stack local (2.1.03 e 3.1.01) e apaga
-// os limites `RateLimit`. Ver revalle/docs/testes.md.
+// account-helpers.mjs), desmarcada no fim. Este teste SUBSTITUI a lista de contas da stack local (2.1.03, 3.1.01 e uma
+// conta só desta execução, para isolar a paginação) e apaga os limites `RateLimit`. Como as outras suítes, deixa os envios
+// `[TESTE NF]` no banco e o rsadmin marcado como Financeiro. Ver revalle/docs/testes.md.
 
 import assert from 'node:assert/strict';
 import { copyFileSync, mkdtempSync, readFileSync } from 'node:fs';
@@ -45,10 +46,13 @@ const user = { email: process.env.REVSIGN_USER_EMAIL, password: process.env.REVS
 const admin = { email: process.env.REVSIGN_ADMIN_EMAIL, password: process.env.REVSIGN_ADMIN_PASSWORD };
 
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+// Conta só desta execução: o filtro por ela traz só as notas do envio da paginação.
+const RUN_ACCOUNT = `9.9.${RUN}`;
 const ACCOUNTS_CSV = [
   'numero;nome;descricao;tipo',
   '2.1.03;Fornecedores;Compra de mercadorias e insumos a prazo;pagar',
   '3.1.01;Serviços de terceiros;Serviços tomados de pessoa jurídica;pagar',
+  `${RUN_ACCOUNT};Conta do teste de paginação;Só para o teste da lista por nota;pagar`,
 ].join('\n');
 
 // O cabeçalho da planilha da Fase 8, byte a byte (o mesmo de acceptance-f6 e export-csv.test.ts).
@@ -283,17 +287,17 @@ const send = async (draft) => {
 };
 
 // O envio de três notas (contas 2.1.03, 3.1.01, 2.1.03; centros 101, 201, 301), escolhido e enviado.
-const newSentThree = async (label) => {
+const newSentThree = async (label, notes = NOTES) => {
   const draft = await newDraft(
     label,
-    NOTES.map((note) => danfe(note.title, note.valor, label)),
+    notes.map((note) => danfe(note.title, note.valor, label)),
   );
 
   if (aiMode === 'fake') {
     await waitSettled(draft.id);
   }
 
-  await chooseAll(draft, NOTES);
+  await chooseAll(draft, notes);
 
   return await send(draft);
 };
@@ -608,6 +612,77 @@ sessionTest('a mesma nota duas vezes no mesmo envio', async () => {
     rows.map((row) => row.isPossibleDuplicate),
     [false, false],
   );
+});
+
+sessionTest('aprovar 1 de 3: a nota sai das filas do Financeiro e entra em aprovadas', async () => {
+  const doc = await newSentThree('aprova-uma');
+  const before = (await pendingCounts(adminCookie)).finance;
+  const a = doc.items['nf-a.pdf'];
+  const approved = await trpcAs(adminCookie, 'mutation', 'revalle.finance.approve', {
+    envelopeId: doc.id,
+    envelopeItemId: a,
+  });
+
+  assert.equal(approved.status, 200, approved.text);
+  assert.deepEqual(data(approved), { approved: true });
+  assert.equal((await pendingCounts(adminCookie)).finance, before - 1);
+
+  const titles = async (finance) => (await rowsOf(adminCookie, doc.id, { finance })).map((row) => row.documentTitle);
+
+  assert.deepEqual(await titles('aprovadas'), ['nf-a.pdf']);
+  assert.deepEqual(await titles('aguardando-aprovacao'), ['nf-b.pdf', 'nf-c.pdf']);
+  assert.deepEqual(await titles('pendentes'), ['nf-b.pdf', 'nf-c.pdf']);
+
+  // A linha diz a situação de cada nota.
+  assert.deepEqual(
+    (await rowsOf(adminCookie, doc.id)).map((row) => row.financeStatus),
+    ['APPROVED', 'PENDING_APPROVAL', 'PENDING_APPROVAL'],
+  );
+});
+
+sessionTest('paginação por nota: sem linha repetida nem faltando, e a contagem certa', async () => {
+  const notes = NOTES.map((note) => ({ ...note, code: RUN_ACCOUNT }));
+  const doc = await newSentThree('paginas', notes);
+  const filters = { from: today(), accountCode: RUN_ACCOUNT, perPage: 2 };
+  const first = await find(adminCookie, filters, 1);
+  const second = await find(adminCookie, filters, 2);
+
+  assert.equal(first.count, 3);
+  assert.equal(second.count, 3);
+  assert.equal(first.totalPages, 2);
+  assert.equal(first.data.length, 2);
+  assert.equal(second.data.length, 1);
+
+  const rows = [...first.data, ...second.data];
+
+  assert.ok(rows.every((row) => row.id === doc.id));
+  assert.deepEqual(
+    rows.map((row) => row.envelopeItemId),
+    NOTES.map((note) => doc.items[note.title]),
+    'linha repetida ou faltando entre as páginas',
+  );
+  assert.deepEqual(
+    rows.map((row) => row.position.index),
+    [1, 2, 3],
+  );
+});
+
+sessionTest('o dono vê uma linha por nota, com o link do documento', async () => {
+  const doc = fx.three ?? (await newSentThree('dono'));
+  const rows = await rowsOf(userCookie, doc.id);
+  const teamUrl = db(`select t.url from "Team" t join "Envelope" e on e."teamId" = t.id where e.id = '${doc.id}'`);
+
+  assert.deepEqual(
+    rows.map((row) => row.documentTitle),
+    NOTES.map((note) => note.title),
+  );
+  // O link do dono é o do documento no time, o mesmo nas três (a âncora da nota é só da página da NF).
+  assert.ok(
+    rows.every((row) => row.link === `/t/${teamUrl}/documents/${doc.id}`),
+    JSON.stringify(rows.map((row) => row.link)),
+  );
+  // O dono não decide sobre a nota: nem a marca de duplicada nem a consulta.
+  assert.ok(rows.every((row) => row.isPossibleDuplicate === false));
 });
 
 sessionTest('etiquetas da lista de Documentos', async () => {

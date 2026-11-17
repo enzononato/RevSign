@@ -3,6 +3,7 @@ import type { RevalleFinanceStatus, RevalleInvoiceClassification, RevalleInvoice
 import { DocumentStatus, Prisma, RevalleInvoiceFileKind, RevalleInvoiceStatus } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
+import { isNewVersionDraftRow, NEW_VERSION_DRAFT_STATUSES } from '../../../revalle/finance/finance-status';
 import { extractAccessKeys } from '../../../revalle/invoice/detect-invoice';
 import { invoiceMirrorColumns } from '../../../revalle/invoice/invoice-files';
 import { logger } from '../../../utils/logger';
@@ -193,14 +194,21 @@ export const ensureLegacyInvoiceFiles = async (
 ): Promise<boolean> => {
   const row = await prisma.revalleInvoiceClassification.findUnique({
     where: { envelopeId },
-    select: { isInvoice: true, envelope: { select: { status: true } } },
+    select: {
+      isInvoice: true,
+      previousEnvelopeId: true,
+      financeStatus: true,
+      envelope: { select: { status: true } },
+    },
   });
 
   if (!row || row.isInvoice !== RevalleInvoiceStatus.YES) {
     return false;
   }
 
-  if (!allowDraft && row.envelope.status === DocumentStatus.DRAFT) {
+  // O rascunho de uma nova versão (envio parado) está nas filas do Financeiro e da Contabilidade como um enviado: refaz
+  // também. O rascunho comum do dono, só com `allowDraft` (a classificação).
+  if (!allowDraft && row.envelope.status === DocumentStatus.DRAFT && !isNewVersionDraftRow(row)) {
     return false;
   }
 
@@ -259,19 +267,33 @@ export const ensureLegacyInvoiceFiles = async (
 };
 
 /**
- * Na subida: refaz as linhas de arquivo de todo envio NF já enviado que ainda não tem nenhuma (`ensureLegacyInvoiceFiles`).
- * Devolve quantos foram refeitos. Um envio que falha não para os outros (a primeira leitura tenta de novo).
+ * Envio NF que as listas, as filas e os contadores contam (enviado, ou o rascunho de uma nova versão com o envio parado)
+ * sem nenhuma linha de arquivo NF.
+ */
+const listedWithoutNfRows = {
+  isInvoice: RevalleInvoiceStatus.YES,
+  envelope: { revalleInvoiceFiles: { none: { kind: RevalleInvoiceFileKind.NF } } },
+  OR: [
+    { envelope: { status: { not: DocumentStatus.DRAFT } } },
+    {
+      envelope: { status: DocumentStatus.DRAFT },
+      previousEnvelopeId: { not: null },
+      financeStatus: { in: [...NEW_VERSION_DRAFT_STATUSES] },
+    },
+  ],
+} satisfies Prisma.RevalleInvoiceClassificationWhereInput;
+
+/**
+ * Na subida: refaz as linhas de arquivo de todo envio NF já enviado (ou rascunho de nova versão parado) que ainda não tem
+ * nenhuma (`ensureLegacyInvoiceFiles`). Devolve quantos foram refeitos. Um envio que falha não para os outros (registra só
+ * o tipo do erro; a primeira leitura tenta de novo).
  */
 export const backfillLegacyInvoiceFiles = async (): Promise<number> => {
   const rows = await prisma.revalleInvoiceClassification.findMany({
     where: {
-      isInvoice: RevalleInvoiceStatus.YES,
+      ...listedWithoutNfRows,
       // Sem arquivo nenhum não há o que refazer: não volta a cada subida.
-      envelope: {
-        status: { not: DocumentStatus.DRAFT },
-        revalleInvoiceFiles: { none: {} },
-        envelopeItems: { some: {} },
-      },
+      envelope: { revalleInvoiceFiles: { none: {} }, envelopeItems: { some: {} } },
     },
     select: { envelopeId: true },
   });
@@ -294,3 +316,10 @@ export const backfillLegacyInvoiceFiles = async (): Promise<number> => {
 
   return rebuilt;
 };
+
+/**
+ * Quantos envios NF que as listas contam continuam sem linha de arquivo NF (somem da lista, da planilha, das filas e dos
+ * contadores até a primeira leitura refazer). Só a contagem, para o log da subida.
+ */
+export const countInvoicesWithoutFileRows = async (): Promise<number> =>
+  await prisma.revalleInvoiceClassification.count({ where: listedWithoutNfRows });

@@ -153,10 +153,24 @@ const awaitingApprovalWhere = {
 /** Linha de arquivo que é nota fiscal (a lista, as filas e os contadores contam notas). */
 const nfFile = { kind: RevalleInvoiceFileKind.NF } satisfies Prisma.RevalleInvoiceFileWhereInput;
 
-/** A nota ainda sem a aprovação dela, num envio enviado (ou concluído) que aguarda o Financeiro. */
+/** O envio ainda tem alguma nota sem a aprovação dela. */
+const hasUnapprovedNote = {
+  revalleInvoiceFiles: { some: { kind: RevalleInvoiceFileKind.NF, approvedAt: null } },
+} satisfies Prisma.EnvelopeWhereInput;
+
+/**
+ * A nota já aprovada num envio que ainda aguarda as outras: só existe com 2+ notas. Com uma nota só, vale a situação do
+ * envio, como antes da Fase 9 (uma aprovação solta numa nota única que aguarda continua na fila).
+ */
+const approvedNoteOfAwaitingWhere = {
+  approvedAt: { not: null },
+  envelope: { ...awaitingApprovalWhere, ...hasUnapprovedNote },
+} satisfies Prisma.RevalleInvoiceFileWhereInput;
+
+/** A nota que aguarda a aprovação, num envio enviado (ou concluído) que aguarda o Financeiro. */
 const awaitingApprovalFileWhere = {
-  approvedAt: null,
   envelope: awaitingApprovalWhere,
+  NOT: approvedNoteOfAwaitingWhere,
 } satisfies Prisma.RevalleInvoiceFileWhereInput;
 
 /**
@@ -204,7 +218,10 @@ const accountingFilterWhere = (filter: AccountingFilter | undefined): Prisma.Rev
   }
 };
 
-/** Por nota: a situação de cada nota é a do envio, salvo a nota já aprovada num envio que aguarda (`fileFinanceStatus`). */
+/**
+ * Por nota: a situação de cada nota é a do envio, salvo a nota já aprovada num envio de 2+ notas que ainda aguarda alguma
+ * (`noteFinanceStatus`).
+ */
 const financeFilterWhere = (filter: FinanceFilter | undefined): Prisma.RevalleInvoiceFileWhereInput | null => {
   const stateIs = (financeStatus: RevalleFinanceStatus) => ({ envelope: { revalleInvoice: { financeStatus } } });
 
@@ -214,12 +231,7 @@ const financeFilterWhere = (filter: FinanceFilter | undefined): Prisma.RevalleIn
     case 'aguardando-aprovacao':
       return awaitingApprovalFileWhere;
     case 'aprovadas':
-      return {
-        OR: [
-          stateIs(RevalleFinanceStatus.APPROVED),
-          { approvedAt: { not: null }, ...stateIs(RevalleFinanceStatus.PENDING_APPROVAL) },
-        ],
-      };
+      return { OR: [stateIs(RevalleFinanceStatus.APPROVED), approvedNoteOfAwaitingWhere] };
     case 'substituidas':
       return stateIs(RevalleFinanceStatus.SUPERSEDED);
     case 'antigas':
@@ -333,7 +345,7 @@ const envelopeSelect = {
   // Fase 9: as notas do envio, para a posição de cada uma (1 de 3...).
   revalleInvoiceFiles: {
     where: nfFile,
-    select: { id: true, kind: true, envelopeItem: { select: { order: true } } },
+    select: { id: true, kind: true, approvedAt: true, envelopeItem: { select: { order: true } } },
   },
 } satisfies Prisma.EnvelopeSelect;
 
@@ -378,6 +390,17 @@ const readSuggestion = (file: SelectedFile) => {
 
 /** A linha da lista com as chaves de acesso, que só a planilha usa (a lista não as mostra). */
 type InvoiceRowWithKeys = InvoiceListRow & { accessKeys: string[] };
+
+/**
+ * A situação da nota na lista, igual aos filtros: `fileFinanceStatus` só quando o envio ainda tem outra nota aguardando
+ * (2+ notas); com uma nota só (ou todas aprovadas), a do envio, como antes.
+ */
+const noteFinanceStatus = (envelope: SelectedEnvelope, file: SelectedFile) => {
+  const envelopeStatus = envelope.revalleInvoice?.financeStatus ?? null;
+  const hasUnapproved = envelope.revalleInvoiceFiles.some((note) => note.approvedAt === null);
+
+  return hasUnapproved ? fileFinanceStatus(envelopeStatus, file.approvedAt) : envelopeStatus;
+};
 
 const positionsOf = (envelope: SelectedEnvelope) =>
   invoicePositions(
@@ -481,7 +504,7 @@ const toRows = async (notes: SelectedNote[], viewer: ResolvedViewer): Promise<In
       isPossibleDuplicate: duplicateIds.has(file.id),
       accessKeys: file.accessKeys,
       acceptedSuggestion: file.acceptedSuggestion,
-      financeStatus: fileFinanceStatus(envelopeFinanceStatus, file.approvedAt),
+      financeStatus: noteFinanceStatus(envelope, file),
       version: envelope.revalleInvoice?.version ?? 1,
       approvedBy: file.approvedById ? (approvers.get(file.approvedById) ?? null) : null,
       costCenterCode: file.costCenterCode,

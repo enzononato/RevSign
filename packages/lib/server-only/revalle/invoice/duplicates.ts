@@ -226,15 +226,20 @@ export const findEnvelopeNoteDuplicatesOrEmpty = async ({
       return { byFile, union: [] };
     }
 
-    for (const file of searchable) {
-      byFile.set(
-        file.id,
-        await findOtherInvoices(
+    // Uma consulta por nota, em paralelo (no máximo 10 arquivos por envio).
+    const found = await Promise.all(
+      searchable.map(async (file) => ({
+        id: file.id,
+        duplicates: await findOtherInvoices(
           envelopeId,
           { isInvoice: RevalleInvoiceStatus.YES, AND: [isNotSuperseded] },
           fileMatchWhere(matchConditions([file])),
         ),
-      );
+      })),
+    );
+
+    for (const { id, duplicates } of found) {
+      byFile.set(id, duplicates);
     }
   } catch (error) {
     logLookupFailure('single', error);
