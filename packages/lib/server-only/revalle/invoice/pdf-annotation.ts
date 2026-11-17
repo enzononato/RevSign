@@ -2,9 +2,11 @@ import { PDFDocument, rgb } from '@cantoo/pdf-lib';
 import { prisma } from '@documenso/prisma';
 import { PDF } from '@libpdf/core';
 import fontkit from '@pdf-lib/fontkit';
-import { FieldType, RevalleFinanceStatus, RevalleInvoiceStatus } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
+import { FieldType, RevalleFinanceStatus, RevalleInvoiceFileKind, RevalleInvoiceStatus } from '@prisma/client';
 
 import { NEXT_PRIVATE_INTERNAL_WEBAPP_URL } from '../../../constants/app';
+import { fileFinanceStatus } from '../../../revalle/invoice/invoice-files';
 import {
   INVOICE_ANNOTATION_FONT_SIZE,
   invoiceAnnotationLines,
@@ -12,6 +14,7 @@ import {
   pickAnnotationField,
 } from '../../../revalle/invoice/pdf-annotation';
 import { logger } from '../../../utils/logger';
+import { loadInvoiceFiles } from './invoice-files';
 
 // #0070C0
 const ANNOTATION_COLOR = rgb(0, 0x70 / 255, 0xc0 / 255);
@@ -24,12 +27,48 @@ export type RevalleInvoiceAnnotation = {
   field: { page: number; positionX: number; positionY: number; width: number; height: number } | null;
 };
 
+type AnnotationFieldRow = {
+  type: FieldType;
+  inserted: boolean;
+  page: number;
+  positionX: Prisma.Decimal | number;
+  positionY: Prisma.Decimal | number;
+  width: Prisma.Decimal | number;
+  height: Prisma.Decimal | number;
+  envelopeItemId: string;
+};
+
+/** A nota entra se o Financeiro aprovou a conta dela (mesma regra do certificado). */
+const isAccountApproved = (financeStatus: RevalleFinanceStatus | null, approvedAt: Date | null) =>
+  fileFinanceStatus(financeStatus, approvedAt) === RevalleFinanceStatus.APPROVED ||
+  (financeStatus === RevalleFinanceStatus.SUPERSEDED && approvedAt !== null);
+
+const fieldOf = (picked: AnnotationFieldRow | null): RevalleInvoiceAnnotation['field'] =>
+  picked
+    ? {
+        page: picked.page,
+        positionX: Number(picked.positionX),
+        positionY: Number(picked.positionY),
+        width: Number(picked.width),
+        height: Number(picked.height),
+      }
+    : null;
+
+// O que a anotação precisa de cada nota. `envelopeItemId` nulo = envio de antes da Fase 9, sem linha de arquivo.
+type AnnotationTarget = {
+  envelopeItemId: string | null;
+  accountCode: string | null;
+  approvedAccountName: string | null;
+  costCenterCode: string | null;
+};
+
 /**
- * O texto da conta e do centro que a selagem escreve na NF, e onde: uma vez por selagem. Nulo para documento comum e
- * para NF sem conta nem centro. A conta só conta se o Financeiro aprovou (mesma regra do certificado); o nome é o
- * congelado na aprovação, senão o atual da lista.
+ * Os textos de conta e centro que a selagem escreve nas NFs: uma anotação por arquivo NF com linhas, acima da primeira
+ * assinatura DAQUELE arquivo (sem campo: alto da primeira página). Vazio para documento comum e para NF sem conta nem
+ * centro; boleto e outros arquivos não recebem nada. A conta só conta se o Financeiro aprovou; o nome é o congelado na
+ * aprovação daquela nota, senão o atual da lista.
  */
-export const loadRevalleInvoiceAnnotation = async (envelopeId: string): Promise<RevalleInvoiceAnnotation | null> => {
+export const loadRevalleInvoiceAnnotations = async (envelopeId: string): Promise<RevalleInvoiceAnnotation[]> => {
   const row = await prisma.revalleInvoiceClassification.findUnique({
     where: { envelopeId },
     select: {
@@ -43,30 +82,11 @@ export const loadRevalleInvoiceAnnotation = async (envelopeId: string): Promise<
   });
 
   if (!row || row.isInvoice !== RevalleInvoiceStatus.YES) {
-    return null;
+    return [];
   }
 
-  const isApproved =
-    row.financeStatus === RevalleFinanceStatus.APPROVED ||
-    (row.financeStatus === RevalleFinanceStatus.SUPERSEDED && row.approvedAt !== null);
-  const accountCode = isApproved ? row.choiceCode : null;
-
-  const account =
-    accountCode && row.approvedAccountName === null
-      ? await prisma.revalleAccountingAccount.findUnique({ where: { code: accountCode }, select: { name: true } })
-      : null;
-
-  const lines = invoiceAnnotationLines({
-    accountCode,
-    accountName: row.approvedAccountName ?? account?.name ?? null,
-    costCenterCode: row.costCenterCode,
-  });
-
-  if (lines.length === 0) {
-    return null;
-  }
-
-  const [items, fields] = await Promise.all([
+  const [files, items, fields] = await Promise.all([
+    loadInvoiceFiles(envelopeId),
     prisma.envelopeItem.findMany({
       where: { envelopeId },
       select: { id: true, order: true },
@@ -87,33 +107,83 @@ export const loadRevalleInvoiceAnnotation = async (envelopeId: string): Promise<
     }),
   ]);
 
-  const orderOf = new Map(items.map((item) => [item.id, item.order]));
-  const picked = pickAnnotationField(
-    fields.map((field) => ({ ...field, itemOrder: orderOf.get(field.envelopeItemId) ?? 0 })),
+  const financeStatus = row.financeStatus;
+  const targets: AnnotationTarget[] =
+    files.length > 0
+      ? files
+          .filter((file) => file.kind === RevalleInvoiceFileKind.NF)
+          .map((file) => ({
+            envelopeItemId: file.envelopeItemId,
+            accountCode: isAccountApproved(financeStatus, file.approvedAt) ? file.choiceCode : null,
+            approvedAccountName: file.approvedAccountName,
+            costCenterCode: file.costCenterCode,
+          }))
+      : // Envio de antes da Fase 9 ainda não refeito: só a linha do envio, como era (primeira assinatura de todas).
+        [
+          {
+            envelopeItemId: null,
+            accountCode: isAccountApproved(financeStatus, row.approvedAt) ? row.choiceCode : null,
+            approvedAccountName: row.approvedAccountName,
+            costCenterCode: row.costCenterCode,
+          },
+        ];
+
+  const codesToName = [
+    ...new Set(
+      targets.flatMap((target) =>
+        target.accountCode && target.approvedAccountName === null ? [target.accountCode] : [],
+      ),
+    ),
+  ];
+  const names = new Map<string, string>(
+    codesToName.length > 0
+      ? (
+          await prisma.revalleAccountingAccount.findMany({
+            where: { code: { in: codesToName } },
+            select: { code: true, name: true },
+          })
+        ).map((account) => [account.code, account.name])
+      : [],
   );
 
-  if (picked) {
-    return {
-      lines,
-      envelopeItemId: picked.envelopeItemId,
-      field: {
-        page: picked.page,
-        positionX: Number(picked.positionX),
-        positionY: Number(picked.positionY),
-        width: Number(picked.width),
-        height: Number(picked.height),
-      },
-    };
+  const orderOf = new Map(items.map((item) => [item.id, item.order]));
+  const annotations: RevalleInvoiceAnnotation[] = [];
+
+  for (const target of targets) {
+    const lines = invoiceAnnotationLines({
+      accountCode: target.accountCode,
+      accountName: target.approvedAccountName ?? (target.accountCode ? (names.get(target.accountCode) ?? null) : null),
+      costCenterCode: target.costCenterCode,
+    });
+
+    if (lines.length === 0) {
+      continue;
+    }
+
+    const picked = pickAnnotationField(
+      fields
+        .filter((field) => target.envelopeItemId === null || field.envelopeItemId === target.envelopeItemId)
+        .map((field) => ({ ...field, itemOrder: orderOf.get(field.envelopeItemId) ?? 0 })),
+    );
+
+    if (picked) {
+      annotations.push({ lines, envelopeItemId: picked.envelopeItemId, field: fieldOf(picked) });
+      continue;
+    }
+
+    const itemId = target.envelopeItemId ?? items[0]?.id;
+
+    if (itemId) {
+      annotations.push({ lines, envelopeItemId: itemId, field: null });
+    }
   }
 
-  const first = items[0];
-
-  return first ? { lines, envelopeItemId: first.id, field: null } : null;
+  return annotations;
 };
 
 type DrawRevalleInvoiceAnnotationOptions = {
   pdfDoc: PDF;
-  annotation: RevalleInvoiceAnnotation | null;
+  annotations: RevalleInvoiceAnnotation[];
   envelopeItemId: string;
 };
 
@@ -124,13 +194,17 @@ type DrawRevalleInvoiceAnnotationOptions = {
  */
 export const drawRevalleInvoiceAnnotation = async ({
   pdfDoc,
-  annotation,
+  annotations,
   envelopeItemId,
 }: DrawRevalleInvoiceAnnotationOptions) => {
-  if (!annotation || annotation.envelopeItemId !== envelopeItemId) {
-    return;
+  for (const annotation of annotations) {
+    if (annotation.envelopeItemId === envelopeItemId) {
+      await drawOne(pdfDoc, annotation);
+    }
   }
+};
 
+const drawOne = async (pdfDoc: PDF, annotation: RevalleInvoiceAnnotation) => {
   try {
     const page = pdfDoc.getPage((annotation.field?.page ?? 1) - 1);
 

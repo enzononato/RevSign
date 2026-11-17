@@ -16,7 +16,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, beforeEach, test } from 'node:test';
@@ -25,6 +25,7 @@ import { degrees, PDFDocument, rgb, StandardFonts } from '@cantoo/pdf-lib';
 import './account-autologin.mjs'; // conta obrigatória (16/11/2026): entra na conta de quem assina pelo e-mail da empresa
 import {
   APP_CONTAINER,
+  api,
   appLogs,
   assertNoPaidGeminiCalls,
   BASE_URL,
@@ -35,6 +36,7 @@ import {
   distribute,
   downloadItem,
   fetchIdempotent,
+  invoicePdfFile,
   poppler,
   retryCreateOnStaleSocket,
   signIn,
@@ -883,3 +885,255 @@ sessionTest(
     assert.ok(!logs.includes('Fornecedores') && !logs.includes('Armazém'), 'o log tem dados da nota');
   },
 );
+
+// ---------- Fase 9: várias notas no mesmo envio ----------
+
+// Envelope (API v2) com vários arquivos e um campo de assinatura do signatário em cada, na posição dada (% da página).
+const newMultiFile = async (files, label) => {
+  const apiToken = process.env.REVSIGN_API_TOKEN;
+  const form = new FormData();
+
+  form.append(
+    'payload',
+    JSON.stringify({
+      title: `[TESTE NF] conta no pdf ${label} ${RUN}`,
+      type: 'DOCUMENT',
+      meta: { distributionMethod: 'NONE' },
+      recipients: [
+        {
+          role: 'SIGNER',
+          name: 'Teste',
+          email: `conta-pdf-${label}-1-${RUN}@revalle.com.br`,
+          fields: files.map((file, identifier) => ({
+            type: 'SIGNATURE',
+            identifier,
+            page: 1,
+            positionX: 10,
+            positionY: file.positionY ?? 80,
+            ...FIELD,
+          })),
+        },
+      ],
+    }),
+  );
+
+  for (const { path: file } of files) {
+    form.append('files', new File([readFileSync(file)], path.basename(file), { type: 'application/pdf' }));
+  }
+
+  const created = await retryCreateOnStaleSocket(async () => {
+    const res = await fetch(`${BASE_URL}/api/v2-beta/envelope/create`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiToken}` },
+      body: form,
+    });
+
+    return { status: res.status, body: await res.json() };
+  });
+
+  assert.equal(created.status, 200, JSON.stringify(created.body));
+
+  const envelope = (await api('GET', `/envelope/${created.body.id}`, undefined, { apiToken })).body;
+
+  return {
+    id: created.body.id,
+    items: Object.fromEntries(envelope.envelopeItems.map((item) => [item.title, item.id])),
+  };
+};
+
+// Contrato (1º arquivo), nf-a (2.1.03, 101), boleto, nf-b (3.1.01, 201): assinados em cada arquivo e aprovados nota a nota.
+const sealedMulti = async (label, { contractFirst = true } = {}) => {
+  const contractFile = path.join(mkdtempSync(path.join(tmp, 'c-')), 'contrato.pdf');
+
+  copyFileSync('assets/example.pdf', contractFile);
+
+  const files = [
+    ...(contractFirst ? [{ path: contractFile }] : []),
+    { path: invoicePdfFile({ variant: `nf-a-${label}` }) },
+    ...(contractFirst ? [{ path: invoicePdfFile({ variant: `boleto-${label}` }) }] : []),
+    { path: invoicePdfFile({ variant: `nf-b-${label}` }), positionY: 50 },
+  ];
+  const env = await newMultiFile(files, label);
+  const item = (prefix) => env.items[Object.keys(env.items).find((title) => title.startsWith(prefix))];
+  const mutate = async (name, input) => {
+    const res = await trpcAs(userCookie, 'mutation', `revalle.invoice.${name}`, { envelopeId: env.id, ...input });
+
+    assert.equal(res.status, 200, res.text);
+  };
+
+  await mutate('classify', {});
+
+  if (contractFirst) {
+    await mutate('setFileKind', { envelopeItemId: item('boleto'), kind: 'BOLETO' });
+  }
+
+  for (const [prefix, code, costCenter] of [
+    [`nf-a`, '2.1.03', '101'],
+    [`nf-b`, '3.1.01', '201'],
+  ]) {
+    await mutate('setChoice', { envelopeItemId: item(prefix), choice: { code } });
+    await mutate('setCostCenter', { envelopeItemId: item(prefix), code: costCenter });
+  }
+
+  const [recipient] = await distribute(env.id);
+  const doc = loadVersion(env.id);
+  const fields = db(
+    `select id from "Field" where "recipientId" = ${recipient.id} and type = 'SIGNATURE' order by "envelopeItemId"`,
+  )
+    .split('\n')
+    .filter(Boolean)
+    .map(Number);
+
+  await gate(recipient.token);
+  assert.equal((await html(`/sign/${recipient.token}`)).status, 200);
+
+  for (const fieldId of fields) {
+    const signed = await trpc('envelope.field.sign', {
+      token: recipient.token,
+      fieldId,
+      fieldValue: { type: 'SIGNATURE', value: 'Teste Digitado' },
+    });
+
+    assert.equal(signed.status, 200, signed.text);
+  }
+
+  const completion = await completeWithCode({
+    token: recipient.token,
+    documentId: doc.documentId,
+    email: recipient.email,
+  });
+
+  assert.ok(completion.ok, completion.text);
+  db(`delete from "RevalleEmailLink" where cpf = '${MARIA.cpf}'`);
+  assert.equal(status(env.id), 'PENDING');
+
+  // O Financeiro aprova nota a nota (Task 6); a última aprovação conclui e sela.
+  for (const prefix of ['nf-a', 'nf-b']) {
+    const approved = await trpcAs(adminCookie, 'mutation', 'revalle.finance.approve', {
+      envelopeId: env.id,
+      envelopeItemId: item(prefix),
+    });
+
+    assert.equal(approved.status, 200, approved.text);
+  }
+
+  assert.equal(await waitStatus(env.id, 'COMPLETED'), 'COMPLETED');
+
+  return { env, item };
+};
+
+sessionTest('várias notas: o texto azul em cada nota, nada no boleto nem no contrato', async () => {
+  const { item } = await sealedMulti('varias');
+  const seal = (prefix) => inspect({ item: item(prefix) });
+  const [contract, a, boleto, b] = [
+    await seal('contrato'),
+    await seal('nf-a'),
+    await seal('boleto'),
+    await seal('nf-b'),
+  ];
+
+  assert.equal(count(a.flat, 'Conta: 2.1.03 - Fornecedores'), 1);
+  assert.equal(count(a.flat, 'CC: 101 - Puxada'), 1);
+  assert.equal(count(b.flat, 'Conta: 3.1.01 - Serviços de terceiros'), 1);
+  assert.equal(count(b.flat, 'CC: 201 - Armazém'), 1);
+  assert.ok(!a.flat.includes('3.1.01') && !b.flat.includes('2.1.03'), 'a conta de uma nota apareceu na outra');
+
+  for (const [name, other] of [
+    ['contrato', contract],
+    ['boleto', boleto],
+  ]) {
+    assert.equal(other.conta.length + other.cc.length, 0, `${name} recebeu Conta: ou CC:`);
+    assert.equal(other.image.blueBounds(), null, `${name} tem azul`);
+  }
+
+  // Acima do campo de assinatura da nf-b (positionY 50).
+  const top = fieldTop(null, 50);
+  const blueBox = b.image.blueBounds();
+
+  assert.ok(blueBox, 'sem texto azul na nf-b');
+  assert.ok(b.image.blue(blueBox) > 600, 'glifos faltando no texto azul');
+  assert.ok(blueBox.y2 <= top + 1 && blueBox.y2 > top - 10, `o texto (${blueBox.y2}) não está acima do campo (${top})`);
+});
+
+sessionTest('uma nota e um contrato: o texto vai na nota mesmo com a primeira assinatura no contrato', async () => {
+  // Contrato é o 1º arquivo, com a assinatura mais alta; a nota tem a dela mais abaixo.
+  const contractFile = path.join(mkdtempSync(path.join(tmp, 'c-')), 'contrato.pdf');
+
+  copyFileSync('assets/example.pdf', contractFile);
+
+  const env = await newMultiFile(
+    [
+      { path: contractFile, positionY: 10 },
+      { path: invoicePdfFile({ variant: `nf-unica-${RUN}` }), positionY: 70 },
+    ],
+    'nf-contrato',
+  );
+  const nfItem = env.items[Object.keys(env.items).find((title) => title.startsWith('nf-unica'))];
+  const contractItem = env.items['contrato.pdf'];
+
+  assert.equal((await trpcAs(userCookie, 'mutation', 'revalle.invoice.classify', { envelopeId: env.id })).status, 200);
+  assert.equal(
+    (
+      await trpcAs(userCookie, 'mutation', 'revalle.invoice.setChoice', {
+        envelopeId: env.id,
+        envelopeItemId: nfItem,
+        choice: { code: '2.1.03' },
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await trpcAs(userCookie, 'mutation', 'revalle.invoice.setCostCenter', {
+        envelopeId: env.id,
+        envelopeItemId: nfItem,
+        code: '201',
+      })
+    ).status,
+    200,
+  );
+
+  const [recipient] = await distribute(env.id);
+  const doc = loadVersion(env.id);
+  const fields = db(
+    `select id from "Field" where "recipientId" = ${recipient.id} and type = 'SIGNATURE' order by "envelopeItemId"`,
+  )
+    .split('\n')
+    .filter(Boolean)
+    .map(Number);
+
+  await gate(recipient.token);
+
+  for (const fieldId of fields) {
+    const signed = await trpc('envelope.field.sign', {
+      token: recipient.token,
+      fieldId,
+      fieldValue: { type: 'SIGNATURE', value: 'Teste Digitado' },
+    });
+
+    assert.equal(signed.status, 200, signed.text);
+  }
+
+  assert.ok(
+    (await completeWithCode({ token: recipient.token, documentId: doc.documentId, email: recipient.email })).ok,
+  );
+  db(`delete from "RevalleEmailLink" where cpf = '${MARIA.cpf}'`);
+
+  const approved = await trpcAs(adminCookie, 'mutation', 'revalle.finance.approve', {
+    envelopeId: env.id,
+    envelopeItemId: nfItem,
+  });
+
+  assert.equal(approved.status, 200, approved.text);
+  assert.equal(await waitStatus(env.id, 'COMPLETED'), 'COMPLETED');
+
+  const nf = await inspect({ item: nfItem });
+  const contract = await inspect({ item: contractItem });
+
+  assert.equal(count(nf.flat, 'Conta: 2.1.03 - Fornecedores'), 1);
+  assert.equal(count(nf.flat, 'CC: 201 - Armazém'), 1);
+  assert.equal(contract.conta.length + contract.cc.length, 0, 'o contrato recebeu o texto');
+  assert.equal(contract.image.blueBounds(), null, 'o contrato tem azul');
+  // Acima da assinatura da nota (70%), não da do contrato (10%).
+  assert.ok(nf.image.blueBounds().y2 <= fieldTop(null, 70) + 1);
+});
