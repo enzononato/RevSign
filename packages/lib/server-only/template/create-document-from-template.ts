@@ -752,8 +752,25 @@ export const createDocumentFromTemplate = async ({
       })),
     });
 
-    // REVALLE: o bloco "Conta e centro de custo" de cada arquivo do modelo vai para o arquivo do documento.
-    await copyInvoiceAnnotationBoxes({ itemMap: oldEnvelopeItemToNewEnvelopeItemIdMap, envelopeId: envelope.id, tx });
+    // REVALLE: o bloco "Conta e centro de custo" de cada arquivo do modelo vai para o arquivo do documento, menos quando
+    // a API trocou o PDF daquele arquivo (o bloco foi posto em outro desenho de página).
+    const itemsWithCustomPdf = new Set(
+      template.envelopeItems
+        .filter((item) =>
+          customDocumentData.some(
+            (custom) => (custom.documentDataId && !custom.envelopeItemId) || custom.envelopeItemId === item.id,
+          ),
+        )
+        .map((item) => item.id),
+    );
+
+    await copyInvoiceAnnotationBoxes({
+      itemMap: Object.fromEntries(
+        Object.entries(oldEnvelopeItemToNewEnvelopeItemIdMap).filter(([oldId]) => !itemsWithCustomPdf.has(oldId)),
+      ),
+      envelopeId: envelope.id,
+      tx,
+    });
 
     await tx.documentAuditLog.create({
       data: createDocumentAuditLogData({

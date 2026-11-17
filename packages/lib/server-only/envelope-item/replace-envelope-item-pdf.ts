@@ -99,6 +99,11 @@ export const UNSAFE_replaceEnvelopeItemPdf = async ({
   const updatedEnvelopeItem = await prisma.$transaction(async (tx) => {
     await assertEnvelopeMutable(envelope, tx);
 
+    // REVALLE: o bloco "Conta e centro de custo" era do arquivo antigo; o novo arquivo começa sem bloco. A trava do
+    // envelope vem antes de tudo (mesma ordem da gravação do bloco: envelope, depois item), senão as duas se travam.
+    await tx.$queryRaw`SELECT 1 FROM "Envelope" WHERE "id" = ${envelope.id} FOR UPDATE`;
+    await tx.revalleInvoiceAnnotationBox.deleteMany({ where: { envelopeItemId } });
+
     const updatedItem = await tx.envelopeItem.update({
       where: {
         id: envelopeItemId,
@@ -112,11 +117,6 @@ export const UNSAFE_replaceEnvelopeItemPdf = async ({
     });
 
     // Todo: Audit log if we're updating the title or order.
-
-    // REVALLE: o bloco "Conta e centro de custo" era do arquivo antigo; o novo arquivo começa sem bloco. A trava do
-    // envelope é a mesma da gravação do bloco: um bloco posto ao mesmo tempo não fica no arquivo novo.
-    await tx.$queryRaw`SELECT 1 FROM "Envelope" WHERE "id" = ${envelope.id} FOR UPDATE`;
-    await tx.revalleInvoiceAnnotationBox.deleteMany({ where: { envelopeItemId } });
 
     // Delete fields that reference pages beyond the new PDF's page count.
     const outOfBoundsFields = await tx.field.findMany({
