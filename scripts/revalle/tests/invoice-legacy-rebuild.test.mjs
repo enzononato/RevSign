@@ -128,12 +128,12 @@ const classify = async (envelopeId) => {
   return data(res);
 };
 
-const choose = async (envelopeId, code = '2.1.03', costCenter = '101') => {
-  const account = await invoice('mutation', 'setChoice', { envelopeId, choice: { code } });
+const choose = async (envelopeId, code = '2.1.03', costCenter = '101', envelopeItemId = undefined) => {
+  const account = await invoice('mutation', 'setChoice', { envelopeId, envelopeItemId, choice: { code } });
 
   assert.equal(account.status, 200, account.text);
 
-  const center = await invoice('mutation', 'setCostCenter', { envelopeId, code: costCenter });
+  const center = await invoice('mutation', 'setCostCenter', { envelopeId, envelopeItemId, code: costCenter });
 
   assert.equal(center.status, 200, center.text);
 };
@@ -193,7 +193,19 @@ sessionTest('envio antigo: o arquivo "outro" refeito já tem as chaves de acesso
   );
 
   assert.equal((await classify(id)).isInvoice, 'YES');
-  await choose(id);
+
+  // Na Fase 9 os dois DANFEs são duas notas: a escolha vai para cada uma (o espelho fica com a escolha).
+  const noteItems = db(
+    `select f."envelopeItemId" from "RevalleInvoiceFile" f join "EnvelopeItem" i on i.id = f."envelopeItemId"
+     where f."envelopeId" = '${id}' and f.kind = 'NF' order by i."order"`,
+  ).split('\n');
+
+  assert.equal(noteItems.length, 2);
+
+  for (const envelopeItemId of noteItems) {
+    await choose(id, '2.1.03', '101', envelopeItemId);
+  }
+
   // Forja o legado: enviado e sem linhas, com uma nota só (o espelho com a escolha).
   db(`delete from "RevalleInvoiceFile" where "envelopeId" = '${id}'`);
   db(`update "Envelope" set status = 'PENDING' where id = '${id}'`);
