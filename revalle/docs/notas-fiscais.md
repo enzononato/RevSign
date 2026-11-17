@@ -109,6 +109,8 @@ o mesmo PDF for enviado de novo, a sugestão vem do cache, sem nova chamada. Por
    Na mesma chamada, a IA lê da nota o **fornecedor**, o **número** e o **valor total**, e o bloco os mostra abaixo da
    sugestão: "Lido pela IA: ACME Ltda · Nº 12345 · R$ 1.234,56" (só o que ela conseguiu ler). Veja a seção "Dados da
    nota lidos pela IA" mais abaixo.
+   Cada nota também mostra a linha "No PDF: …", que diz se a conta e o centro serão impressos e onde (seção "A conta e o
+   centro de custo no PDF final"); ela não trava o envio.
 3. O botão **Enviar** só libera depois das duas escolhas, a conta e o centro de custo. Com as duas, o documento sai e a
    NF fica aguardando a aprovação do Financeiro. Se a conta escolhida saiu da lista antes do envio (ficou inativa), o
    envio é recusado do mesmo jeito e a pessoa escolhe outra. A nova versão criada pelo Financeiro numa troca de conta
@@ -300,32 +302,55 @@ duplicada de outro envio.
 
 ### A conta e o centro de custo no PDF final
 
-No PDF final da nota (depois que todos assinam e o Financeiro aprova), a selagem escreve, **em azul**, logo acima do
-carimbo da primeira assinatura **de cada nota**:
+O texto da conta e do centro no PDF final da nota é **opcional** e sai **onde o remetente colocar o bloco**. No PDF final
+(depois que todos assinam e o Financeiro aprova), a selagem escreve, **em azul**, dentro do bloco:
 
 ```
 Conta: 342401 - Manutenção Predial
 CC: 201 - Armazém
 ```
 
-- **Só no PDF final.** O arquivo original e a prévia que aparece durante a assinatura e a espera pelo Financeiro não
-  mudam, e o SHA-256 do original continua o mesmo: o texto entra só na selagem. O certificado e o `/verificar` seguem
-  como estavam.
-- **A conta** é a que o Financeiro aprovou, com o nome da hora da aprovação (se a lista de contas for reimportada com
-  outro nome, o PDF continua com o nome aprovado). Sem nome, só o código. **O centro** vem da lista fixa de centros.
-- **Linhas que faltam:** a nota sem centro sai só com a linha da conta; a nota sem conta aprovada (de antes da Fase 6, ou
-  marcada como nota depois do envio) sai só com a do centro; sem nenhum dos dois, nada. Documento comum e nota recusada
-  não levam o texto.
-- **Várias notas no mesmo envio (Fase 9):** cada arquivo de nota recebe o texto com a conta aprovada **dessa nota** e o
-  centro dela. Boleto, contrato e outros arquivos não recebem nada.
-- **Primeira assinatura** é a primeira de cada arquivo de nota: página, de cima para baixo, da esquerda para a direita
-  (não é a ordem dos destinatários). Cada nota recebe o texto dela, uma vez só, mesmo com vários signatários, e a
-  primeira assinatura de outro arquivo (um contrato, por exemplo) não muda onde o texto da nota entra. Se o campo estiver
-  no alto da página e não houver espaço acima, o texto vai logo abaixo do campo; se também não houver abaixo, vai acima,
-  encostado na margem de 18 pt. Nota sem campo de assinatura leva o texto no alto da primeira página dela.
-- **Nunca sai da página:** um nome longo quebra em mais de uma linha dentro da margem de 18 pt, e o texto recua para a
-  esquerda se o campo estiver muito à direita. Não há fundo branco: o texto pode ficar sobre o que está impresso, e
-  não o apaga. Vale em página com rotação e nos documentos das duas versões do editor.
+**O bloco "Conta e centro de custo".** No editor, no passo **Adicionar campos**, há o botão **Conta e centro de custo**
+abaixo de **Assinatura**. Arraste-o para a página da nota: o bloco aparece com o texto de exemplo ("Conta: (conta
+aprovada)" e "CC: (centro de custo)"). Dá para mover, redimensionar (o tamanho mínimo é 6% da altura da página) e tirar.
+
+- **Um bloco por arquivo.** Arrastar de novo no mesmo arquivo move o bloco que já existe (mantém o tamanho); trocar de
+  arquivo mostra o bloco daquele arquivo. O bloco não é campo de assinatura: não tem destinatário, não conta em "cada
+  signatário precisa de assinatura em cada documento" e nunca trava o envio. Só se edita enquanto o documento é
+  rascunho, por quem pode editar os campos. Trocar o arquivo do rascunho apaga o bloco dele.
+- **Também em modelo.** O bloco pode ser posto num modelo e vai para o documento criado a partir dele. Ele também é
+  copiado ao duplicar o documento e na nova versão (troca de conta, correção do centro, "Enviar de novo").
+- **Sem bloco, sem texto.** Só sai texto em arquivo que é **nota fiscal**, e só com conta aprovada ou centro escolhido:
+  a nota sem centro sai só com a linha da conta; a sem conta aprovada (de antes da Fase 6, ou marcada como nota depois do
+  envio) sai só com a do centro; sem nenhum dos dois, nada. Bloco em contrato, boleto ou outro arquivo, e em nota
+  recusada, não imprime nada.
+- **Várias notas (Fase 9):** cada arquivo de nota recebe o texto com a conta aprovada **dessa nota** e o centro dela, no
+  bloco dela. Nota sem bloco fica sem texto.
+- **O texto:** formato e azul de sempre, alinhado ao canto de cima, à esquerda. **Encolhe** (da fonte 10 até 6 pt) para
+  caber e, se ainda não couber, **quebra** a linha, por palavra (uma palavra maior que o bloco quebra por letra).
+  **Nunca é cortado**: no pé da página, o texto sobe para não sair. A conta é a que o Financeiro aprovou, com o nome da
+  hora da aprovação (se a lista for reimportada com outro nome, o PDF continua com o nome aprovado); sem nome, só o
+  código. O centro vem da lista fixa de centros.
+- **Nunca no certificado.** O texto só entra nas páginas do arquivo da nota, nunca nas páginas do certificado. Vale em
+  página com rotação e nos documentos das duas versões do editor. Se o bloco ficou numa página que não existe mais, a
+  nota é selada sem o texto, e o log do servidor diz qual envio e `AnnotationPageMissing`.
+- **Só no PDF final.** O arquivo original e a prévia da assinatura e da espera pelo Financeiro não mudam, e o SHA-256 do
+  original continua o mesmo: o texto entra só na selagem. O certificado e o `/verificar` seguem como estavam.
+- **No diálogo de envio**, cada nota mostra uma linha:
+  - "No PDF: conta e centro na página 2." (há bloco naquele arquivo);
+  - "No PDF: sem conta e centro (opcional — coloque o bloco no passo Adicionar campos)." (não há);
+  - em âmbar, para bloco num arquivo que não é nota: "O bloco de conta e centro em contrato.pdf não será impresso: só
+    sai em nota fiscal." O aviso não trava o **Enviar**.
+- **Envios de antes da atualização** (já enviados quando o bloco passou a existir, as novas versões deles e os que
+  estavam em rascunho de nova versão) mantêm o texto **automático** de antes, logo acima do carimbo da primeira
+  assinatura **de cada nota**: a primeira de cada arquivo de nota, por página, de cima para baixo, da esquerda para a
+  direita (não é a ordem dos destinatários); sem espaço acima, vai logo abaixo do campo e, se também não houver, acima
+  encostado na margem de 18 pt; nota sem campo de assinatura leva o texto no alto da primeira página. Nesses envios o
+  diálogo diz "No PDF: conta e centro acima da assinatura (envio de antes da atualização)." e o botão do bloco não
+  aparece. Um envio de antes da atualização marcado como NF depois também fica no modo automático. Um documento
+  duplicado pelo usuário **não** herda o modo automático (só o bloco, se houver).
+- **Sem o editor novo, sem texto.** No editor antigo (documentos V1) não há o bloco, e na API o bloco não é posto: o
+  envio sai sem o texto.
 - **Nova versão** (troca de conta, correção do centro): sai do PDF original, então o texto antigo nunca fica por baixo; a
   versão anterior, já concluída, continua como foi selada. **Reselagem pelo admin** também parte do PDF original e
   escreve o mesmo texto, sem duplicar.
@@ -723,7 +748,7 @@ boleto. Os limites estão na seção 6.
 
 **Cada nota é uma nota.** Conta e centro de custo (seção 4), aprovação do Financeiro e validação da Contabilidade
 (seção 9), linha na lista e na planilha (seção 5), alerta de duplicada ("Alerta de nota duplicada"), texto azul no PDF
-final ("A conta e o centro de custo no PDF final") e, na prova, no certificado e no `/verificar`, uma linha ou um quadro
+final, no bloco dela ("A conta e o centro de custo no PDF final") e, na prova, no certificado e no `/verificar`, uma linha ou um quadro
 por nota (`prova.md`). O envio só sai com conta e centro em todas as notas e só conclui quando todas forem aprovadas.
 
 ### Boleto junto com as notas

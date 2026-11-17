@@ -605,6 +605,27 @@ boletos** (`notas-fiscais.md`, seção 10). Envios de uma nota continuam iguais.
    Gemini **recusou o formato** pedido para o boleto; os outros códigos são cota, chave e modelo, como antes. Esse formato
    só se confirma com o Gemini de verdade: os testes usam um servidor falso.
 
+## Antes de atualizar (conta e centro em bloco, v.20)
+
+Vale para quem atualiza uma instalação que já está em uso. O texto azul da conta e do centro no PDF final da nota passa a
+ser **opcional**: só sai onde o remetente coloca o bloco **Conta e centro de custo** no editor (`notas-fiscais.md`, seção
+"A conta e o centro de custo no PDF final"). Sem variável nova.
+
+1. **Backup antes** (seção "Backup antes de atualizar").
+2. **Migração.** `20261117100000_revalle_annotation_box` roda sozinha na subida e só ACRESCENTA: a tabela do bloco
+   (`RevalleInvoiceAnnotationBox`) e a coluna `RevalleInvoiceClassification.autoAnnotation`. A migração marca como
+   automático (`autoAnnotation = true`) todo envio que já saiu do rascunho e todo rascunho de nova versão que já existe.
+3. **Envios de antes da atualização não mudam:** os já enviados (e as novas versões deles) continuam com o texto
+   automático acima da primeira assinatura, sem bloco. Só os envios novos dependem do bloco.
+4. **Avise o Financeiro, a Contabilidade e quem envia notas.** A partir de agora o texto azul só aparece onde o
+   remetente coloca o bloco (passo **Adicionar campos**, botão **Conta e centro de custo**). Sem o bloco, o PDF final da
+   nota sai sem a conta e o centro; o diálogo de envio avisa ("No PDF: sem conta e centro (opcional …)"). Quem precisa do
+   texto no PDF deve pedir ao remetente que ponha o bloco.
+5. **Conferência de primeiro uso.** Crie uma nota de teste, ponha o bloco, envie, assine, aprove e confira que `Conta: …`
+   e `CC: …` aparecem uma vez só dentro do bloco, e nada nas páginas do certificado.
+6. **Voltar à imagem anterior.** A imagem antiga ignora a tabela e a coluna novas (só acrescentadas) e volta ao texto
+   automático em todos os envios.
+
 ## Atualizar a versão depois
 
 0. Antes de trocar a versão, confirme que as DUAS imagens existem para a tag nova: `ghcr.io/enzononato/revsign:<tag>` e `ghcr.io/enzononato/revsign-backup:<tag>` (GitHub → Packages; os dois jobs de publicação são independentes e um pode falhar sozinho).
