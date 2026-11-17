@@ -5367,3 +5367,90 @@ msgstr "Centro de custo trocado: {from} → {to} (nota {0} de {1}: {2})"
 
 msgid "Este envio tem {count} notas fiscais. A conta e o centro de custo de cada uma aparecem no documento dela."
 msgstr "Este envio tem {count} notas fiscais. A conta e o centro de custo de cada uma aparecem no documento dela."
+
+
+# REVALLE: Fase 9, Tasks 5 e 6 (diálogo de envio por arquivo; Financeiro e Contabilidade por nota).
+msgid "Notas fiscais · Conta contábil"
+msgstr "Notas fiscais · Conta contábil"
+
+msgid "Nota {index} de {total} · {title}"
+msgstr "Nota {index} de {total} · {title}"
+
+msgid "Boleto · {title}"
+msgstr "Boleto · {title}"
+
+msgid "{title} · documento comum"
+msgstr "{title} · documento comum"
+
+msgid "Este arquivo é:"
+msgstr "Este arquivo é:"
+
+msgid "Boleto"
+msgstr "Boleto"
+
+msgid "Outro documento"
+msgstr "Outro documento"
+
+msgid "Tipo do arquivo"
+msgstr "Tipo do arquivo"
+
+msgid "Não é boleto"
+msgstr "Não é boleto"
+
+msgid "Lendo o boleto…"
+msgstr "Lendo o boleto…"
+
+msgid "Lido: {readLine}"
+msgstr "Lido: {readLine}"
+
+msgid "vence {dueDate}"
+msgstr "vence {dueDate}"
+
+msgid "Esta nota parece ser a mesma da nota {index} deste envio."
+msgstr "Esta nota parece ser a mesma da nota {index} deste envio."
+
+# Rodada de correção 1
+msgid "Não foi possível ler o boleto."
+msgstr "Não foi possível ler o boleto."
+
+msgid "Boletos do envio"
+msgstr "Boletos do envio"
+
+msgid "Vencimento"
+msgstr "Vencimento"
+
+msgid "Beneficiário"
+msgstr "Beneficiário"
+
+msgid "Conta: {account}. O envio é concluído quando todas as notas estiverem aprovadas e todos tiverem assinado."
+msgstr "Conta: {account}. O envio é concluído quando todas as notas estiverem aprovadas e todos tiverem assinado."
+
+msgid "Conta: {definedLabel}. Ela fica aprovada na hora; o envio é concluído quando todas as notas estiverem aprovadas e todos tiverem assinado."
+msgstr "Conta: {definedLabel}. Ela fica aprovada na hora; o envio é concluído quando todas as notas estiverem aprovadas e todos tiverem assinado."
+
+msgid "Todas as notas do envio voltam a aguardar a aprovação do Financeiro (as contas das outras notas ficam)."
+msgstr "Todas as notas do envio voltam a aguardar a aprovação do Financeiro (as contas das outras notas ficam)."
+
+msgid "Todas as notas do envio voltam a aguardar a aprovação do Financeiro."
+msgstr "Todas as notas do envio voltam a aguardar a aprovação do Financeiro."
+
+msgid "Conta contábil definida pelo Financeiro: {account} (já aprovada) (nota {index} de {total}: {title})"
+msgstr "Conta contábil definida pelo Financeiro: {account} (já aprovada) (nota {index} de {total}: {title})"
+
+msgid "Conta contábil aprovada pelo Financeiro: {account} (nota {index} de {total}: {title})"
+msgstr "Conta contábil aprovada pelo Financeiro: {account} (nota {index} de {total}: {title})"
+
+msgid "Nova versão criada pelo Financeiro com a conta contábil {to} na nota {index} de {total} ({title}) (antes {from}); todas as notas aguardam o Financeiro de novo. Motivo: {reason}"
+msgstr "Nova versão criada pelo Financeiro com a conta contábil {to} na nota {index} de {total} ({title}) (antes {from}); todas as notas aguardam o Financeiro de novo. Motivo: {reason}"
+
+msgid "Conta contábil da nota {index} de {total} ({title}) trocada pelo Financeiro de {from} para {to}: substituído por uma nova versão. Motivo: {reason}"
+msgstr "Conta contábil da nota {index} de {total} ({title}) trocada pelo Financeiro de {from} para {to}: substituído por uma nova versão. Motivo: {reason}"
+
+msgid "Centro de custo validado pela Contabilidade: {center} (nota {index} de {total}: {title})"
+msgstr "Centro de custo validado pela Contabilidade: {center} (nota {index} de {total}: {title})"
+
+msgid "Nova versão criada pela Contabilidade com o centro de custo {to} na nota {index} de {total} ({title}) (antes {from}); todas as notas aguardam o Financeiro de novo. Motivo: {reason}"
+msgstr "Nova versão criada pela Contabilidade com o centro de custo {to} na nota {index} de {total} ({title}) (antes {from}); todas as notas aguardam o Financeiro de novo. Motivo: {reason}"
+
+msgid "Centro de custo da nota {index} de {total} ({title}) corrigido pela Contabilidade de {from} para {to}: substituído por uma nova versão. Motivo: {reason}"
+msgstr "Centro de custo da nota {index} de {total} ({title}) corrigido pela Contabilidade de {from} para {to}: substituído por uma nova versão. Motivo: {reason}"
