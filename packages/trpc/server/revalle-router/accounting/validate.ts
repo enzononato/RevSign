@@ -8,10 +8,11 @@ export const validateCostCenterRoute = accountingProcedure
   .input(ZValidateCostCenterRequestSchema)
   .output(ZValidateCostCenterResponseSchema)
   .mutation(async ({ input, ctx }) => {
-    const { envelopeId } = input;
+    const { envelopeId, envelopeItemId } = input;
 
     return await validateInvoiceCostCenter({
       envelopeId,
+      envelopeItemId,
       user: { id: ctx.user.id, name: ctx.user.name, email: ctx.user.email },
       requestMetadata: ctx.metadata,
     });

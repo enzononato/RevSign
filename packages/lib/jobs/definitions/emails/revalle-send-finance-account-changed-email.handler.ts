@@ -5,9 +5,15 @@ import { createElement } from 'react';
 
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../../constants/app';
 import { normalizeEmail } from '../../../revalle/email-domain';
-import { buildVersionChangeNotice, formatInvoiceAccount } from '../../../revalle/finance/account-change';
+import {
+  buildVersionChangeNotice,
+  formatInvoiceAccount,
+  type VersionChangeDocument,
+} from '../../../revalle/finance/account-change';
 import { invoiceViewPath } from '../../../revalle/finance/finance-status';
+import { invoicePositions } from '../../../revalle/invoice/invoice-files';
 import { getEmailContext } from '../../../server-only/email/get-email-context';
+import { loadInvoiceFiles } from '../../../server-only/revalle/invoice/invoice-files';
 import { renderEmailWithI18N } from '../../../utils/render-email-with-i18n';
 import type { JobRunIO } from '../../client/_internal/job';
 import type { TRevalleSendFinanceAccountChangedEmailJobDefinition } from './revalle-send-finance-account-changed-email';
@@ -50,6 +56,7 @@ export const run = async ({
         supersedeKind: true,
         supersedeReason: true,
         supersededByEnvelopeId: true,
+        supersededEnvelopeItemId: true,
       },
     },
   } as const;
@@ -62,7 +69,14 @@ export const run = async ({
   const previousRow = previous?.revalleInvoice;
   const kind = previousRow?.supersedeKind ?? RevalleSupersedeKind.ACCOUNT;
   const isCostCenter = kind === RevalleSupersedeKind.COST_CENTER;
-  const nextCode = isCostCenter ? next?.revalleInvoice?.costCenterCode : next?.revalleInvoice?.choiceCode;
+  // Fase 9: com 2+ notas, o que mudou é a nota marcada na versão antiga (`supersededEnvelopeItemId`) e a nota da mesma
+  // posição na nova; com uma, a linha do envio (o espelho da nota única), como antes.
+  const changedNote = previousRow?.supersededEnvelopeItemId
+    ? await loadChangedNote(oldEnvelopeId, newEnvelopeId, previousRow.supersededEnvelopeItemId)
+    : null;
+  const fromNote = changedNote?.previous ?? previousRow;
+  const nextNote = changedNote ? changedNote.next : next?.revalleInvoice;
+  const nextCode = isCostCenter ? nextNote?.costCenterCode : nextNote?.choiceCode;
 
   if (
     !previous ||
@@ -82,7 +96,7 @@ export const run = async ({
   }
 
   const buildAccountLine = async () => {
-    const codes = [previousRow.choiceCode, nextCode].filter((code): code is string => Boolean(code));
+    const codes = [fromNote?.choiceCode, nextCode].filter((code): code is string => Boolean(code));
     const names = new Map(
       (
         await prisma.revalleAccountingAccount.findMany({
@@ -95,17 +109,16 @@ export const run = async ({
     return {
       kind: 'ACCOUNT',
       title: previous.title,
-      from: previousRow.choiceCode
-        ? formatInvoiceAccount(previousRow.choiceCode, names.get(previousRow.choiceCode))
-        : null,
+      from: fromNote?.choiceCode ? formatInvoiceAccount(fromNote.choiceCode, names.get(fromNote.choiceCode)) : null,
       to: formatInvoiceAccount(nextCode, names.get(nextCode)),
     } as const;
   };
 
+  const document = changedNote ? { document: changedNote.document } : {};
   const notice = buildVersionChangeNotice(
     isCostCenter
-      ? { kind: 'COST_CENTER', fromCode: previousRow.costCenterCode ?? '', toCode: nextCode }
-      : await buildAccountLine(),
+      ? { kind: 'COST_CENTER', fromCode: fromNote?.costCenterCode ?? '', toCode: nextCode, ...document }
+      : { ...(await buildAccountLine()), ...document },
     previousRow.supersedeReason,
   );
 
@@ -174,4 +187,35 @@ export const run = async ({
       });
     });
   }
+};
+
+/**
+ * Fase 9: a nota que mudou, nas duas versões. A antiga pelo arquivo marcado; a nova pela mesma posição (a cópia tem os
+ * mesmos arquivos, na mesma ordem). Sem uma das duas, `null` (o aviso sai com a linha do envio).
+ */
+const loadChangedNote = async (
+  oldEnvelopeId: string,
+  newEnvelopeId: string,
+  supersededEnvelopeItemId: string,
+): Promise<{
+  previous: { choiceCode: string | null; costCenterCode: string | null };
+  next: { choiceCode: string | null; costCenterCode: string | null };
+  document: VersionChangeDocument;
+} | null> => {
+  const [oldFiles, newFiles] = await Promise.all([loadInvoiceFiles(oldEnvelopeId), loadInvoiceFiles(newEnvelopeId)]);
+  const oldPositions = invoicePositions(oldFiles);
+  const newPositions = invoicePositions(newFiles);
+  const previous = oldFiles.find((file) => file.envelopeItemId === supersededEnvelopeItemId);
+  const position = previous ? oldPositions.get(previous.id) : undefined;
+  const next = position ? newFiles.find((file) => newPositions.get(file.id)?.index === position.index) : undefined;
+
+  if (!previous || !position || !next) {
+    return null;
+  }
+
+  return {
+    previous,
+    next,
+    document: { index: position.index, total: position.total, title: previous.title },
+  };
 };

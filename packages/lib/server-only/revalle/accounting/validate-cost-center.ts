@@ -10,11 +10,14 @@ import {
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { isCostCenterCode } from '../../../revalle/invoice/cost-centers';
+import { invoicePositions } from '../../../revalle/invoice/invoice-files';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { ApiRequestMetadata } from '../../../universal/extract-request-metadata';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
+import { invoiceAuditDocument } from '../invoice/classify';
 import {
   ensureLegacyInvoiceFiles,
+  loadInvoiceFiles,
   lockInvoiceEnvelope,
   resolveInvoiceFile,
   syncInvoiceEnvelopeMirror,
@@ -76,18 +79,21 @@ export const loadActionableInvoice = async (envelopeId: string) => {
 };
 
 /**
- * Fase 9: a NF em que a Contabilidade age (`loadActionableInvoice`) e a nota dela (a linha do arquivo). Com 2+ notas,
- * ainda não por aqui (INVOICE_FILE_REQUIRED).
+ * Fase 9: a NF em que a Contabilidade age (`loadActionableInvoice`), a nota (a linha do arquivo; com 2+ notas,
+ * `envelopeItemId` diz qual) e a nota no evento de auditoria (só com 2+ notas).
  */
-const loadActionableInvoiceFile = async (envelopeId: string) => {
+const loadActionableInvoiceFile = async (envelopeId: string, envelopeItemId: string | undefined) => {
   await loadActionableInvoice(envelopeId);
   await ensureLegacyInvoiceFiles(envelopeId);
 
-  return await resolveInvoiceFile({ envelopeId });
+  const file = await resolveInvoiceFile({ envelopeId, envelopeItemId });
+  const document = invoiceAuditDocument(file, invoicePositions(await loadInvoiceFiles(envelopeId)));
+
+  return { file, document };
 };
 
 /**
- * "Validar centro de custo": a qualquer momento depois do envio, antes ou depois do Financeiro (o membro já foi conferido
+ * "Validar centro de custo" de uma nota (Fase 9: `envelopeItemId`, obrigatório com 2+ notas): a qualquer momento depois do envio, antes ou depois do Financeiro (o membro já foi conferido
  * pela rota). Registra quem e quando, com o nome congelado. Não segura a conclusão. Repetir não faz nada: quem validou
  * primeiro fica, e a resposta é `{ validated: false }`.
  *
@@ -96,14 +102,16 @@ const loadActionableInvoiceFile = async (envelopeId: string) => {
  */
 export const validateInvoiceCostCenter = async ({
   envelopeId,
+  envelopeItemId,
   user,
   requestMetadata,
 }: {
   envelopeId: string;
+  envelopeItemId?: string;
   user: AccountingUser;
   requestMetadata: ApiRequestMetadata;
 }): Promise<{ validated: boolean }> => {
-  const file = await loadActionableInvoiceFile(envelopeId);
+  const { file, document } = await loadActionableInvoiceFile(envelopeId, envelopeItemId);
   const code = file.costCenterCode;
 
   if (!code) {
@@ -140,7 +148,7 @@ export const validateInvoiceCostCenter = async ({
       data: createDocumentAuditLogData({
         type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_COST_CENTER_VALIDATED,
         envelopeId,
-        data: { code },
+        data: { code, ...document },
         user,
         requestMetadata: requestMetadata.requestMetadata,
       }),
@@ -153,17 +161,20 @@ export const validateInvoiceCostCenter = async ({
     return { validated: true };
   }
 
-  const latest = await prisma.revalleInvoiceClassification.findUnique({
-    where: { envelopeId },
-    select: { financeStatus: true, costCenterCode: true, costCenterValidatedAt: true },
-  });
+  const [latest, current] = await Promise.all([
+    prisma.revalleInvoiceClassification.findUnique({ where: { envelopeId }, select: { financeStatus: true } }),
+    prisma.revalleInvoiceFile.findUnique({
+      where: { id: file.id },
+      select: { costCenterCode: true, costCenterValidatedAt: true },
+    }),
+  ]);
 
   if (latest?.financeStatus === RevalleFinanceStatus.SUPERSEDED) {
     throw invalid(SUPERSEDED_MESSAGE);
   }
 
   // Dois cliques ao mesmo tempo: o outro já validou este centro.
-  if (latest?.costCenterCode === code && latest.costCenterValidatedAt) {
+  if (current?.costCenterCode === code && current.costCenterValidatedAt) {
     return { validated: false };
   }
 
@@ -177,11 +188,13 @@ export const validateInvoiceCostCenter = async ({
  */
 export const defineInvoiceCostCenter = async ({
   envelopeId,
+  envelopeItemId,
   code,
   user,
   requestMetadata,
 }: {
   envelopeId: string;
+  envelopeItemId?: string;
   code: string;
   user: AccountingUser;
   requestMetadata: ApiRequestMetadata;
@@ -190,7 +203,7 @@ export const defineInvoiceCostCenter = async ({
     throw invalid(UNKNOWN_COST_CENTER_MESSAGE);
   }
 
-  const file = await loadActionableInvoiceFile(envelopeId);
+  const { file, document } = await loadActionableInvoiceFile(envelopeId, envelopeItemId);
 
   if (file.costCenterCode) {
     throw invalid(HAS_COST_CENTER_MESSAGE);
@@ -227,14 +240,14 @@ export const defineInvoiceCostCenter = async ({
       createDocumentAuditLogData({
         type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_COST_CENTER_SET,
         envelopeId,
-        data: { fromCode: null, toCode: code },
+        data: { fromCode: null, toCode: code, ...document },
         user,
         requestMetadata: requestMetadata.requestMetadata,
       }),
       createDocumentAuditLogData({
         type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_COST_CENTER_VALIDATED,
         envelopeId,
-        data: { code },
+        data: { code, ...document },
         user,
         requestMetadata: requestMetadata.requestMetadata,
       }),

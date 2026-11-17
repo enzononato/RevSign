@@ -8,10 +8,11 @@ export const changeCostCenterRoute = accountingProcedure
   .input(ZChangeCostCenterRequestSchema)
   .output(ZChangeCostCenterResponseSchema)
   .mutation(async ({ input, ctx }) => {
-    const { envelopeId, code, reason } = input;
+    const { envelopeId, envelopeItemId, code, reason } = input;
 
     return await createInvoiceNewVersion({
       envelopeId,
+      envelopeItemId,
       change: { kind: 'COST_CENTER', code },
       reason,
       user: { id: ctx.user.id, name: ctx.user.name, email: ctx.user.email },

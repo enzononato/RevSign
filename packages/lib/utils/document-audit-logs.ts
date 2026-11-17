@@ -753,14 +753,20 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
     // REVALLE:
     .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_FINANCE_ACCOUNT_DEFINED }, ({ data }) => {
       const account = data.name ? `${data.code} – ${data.name}` : data.code;
-      const text = msg`Conta contábil definida pelo Financeiro: ${account} (já aprovada)`;
+      const { index, total, title } = data.document ?? { index: 0, total: 0, title: '' }; // REVALLE: Fase 9
+      const text = data.document
+        ? msg`Conta contábil definida pelo Financeiro: ${account} (já aprovada) (nota ${index} de ${total}: ${title})`
+        : msg`Conta contábil definida pelo Financeiro: ${account} (já aprovada)`;
 
       return { anonymous: text, you: text, user: text };
     })
     // REVALLE:
     .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_FINANCE_APPROVED }, ({ data }) => {
       const account = data.name ? `${data.code} – ${data.name}` : data.code;
-      const text = msg`Conta contábil aprovada pelo Financeiro: ${account}`;
+      const { index, total, title } = data.document ?? { index: 0, total: 0, title: '' }; // REVALLE: Fase 9
+      const text = data.document
+        ? msg`Conta contábil aprovada pelo Financeiro: ${account} (nota ${index} de ${total}: ${title})`
+        : msg`Conta contábil aprovada pelo Financeiro: ${account}`;
 
       return { anonymous: text, you: text, user: text };
     })
@@ -769,16 +775,24 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
       const from = data.fromCode ? formatInvoiceAccount(data.fromCode, data.fromName) : i18n._(msg`sem conta`);
       const to = formatInvoiceAccount(data.toCode, data.toName);
       const reason = data.reason;
-      const text = data.isNewVersion
-        ? msg`Nova versão criada pelo Financeiro com a conta contábil ${to} (antes ${from}). Motivo: ${reason}`
-        : msg`Conta contábil trocada pelo Financeiro de ${from} para ${to}: substituído por uma nova versão. Motivo: ${reason}`;
+      const { index, total, title } = data.document ?? { index: 0, total: 0, title: '' }; // REVALLE: Fase 9
+      const text = data.document
+        ? data.isNewVersion
+          ? msg`Nova versão criada pelo Financeiro com a conta contábil ${to} na nota ${index} de ${total} (${title}) (antes ${from}); todas as notas aguardam o Financeiro de novo. Motivo: ${reason}`
+          : msg`Conta contábil da nota ${index} de ${total} (${title}) trocada pelo Financeiro de ${from} para ${to}: substituído por uma nova versão. Motivo: ${reason}`
+        : data.isNewVersion
+          ? msg`Nova versão criada pelo Financeiro com a conta contábil ${to} (antes ${from}). Motivo: ${reason}`
+          : msg`Conta contábil trocada pelo Financeiro de ${from} para ${to}: substituído por uma nova versão. Motivo: ${reason}`;
 
       return { anonymous: text, you: text, user: text };
     })
     // REVALLE:
     .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_COST_CENTER_VALIDATED }, ({ data }) => {
       const center = costCenterLabel(data.code);
-      const text = msg`Centro de custo validado pela Contabilidade: ${center}`;
+      const { index, total, title } = data.document ?? { index: 0, total: 0, title: '' }; // REVALLE: Fase 9
+      const text = data.document
+        ? msg`Centro de custo validado pela Contabilidade: ${center} (nota ${index} de ${total}: ${title})`
+        : msg`Centro de custo validado pela Contabilidade: ${center}`;
 
       return { anonymous: text, you: text, user: text };
     })
@@ -787,9 +801,14 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
       const from = costCenterLabel(data.fromCode);
       const to = costCenterLabel(data.toCode);
       const reason = data.reason;
-      const text = data.isNewVersion
-        ? msg`Nova versão criada pela Contabilidade com o centro de custo ${to} (antes ${from}). Motivo: ${reason}`
-        : msg`Centro de custo corrigido pela Contabilidade de ${from} para ${to}: substituído por uma nova versão. Motivo: ${reason}`;
+      const { index, total, title } = data.document ?? { index: 0, total: 0, title: '' }; // REVALLE: Fase 9
+      const text = data.document
+        ? data.isNewVersion
+          ? msg`Nova versão criada pela Contabilidade com o centro de custo ${to} na nota ${index} de ${total} (${title}) (antes ${from}); todas as notas aguardam o Financeiro de novo. Motivo: ${reason}`
+          : msg`Centro de custo da nota ${index} de ${total} (${title}) corrigido pela Contabilidade de ${from} para ${to}: substituído por uma nova versão. Motivo: ${reason}`
+        : data.isNewVersion
+          ? msg`Nova versão criada pela Contabilidade com o centro de custo ${to} (antes ${from}). Motivo: ${reason}`
+          : msg`Centro de custo corrigido pela Contabilidade de ${from} para ${to}: substituído por uma nova versão. Motivo: ${reason}`;
 
       return { anonymous: text, you: text, user: text };
     })

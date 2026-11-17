@@ -73,6 +73,8 @@ const actionsFor = (card: Card) => {
 
 export type FinanceCardProps = {
   envelopeId: string;
+  /** Fase 9: a nota do cartão (o arquivo). Obrigatório num envio com 2+ notas; sem ele, a nota única. */
+  envelopeItemId?: string;
   /** Depois de uma ação (a página recarrega os dados dela: estado, versões). */
   onChanged?: () => void;
   /**
@@ -88,7 +90,7 @@ export type FinanceCardProps = {
  * assinam de novo uma nova versão) e "Enviar de novo" (nova versão cujo envio falhou). Toda ação que grava ou envia pede
  * confirmação.
  */
-export const FinanceCard = ({ envelopeId, onChanged, showSignedValues = true }: FinanceCardProps) => {
+export const FinanceCard = ({ envelopeId, envelopeItemId, onChanged, showSignedValues = true }: FinanceCardProps) => {
   const { t } = useLingui();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -99,11 +101,17 @@ export const FinanceCard = ({ envelopeId, onChanged, showSignedValues = true }: 
   const isFinance = me?.isFinance === true;
 
   const { data: card, isError } = trpc.revalle.finance.get.useQuery(
-    { envelopeId },
+    { envelopeId, envelopeItemId },
     { ...DO_NOT_INVALIDATE_QUERY_ON_MUTATION, enabled: isFinance },
   );
 
   const actions = card ? actionsFor(card) : null;
+  // Fase 9: o envio com várias notas; "Enviar de novo" é do envio e fica só no cartão da primeira nota.
+  const isMulti = (card?.position.total ?? 1) > 1;
+
+  if (actions && card && card.position.index > 1) {
+    actions.resend = false;
+  }
 
   const { data: accountsData } = trpc.revalle.invoice.findAccounts.useQuery(undefined, {
     ...DO_NOT_INVALIDATE_QUERY_ON_MUTATION,
@@ -137,6 +145,7 @@ export const FinanceCard = ({ envelopeId, onChanged, showSignedValues = true }: 
   }
 
   const refresh = async () => {
+    // Todas as notas do envio (a aprovação da última muda a situação do envio).
     await utils.revalle.finance.get.invalidate({ envelopeId });
     onChanged?.();
   };
@@ -166,7 +175,7 @@ export const FinanceCard = ({ envelopeId, onChanged, showSignedValues = true }: 
 
   const onApprove = async (code?: string) => {
     try {
-      await approve.mutateAsync({ envelopeId, code });
+      await approve.mutateAsync({ envelopeId, envelopeItemId, code });
       toast({ title: code ? t`Conta definida e aprovada.` : t`Conta aprovada.`, duration: 5000 });
       setDialog(null);
       await refresh();
@@ -182,7 +191,12 @@ export const FinanceCard = ({ envelopeId, onChanged, showSignedValues = true }: 
     }
 
     try {
-      const { newEnvelopeId } = await change.mutateAsync({ envelopeId, code: newCode, reason: reason.trim() });
+      const { newEnvelopeId } = await change.mutateAsync({
+        envelopeId,
+        envelopeItemId,
+        code: newCode,
+        reason: reason.trim(),
+      });
 
       toast({
         title: t`Conta trocada. A nova versão foi enviada para todos assinarem de novo.`,
@@ -404,10 +418,17 @@ export const FinanceCard = ({ envelopeId, onChanged, showSignedValues = true }: 
               <Trans>Aprovar a conta?</Trans>
             </DialogTitle>
             <DialogDescription className="break-words">
-              <Trans>
-                Conta: {account}. Depois de aprovada, a nota fiscal é concluída quando todos tiverem assinado (se todos
-                já assinaram, na hora).
-              </Trans>
+              {isMulti ? (
+                <Trans>
+                  Conta: {account}. O envio é concluído quando todas as notas estiverem aprovadas e todos tiverem
+                  assinado.
+                </Trans>
+              ) : (
+                <Trans>
+                  Conta: {account}. Depois de aprovada, a nota fiscal é concluída quando todos tiverem assinado (se
+                  todos já assinaram, na hora).
+                </Trans>
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
@@ -434,10 +455,17 @@ export const FinanceCard = ({ envelopeId, onChanged, showSignedValues = true }: 
         testId="finance-define-approve-dialog"
         title={<Trans>Definir e aprovar a conta?</Trans>}
         description={
-          <Trans>
-            Conta: {definedLabel}. Ela fica aprovada na hora; a nota fiscal é concluída quando todos tiverem assinado
-            (se todos já assinaram, na hora).
-          </Trans>
+          isMulti ? (
+            <Trans>
+              Conta: {definedLabel}. Ela fica aprovada na hora; o envio é concluído quando todas as notas estiverem
+              aprovadas e todos tiverem assinado.
+            </Trans>
+          ) : (
+            <Trans>
+              Conta: {definedLabel}. Ela fica aprovada na hora; a nota fiscal é concluída quando todos tiverem assinado
+              (se todos já assinaram, na hora).
+            </Trans>
+          )
         }
         confirmLabel={<Trans>Definir e aprovar</Trans>}
         onCancel={() => setDialog(null)}
@@ -537,6 +565,15 @@ export const FinanceCard = ({ envelopeId, onChanged, showSignedValues = true }: 
                     Todos vão assinar de novo uma nova versão. A versão atual deixa de valer, e o remetente e quem
                     assina recebem um aviso com o motivo.
                   </Trans>
+                  {isMulti && (
+                    <>
+                      {' '}
+                      <Trans>
+                        Todas as notas do envio voltam a aguardar a aprovação do Financeiro (as contas das outras notas
+                        ficam).
+                      </Trans>
+                    </>
+                  )}
                 </DialogDescription>
               </DialogHeader>
               {chosen && (

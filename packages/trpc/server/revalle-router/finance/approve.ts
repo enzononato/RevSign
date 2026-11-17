@@ -11,10 +11,11 @@ export const approveFinanceAccountRoute = financeProcedure
   .input(ZApproveFinanceAccountRequestSchema)
   .output(ZApproveFinanceAccountResponseSchema)
   .mutation(async ({ input, ctx }) => {
-    const { envelopeId, code } = input;
+    const { envelopeId, envelopeItemId, code } = input;
 
     return await approveInvoiceAccount({
       envelopeId,
+      envelopeItemId,
       code,
       user: { id: ctx.user.id, name: ctx.user.name, email: ctx.user.email },
       requestMetadata: ctx.metadata,

@@ -7,4 +7,4 @@ import { ZGetFinanceCardRequestSchema, ZGetFinanceCardResponseSchema } from './g
 export const getFinanceCardRoute = financeProcedure
   .input(ZGetFinanceCardRequestSchema)
   .output(ZGetFinanceCardResponseSchema)
-  .query(async ({ input }) => await getFinanceCard(input.envelopeId));
+  .query(async ({ input }) => await getFinanceCard(input.envelopeId, input.envelopeItemId));

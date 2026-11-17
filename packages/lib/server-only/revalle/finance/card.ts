@@ -1,7 +1,9 @@
 import { prisma } from '@documenso/prisma';
+import type { RevalleInvoiceFile } from '@prisma/client';
 import {
   DocumentStatus,
   type RevalleFinanceStatus,
+  RevalleInvoiceFileKind,
   RevalleInvoiceStatus,
   RevalleSuggestionStatus,
   type RevalleSupersedeKind,
@@ -11,11 +13,19 @@ import {
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { isNewVersionDraftRow } from '../../../revalle/finance/finance-status';
 import { costCenterLabel } from '../../../revalle/invoice/cost-centers';
+import { fileFinanceStatus, type InvoicePosition, invoicePositions } from '../../../revalle/invoice/invoice-files';
+import { logger } from '../../../utils/logger';
+import { ensureLegacyInvoiceFiles, loadInvoiceFiles, resolveInvoiceFile } from '../invoice/invoice-files';
 import { findVisibleSuccessor, isStaleChangeClaim } from './successor';
 
 export type FinanceCard = {
   envelopeId: string;
+  /** Fase 9: a nota do cartão (o arquivo), com o título e a posição entre as notas do envio. */
+  envelopeItemId: string;
+  documentTitle: string;
+  position: InvoicePosition;
   envelopeStatus: DocumentStatus;
+  /** A situação da nota (`fileFinanceStatus`): com várias notas, a já aprovada fica aprovada enquanto o envio aguarda. */
   financeStatus: RevalleFinanceStatus | null;
   /** Conta atual (nome atual da lista; a conta já aprovada mostra o nome congelado na aprovação). */
   account: { code: string; name: string | null } | null;
@@ -62,11 +72,88 @@ const readSuggestion = (status: RevalleSuggestionStatus, stored: unknown) => {
 };
 
 /**
+ * A primeira leitura refaz as linhas de arquivo de um envio de antes da Fase 9 (`ensureLegacyInvoiceFiles`); se falhar, a
+ * leitura segue com a linha do envio (a próxima tenta de novo). Registra só o tipo do erro.
+ */
+export const refreshLegacyInvoiceFiles = async (envelopeId: string) => {
+  await ensureLegacyInvoiceFiles(envelopeId).catch((error: unknown) => {
+    logger.warn({
+      msg: 'revalle.invoice.legacy-files.failed',
+      envelopeId,
+      error: error instanceof Error ? error.name : 'unknown',
+    });
+  });
+};
+
+/** As colunas "da nota" que os cartões do Financeiro e da Contabilidade leem. */
+export type CardNoteColumns = Pick<
+  RevalleInvoiceFile,
+  | 'suggestionStatus'
+  | 'suggestion'
+  | 'choiceCode'
+  | 'choiceById'
+  | 'choiceAt'
+  | 'costCenterCode'
+  | 'costCenterValidatedAt'
+  | 'costCenterValidatedById'
+  | 'costCenterValidatedByName'
+  | 'approvedById'
+  | 'approvedAt'
+  | 'approvedAccountName'
+  | 'approvedByName'
+>;
+
+/**
+ * Fase 9: a nota de um cartão. Sem `envelopeItemId`, a nota única (com 2+, `INVOICE_FILE_REQUIRED`); com ele, uma NF deste
+ * envio (senão 404). Envio sem linha de arquivo nenhuma (rascunho de antes da Fase 9): a linha do envio, como antes, no
+ * primeiro arquivo.
+ */
+export const loadCardNote = async ({
+  envelopeId,
+  envelopeItemId,
+  row,
+}: {
+  envelopeId: string;
+  envelopeItemId: string | undefined;
+  row: CardNoteColumns;
+}): Promise<{ envelopeItemId: string; documentTitle: string; position: InvoicePosition; note: CardNoteColumns }> => {
+  await refreshLegacyInvoiceFiles(envelopeId);
+
+  const files = await loadInvoiceFiles(envelopeId);
+
+  if (!files.some((file) => file.kind === RevalleInvoiceFileKind.NF)) {
+    const item = await prisma.envelopeItem.findFirst({
+      where: { envelopeId, ...(envelopeItemId !== undefined ? { id: envelopeItemId } : {}) },
+      orderBy: { order: 'asc' },
+      select: { id: true, title: true },
+    });
+
+    if (!item) {
+      throw new AppError(AppErrorCode.NOT_FOUND, { message: 'Nota fiscal não encontrada neste envio.' });
+    }
+
+    return { envelopeItemId: item.id, documentTitle: item.title, position: { index: 1, total: 1 }, note: row };
+  }
+
+  const file = await resolveInvoiceFile({ envelopeId, envelopeItemId });
+
+  return {
+    envelopeItemId: file.envelopeItemId,
+    documentTitle: file.title,
+    position: invoicePositions(files).get(file.id) ?? { index: 1, total: 1 },
+    note: file,
+  };
+};
+
+/**
  * Cartão "Financeiro" da página da NF (só para membros; a rota confere). Mostra o que o Financeiro precisa para decidir:
  * a conta atual, quem escolheu, a sugestão da IA e o estado. Mesmo acesso da página: NF excluída pelo remetente e rascunho
  * comum de outra pessoa dão 404; a versão substituída escondida pela troca e o rascunho de uma nova versão, não.
+ *
+ * Fase 9: o cartão é de uma nota (`envelopeItemId`, obrigatório com 2+ notas): a conta, quem escolheu, a sugestão e a
+ * aprovação são dela; a versão, a ligação e a recusa são do envio.
  */
-export const getFinanceCard = async (envelopeId: string): Promise<FinanceCard> => {
+export const getFinanceCard = async (envelopeId: string, envelopeItemId?: string): Promise<FinanceCard> => {
   const envelope = await prisma.envelope.findUnique({
     where: { id: envelopeId },
     select: {
@@ -94,8 +181,9 @@ export const getFinanceCard = async (envelopeId: string): Promise<FinanceCard> =
     throw new AppError(AppErrorCode.NOT_FOUND, { message: 'Nota fiscal não encontrada.' });
   }
 
-  const suggestion = readSuggestion(row.suggestionStatus, row.suggestion);
-  const code = row.choiceCode;
+  const { note, ...document } = await loadCardNote({ envelopeId, envelopeItemId, row });
+  const suggestion = readSuggestion(note.suggestionStatus, note.suggestion);
+  const code = note.choiceCode;
   const codes = [code, suggestion?.code].filter((value): value is string => Boolean(value));
   const names = new Map(
     codes.length > 0
@@ -110,23 +198,24 @@ export const getFinanceCard = async (envelopeId: string): Promise<FinanceCard> =
 
   const isSuperseded = row.financeStatus === 'SUPERSEDED';
   const [choiceBy, approvedBy, successor, canRetakeChange] = await Promise.all([
-    userLabel(row.choiceById),
-    row.approvedByName && row.approvedAt ? row.approvedByName : userLabel(row.approvedById),
+    userLabel(note.choiceById),
+    note.approvedByName && note.approvedAt ? note.approvedByName : userLabel(note.approvedById),
     isSuperseded ? findVisibleSuccessor(row.supersededByEnvelopeId) : null,
     isStaleChangeClaim(row, new Date()),
   ]);
 
   return {
     envelopeId: envelope.id,
+    ...document,
     envelopeStatus: envelope.status,
-    financeStatus: row.financeStatus,
-    account: code ? { code, name: (row.approvedAt && row.approvedAccountName) || names.get(code) || null } : null,
-    costCenterLabel: row.costCenterCode ? costCenterLabel(row.costCenterCode) : null,
+    financeStatus: fileFinanceStatus(row.financeStatus, note.approvedAt),
+    account: code ? { code, name: (note.approvedAt && note.approvedAccountName) || names.get(code) || null } : null,
+    costCenterLabel: note.costCenterCode ? costCenterLabel(note.costCenterCode) : null,
     choiceBy,
-    choiceAt: row.choiceAt,
+    choiceAt: note.choiceAt,
     suggestion: suggestion ? { ...suggestion, name: names.get(suggestion.code) ?? null } : null,
     approvedBy,
-    approvedAt: row.approvedAt,
+    approvedAt: note.approvedAt,
     version: row.version,
     previousEnvelopeId: row.previousEnvelopeId,
     supersededByEnvelopeId: successor?.id ?? null,

@@ -10,12 +10,18 @@ import {
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { isNewVersionDraftRow } from '../../../revalle/finance/finance-status';
 import { REVALLE_COST_CENTERS } from '../../../revalle/invoice/cost-centers';
-import { userLabel } from '../finance/card';
+import { fileFinanceStatus, type InvoicePosition } from '../../../revalle/invoice/invoice-files';
+import { loadCardNote, userLabel } from '../finance/card';
 import { findVisibleSuccessor, isStaleChangeClaim } from '../finance/successor';
 
 export type AccountingCard = {
   envelopeId: string;
+  /** Fase 9: a nota do cartão (o arquivo), com o título e a posição entre as notas do envio. */
+  envelopeItemId: string;
+  documentTitle: string;
+  position: InvoicePosition;
   envelopeStatus: DocumentStatus;
+  /** A situação da nota no Financeiro (`fileFinanceStatus`). */
   financeStatus: RevalleFinanceStatus | null;
   costCenter: { code: string; name: string } | null;
   /** Quem validou: o nome congelado na validação, ou o atual (ou o e-mail) quando a pessoa não tinha nome. */
@@ -38,8 +44,9 @@ const notFound = () => new AppError(AppErrorCode.NOT_FOUND, { message: 'Nota fis
 /**
  * Cartão "Contabilidade" da página da NF (só para membros; a rota confere). Mesmo acesso da página: NF excluída pelo
  * remetente e rascunho comum de outra pessoa dão 404; a versão substituída escondida e o rascunho de uma nova versão, não.
+ * Fase 9: o centro e a validação são da nota (`envelopeItemId`, obrigatório com 2+ notas).
  */
-export const getAccountingCard = async (envelopeId: string): Promise<AccountingCard> => {
+export const getAccountingCard = async (envelopeId: string, envelopeItemId?: string): Promise<AccountingCard> => {
   const envelope = await prisma.envelope.findUnique({
     where: { id: envelopeId },
     select: {
@@ -68,21 +75,24 @@ export const getAccountingCard = async (envelopeId: string): Promise<AccountingC
     throw notFound();
   }
 
+  const { note, ...document } = await loadCardNote({ envelopeId, envelopeItemId, row });
+
   const [validatedBy, successor, canRetakeChange] = await Promise.all([
-    row.costCenterValidatedAt ? (row.costCenterValidatedByName ?? userLabel(row.costCenterValidatedById)) : null,
+    note.costCenterValidatedAt ? (note.costCenterValidatedByName ?? userLabel(note.costCenterValidatedById)) : null,
     isSuperseded ? findVisibleSuccessor(row.supersededByEnvelopeId) : null,
     isStaleChangeClaim(row, new Date()),
   ]);
 
-  const center = REVALLE_COST_CENTERS.find((item) => item.code === row.costCenterCode);
+  const center = REVALLE_COST_CENTERS.find((item) => item.code === note.costCenterCode);
 
   return {
     envelopeId: envelope.id,
+    ...document,
     envelopeStatus: envelope.status,
-    financeStatus: row.financeStatus,
+    financeStatus: fileFinanceStatus(row.financeStatus, note.approvedAt),
     costCenter: center ? { code: center.code, name: center.name } : null,
     validatedBy,
-    validatedAt: row.costCenterValidatedAt,
+    validatedAt: note.costCenterValidatedAt,
     version: row.version,
     previousEnvelopeId: row.previousEnvelopeId,
     supersededByEnvelopeId: successor?.id ?? null,

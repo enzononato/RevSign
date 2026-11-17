@@ -7,4 +7,4 @@ import { ZGetAccountingCardRequestSchema, ZGetAccountingCardResponseSchema } fro
 export const getAccountingCardRoute = accountingProcedure
   .input(ZGetAccountingCardRequestSchema)
   .output(ZGetAccountingCardResponseSchema)
-  .query(async ({ input }) => await getAccountingCard(input.envelopeId));
+  .query(async ({ input }) => await getAccountingCard(input.envelopeId, input.envelopeItemId));

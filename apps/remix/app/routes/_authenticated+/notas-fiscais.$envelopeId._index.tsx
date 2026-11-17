@@ -9,7 +9,7 @@ import { getEnvelopeSendStatus } from '@documenso/lib/server-only/revalle/receip
 import { Button } from '@documenso/ui/primitives/button';
 import { Card, CardContent } from '@documenso/ui/primitives/card';
 import { msg } from '@lingui/core/macro';
-import { Trans } from '@lingui/react/macro';
+import { Trans, useLingui } from '@lingui/react/macro'; // REVALLE: useLingui, Fase 9
 import { RecipientRole, SigningStatus } from '@prisma/client';
 import { ChevronLeft, DownloadIcon, ExternalLinkIcon, TriangleAlertIcon } from 'lucide-react'; // REVALLE: DownloadIcon, Fase 8
 import { isRouteErrorResponse, Link, useRevalidator } from 'react-router';
@@ -182,6 +182,121 @@ const InvoiceDuplicates = ({
   </InvoiceCard>
 );
 
+type ViewDocument = Route.ComponentProps['loaderData']['view']['documents'][number];
+type ViewBoleto = Route.ComponentProps['loaderData']['view']['boletos'][number];
+
+/**
+ * REVALLE (Fase 9): uma seção por nota num envio com 2+ notas (`#nota-{envelopeItemId}`, o link da lista leva até ela):
+ * o que foi assinado naquela nota (conta e centro), a situação dela no Financeiro, o que a IA leu, as duplicadas dela e
+ * os cartões do Financeiro e da Contabilidade daquela nota.
+ */
+const InvoiceNoteSection = ({
+  note,
+  envelopeId,
+  envelopeStatus,
+  isFinance,
+  isAccounting,
+  onChanged,
+}: {
+  note: ViewDocument;
+  envelopeId: string;
+  envelopeStatus: Route.ComponentProps['loaderData']['view']['status'];
+  isFinance: boolean;
+  isAccounting: boolean;
+  onChanged: () => void;
+}) => {
+  const { t } = useLingui();
+  const { index, total } = note.position;
+  const title = note.title;
+  // Um só nó de texto (o teste e quem copia a página leem a frase inteira). O mesmo texto do diálogo de envio.
+  const heading = t`Nota ${index} de ${total} · ${title}`;
+  const situation = financeStatusLabel(note.financeStatus, envelopeStatus);
+
+  return (
+    <div id={`nota-${note.envelopeItemId}`} className="flex scroll-mt-4 flex-col gap-4" data-testid="invoice-view-note">
+      <InvoiceCard title={heading}>
+        <InvoiceRows>
+          {situation && (
+            <InvoiceRow label={<Trans>Situação</Trans>}>
+              <InvoiceStatePill tone={financeTone(note.financeStatus, envelopeStatus)}>{situation}</InvoiceStatePill>
+            </InvoiceRow>
+          )}
+          <InvoiceRow label={<Trans>Conta contábil</Trans>}>
+            {note.account ? <InvoiceCode code={note.account.code} name={note.account.name} /> : '-'}
+          </InvoiceRow>
+          <InvoiceRow label={<Trans>Centro de custo</Trans>}>
+            {note.costCenterLabel ? <InvoiceCode {...splitCodeLabel(note.costCenterLabel)} /> : '-'}
+          </InvoiceRow>
+        </InvoiceRows>
+        {note.invoiceData && <InvoiceReadData data={note.invoiceData} />}
+      </InvoiceCard>
+
+      {note.duplicates.length > 0 && <InvoiceDuplicates duplicates={note.duplicates} />}
+
+      {isFinance && (
+        <FinanceCard
+          envelopeId={envelopeId}
+          envelopeItemId={note.envelopeItemId}
+          showSignedValues={false}
+          onChanged={onChanged}
+        />
+      )}
+
+      {isAccounting && (
+        <AccountingCard
+          envelopeId={envelopeId}
+          envelopeItemId={note.envelopeItemId}
+          showSignedValues={false}
+          onChanged={onChanged}
+        />
+      )}
+    </div>
+  );
+};
+
+/**
+ * REVALLE (Fase 9): "Boletos do envio": o que foi lido de cada boleto e a conferência com as notas (só aviso; o servidor só
+ * manda os avisos para o Financeiro, a Contabilidade, o admin e o dono).
+ */
+const InvoiceBoletos = ({ boletos }: { boletos: ViewBoleto[] }) => (
+  <InvoiceCard title={<Trans>Boletos do envio</Trans>} testId="invoice-view-boletos">
+    <ul className="flex flex-col">
+      {boletos.map((boleto) => {
+        const amount = boleto.data?.amountCents ? formatInvoiceAmount(boleto.data.amountCents) : null;
+        const dueDate = boleto.data?.dueDate ? boleto.data.dueDate.split('-').reverse().join('/') : null;
+        const beneficiary = boleto.data?.beneficiaryName ?? null;
+
+        return (
+          <li
+            key={boleto.envelopeItemId}
+            className="flex min-w-0 flex-col gap-1.5 border-border border-t py-3 first:border-t-0 first:pt-0 last:pb-0"
+            data-testid="invoice-view-boleto"
+          >
+            <p className="break-words font-semibold">{boleto.title}</p>
+            {(amount || dueDate || beneficiary) && (
+              <InvoiceRows>
+                {amount && <InvoiceRow label={<Trans>Value</Trans>}>{amount}</InvoiceRow>}
+                {dueDate && <InvoiceRow label={<Trans>Vencimento</Trans>}>{dueDate}</InvoiceRow>}
+                {beneficiary && <InvoiceRow label={<Trans>Beneficiário</Trans>}>{beneficiary}</InvoiceRow>}
+              </InvoiceRows>
+            )}
+            {boleto.warnings.map((warning) => (
+              <p
+                key={warning.code}
+                className="flex items-start gap-2 rounded-lg bg-warning-bg px-3 py-2 text-warning-text"
+                data-testid="invoice-view-boleto-warning"
+              >
+                <TriangleAlertIcon className="mt-0.5 h-4 w-4 shrink-0" />
+                <span className="min-w-0 break-words">{warning.message}</span>
+              </p>
+            ))}
+          </li>
+        );
+      })}
+    </ul>
+  </InvoiceCard>
+);
+
 export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
   const { view, sendSteps } = loaderData;
   const { finance, invoiceData } = view;
@@ -190,6 +305,9 @@ export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
 
   const situation = financeStatusLabel(finance.status, view.status);
   const senderName = view.sender.name;
+  // REVALLE (Fase 9): com 2+ notas, uma seção por nota no lugar de "O que foi assinado" e dos cartões do envio.
+  const isMulti = view.documents.length > 1;
+  const onChanged = () => void revalidator.revalidate();
 
   // REVALLE v3: cabeçalho (título 28/900, uma linha de situação, ações à direita); no computador, a prévia do PDF à
   // esquerda e a coluna de cartões de 360px à direita; no celular, os cartões (com as ações do Financeiro e da
@@ -304,39 +422,50 @@ export default function InvoiceViewPage({ loaderData }: Route.ComponentProps) {
             )}
           </InvoiceCard>
 
-          {/* REVALLE v3: o que quem assinou viu (conta e centro); os dados lidos pela IA ficam embaixo, separados */}
-          <InvoiceCard
-            title={finance.status === 'LEGACY' ? <Trans>Conta contábil</Trans> : <Trans>What was signed</Trans>}
-          >
-            <InvoiceRows>
-              <InvoiceRow label={<Trans>Conta contábil</Trans>}>
-                {finance.account ? <InvoiceCode code={finance.account.code} name={finance.account.name} /> : '-'}
-              </InvoiceRow>
-              <InvoiceRow label={<Trans>Centro de custo</Trans>} testId="invoice-view-cost-center">
-                {finance.costCenterLabel ? <InvoiceCode {...splitCodeLabel(finance.costCenterLabel)} /> : '-'}
-              </InvoiceRow>
-            </InvoiceRows>
-            {invoiceData && <InvoiceReadData data={invoiceData} />}
-          </InvoiceCard>
+          {isMulti ? (
+            view.documents.map((note) => (
+              <InvoiceNoteSection
+                key={note.envelopeItemId}
+                note={note}
+                envelopeId={view.id}
+                envelopeStatus={view.status}
+                isFinance={view.viewer.isFinance}
+                isAccounting={view.viewer.isAccounting}
+                onChanged={onChanged}
+              />
+            ))
+          ) : (
+            <>
+              {/* REVALLE v3: o que quem assinou viu (conta e centro); os dados lidos pela IA ficam embaixo, separados */}
+              <InvoiceCard
+                title={finance.status === 'LEGACY' ? <Trans>Conta contábil</Trans> : <Trans>What was signed</Trans>}
+              >
+                <InvoiceRows>
+                  <InvoiceRow label={<Trans>Conta contábil</Trans>}>
+                    {finance.account ? <InvoiceCode code={finance.account.code} name={finance.account.name} /> : '-'}
+                  </InvoiceRow>
+                  <InvoiceRow label={<Trans>Centro de custo</Trans>} testId="invoice-view-cost-center">
+                    {finance.costCenterLabel ? <InvoiceCode {...splitCodeLabel(finance.costCenterLabel)} /> : '-'}
+                  </InvoiceRow>
+                </InvoiceRows>
+                {invoiceData && <InvoiceReadData data={invoiceData} />}
+              </InvoiceCard>
 
-          {/* REVALLE v3: o aviso de duplicada fica logo antes das decisões do Financeiro e da Contabilidade */}
-          {view.duplicates.length > 0 && <InvoiceDuplicates duplicates={view.duplicates} />}
+              {/* REVALLE v3: o aviso de duplicada fica logo antes das decisões do Financeiro e da Contabilidade */}
+              {view.duplicates.length > 0 && <InvoiceDuplicates duplicates={view.duplicates} />}
 
-          {view.viewer.isFinance && (
-            <FinanceCard
-              envelopeId={view.id}
-              showSignedValues={false}
-              onChanged={() => void revalidator.revalidate()}
-            />
+              {view.viewer.isFinance && (
+                <FinanceCard envelopeId={view.id} showSignedValues={false} onChanged={onChanged} />
+              )}
+
+              {view.viewer.isAccounting && (
+                <AccountingCard envelopeId={view.id} showSignedValues={false} onChanged={onChanged} />
+              )}
+            </>
           )}
 
-          {view.viewer.isAccounting && (
-            <AccountingCard
-              envelopeId={view.id}
-              showSignedValues={false}
-              onChanged={() => void revalidator.revalidate()}
-            />
-          )}
+          {/* REVALLE (Fase 9): os boletos do envio e a conferência com as notas */}
+          {view.boletos.length > 0 && <InvoiceBoletos boletos={view.boletos} />}
 
           {(finance.previous || finance.next) && (
             <InvoiceCard title={<Trans>Versões</Trans>}>

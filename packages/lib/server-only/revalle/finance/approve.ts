@@ -11,14 +11,16 @@ import {
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { jobs } from '../../../jobs/client';
+import { fileFinanceStatus, invoicePositions } from '../../../revalle/invoice/invoice-files';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { ApiRequestMetadata } from '../../../universal/extract-request-metadata';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { mapSecondaryIdToDocumentId } from '../../../utils/envelope';
-import { invoiceFileSuggestion } from '../invoice/classify';
+import { invoiceAuditDocument, invoiceFileSuggestion } from '../invoice/classify';
 import type { LoadedInvoiceFile } from '../invoice/invoice-files';
 import {
   ensureLegacyInvoiceFiles,
+  loadInvoiceFiles,
   lockInvoiceEnvelope,
   resolveInvoiceFile,
   syncInvoiceEnvelopeMirror,
@@ -38,6 +40,11 @@ const invalid = (message: string) => new AppError(AppErrorCode.INVALID_REQUEST, 
 /**
  * "Aprovar conta": o Financeiro confirma a conta escolhida pelo remetente (o membro já foi conferido pela rota).
  *
+ * Fase 9: a aprovação é da nota (`envelopeItemId`, obrigatório com 2+ notas; sem ele, a nota única). Com várias notas, o
+ * envio só passa a `APPROVED` (e só então a selagem é liberada) quando a última nota for aprovada; isso é decidido na
+ * mesma transação travada que grava a aprovação, então duas aprovações ao mesmo tempo das duas últimas notas aprovam o
+ * envio uma vez e selam uma vez.
+ *
  * - Só de `PENDING_APPROVAL`, numa gravação condicionada a esse estado e à conta lida, na mesma transação do evento
  *   `REVALLE_FINANCE_APPROVED`: dois cliques ao mesmo tempo aprovam (e registram) uma vez; o outro recebe
  *   `{ approved: false }`, assim como qualquer repetição numa NF já aprovada.
@@ -50,11 +57,13 @@ const invalid = (message: string) => new AppError(AppErrorCode.INVALID_REQUEST, 
  */
 export const approveInvoiceAccount = async ({
   envelopeId,
+  envelopeItemId,
   code: definedCode,
   user,
   requestMetadata,
 }: {
   envelopeId: string;
+  envelopeItemId?: string;
   code?: string;
   user: { id: number; name: string | null; email: string };
   requestMetadata: ApiRequestMetadata;
@@ -92,23 +101,39 @@ export const approveInvoiceAccount = async ({
     throw invalid(NOT_SENT_MESSAGE);
   }
 
-  // Fase 9: a aprovação vale para a nota (a linha do arquivo); com 2+ notas, ainda não por aqui (INVOICE_FILE_REQUIRED).
+  // Fase 9: a aprovação vale para a nota (a linha do arquivo); com 2+ notas, `envelopeItemId` diz qual.
   await ensureLegacyInvoiceFiles(envelopeId);
 
-  const file = await resolveInvoiceFile({ envelopeId });
+  const file = await resolveInvoiceFile({ envelopeId, envelopeItemId });
+  const files = await loadInvoiceFiles(envelopeId);
+  const isMulti = files.filter((other) => other.kind === RevalleInvoiceFileKind.NF).length > 1;
+  const document = invoiceAuditDocument(file, invoicePositions(files));
+
+  // A nota já aprovada (o envio ainda aguarda as outras): repetição, nada a gravar.
+  if (isMulti && file.approvedAt !== null) {
+    return { approved: false };
+  }
 
   if (!file.choiceCode) {
     if (!definedCode) {
       throw invalid(NO_ACCOUNT_MESSAGE);
     }
 
-    const defined = await defineSentInvoiceAccount({ envelopeId, file, code: definedCode, user, requestMetadata });
+    const defined = await defineSentInvoiceAccount({
+      envelopeId,
+      file,
+      isMulti,
+      document,
+      code: definedCode,
+      user,
+      requestMetadata,
+    });
 
-    if (defined) {
+    if (defined.envelopeApproved) {
       await releaseHeldSeal({ envelopeId, secondaryId: envelope.secondaryId, requestMetadata });
     }
 
-    return { approved: defined };
+    return { approved: defined.approved };
   }
 
   if (definedCode && definedCode !== file.choiceCode) {
@@ -118,13 +143,19 @@ export const approveInvoiceAccount = async ({
   const code = file.choiceCode;
   const account = await prisma.revalleAccountingAccount.findUnique({ where: { code }, select: { name: true } });
 
-  const approved = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     if (!(await claimPendingApproval(tx, envelopeId))) {
-      return false;
+      return null;
     }
 
     const { count } = await tx.revalleInvoiceFile.updateMany({
-      where: { id: file.id, kind: RevalleInvoiceFileKind.NF, choiceCode: code },
+      // Com várias notas, só a nota ainda sem aprovação: dois cliques na mesma nota gravam (e registram) uma vez.
+      where: {
+        id: file.id,
+        kind: RevalleInvoiceFileKind.NF,
+        choiceCode: code,
+        ...(isMulti ? { approvedAt: null } : {}),
+      },
       data: {
         approvedById: user.id,
         approvedAt: new Date(),
@@ -134,43 +165,58 @@ export const approveInvoiceAccount = async ({
     });
 
     if (count === 0) {
-      return false;
+      return null;
     }
 
-    await markApproved(tx, envelopeId);
+    const envelopeApproved = await markApprovedIfComplete(tx, envelopeId);
 
     await tx.documentAuditLog.create({
       data: createDocumentAuditLogData({
         type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_FINANCE_APPROVED,
         envelopeId,
-        data: { code, name: account?.name ?? null },
+        data: { code, name: account?.name ?? null, ...document },
         user,
         requestMetadata: requestMetadata.requestMetadata,
       }),
     });
 
-    return true;
+    return { envelopeApproved };
   });
 
-  if (!approved) {
+  if (!result) {
     // Outro pedido aprovou no meio (repetição); qualquer outra mudança (ex.: conta trocada) não é aprovação desta conta.
-    const latest = await prisma.revalleInvoiceClassification.findUnique({
-      where: { envelopeId },
-      select: { financeStatus: true, choiceCode: true },
-    });
-
-    if (latest?.financeStatus === RevalleFinanceStatus.APPROVED && latest.choiceCode === code) {
+    if (await isApprovedWith(envelopeId, file.id, code)) {
       return { approved: false };
     }
+
+    const latest = await prisma.revalleInvoiceClassification.findUnique({
+      where: { envelopeId },
+      select: { financeStatus: true },
+    });
 
     throw invalid(
       latest?.financeStatus === RevalleFinanceStatus.SUPERSEDED ? STATE_CHANGED_MESSAGE : NOT_PENDING_MESSAGE,
     );
   }
 
-  await releaseHeldSeal({ envelopeId, secondaryId: envelope.secondaryId, requestMetadata });
+  if (result.envelopeApproved) {
+    await releaseHeldSeal({ envelopeId, secondaryId: envelope.secondaryId, requestMetadata });
+  }
 
   return { approved: true };
+};
+
+/** A nota (relida agora) já está aprovada com esta conta: outro pedido aprovou primeiro. */
+const isApprovedWith = async (envelopeId: string, fileId: string, code: string) => {
+  const [latest, current] = await Promise.all([
+    prisma.revalleInvoiceClassification.findUnique({ where: { envelopeId }, select: { financeStatus: true } }),
+    prisma.revalleInvoiceFile.findUnique({ where: { id: fileId }, select: { choiceCode: true, approvedAt: true } }),
+  ]);
+
+  return (
+    current?.choiceCode === code &&
+    fileFinanceStatus(latest?.financeStatus ?? null, current.approvedAt) === RevalleFinanceStatus.APPROVED
+  );
 };
 
 /**
@@ -183,14 +229,30 @@ const claimPendingApproval = async (tx: Prisma.TransactionClient, envelopeId: st
   return locked?.financeStatus === RevalleFinanceStatus.PENDING_APPROVAL;
 };
 
-/** O envio aprovado (a situação é do envio) e o espelho da nota. */
-const markApproved = async (tx: Prisma.TransactionClient, envelopeId: string) => {
-  await tx.revalleInvoiceClassification.updateMany({
-    where: { envelopeId, isInvoice: RevalleInvoiceStatus.YES, financeStatus: RevalleFinanceStatus.PENDING_APPROVAL },
-    data: { financeStatus: RevalleFinanceStatus.APPROVED },
+/**
+ * Depois de gravar a aprovação de uma nota (na transação que travou o envio): se nenhuma nota do envio ficou sem
+ * aprovação, o envio passa a aprovado (a situação é do envio). O espelho é regravado sempre. `true` = o envio foi
+ * aprovado agora (a selagem retida pode ser liberada). Com uma nota só, é sempre o caso, como antes da Fase 9.
+ */
+const markApprovedIfComplete = async (tx: Prisma.TransactionClient, envelopeId: string) => {
+  const pending = await tx.revalleInvoiceFile.count({
+    where: { envelopeId, kind: RevalleInvoiceFileKind.NF, approvedAt: null },
   });
 
+  let approved = false;
+
+  if (pending === 0) {
+    const { count } = await tx.revalleInvoiceClassification.updateMany({
+      where: { envelopeId, isInvoice: RevalleInvoiceStatus.YES, financeStatus: RevalleFinanceStatus.PENDING_APPROVAL },
+      data: { financeStatus: RevalleFinanceStatus.APPROVED },
+    });
+
+    approved = count > 0;
+  }
+
   await syncInvoiceEnvelopeMirror(tx, envelopeId);
+
+  return approved;
 };
 
 /**
@@ -201,16 +263,20 @@ const markApproved = async (tx: Prisma.TransactionClient, envelopeId: string) =>
 const defineSentInvoiceAccount = async ({
   envelopeId,
   file,
+  isMulti,
+  document,
   code,
   user,
   requestMetadata,
 }: {
   envelopeId: string;
   file: LoadedInvoiceFile;
+  isMulti: boolean;
+  document: ReturnType<typeof invoiceAuditDocument>;
   code: string;
   user: { id: number; name: string | null; email: string };
   requestMetadata: ApiRequestMetadata;
-}) => {
+}): Promise<{ approved: boolean; envelopeApproved: boolean }> => {
   const account = await prisma.revalleAccountingAccount.findUnique({
     where: { code },
     select: { name: true, active: true },
@@ -225,11 +291,16 @@ const defineSentInvoiceAccount = async ({
 
   const defined = await prisma.$transaction(async (tx) => {
     if (!(await claimPendingApproval(tx, envelopeId))) {
-      return false;
+      return null;
     }
 
     const { count } = await tx.revalleInvoiceFile.updateMany({
-      where: { id: file.id, kind: RevalleInvoiceFileKind.NF, choiceCode: null },
+      where: {
+        id: file.id,
+        kind: RevalleInvoiceFileKind.NF,
+        choiceCode: null,
+        ...(isMulti ? { approvedAt: null } : {}),
+      },
       data: {
         choiceCode: code,
         choiceById: user.id,
@@ -243,35 +314,30 @@ const defineSentInvoiceAccount = async ({
     });
 
     if (count === 0) {
-      return false;
+      return null;
     }
 
-    await markApproved(tx, envelopeId);
+    const envelopeApproved = await markApprovedIfComplete(tx, envelopeId);
 
     await tx.documentAuditLog.create({
       data: createDocumentAuditLogData({
         type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_FINANCE_ACCOUNT_DEFINED,
         envelopeId,
-        data: { code, name: account.name },
+        data: { code, name: account.name, ...document },
         user,
         requestMetadata: requestMetadata.requestMetadata,
       }),
     });
 
-    return true;
+    return { envelopeApproved };
   });
 
   if (defined) {
-    return true;
+    return { approved: true, envelopeApproved: defined.envelopeApproved };
   }
 
-  const latest = await prisma.revalleInvoiceClassification.findUnique({
-    where: { envelopeId },
-    select: { financeStatus: true, choiceCode: true },
-  });
-
-  if (latest?.financeStatus === RevalleFinanceStatus.APPROVED && latest.choiceCode === code) {
-    return false;
+  if (await isApprovedWith(envelopeId, file.id, code)) {
+    return { approved: false, envelopeApproved: false };
   }
 
   throw invalid(STATE_CHANGED_MESSAGE);

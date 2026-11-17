@@ -1,6 +1,7 @@
-import type { RevalleInvoiceClassification } from '@prisma/client';
+import type { RevalleInvoiceClassification, RevalleInvoiceFile } from '@prisma/client';
 
 import { costCenterLabel } from '../invoice/cost-centers';
+import type { InvoiceFileKind } from '../invoice/invoice-files';
 
 /** Motivo de uma nova versão (troca de conta ou correção do centro): obrigatório, 10 a 500 caracteres depois de `trim`. */
 export const CHANGE_REASON_MIN = 10;
@@ -26,24 +27,37 @@ export type VersionChangeLine =
   | { kind: 'ACCOUNT'; title: string; from: string | null; to: string }
   | { kind: 'COST_CENTER'; fromCode: string; toCode: string };
 
+/** Fase 9: a nota que mudou, só num envio com 2+ notas (com uma, a frase é a de antes). */
+export type VersionChangeDocument = { index: number; total: number; title: string };
+
+export type VersionChangeNotice = VersionChangeLine & { document?: VersionChangeDocument };
+
 /** A frase do que mudou, igual para todos que recebem o aviso. `from` nulo: a versão trocada não tinha conta. */
-export const versionChangeNoticeLine = (change: VersionChangeLine) => {
+export const versionChangeNoticeLine = (change: VersionChangeNotice) => {
+  const doc = change.document;
+
   if (change.kind === 'COST_CENTER') {
-    return `O centro de custo foi corrigido de ${costCenterLabel(change.fromCode)} para ${costCenterLabel(change.toCode)}.`;
+    const from = costCenterLabel(change.fromCode);
+    const to = costCenterLabel(change.toCode);
+
+    return doc
+      ? `O centro de custo da nota ${doc.index} de ${doc.total} (${doc.title}) foi corrigido de ${from} para ${to}.`
+      : `O centro de custo foi corrigido de ${from} para ${to}.`;
   }
 
   const account = change.from
     ? `alterada pelo Financeiro de ${change.from} para ${change.to}`
     : `definida pelo Financeiro: ${change.to}`;
+  const note = doc ? ` (nota ${doc.index} de ${doc.total}: ${doc.title})` : '';
 
-  return `A conta contábil da nota fiscal ${change.title} foi ${account}.`;
+  return `A conta contábil da nota fiscal ${change.title}${note} foi ${account}.`;
 };
 
 /**
  * Texto exato do aviso de uma nova versão (e-mail para o remetente e os destinatários das duas versões). O ponto final
  * do modelo não é dobrado quando o motivo já termina com pontuação.
  */
-export const buildVersionChangeNotice = (change: VersionChangeLine, reason: string) => {
+export const buildVersionChangeNotice = (change: VersionChangeNotice, reason: string) => {
   const text = reason.trim();
   const ending = /[.!?…]$/.test(text) ? '' : '.';
 
@@ -145,5 +159,118 @@ export const nextClassification = (
     approvedAt: row.approvedAt,
     approvedAccountName: row.approvedAccountName,
     approvedByName: row.approvedByName,
+  };
+};
+
+/** Fase 9: as colunas de uma linha de arquivo que a nova versão leva (ou muda). */
+export type InvoiceFileVersionRow = { id: string; kind: InvoiceFileKind } & Pick<
+  RevalleInvoiceFile,
+  | 'choiceCode'
+  | 'choiceById'
+  | 'choiceAt'
+  | 'acceptedSuggestion'
+  | 'costCenterCode'
+  | 'costCenterById'
+  | 'costCenterAt'
+  | 'costCenterValidatedAt'
+  | 'costCenterValidatedById'
+  | 'costCenterValidatedByName'
+  | 'approvedById'
+  | 'approvedAt'
+  | 'approvedAccountName'
+  | 'approvedByName'
+>;
+
+type InvoiceFileVersionColumns = Omit<InvoiceFileVersionRow, 'id' | 'kind'>;
+
+const versionColumns = ({ id: _id, kind: _kind, ...columns }: InvoiceFileVersionRow): InvoiceFileVersionColumns =>
+  columns;
+
+const NO_APPROVAL = {
+  approvedById: null,
+  approvedAt: null,
+  approvedAccountName: null,
+  approvedByName: null,
+} satisfies Partial<InvoiceFileVersionColumns>;
+
+/**
+ * Fase 9: as linhas de arquivo da nova versão e a situação do envio, quando UMA nota muda (`targetFileId`).
+ *
+ * - Uma nota só: a regra das Fases 6/7 (`nextClassification`): a troca de conta sai aprovada por quem trocou; a correção
+ *   do centro leva a aprovação da versão anterior.
+ * - Duas ou mais notas ("Decidido em 16/11/2026"): a nota alvo recebe a mudança (conta escolhida por quem trocou, ou
+ *   centro novo validado por quem corrigiu) e TODAS as notas ficam sem aprovação, aguardando o Financeiro; as contas, os
+ *   centros e as validações das outras ficam como estão.
+ *
+ * Os arquivos que não são nota vão sem mudança. `acceptedSuggestion` da nota alvo fica como está (quem chama decide com a
+ * sugestão ainda ativa na lista).
+ */
+export const nextInvoiceFiles = ({
+  files,
+  targetFileId,
+  change,
+  previousFinanceStatus,
+  user,
+  now,
+  accountName,
+}: {
+  files: InvoiceFileVersionRow[];
+  targetFileId: string;
+  change: InvoiceVersionChange;
+  previousFinanceStatus: RevalleInvoiceClassification['financeStatus'];
+  user: { id: number; name: string | null };
+  now: Date;
+  accountName: string | null;
+}): { financeStatus: 'APPROVED' | 'PENDING_APPROVAL'; files: Map<string, InvoiceFileVersionColumns> } => {
+  const nfs = files.filter((file) => file.kind === 'NF');
+  const target = nfs.find((file) => file.id === targetFileId);
+
+  if (!target) {
+    throw new Error('A nota que muda não é uma nota deste envio.');
+  }
+
+  if (nfs.length === 1) {
+    const { financeStatus, ...next } = nextClassification(
+      { ...target, financeStatus: previousFinanceStatus },
+      change,
+      user,
+      now,
+      accountName,
+    );
+
+    return {
+      financeStatus,
+      files: new Map(
+        files.map((file) => [
+          file.id,
+          file.id === target.id ? { ...versionColumns(file), ...next } : versionColumns(file),
+        ]),
+      ),
+    };
+  }
+
+  const userName = user.name?.trim() || null;
+  const changed =
+    change.kind === 'ACCOUNT'
+      ? { choiceCode: change.code, choiceById: user.id, choiceAt: now }
+      : {
+          costCenterCode: change.code,
+          costCenterById: user.id,
+          costCenterAt: now,
+          costCenterValidatedAt: now,
+          costCenterValidatedById: user.id,
+          costCenterValidatedByName: userName,
+        };
+
+  return {
+    financeStatus: 'PENDING_APPROVAL',
+    files: new Map(
+      files.map((file) => [
+        file.id,
+        file.kind === 'NF'
+          ? { ...versionColumns(file), ...(file.id === target.id ? changed : {}), ...NO_APPROVAL }
+          : versionColumns(file),
+      ]),
+    ),
   };
 };

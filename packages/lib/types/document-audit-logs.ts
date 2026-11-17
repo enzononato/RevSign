@@ -891,7 +891,8 @@ export const ZDocumentAuditLogEventRevalleSignatureStampedSchema = z.object({
   data: z.object({ recipientId: z.number(), signatureKind: z.enum(['IMAGE', 'TYPED', 'NONE']) }),
 });
 
-// REVALLE: (Fase 9) a nota do evento, só num envio com 2+ notas (com uma, o evento fica como antes).
+// REVALLE: (Fase 9) a nota do evento, só num envio com 2+ notas (com uma, o evento fica como antes). Vale para a
+// escolha da conta e do centro, e para a aprovação, a definição, a troca, a validação e a correção.
 const ZRevalleInvoiceAuditDocumentSchema = z.object({
   envelopeItemId: z.string(),
   title: z.string(),
@@ -927,13 +928,21 @@ export const ZDocumentAuditLogEventRevalleInvoiceCostCenterSetSchema = z.object(
 // REVALLE: quem é do Financeiro definiu a conta de uma NF marcada depois do envio (já vale como aprovada).
 export const ZDocumentAuditLogEventRevalleFinanceAccountDefinedSchema = z.object({
   type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_FINANCE_ACCOUNT_DEFINED),
-  data: z.object({ code: z.string(), name: z.string().nullable() }),
+  data: z.object({
+    code: z.string(),
+    name: z.string().nullable(),
+    document: ZRevalleInvoiceAuditDocumentSchema.optional(), // REVALLE: Fase 9
+  }),
 });
 
 // REVALLE: o Financeiro aprovou a conta escolhida (a NF pode ser selada). Fica também no log em PDF.
 export const ZDocumentAuditLogEventRevalleFinanceApprovedSchema = z.object({
   type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_FINANCE_APPROVED),
-  data: z.object({ code: z.string(), name: z.string().nullable() }),
+  data: z.object({
+    code: z.string(),
+    name: z.string().nullable(),
+    document: ZRevalleInvoiceAuditDocumentSchema.optional(), // REVALLE: Fase 9
+  }),
 });
 
 // REVALLE: o Financeiro trocou a conta (com o motivo): fica nas duas versões, com o id da outra. `isNewVersion`: este
@@ -948,6 +957,7 @@ export const ZDocumentAuditLogEventRevalleFinanceAccountChangedSchema = z.object
     reason: z.string(),
     otherEnvelopeId: z.string(),
     isNewVersion: z.boolean(),
+    document: ZRevalleInvoiceAuditDocumentSchema.optional(), // REVALLE: Fase 9
   }),
 });
 
@@ -955,7 +965,10 @@ export const ZDocumentAuditLogEventRevalleFinanceAccountChangedSchema = z.object
 // não afirma validação.
 export const ZDocumentAuditLogEventRevalleCostCenterValidatedSchema = z.object({
   type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_COST_CENTER_VALIDATED),
-  data: z.object({ code: z.string() }),
+  data: z.object({
+    code: z.string(),
+    document: ZRevalleInvoiceAuditDocumentSchema.optional(), // REVALLE: Fase 9
+  }),
 });
 
 // REVALLE: a Contabilidade corrigiu o centro (com o motivo): fica nas duas versões, com o id da outra. `isNewVersion`: este
@@ -968,6 +981,7 @@ export const ZDocumentAuditLogEventRevalleCostCenterChangedSchema = z.object({
     reason: z.string(),
     otherEnvelopeId: z.string(),
     isNewVersion: z.boolean(),
+    document: ZRevalleInvoiceAuditDocumentSchema.optional(), // REVALLE: Fase 9
   }),
 });
 

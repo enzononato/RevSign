@@ -58,6 +58,8 @@ const actionsFor = (card: Card) => {
 
 export type AccountingCardProps = {
   envelopeId: string;
+  /** Fase 9: a nota do cartão (o arquivo). Obrigatório num envio com 2+ notas; sem ele, a nota única. */
+  envelopeItemId?: string;
   /** Depois de uma ação (a página recarrega os dados dela: estado, versões). */
   onChanged?: () => void;
   /** REVALLE v3: com `false`, não repete o centro que a página já mostra em "O que foi assinado". */
@@ -70,7 +72,12 @@ export type AccountingCardProps = {
  * centro de custo" (NF enviada sem centro) e "Enviar de novo" (nova versão cujo envio falhou). Toda ação que grava ou
  * envia pede confirmação.
  */
-export const AccountingCard = ({ envelopeId, onChanged, showSignedValues = true }: AccountingCardProps) => {
+export const AccountingCard = ({
+  envelopeId,
+  envelopeItemId,
+  onChanged,
+  showSignedValues = true,
+}: AccountingCardProps) => {
   const { t } = useLingui();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -81,7 +88,7 @@ export const AccountingCard = ({ envelopeId, onChanged, showSignedValues = true 
   const isMember = me?.isMember === true;
 
   const { data: card, isError } = trpc.revalle.accounting.get.useQuery(
-    { envelopeId },
+    { envelopeId, envelopeItemId },
     { ...DO_NOT_INVALIDATE_QUERY_ON_MUTATION, enabled: isMember },
   );
 
@@ -115,6 +122,12 @@ export const AccountingCard = ({ envelopeId, onChanged, showSignedValues = true 
   }
 
   const actions = actionsFor(card);
+  // Fase 9: o envio com várias notas; "Enviar de novo" é do envio e fica só no cartão da primeira nota.
+  const isMulti = card.position.total > 1;
+
+  if (card.position.index > 1) {
+    actions.resend = false;
+  }
 
   const refresh = async () => {
     await utils.revalle.accounting.get.invalidate({ envelopeId });
@@ -142,7 +155,7 @@ export const AccountingCard = ({ envelopeId, onChanged, showSignedValues = true 
 
   const onValidate = async () => {
     try {
-      const { validated } = await validate.mutateAsync({ envelopeId });
+      const { validated } = await validate.mutateAsync({ envelopeId, envelopeItemId });
 
       toast({
         title: validated ? t`Centro de custo validado.` : t`Este centro de custo já estava validado.`,
@@ -162,7 +175,7 @@ export const AccountingCard = ({ envelopeId, onChanged, showSignedValues = true 
     }
 
     try {
-      await define.mutateAsync({ envelopeId, code: definedCode });
+      await define.mutateAsync({ envelopeId, envelopeItemId, code: definedCode });
       toast({ title: t`Centro de custo definido e validado.`, duration: 5000 });
       setDialog(null);
       await refresh();
@@ -178,7 +191,12 @@ export const AccountingCard = ({ envelopeId, onChanged, showSignedValues = true 
     }
 
     try {
-      const { newEnvelopeId } = await change.mutateAsync({ envelopeId, code: newCode, reason: reason.trim() });
+      const { newEnvelopeId } = await change.mutateAsync({
+        envelopeId,
+        envelopeItemId,
+        code: newCode,
+        reason: reason.trim(),
+      });
 
       toast({
         title: t`Centro de custo corrigido. A nova versão foi enviada para todos assinarem de novo.`,
@@ -443,6 +461,12 @@ export const AccountingCard = ({ envelopeId, onChanged, showSignedValues = true 
 
           <p className="font-medium" data-testid="accounting-change-warning">
             <Trans>Todos vão precisar assinar de novo.</Trans>
+            {isMulti && (
+              <>
+                {' '}
+                <Trans>Todas as notas do envio voltam a aguardar a aprovação do Financeiro.</Trans>
+              </>
+            )}
           </p>
 
           {canChange && (

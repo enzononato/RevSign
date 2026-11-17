@@ -5,6 +5,7 @@ import {
   EnvelopeType,
   Prisma,
   RevalleFinanceStatus,
+  RevalleInvoiceFileKind,
   RevalleInvoiceStatus,
   RevalleSuggestionStatus,
   SigningStatus,
@@ -15,11 +16,12 @@ import {
   CHANGE_REASON_MESSAGE,
   type InvoiceVersionChange,
   isValidChangeReason,
-  nextClassification,
+  nextInvoiceFiles,
   nextVersionTitle,
 } from '../../../revalle/finance/account-change';
 import { isCostCenterCode } from '../../../revalle/invoice/cost-centers';
 import { NO_INVOICE_DATA_COLUMNS } from '../../../revalle/invoice/invoice-data';
+import { invoicePositions } from '../../../revalle/invoice/invoice-files';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { ApiRequestMetadata } from '../../../universal/extract-request-metadata';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
@@ -27,7 +29,7 @@ import { logger } from '../../../utils/logger';
 import { sendDocument } from '../../document/send-document';
 import { duplicateEnvelope } from '../../envelope/duplicate-envelope';
 import { revalleErrorCode } from '../error-code';
-import { invoiceFileSuggestion } from '../invoice/classify';
+import { invoiceAuditDocument, invoiceFileSuggestion } from '../invoice/classify';
 import type { InvoiceEnvelopeFile } from '../invoice/envelope-files';
 import { filesKey, loadEnvelopeFiles } from '../invoice/envelope-files';
 import type { LoadedInvoiceFile } from '../invoice/invoice-files';
@@ -118,14 +120,19 @@ const CHANGEABLE: Partial<Record<DocumentStatus, RevalleFinanceStatus[]>> = {
 /**
  * O motor único de nova versão, para a troca de conta pelo Financeiro e a correção do centro de custo pela Contabilidade
  * (o perfil já foi conferido pela rota): a versão atual da NF é substituída por uma NOVA VERSÃO, que todos assinam de
- * novo. O que muda por tipo está em `nextClassification`; todo o resto é igual.
+ * novo. O que muda por tipo está em `nextInvoiceFiles` (`nextClassification` com uma nota); todo o resto é igual.
+ *
+ * Fase 9: a mudança é de UMA nota (`envelopeItemId`, obrigatório com 2+ notas). Com 2+ notas, a nova versão deixa todas
+ * as notas aguardando o Financeiro (as contas, os centros e as validações das outras ficam), e a versão antiga guarda em
+ * `supersededEnvelopeItemId` o arquivo da nota que mudou. A marca confere um retrato de todas as notas (conta, centro,
+ * validação e aprovação de cada uma): uma aprovação ou validação de outra nota no meio faz este pedido recomeçar.
  *
  * 1. Marca a antiga `SUPERSEDED` (quem, quando, motivo, `supersedeKind`) numa gravação condicionada ao estado, à conta, ao
  *    centro e à validação lidos: de dois pedidos ao mesmo tempo, de um tipo ou de outro, só um vence; o outro recebe
  *    409/400 e nada cria.
  * 2. Cria a nova com o `duplicateEnvelope` do upstream, em nome do dono: mesmo arquivo ORIGINAL (`initialData`, nunca o
  *    selado), destinatários, papéis, ordem, campos e configurações.
- * 3. Numa transação: título "(vN)", classificação da nova (`nextClassification`, `version` + 1, ligação), ligação na
+ * 3. Numa transação: título "(vN)", classificação da nova (`nextInvoiceFiles`, `version` + 1, ligação), ligação na
  *    antiga, a antiga pendente escondida das listas (sem os e-mails de cancelamento do upstream) e o evento do tipo
  *    (`REVALLE_FINANCE_ACCOUNT_CHANGED` ou `REVALLE_COST_CENTER_CHANGED`) nas duas versões.
  *    Se 2 ou 3 falham, a marca de 1 é desfeita e a cópia apagada: a antiga nunca fica substituída sem sucessora.
@@ -140,12 +147,14 @@ const CHANGEABLE: Partial<Record<DocumentStatus, RevalleFinanceStatus[]>> = {
  */
 export const createInvoiceNewVersion = async ({
   envelopeId,
+  envelopeItemId,
   change,
   reason,
   user,
   requestMetadata,
 }: {
   envelopeId: string;
+  envelopeItemId?: string;
   change: InvoiceVersionChange;
   reason: string;
   user: ChangeUser;
@@ -201,10 +210,13 @@ export const createInvoiceNewVersion = async ({
     throw invalid(messages.notChangeable);
   }
 
-  // Fase 9: a nota que muda (a linha do arquivo); com 2+ notas, ainda não por aqui (INVOICE_FILE_REQUIRED).
+  // Fase 9: a nota que muda (a linha do arquivo); com 2+ notas, `envelopeItemId` diz qual.
   await ensureLegacyInvoiceFiles(envelopeId);
 
-  const file = await resolveInvoiceFile({ envelopeId });
+  const file = await resolveInvoiceFile({ envelopeId, envelopeItemId });
+  const files = await loadInvoiceFiles(envelopeId);
+  const snapshot = notesSnapshot(files);
+  const isMulti = files.filter((other) => other.kind === RevalleInvoiceFileKind.NF).length > 1;
   const note = noteVersionRow(row, file);
   const account = await assertChangeAllowed({ row: note, change });
 
@@ -216,16 +228,10 @@ export const createInvoiceNewVersion = async ({
     // A trava do envio antes de tudo (com a selagem, que trava esta linha antes de concluir, a ordem fica definida).
     await lockInvoiceEnvelope(tx, envelopeId);
 
-    // O centro e a validação também são lidos aqui: a nova versão copia o que a antiga tem, e um primeiro centro
-    // escolhido ou uma validação no meio devem fazer este pedido recomeçar.
-    const current = await tx.revalleInvoiceFile.findUnique({ where: { id: file.id } });
-
-    if (
-      !current ||
-      current.choiceCode !== file.choiceCode ||
-      current.costCenterCode !== file.costCenterCode ||
-      current.costCenterValidatedAt?.getTime() !== file.costCenterValidatedAt?.getTime()
-    ) {
+    // A conta, o centro, a validação e a aprovação de TODAS as notas também são lidos aqui: a nova versão copia o que a
+    // antiga tem, e um primeiro centro escolhido, uma validação ou uma aprovação no meio (de qualquer nota) devem fazer
+    // este pedido recomeçar.
+    if (notesSnapshot(await loadInvoiceFiles(envelopeId, tx)) !== snapshot) {
       return 0;
     }
 
@@ -245,6 +251,8 @@ export const createInvoiceNewVersion = async ({
         supersedeReason,
         supersedeKind: change.kind,
         supersededByEnvelopeId: null,
+        // Fase 9: com 2+ notas, a nota que mudou (o /verificar e o aviso dizem qual).
+        supersededEnvelopeItemId: isMulti ? file.envelopeItemId : null,
       },
     });
 
@@ -278,6 +286,25 @@ export const createInvoiceNewVersion = async ({
 
   return { newEnvelopeId };
 };
+
+/**
+ * O retrato das notas do envio que a marca confere: por nota, a conta, o centro, a validação e a aprovação. Igual ao lido =
+ * nada mudou no meio.
+ */
+const notesSnapshot = (files: LoadedInvoiceFile[]) =>
+  files
+    .filter((file) => file.kind === RevalleInvoiceFileKind.NF)
+    .map((file) =>
+      [
+        file.id,
+        file.choiceCode ?? '',
+        file.costCenterCode ?? '',
+        file.costCenterValidatedAt?.toISOString() ?? '',
+        file.approvedAt?.toISOString() ?? '',
+      ].join('|'),
+    )
+    .sort()
+    .join('\n');
 
 /** O que a nova versão lê da versão atual: a situação do envio e as colunas da nota (a linha do arquivo). */
 type NoteVersionRow = Pick<RevalleInvoiceClassification, 'financeStatus' | 'supersededAt' | 'supersededByEnvelopeId'> &
@@ -436,16 +463,31 @@ const createNewVersion = async ({
       ? ((await prisma.revalleAccountingAccount.findUnique({ where: { code: fromAccount }, select: { name: true } }))
           ?.name ?? null)
       : null;
-  const { financeStatus, ...nextNote } = nextClassification(noteVersionRow(row, file), change, user, now, accountName);
-
   // Fase 9: TODAS as linhas de arquivo vão para os arquivos da cópia (pela ordem, depois pelo título). A nota que muda
-  // ganha a conta/o centro da nova versão (`nextClassification`); as outras ficam como estão.
-  const pairs = pairCopiedFiles(await loadInvoiceFiles(envelopeId), newFiles);
+  // ganha a conta/o centro da nova versão; com 2+ notas, todas ficam sem aprovação (`nextInvoiceFiles`).
+  const oldFiles = await loadInvoiceFiles(envelopeId);
+  const next = nextInvoiceFiles({
+    files: oldFiles,
+    targetFileId: file.id,
+    change,
+    previousFinanceStatus: row.financeStatus,
+    user,
+    now,
+    accountName,
+  });
+  const financeStatus = next.financeStatus;
+  const pairs = pairCopiedFiles(oldFiles, newFiles);
+  const positions = invoicePositions(oldFiles);
+  const oldDocument = invoiceAuditDocument(file, positions);
+  const copyOfTarget = pairs.find(([old]) => old.id === file.id)?.[1];
+  const newDocument = copyOfTarget
+    ? invoiceAuditDocument({ ...file, envelopeItemId: copyOfTarget.envelopeItemId }, positions)
+    : {};
   const fileRows = pairs.map(([old, copy]) => ({
     ...copiedFileRow(old, copy, newEnvelopeId),
+    ...next.files.get(old.id),
     ...(old.id === file.id
       ? {
-          ...nextNote,
           // Fica fora da função pura: depende da sugestão ainda ativa na lista, lida do banco.
           acceptedSuggestion:
             change.kind === 'ACCOUNT'
@@ -546,7 +588,12 @@ const createNewVersion = async ({
       [newEnvelopeId, envelopeId, true],
     ] as const) {
       const base = { envelopeId: target, user, requestMetadata: requestMetadata.requestMetadata };
-      const link = { reason: supersedeReason, otherEnvelopeId, isNewVersion };
+      const link = {
+        reason: supersedeReason,
+        otherEnvelopeId,
+        isNewVersion,
+        ...(isNewVersion ? newDocument : oldDocument),
+      };
 
       await tx.documentAuditLog.create({
         data:
@@ -692,6 +739,7 @@ const undoSupersede = async ({
         supersedeReason: row.supersedeReason,
         supersedeKind: row.supersedeKind,
         supersededByEnvelopeId: row.supersededByEnvelopeId,
+        supersededEnvelopeItemId: row.supersededEnvelopeItemId,
       },
     });
   } catch (error) {

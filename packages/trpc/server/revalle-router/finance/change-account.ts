@@ -8,10 +8,11 @@ export const changeFinanceAccountRoute = financeProcedure
   .input(ZChangeFinanceAccountRequestSchema)
   .output(ZChangeFinanceAccountResponseSchema)
   .mutation(async ({ input, ctx }) => {
-    const { envelopeId, code, reason } = input;
+    const { envelopeId, envelopeItemId, code, reason } = input;
 
     return await createInvoiceNewVersion({
       envelopeId,
+      envelopeItemId,
       change: { kind: 'ACCOUNT', code },
       reason,
       user: { id: ctx.user.id, name: ctx.user.name, email: ctx.user.email },
