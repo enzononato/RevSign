@@ -638,6 +638,13 @@ Sem variável nem migração nova. Avise os remetentes de três mudanças no di�
 - O nome de quem assina não é mais digitado: vem da conta (o editor mostra "Conta: {nome}") ou, quando a pessoa confirma
   o CPF no portão, da base do RH (`verificacao.md`, "Nome de quem assina").
 
+
+**Menu "Documentos" (v.20).** O item **Documentos** aparece sempre no menu lateral. Dentro de um time ele leva aos
+documentos desse time. Fora de um time leva ao último time que a pessoa abriu, senão ao primeiro time que não é o
+pessoal, senão ao pessoal. Antes, quem estava em dois times (por exemplo "Equipe pessoal" e "TI") não via o item nas
+páginas de Notas fiscais, Caixa de entrada e Configurações. A conta ativa que tiver ficado sem organização volta à sua
+organização pessoal, ou ganha uma, na primeira página que abrir.
+
 ## Atualizar a versão depois
 
 0. Antes de trocar a versão, confirme que as DUAS imagens existem para a tag nova: `ghcr.io/enzononato/revsign:<tag>` e `ghcr.io/enzononato/revsign-backup:<tag>` (GitHub → Packages; os dois jobs de publicação são independentes e um pode falhar sozinho).

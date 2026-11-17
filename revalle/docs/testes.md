@@ -317,6 +317,8 @@ node --test --test-concurrency=1 scripts/revalle/tests/acceptance-f7.test.mjs
 
 `recipient-name-ui.test.mjs` (v.20) confere no navegador, na imagem do Playwright (sem ela, os casos são pulados), que o editor não tem o campo Nome, mostra a dica "Conta:" e deixa enviar só com o e-mail.
 
+`menu-documents.test.mjs` (v.20) confere que "Documentos" aparece para quem tem dois times e leva ao último time aberto (cookie `revalle_last_team`, gravado no navegador; o HTML do servidor já vem certo na próxima página), que um time de outra pessoa no cookie é ignorado, que a conta sem organização volta à própria organização pessoal ou ganha uma (5 pedidos ao mesmo tempo criam uma só) e que conta desativada não ganha nada. A parte de navegador precisa da imagem do Playwright; prints em `REVSIGN_MENU_SHOTS`.
+
 `send-simplified.test.mjs` (v.20) cobre o envio simplificado: assunto `{quem enviou} enviou "{título}" para você {verbo}`, Reply-To de quem enviou, um e-mail por signatário e o reenvio com "Lembrete: ". No navegador, confere as duas opções ("Enviar por e-mail (recomendado)" e "Só gerar os links") e a tela dos links depois do envio.
 
 ## Aceite da Fase 9
