@@ -5454,3 +5454,38 @@ msgstr "Nova versão criada pela Contabilidade com o centro de custo {to} na not
 
 msgid "Centro de custo da nota {index} de {total} ({title}) corrigido pela Contabilidade de {from} para {to}: substituído por uma nova versão. Motivo: {reason}"
 msgstr "Centro de custo da nota {index} de {total} ({title}) corrigido pela Contabilidade de {from} para {to}: substituído por uma nova versão. Motivo: {reason}"
+
+
+# REVALLE: bloco de conta e centro de custo no editor e linha no envio (17/11/2026).
+# Botão da paleta (Trans), sombra ao arrastar e etiqueta do bloco na página (t).
+msgid "Conta e centro de custo"
+msgstr "Conta e centro de custo"
+
+# Texto de exemplo dentro do bloco, no editor.
+msgid "Conta: (conta aprovada)"
+msgstr "Conta: (conta aprovada)"
+
+msgid "CC: (centro de custo)"
+msgstr "CC: (centro de custo)"
+
+# Botão de tirar o bloco (title e aria-label).
+msgid "Tirar o bloco"
+msgstr "Tirar o bloco"
+
+# Toast quando gravar ou tirar o bloco falha.
+msgid "Não foi possível salvar o bloco de conta e centro. Tente de novo."
+msgstr "Não foi possível salvar o bloco de conta e centro. Tente de novo."
+
+# Diálogo de envio: a linha de cada nota.
+msgid "No PDF: conta e centro na página {page}."
+msgstr "No PDF: conta e centro na página {page}."
+
+msgid "No PDF: sem conta e centro (opcional — coloque o bloco no passo Adicionar campos)."
+msgstr "No PDF: sem conta e centro (opcional — coloque o bloco no passo Adicionar campos)."
+
+msgid "No PDF: conta e centro acima da assinatura (envio de antes da atualização)."
+msgstr "No PDF: conta e centro acima da assinatura (envio de antes da atualização)."
+
+# Diálogo de envio: aviso em âmbar do bloco num arquivo que não é nota.
+msgid "O bloco de conta e centro em {title} não será impresso: só sai em nota fiscal."
+msgstr "O bloco de conta e centro em {title} não será impresso: só sai em nota fiscal."
