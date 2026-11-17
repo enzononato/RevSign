@@ -28,18 +28,24 @@ export const nameFromAccount = (
 };
 
 /**
- * Nome vazio para o mesmo e-mail é "não informado" (o editor não tem mais o campo): fica o nome já gravado, que pode ser
- * o do RH. Com o e-mail trocado, o nome vazio continua vazio (e recebe o da conta nova ao gravar).
+ * Nome vazio para o mesmo e-mail é "não informado" (o editor não tem mais o campo): fica o nome já gravado. Com
+ * `hrConfirmed` (o portão já conferiu a identidade, então o nome gravado é o do RH), o nome gravado fica mesmo que venha
+ * outro nome (aba antiga do editor, cliente da API). Com o e-mail trocado, vale o informado (vazio recebe o da conta nova).
  */
 export const keepPersistedName = <T extends string | null | undefined>(
   incoming: { name?: T; email?: string | null },
   persisted: { name: string; email: string } | null | undefined,
+  { hrConfirmed = false }: { hrConfirmed?: boolean } = {},
 ): T | string => {
-  if (!isBlankName(incoming.name) || !persisted || isBlankName(persisted.name) || !incoming.email) {
+  if (!persisted || isBlankName(persisted.name) || !incoming.email) {
     return incoming.name as T;
   }
 
-  return accountNameKey(incoming.email) === accountNameKey(persisted.email) ? persisted.name : (incoming.name as T);
+  if (accountNameKey(incoming.email) !== accountNameKey(persisted.email)) {
+    return incoming.name as T;
+  }
+
+  return hrConfirmed || isBlankName(incoming.name) ? persisted.name : (incoming.name as T);
 };
 
 /** Mapa e-mail → nome das contas, só com nomes não vazios. */

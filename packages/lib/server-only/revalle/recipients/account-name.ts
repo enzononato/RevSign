@@ -30,6 +30,11 @@ export const findRevalleRecipientAccountName = async ({
     await accountNameRateLimit.check({ ip: requestMetadata.ipAddress ?? 'unknown', identifier: `user:${userId}` }),
   );
 
+  // Sem time escolhido (x-team-id ausente vira -1 ou nada) não há consulta: nunca "qualquer time".
+  if (!Number.isInteger(teamId) || teamId <= 0) {
+    throw new AppError(AppErrorCode.UNAUTHORIZED, { message: 'Escolha um time.' });
+  }
+
   const team = await prisma.team.findFirst({ where: buildTeamWhereQuery({ teamId, userId }), select: { id: true } });
 
   if (!team) {

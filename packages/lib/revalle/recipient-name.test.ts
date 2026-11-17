@@ -94,4 +94,13 @@ describe('keepPersistedName', () => {
     expect(keepPersistedName({ name: '', email: 'maria@gmail.com' }, undefined)).toBe('');
     expect(keepPersistedName({ name: '', email: 'maria@gmail.com' }, { name: '', email: 'maria@gmail.com' })).toBe('');
   });
+
+  it('portão já passou (nome do RH): o nome gravado fica mesmo com outro nome, se o e-mail é o mesmo', () => {
+    expect(keepPersistedName({ name: 'Nome Velho', email: 'maria@gmail.com' }, persisted, { hrConfirmed: true })).toBe(
+      'Maria Teste da Silva',
+    );
+    expect(keepPersistedName({ name: 'Nome Velho', email: 'outra@gmail.com' }, persisted, { hrConfirmed: true })).toBe(
+      'Nome Velho',
+    );
+  });
 });

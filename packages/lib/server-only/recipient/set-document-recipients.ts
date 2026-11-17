@@ -21,7 +21,7 @@ import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { hasRevalleEmailChanged } from '../revalle/email-change'; // REVALLE:
 import { assertSentInvoiceRecipientEmails } from '../revalle/invoice/external-recipients'; // REVALLE:
-import { findAccountNamesFor } from '../revalle/recipients/fill-recipient-names'; // REVALLE:
+import { findAccountNamesFor, findHrConfirmedRecipientIds } from '../revalle/recipients/fill-recipient-names'; // REVALLE:
 import { assertCompatibleRecipientGrouping } from '../signature-level/assert-compatible-recipient-grouping';
 import { assertCompatibleRecipientRole } from '../signature-level/assert-compatible-recipient-role';
 import { resolveReplacedRecipientSigningOrders } from './assign-omitted-recipient-signing-orders';
@@ -112,15 +112,18 @@ export const setDocumentRecipients = async ({
   }
 
   const existingRecipients = envelope.recipients;
+  const revalleHrConfirmed = await findHrConfirmedRecipientIds(existingRecipients); // REVALLE:
 
   const { recipients: normalizedRecipients, requestedOrderRecipients } = resolveReplacedRecipientSigningOrders({
     recipients: recipients.map((recipient) => ({
       ...recipient,
       email: recipient.email.toLowerCase(),
-      // REVALLE: nome vazio para o mesmo e-mail não apaga o nome gravado (o editor não tem mais o campo Nome).
+      // REVALLE: nome vazio para o mesmo e-mail não apaga o nome gravado (o editor não tem mais o campo Nome); com
+      // o portão já passado, o nome do RH fica mesmo que venha outro (aba antiga do editor, cliente da API).
       name: keepPersistedName(
         recipient,
         existingRecipients.find((existing) => existing.id === recipient.id),
+        { hrConfirmed: revalleHrConfirmed.has(recipient.id ?? -1) },
       ),
     })),
     existingRecipients,

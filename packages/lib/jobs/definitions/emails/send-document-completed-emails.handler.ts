@@ -6,6 +6,7 @@ import { createElement } from 'react';
 
 import { getI18nInstance } from '../../../client-only/providers/i18n-server';
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../../constants/app';
+import { greetingName } from '../../../revalle/recipient-name'; // REVALLE:
 import { getEmailContext } from '../../../server-only/email/get-email-context';
 import { assertOrganisationRatesAndLimits } from '../../../server-only/rate-limit/assert-organisation-rates-and-limits';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
@@ -204,7 +205,7 @@ export const run = async ({ payload, io }: { payload: TSendDocumentCompletedEmai
       }
 
       const customEmailTemplate = {
-        'signer.name': recipient.name,
+        'signer.name': greetingName(recipient.name, recipient.email), // REVALLE: sem nome, o e-mail
         'signer.email': recipient.email,
         'document.name': envelope.title,
       };

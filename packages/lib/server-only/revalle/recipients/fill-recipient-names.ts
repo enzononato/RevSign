@@ -72,3 +72,31 @@ export const fillRecipientNamesFromAccounts = async (envelopeId: string, db: Db 
 
   return filled;
 };
+
+/**
+ * Destinatários cujo portão já conferiu a identidade (CPF confirmado ou vínculo) para o e-mail gravado: o nome deles é o
+ * do RH e não é trocado ao gravar com o mesmo e-mail.
+ */
+export const findHrConfirmedRecipientIds = async (
+  recipients: ReadonlyArray<{ id: number; email: string }>,
+  db: Db = prisma,
+): Promise<Set<number>> => {
+  if (recipients.length === 0) {
+    return new Set();
+  }
+
+  const gates = await db.revalleRecipientGate.findMany({
+    where: {
+      recipientId: { in: recipients.map((recipient) => recipient.id) },
+      identityStatus: { in: ['CONFIRMED', 'LINKED'] },
+    },
+    select: { recipientId: true, email: true },
+  });
+  const emailById = new Map(recipients.map((recipient) => [recipient.id, accountNameKey(recipient.email)]));
+
+  return new Set(
+    gates
+      .filter((gate) => gate.email !== null && accountNameKey(gate.email) === emailById.get(gate.recipientId))
+      .map((gate) => gate.recipientId),
+  );
+};

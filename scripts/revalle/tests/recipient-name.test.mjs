@@ -12,7 +12,18 @@ import { after, before, beforeEach, test } from 'node:test';
 
 import './account-autologin.mjs'; // conta obrigatória (16/11/2026): entra na conta de quem assina pelo e-mail da empresa
 import { ensureTestAccount } from './account-helpers.mjs';
-import { api, createEnvelope, db, distribute, mailIdsTo, signIn, trpc, trpcAs, waitNewMail } from './helpers.mjs';
+import {
+  api,
+  BASE_URL,
+  createEnvelope,
+  db,
+  distribute,
+  mailIdsTo,
+  signIn,
+  trpc,
+  trpcAs,
+  waitNewMail,
+} from './helpers.mjs';
 
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const gmail = (tag) => `rn-${tag}-${RUN}@gmail.com`;
@@ -331,4 +342,62 @@ test('portão com a base fora do ar (vínculo salvo): o nome fica como estava e 
   );
   assert.equal(nameOf(r.recipientId), 'Nome Antes');
   assert.deepEqual(nameEvents(r.envelopeId), []);
+});
+
+// ---- Revisão: PATCH da API v1 sem nome e nome antigo depois do portão ----
+
+test('API v1: PATCH só com o papel não apaga o nome nem troca o e-mail', async () => {
+  const email = gmail('v1');
+  const created = await createEnvelope({ recipients: [{ email, name: 'Nome Gravado' }] });
+
+  assert.equal(created.status, 200, created.text);
+
+  const recipientId = created.envelope.recipients[0].id;
+  const documentId = Number.parseInt(
+    db(`select "secondaryId" from "Envelope" where id = '${created.id}'`).split('_')[1],
+    10,
+  );
+  const res = await fetch(`${BASE_URL}/api/v1/documents/${documentId}/recipients/${recipientId}`, {
+    method: 'PATCH',
+    headers: { Authorization: process.env.REVSIGN_API_TOKEN, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role: 'SIGNER' }),
+  });
+
+  assert.equal(res.status, 200, await res.text());
+  assert.equal(nameOf(recipientId), 'Nome Gravado');
+  assert.equal(db(`select email from "Recipient" where id = ${recipientId}`), email);
+});
+
+sessionTest('portão passado: gravar pelo editor com o nome antigo não troca o nome do RH', async () => {
+  const r = await sentTo(gmail('portao-aba-antiga'), 'Apelido Antigo');
+
+  await acceptTerm(r.token);
+  await verify(r.token, MARIA);
+  assert.equal((await confirm(r.token)).state.status, 'PASSED');
+  assert.equal(nameOf(r.recipientId), MARIA.nome);
+
+  // Aba do editor aberta antes do portão: manda o nome antigo com o mesmo e-mail.
+  const set = await trpcAs(
+    userCookie,
+    'mutation',
+    'envelope.recipient.set',
+    {
+      envelopeId: r.envelopeId,
+      envelopeType: 'DOCUMENT',
+      recipients: [{ id: r.recipientId, email: r.email, name: 'Apelido Antigo', role: 'SIGNER' }],
+    },
+    { 'x-team-id': teamOf(r.envelopeId) },
+  );
+
+  assert.equal(set.ok, true, set.text);
+  assert.equal(nameOf(r.recipientId), MARIA.nome);
+
+  // O mesmo pela API v2 (update-many).
+  const upd = await api('POST', '/envelope/recipient/update-many', {
+    envelopeId: r.envelopeId,
+    data: [{ id: r.recipientId, name: 'Outro Nome' }],
+  });
+
+  assert.equal(upd.status, 200, upd.text);
+  assert.equal(nameOf(r.recipientId), MARIA.nome);
 });

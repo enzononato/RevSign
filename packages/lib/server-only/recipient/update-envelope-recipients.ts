@@ -18,7 +18,7 @@ import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { hasRevalleEmailChanged } from '../revalle/email-change'; // REVALLE:
 import { assertSentInvoiceRecipientEmails } from '../revalle/invoice/external-recipients'; // REVALLE:
-import { findAccountNamesFor } from '../revalle/recipients/fill-recipient-names'; // REVALLE:
+import { findAccountNamesFor, findHrConfirmedRecipientIds } from '../revalle/recipients/fill-recipient-names'; // REVALLE:
 import { assertCompatibleRecipientGrouping } from '../signature-level/assert-compatible-recipient-grouping';
 import { assertCompatibleRecipientRole } from '../signature-level/assert-compatible-recipient-role';
 
@@ -132,6 +132,8 @@ export const updateEnvelopeRecipients = async ({
     existingRecipients: envelope.recipients.filter((recipient) => !orderUpdateIds.has(recipient.id)),
   });
 
+  const revalleHrConfirmed = await findHrConfirmedRecipientIds(envelope.recipients); // REVALLE:
+
   const recipientsToUpdate = recipients.map((recipient) => {
     const originalRecipient = envelope.recipients.find((existingRecipient) => existingRecipient.id === recipient.id);
 
@@ -149,17 +151,17 @@ export const updateEnvelopeRecipients = async ({
 
     return {
       originalRecipient,
-      // REVALLE: nome vazio para o mesmo e-mail não apaga o nome gravado (o editor não tem mais o campo Nome).
-      updateData:
-        recipient.name === undefined
-          ? recipient
-          : {
-              ...recipient,
-              name: keepPersistedName(
-                { name: recipient.name, email: recipient.email ?? originalRecipient.email },
-                originalRecipient,
-              ),
-            },
+      // REVALLE: nome e e-mail resolvidos antes de juntar (a API v1 manda `name: undefined`, que apagaria o nome). Nome
+      // vazio para o mesmo e-mail não apaga o gravado; com o portão já passado, o nome do RH fica.
+      updateData: {
+        ...recipient,
+        email: recipient.email ?? originalRecipient.email,
+        name: keepPersistedName(
+          { name: recipient.name ?? originalRecipient.name, email: recipient.email ?? originalRecipient.email },
+          originalRecipient,
+          { hrConfirmed: revalleHrConfirmed.has(originalRecipient.id) },
+        ),
+      },
     };
   });
 
