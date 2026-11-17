@@ -75,12 +75,21 @@ const withSingleInvoiceDuplicates = (state: TInvoiceState | undefined): TInvoice
 
 /**
  * Fase 9: o diálogo mostra um bloco por arquivo quando o envio tem nota e não é o caso de sempre (exatamente uma nota,
- * sem boleto e sem arquivo sem texto). Com uma nota só (e contratos ao lado), o bloco é o de antes, sem cabeçalho.
+ * sem boleto e sem arquivo sem texto). Com uma nota só (e contratos ao lado), o bloco é o de antes, sem cabeçalho. Um
+ * arquivo que o remetente tirou da nota ("Não é nota fiscal", "Outro documento") mantém os blocos: o seletor dele
+ * continua à mão para desfazer.
  */
 const hasPerFileLayout = (documents: TInvoiceState['documents']) => {
   const invoices = documents.filter((doc) => doc.kind === 'NF').length;
 
-  return invoices > 0 && (invoices > 1 || documents.some((doc) => doc.kind === 'BOLETO' || doc.kind === 'UNKNOWN'));
+  return (
+    invoices > 0 &&
+    (invoices > 1 ||
+      documents.some(
+        (doc) =>
+          doc.kind === 'BOLETO' || doc.kind === 'UNKNOWN' || (doc.kind === 'OTHER' && doc.detectedBy === 'SENDER'),
+      ))
+  );
 };
 
 /**
@@ -115,7 +124,11 @@ export const InvoiceAccountPanel = ({
   const { mutateAsync: resuggest, isPending: isResuggesting } = trpc.revalle.invoice.resuggest.useMutation();
   const { mutateAsync: setFileKind, isPending: isSavingKind } = trpc.revalle.invoice.setFileKind.useMutation();
 
-  const store = (state: TInvoiceState) => utils.revalle.invoice.get.setData({ envelopeId }, state);
+  // Uma consulta em andamento (a espera da sugestão) não pode sobrescrever o que acabou de ser gravado: cancela antes.
+  const store = async (state: TInvoiceState) => {
+    await utils.revalle.invoice.get.cancel({ envelopeId });
+    utils.revalle.invoice.get.setData({ envelopeId }, state);
+  };
 
   useEffect(() => {
     // Os arquivos podem ter mudado no editor: classifica (só refaz a detecção se mudaram).
@@ -227,10 +240,15 @@ export const InvoiceAccountPanel = ({
     requiresChoice: !isReleased,
     requiresCostCenter: !isReleased,
   };
+  // Com 2+ notas e nenhuma duplicada por arquivo ainda, o aviso do envio (a união das notas) vale para todas, com uma
+  // confirmação só: a proteção da Fase 8 não some enquanto as notas não trazem o aviso delas.
+  const showEnvelopeDuplicates =
+    isPerFile && duplicates.length > 0 && documents.every((doc) => doc.duplicates.length === 0);
   const isReady =
     !externalRecipientEmail &&
     (isPerFile
-      ? isInvoiceFilesReady({ ...readyInput, acknowledgedDuplicateIds, state: state && { ...state, documents } })
+      ? isInvoiceFilesReady({ ...readyInput, acknowledgedDuplicateIds, state: state && { ...state, documents } }) &&
+        (!showEnvelopeDuplicates || isDuplicateAcknowledged)
       : isInvoiceReady({ ...readyInput, duplicateAcknowledged: isDuplicateAcknowledged, state }));
 
   useEffect(() => {
@@ -242,7 +260,7 @@ export const InvoiceAccountPanel = ({
 
   const onChoose = async (choice: { code: string }) => {
     try {
-      store(await setChoice({ envelopeId, choice }));
+      await store(await setChoice({ envelopeId, choice }));
       setIsChanging(false);
     } catch {
       showError();
@@ -251,7 +269,7 @@ export const InvoiceAccountPanel = ({
 
   const onChooseCostCenter = async (code: string) => {
     try {
-      store(await setCostCenter({ envelopeId, code }));
+      await store(await setCostCenter({ envelopeId, code }));
     } catch {
       showError();
     }
@@ -259,7 +277,7 @@ export const InvoiceAccountPanel = ({
 
   const onFlag = async (value: boolean) => {
     try {
-      store(await setInvoiceFlag({ envelopeId, isInvoice: value }));
+      await store(await setInvoiceFlag({ envelopeId, isInvoice: value }));
     } catch {
       showError();
     }
@@ -267,7 +285,7 @@ export const InvoiceAccountPanel = ({
 
   const onResuggest = async (envelopeItemId?: string) => {
     try {
-      store(await resuggest({ envelopeId, envelopeItemId }));
+      await store(await resuggest({ envelopeId, envelopeItemId }));
     } catch (err) {
       const error = AppError.parseError(err);
 
@@ -285,7 +303,7 @@ export const InvoiceAccountPanel = ({
   // Fase 9: as gravações de uma nota (`envelopeItemId`) no diálogo com um bloco por arquivo.
   const onChooseFile = async (envelopeItemId: string, code: string) => {
     try {
-      store(await setChoice({ envelopeId, envelopeItemId, choice: { code } }));
+      await store(await setChoice({ envelopeId, envelopeItemId, choice: { code } }));
 
       return true;
     } catch {
@@ -297,7 +315,7 @@ export const InvoiceAccountPanel = ({
 
   const onChooseFileCostCenter = async (envelopeItemId: string, code: string) => {
     try {
-      store(await setCostCenter({ envelopeId, envelopeItemId, code }));
+      await store(await setCostCenter({ envelopeId, envelopeItemId, code }));
     } catch {
       showError();
     }
@@ -305,7 +323,7 @@ export const InvoiceAccountPanel = ({
 
   const onFileKind = async (envelopeItemId: string, kind: InvoiceFileKindChoice) => {
     try {
-      store(await setFileKind({ envelopeId, envelopeItemId, kind }));
+      await store(await setFileKind({ envelopeId, envelopeItemId, kind }));
     } catch {
       showError();
     }
@@ -385,6 +403,7 @@ export const InvoiceAccountPanel = ({
             <Trans>Notas fiscais · Conta contábil</Trans>
           </h3>
           {isReleased && externalNotice}
+          {isReleased && showEnvelopeDuplicates && duplicateNotice}
           {invoiceDocuments.map((doc) => (
             <InvoiceFileSummary key={doc.envelopeItemId} document={doc}>
               {/* O rascunho parado sai por aqui: a duplicada de cada nota ainda pede a confirmação (como com uma nota). */}
@@ -460,6 +479,8 @@ export const InvoiceAccountPanel = ({
         </h3>
 
         {externalNotice}
+
+        {showEnvelopeDuplicates && duplicateNotice}
 
         {hasNoAccounts && (
           <p className="text-sm text-warning-text">

@@ -1,6 +1,7 @@
 import { cn } from '@documenso/ui/lib/utils';
 import { Trans, useLingui } from '@lingui/react/macro';
 import type { ReactNode } from 'react';
+import { useId } from 'react';
 
 export type InvoiceFileKindChoice = 'NF' | 'BOLETO' | 'OTHER';
 
@@ -11,6 +12,8 @@ export type InvoiceFileKindSelectProps = {
   disabled?: boolean;
   /** Rótulo do grupo ("Este arquivo é:"); sem ele, o grupo leva só o nome acessível. */
   label?: ReactNode;
+  /** Id do cabeçalho do arquivo: o nome acessível do grupo leva o nome do arquivo (e o rótulo, quando há). */
+  labelledBy?: string;
   testId?: string;
 };
 
@@ -29,18 +32,26 @@ export const InvoiceFileKindSelect = ({
   onSelect,
   disabled = false,
   label,
+  labelledBy,
   testId,
 }: InvoiceFileKindSelectProps) => {
   const { t } = useLingui();
+  const legendId = useId();
   const hasLabel = label !== undefined && label !== null;
+  const labelledByIds = [labelledBy, hasLabel ? legendId : undefined].filter(Boolean).join(' ');
 
   return (
     <fieldset
       className="flex min-w-0 flex-col gap-1.5"
-      aria-label={hasLabel ? undefined : t`Tipo do arquivo`}
+      aria-labelledby={labelledBy ? labelledByIds : undefined}
+      aria-label={labelledBy || hasLabel ? undefined : t`Tipo do arquivo`}
       data-testid={testId}
     >
-      {hasLabel && <legend className="mb-1.5 font-medium text-sm">{label}</legend>}
+      {hasLabel && (
+        <legend id={legendId} className="mb-1.5 font-medium text-sm">
+          {label}
+        </legend>
+      )}
 
       <div className="grid grid-cols-3 gap-2">
         {OPTIONS.map((option) => (

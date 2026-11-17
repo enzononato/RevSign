@@ -221,16 +221,18 @@ const newEnvelopeWithFiles = async (files, label) => {
 };
 
 // Contrato, três notas e o boleto de R$ 1.499,00, lidos até o fim.
-const newThreeNotesDraft = async (label) => {
+// `extraNotes`: notas a mais depois da nf-c (o celular usa uma com o nome de 44 dígitos de uma NF-e); a soma continua sem
+// bater com o boleto.
+const newThreeNotesDraft = async (label, extraNotes = []) => {
   const env = await newEnvelopeWithFiles(
-    [contract(), nf('nf-a', '100.00'), nf('nf-b', '200.00'), nf('nf-c', '300.00'), boleto()],
+    [contract(), nf('nf-a', '100.00'), nf('nf-b', '200.00'), nf('nf-c', '300.00'), ...extraNotes, boleto()],
     label,
   );
   const first = await classify(env.id);
 
   assert.deepEqual(
     first.documents.map((doc) => doc.kind),
-    ['OTHER', 'NF', 'NF', 'NF', 'BOLETO'],
+    ['OTHER', 'NF', 'NF', 'NF', ...extraNotes.map(() => 'NF'), 'BOLETO'],
   );
 
   const state = await waitSettled(env.id);
@@ -240,7 +242,7 @@ const newThreeNotesDraft = async (label) => {
     [BOLETO_WARNING],
   );
 
-  for (const title of ['nf-a.pdf', 'nf-b.pdf', 'nf-c.pdf']) {
+  for (const title of Object.keys(env.items).filter((name) => name !== 'contrato.pdf' && name !== 'boleto.pdf')) {
     assert.equal(docOf(state, title).choice, null, `${title} já tem conta`);
     assert.equal(docOf(state, title).costCenter, null, `${title} já tem centro`);
   }
@@ -368,7 +370,11 @@ uiTest('escaneado pede o tipo antes de enviar', async (t) => {
 });
 
 uiTest('celular de 390 px', async (t) => {
-  const env = await newThreeNotesDraft('celular');
+  // Nome de arquivo como a chave de acesso de uma NF-e: 44 dígitos sem espaço.
+  const longName = makeAccessKey({ cnpj: NF_CNPJ });
+  const env = await newThreeNotesDraft('celular', [nf(longName, '400.00')]);
+
+  assert.ok(env.items[`${longName}.pdf`], 'a nota de nome longo não entrou no envio');
 
   await runCase(t, { case: 'phone', teamUrl: env.teamUrl, draftId: env.id, items: env.items });
 });

@@ -132,12 +132,15 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
     );
   }
 
+  // Uma consulta em andamento não pode sobrescrever o que acabou de ser gravado: cancela antes de guardar.
+  const store = async (next: NonNullable<typeof state>) => {
+    await utils.revalle.invoice.get.cancel({ envelopeId: envelope.id });
+    utils.revalle.invoice.get.setData({ envelopeId: envelope.id }, next);
+  };
+
   const onChoose = async (code: string, envelopeItemId?: string) => {
     try {
-      utils.revalle.invoice.get.setData(
-        { envelopeId: envelope.id },
-        await setChoice({ envelopeId: envelope.id, envelopeItemId, choice: { code } }),
-      );
+      await store(await setChoice({ envelopeId: envelope.id, envelopeItemId, choice: { code } }));
       toast({ title: t`Conta contábil atualizada.`, duration: 5000 });
     } catch {
       toast({ title: t`Não foi possível salvar. Tente de novo.`, variant: 'destructive', duration: 5000 });
@@ -146,10 +149,7 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
 
   const onChooseCostCenter = async (code: string, envelopeItemId?: string) => {
     try {
-      utils.revalle.invoice.get.setData(
-        { envelopeId: envelope.id },
-        await setCostCenter({ envelopeId: envelope.id, envelopeItemId, code }),
-      );
+      await store(await setCostCenter({ envelopeId: envelope.id, envelopeItemId, code }));
       toast({ title: t`Centro de custo atualizado.`, duration: 5000 });
     } catch {
       toast({ title: t`Não foi possível salvar. Tente de novo.`, variant: 'destructive', duration: 5000 });
@@ -209,6 +209,11 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
     return (
       <InvoiceCard title={<Trans>Notas fiscais</Trans>} testId="invoice-account-card">
         {financeRow && <InvoiceRows>{financeRow}</InvoiceRows>}
+
+        {/* Enquanto nenhuma nota traz o aviso dela, o do envio (a união das notas) aparece uma vez, só informação. */}
+        {invoiceDocuments.every((doc) => doc.duplicates.length === 0) && (
+          <InvoiceDuplicateNotice duplicates={state.duplicates} />
+        )}
 
         {invoiceDocuments.map((doc) => (
           <div

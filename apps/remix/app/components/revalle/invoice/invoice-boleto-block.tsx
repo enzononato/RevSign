@@ -4,6 +4,9 @@ import { Button } from '@documenso/ui/primitives/button';
 import { Spinner } from '@documenso/ui/primitives/spinner';
 import { Trans, useLingui } from '@lingui/react/macro';
 import { TriangleAlertIcon } from 'lucide-react';
+import { useId } from 'react';
+
+import { FILE_HEADER_CLASS } from './invoice-file-block';
 
 type InvoiceDocument = TInvoiceState['documents'][number];
 
@@ -35,7 +38,11 @@ export const InvoiceBoletoBlock = ({
   const title = document.title;
   const boleto = document.boleto;
   const data = boleto?.data ?? null;
-  const isReading = (boleto?.status ?? document.suggestionStatus) === 'PENDING' && !hasGivenUp;
+  const headerId = useId();
+  const status = boleto?.status ?? document.suggestionStatus;
+  const isReading = status === 'PENDING' && !hasGivenUp;
+  // A leitura falhou (ou a tela desistiu de esperar): o que a linha digitável deu continua valendo.
+  const hasFailed = status === 'FAILED' || (status === 'PENDING' && hasGivenUp);
   const beneficiary = data?.beneficiaryName ?? (data?.beneficiaryCnpj ? formatCnpj(data.beneficiaryCnpj) : null);
   const dueDate = data?.dueDate ? formatDay(data.dueDate) : null;
   // Texto puro: o nome do beneficiário vem da IA e nunca é interpretado como HTML.
@@ -51,11 +58,12 @@ export const InvoiceBoletoBlock = ({
   return (
     <section
       className="flex min-w-0 flex-col gap-2 rounded-[13px] border p-3"
+      aria-labelledby={headerId}
       data-testid="invoice-boleto-block"
       data-envelope-item-id={document.envelopeItemId}
     >
       <div className="flex flex-wrap items-center justify-between gap-x-2">
-        <h4 className="min-w-0 break-words font-medium text-sm" data-testid="invoice-file-header">
+        <h4 id={headerId} className={FILE_HEADER_CLASS} data-testid="invoice-file-header">
           <Trans>Boleto · {title}</Trans>
         </h4>
         <Button type="button" variant="link" className="h-11 px-0" disabled={disabled} onClick={onNotBoleto}>
@@ -67,6 +75,12 @@ export const InvoiceBoletoBlock = ({
         <p className="flex items-center gap-2 text-muted-foreground text-sm">
           <Spinner size="sm" />
           <Trans>Lendo o boleto…</Trans>
+        </p>
+      )}
+
+      {hasFailed && (
+        <p className="text-muted-foreground text-sm" data-testid="invoice-boleto-failed">
+          <Trans>Não foi possível ler o boleto.</Trans>
         </p>
       )}
 

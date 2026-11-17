@@ -157,6 +157,26 @@ if (payload.case === 'scanned') {
     await dialog.getByText('escaneado.pdf · documento comum').waitFor();
     await waitSubmit(page, true);
     report(true, 'depois de "Outro documento", Enviar libera');
+
+    // O que a pessoa vê: os blocos continuam (a nota com o cabeçalho dela) e o escaneado vira a linha de documento comum,
+    // com o seletor à mão para desfazer.
+    report(
+      (await scanned.getAttribute('data-testid')) === 'invoice-other-file',
+      'o escaneado vira a linha "documento comum"',
+    );
+    report(
+      (await scanned.getByRole('button', { name: 'Outro documento', exact: true }).getAttribute('aria-pressed')) ===
+        'true',
+      'o seletor marca "Outro documento"',
+    );
+    report(
+      (await scanned.getByRole('button', { name: 'Nota fiscal', exact: true }).isEnabled()) === true,
+      'o seletor continua com "Nota fiscal" para desfazer',
+    );
+    report(
+      (await normalized(blockOf(dialog, 'nf-s.pdf').getByTestId('invoice-file-header'))) === 'Nota 1 de 1 · nf-s.pdf',
+      'a nota continua no bloco dela ("Nota 1 de 1 · nf-s.pdf")',
+    );
     await context.close();
   });
 }
@@ -175,7 +195,8 @@ if (payload.case === 'phone') {
       'o diálogo não rola para o lado',
     );
 
-    for (const title of ['contrato.pdf', 'nf-a.pdf', 'nf-b.pdf', 'nf-c.pdf', 'boleto.pdf']) {
+    // Todos os arquivos, inclusive a nota com o nome de 44 dígitos (sem espaço para quebrar a linha).
+    for (const title of Object.keys(items)) {
       const box = await blockOf(dialog, title).boundingBox();
 
       report(Boolean(box) && box.x >= -1 && box.x + box.width <= PHONE.width + 1, `o bloco de ${title} cabe na tela`);

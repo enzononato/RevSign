@@ -5,7 +5,7 @@ import { Button } from '@documenso/ui/primitives/button';
 import { Spinner } from '@documenso/ui/primitives/spinner';
 import { Trans } from '@lingui/react/macro';
 import type { ReactNode } from 'react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 
 import type { InvoiceAccountOption } from './account-combobox';
 import { AccountCombobox } from './account-combobox';
@@ -16,13 +16,17 @@ import { InvoiceFileKindSelect } from './invoice-file-kind-select';
 
 type InvoiceDocument = TInvoiceState['documents'][number];
 
+// Nome de arquivo longo sem espaço (ex.: a chave de 44 dígitos de uma NF-e) quebra em qualquer ponto em vez de passar da
+// largura do celular.
+export const FILE_HEADER_CLASS = 'min-w-0 font-medium text-sm [overflow-wrap:anywhere]';
+
 /** `Nota 2 de 3 · nf-b.pdf` (só o nome do arquivo se, por algum motivo, a nota ainda não tem posição). */
-export const InvoiceFileHeader = ({ document }: { document: InvoiceDocument }) => {
+export const InvoiceFileHeader = ({ document, id }: { document: InvoiceDocument; id?: string }) => {
   const title = document.title;
 
   if (!document.position) {
     return (
-      <h4 className="min-w-0 break-words font-medium text-sm" data-testid="invoice-file-header">
+      <h4 id={id} className={FILE_HEADER_CLASS} data-testid="invoice-file-header">
         {title}
       </h4>
     );
@@ -31,7 +35,7 @@ export const InvoiceFileHeader = ({ document }: { document: InvoiceDocument }) =
   const { index, total } = document.position;
 
   return (
-    <h4 className="min-w-0 break-words font-medium text-sm" data-testid="invoice-file-header">
+    <h4 id={id} className={FILE_HEADER_CLASS} data-testid="invoice-file-header">
       <Trans>
         Nota {index} de {total} · {title}
       </Trans>
@@ -75,6 +79,7 @@ export const InvoiceFileBlock = ({
   onNotInvoice,
 }: InvoiceFileBlockProps) => {
   const [isChanging, setIsChanging] = useState(false);
+  const headerId = useId();
 
   const { suggestion, choice } = document;
   const suggestionCode = suggestion?.accountCode;
@@ -97,11 +102,12 @@ export const InvoiceFileBlock = ({
   return (
     <section
       className="flex min-w-0 flex-col gap-3 rounded-[13px] border p-3"
+      aria-labelledby={headerId}
       data-testid="invoice-file-block"
       data-envelope-item-id={document.envelopeItemId}
     >
       <div className="flex flex-wrap items-center justify-between gap-x-2">
-        <InvoiceFileHeader document={document} />
+        <InvoiceFileHeader document={document} id={headerId} />
         <Button type="button" variant="link" className="h-11 px-0" disabled={disabled} onClick={onNotInvoice}>
           <Trans>Não é nota fiscal</Trans>
         </Button>
@@ -244,17 +250,20 @@ export const InvoiceUnknownFileBlock = ({
   onSelect: (kind: InvoiceFileKindChoice) => void;
 }) => {
   const title = document.title;
+  const headerId = useId();
 
   return (
     <section
       className="flex min-w-0 flex-col gap-2 rounded-[13px] border p-3"
+      aria-labelledby={headerId}
       data-testid="invoice-unknown-file"
       data-envelope-item-id={document.envelopeItemId}
     >
-      <h4 className="min-w-0 break-words font-medium text-sm" data-testid="invoice-file-header">
+      <h4 id={headerId} className={FILE_HEADER_CLASS} data-testid="invoice-file-header">
         {title}
       </h4>
       <InvoiceFileKindSelect
+        labelledBy={headerId}
         value={null}
         disabled={disabled}
         onSelect={onSelect}
@@ -282,17 +291,29 @@ export const InvoiceOtherFileRow = ({
   onSelect: (kind: InvoiceFileKindChoice) => void;
 }) => {
   const title = document.title;
+  const headerId = useId();
 
   return (
     <section
       className="flex min-w-0 flex-col gap-2 rounded-[13px] border border-dashed p-3"
+      aria-labelledby={headerId}
       data-testid="invoice-other-file"
       data-envelope-item-id={document.envelopeItemId}
     >
-      <p className="min-w-0 break-words text-muted-foreground text-sm" data-testid="invoice-file-header">
+      <p
+        id={headerId}
+        className="min-w-0 text-muted-foreground text-sm [overflow-wrap:anywhere]"
+        data-testid="invoice-file-header"
+      >
         <Trans>{title} · documento comum</Trans>
       </p>
-      <InvoiceFileKindSelect value="OTHER" disabled={disabled} onSelect={onSelect} testId="invoice-file-kind" />
+      <InvoiceFileKindSelect
+        value="OTHER"
+        disabled={disabled}
+        onSelect={onSelect}
+        labelledBy={headerId}
+        testId="invoice-file-kind"
+      />
     </section>
   );
 };
