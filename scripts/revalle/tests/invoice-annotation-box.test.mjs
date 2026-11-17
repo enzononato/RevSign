@@ -901,7 +901,7 @@ sessionTest('migração: só o que saiu do rascunho ou é nova versão fica com 
       `UPDATE "RevalleInvoiceClassification" SET "autoAnnotation" = false WHERE "envelopeId" IN (${ids});`,
       `UPDATE "RevalleInvoiceClassification" SET "previousEnvelopeId" = '${sent.id}' WHERE "envelopeId" = '${versionDraft.id}';`,
       block,
-      `SELECT 'R|' || "envelopeId" || '|' || "autoAnnotation" FROM "RevalleInvoiceClassification" WHERE "envelopeId" IN (${ids});`,
+      `SELECT 'R|' || "envelopeId" || '|' || CASE WHEN "autoAnnotation" THEN 't' ELSE 'f' END FROM "RevalleInvoiceClassification" WHERE "envelopeId" IN (${ids});`,
       'ROLLBACK;',
     ].join('\n'),
   );
