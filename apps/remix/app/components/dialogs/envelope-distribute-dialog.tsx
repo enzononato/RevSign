@@ -9,7 +9,6 @@ import { hasOverlappingFields } from '@documenso/lib/utils/fields-overlap';
 import { getRecipientsWithMissingFields } from '@documenso/lib/utils/recipients';
 import { zEmail } from '@documenso/lib/utils/zod';
 import { trpc, trpc as trpcReact } from '@documenso/trpc/react';
-import { DocumentSendEmailMessageHelper } from '@documenso/ui/components/document/document-send-email-message-helper';
 import { cn } from '@documenso/ui/lib/utils';
 import { Alert, AlertDescription, AlertTitle } from '@documenso/ui/primitives/alert';
 import { Button } from '@documenso/ui/primitives/button';
@@ -24,18 +23,14 @@ import {
   DialogTrigger,
 } from '@documenso/ui/primitives/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@documenso/ui/primitives/form/form';
-import { Input } from '@documenso/ui/primitives/input';
+import { RadioGroup, RadioGroupItem } from '@documenso/ui/primitives/radio-group'; // REVALLE:
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@documenso/ui/primitives/select';
 import { SpinnerBox } from '@documenso/ui/primitives/spinner';
-import { Tabs, TabsList, TabsTrigger } from '@documenso/ui/primitives/tabs';
-import { Textarea } from '@documenso/ui/primitives/textarea';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@documenso/ui/primitives/tooltip';
 import { useToast } from '@documenso/ui/primitives/use-toast';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Trans, useLingui } from '@lingui/react/macro';
 import { DocumentDistributionMethod, DocumentStatus, EnvelopeType } from '@prisma/client';
-import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangleIcon, InfoIcon } from 'lucide-react';
+import { AlertTriangleIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router';
@@ -210,12 +205,9 @@ export const EnvelopeDistributeDialog = ({
 
       let redirectPath = `${documentRootPath}/${envelope.id}`;
 
-      if (meta.distributionMethod === DocumentDistributionMethod.NONE) {
-        redirectPath += '?action=copy-links';
-      } else {
-        // REVALLE: os e-mails saem como antes e a página do documento abre com os links de assinatura para copiar.
-        redirectPath += '?action=view-signing-links';
-      }
+      // REVALLE: com e-mail ou só com os links, a página do documento abre a tela dos links de assinatura para copiar
+      // (no upstream, "Nenhum" só destacava os botões de copiar).
+      redirectPath += '?action=view-signing-links';
 
       await navigate(redirectPath);
 
@@ -327,185 +319,109 @@ export const EnvelopeDistributeDialog = ({
                   </Alert>
                 )}
 
-                <Tabs
+                {/* REVALLE: envio simplificado (17/11/2026): no lugar das abas "E-mail"/"Nenhum" e dos campos "E-mail para
+                    resposta", "Assunto" e "Mensagem", só a escolha de como o convite chega. O assunto e o e-mail para
+                    resposta têm padrão no servidor; o que já estava gravado no rascunho segue no formulário. */}
+                <RadioGroup
+                  value={distributionMethod}
                   onValueChange={(value) =>
                     // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
                     setValue('meta.distributionMethod', value as DocumentDistributionMethod)
                   }
-                  value={distributionMethod}
-                  className="mb-2"
+                  aria-label={t`Como enviar`}
+                  className="mb-4 gap-3"
+                  data-testid="distribution-method"
                 >
-                  <TabsList className="w-full">
-                    <TabsTrigger className="w-full" value={DocumentDistributionMethod.EMAIL}>
-                      <Trans>Email</Trans>
-                    </TabsTrigger>
-                    <TabsTrigger className="w-full" value={DocumentDistributionMethod.NONE}>
-                      <Trans>None</Trans>
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
+                  {[
+                    {
+                      value: DocumentDistributionMethod.EMAIL,
+                      title: <Trans>Enviar por e-mail (recomendado)</Trans>,
+                      description: <Trans>Cada signatário recebe o próprio e-mail com o próprio link.</Trans>,
+                    },
+                    {
+                      value: DocumentDistributionMethod.NONE,
+                      title: <Trans>Só gerar os links</Trans>,
+                      description: (
+                        <Trans>Nenhum e-mail sai. Você recebe os links para mandar a cada pessoa como quiser.</Trans>
+                      ),
+                    },
+                  ].map((option) => (
+                    <div
+                      key={option.value}
+                      className={cn(
+                        'relative flex items-start gap-3 rounded-lg border p-4 transition-colors',
+                        distributionMethod === option.value && 'border-primary bg-primary/5',
+                      )}
+                    >
+                      <RadioGroupItem
+                        id={`distribution-method-${option.value}`}
+                        value={option.value}
+                        aria-describedby={`distribution-method-${option.value}-description`}
+                        className="mt-0.5"
+                        disabled={isSyncing}
+                      />
 
-                <div
-                  className={cn('min-h-72', {
-                    'min-h-[23rem]': organisation.organisationClaim.flags.emailDomains,
-                  })}
-                >
-                  <AnimatePresence initial={false} mode="wait">
-                    {isSyncing ? (
-                      <motion.div
-                        key={'Flushing'}
-                        initial={{ opacity: 0, y: 5 }}
-                        animate={{ opacity: 1, y: 0, transition: { duration: 0.3 } }}
-                        exit={{ opacity: 0, transition: { duration: 0.15 } }}
-                      >
-                        <SpinnerBox spinnerProps={{ size: 'sm' }} className="h-72" />
-                      </motion.div>
-                    ) : distributionMethod === DocumentDistributionMethod.EMAIL ? (
-                      <motion.div
-                        key={'Emails'}
-                        initial={{ opacity: 0, y: 5 }}
-                        animate={{ opacity: 1, y: 0, transition: { duration: 0.3 } }}
-                        exit={{ opacity: 0, transition: { duration: 0.15 } }}
-                      >
-                        <Form {...form}>
-                          <fieldset
-                            className="mt-2 flex flex-col gap-y-4 rounded-lg"
-                            disabled={form.formState.isSubmitting}
-                          >
-                            {organisation.organisationClaim.flags.emailDomains && (
-                              <FormField
-                                control={form.control}
-                                name="meta.emailId"
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>
-                                      <Trans>Email Sender</Trans>
-                                    </FormLabel>
-                                    <FormControl>
-                                      <Select
-                                        {...field}
-                                        value={field.value === null ? '-1' : field.value}
-                                        onValueChange={(value) => field.onChange(value === '-1' ? null : value)}
-                                      >
-                                        <SelectTrigger loading={isLoadingEmails} className="bg-background">
-                                          <SelectValue />
-                                        </SelectTrigger>
+                      <div className="flex min-w-0 flex-col gap-1">
+                        {/* O rótulo cobre o cartão inteiro: clicar em qualquer ponto escolhe a opção. */}
+                        <label
+                          htmlFor={`distribution-method-${option.value}`}
+                          className="cursor-pointer font-medium text-foreground text-sm after:absolute after:inset-0"
+                        >
+                          {option.title}
+                        </label>
 
-                                        <SelectContent>
-                                          {emails.map((email) => (
-                                            <SelectItem key={email.id} value={email.id}>
-                                              {email.email}
-                                            </SelectItem>
-                                          ))}
+                        <p
+                          id={`distribution-method-${option.value}-description`}
+                          className="text-muted-foreground text-xs"
+                        >
+                          {option.description}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </RadioGroup>
 
-                                          {/* REVALLE: remetente padrão do sistema */}
-                                          <SelectItem value={'-1'}>RevSign</SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                    </FormControl>
+                {isSyncing && <SpinnerBox spinnerProps={{ size: 'sm' }} className="mb-4 h-24" />}
 
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                            )}
+                {!isSyncing &&
+                  distributionMethod === DocumentDistributionMethod.EMAIL &&
+                  organisation.organisationClaim.flags.emailDomains && (
+                    <FormField
+                      control={form.control}
+                      name="meta.emailId"
+                      render={({ field }) => (
+                        <FormItem className="mb-4">
+                          <FormLabel>
+                            <Trans>Email Sender</Trans>
+                          </FormLabel>
+                          <FormControl>
+                            <Select
+                              {...field}
+                              value={field.value === null ? '-1' : field.value}
+                              onValueChange={(value) => field.onChange(value === '-1' ? null : value)}
+                            >
+                              <SelectTrigger loading={isLoadingEmails} className="bg-background">
+                                <SelectValue />
+                              </SelectTrigger>
 
-                            <FormField
-                              control={form.control}
-                              name="meta.emailReplyTo"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>
-                                    <Trans>
-                                      Reply To Email <span className="text-muted-foreground">(Optional)</span>
-                                    </Trans>
-                                  </FormLabel>
+                              <SelectContent>
+                                {emails.map((email) => (
+                                  <SelectItem key={email.id} value={email.id}>
+                                    {email.email}
+                                  </SelectItem>
+                                ))}
 
-                                  <FormControl>
-                                    <Input {...field} maxLength={254} />
-                                  </FormControl>
+                                {/* REVALLE: remetente padrão do sistema */}
+                                <SelectItem value={'-1'}>RevSign</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </FormControl>
 
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-
-                            <FormField
-                              control={form.control}
-                              name="meta.subject"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>
-                                    <Trans>
-                                      Subject <span className="text-muted-foreground">(Optional)</span>
-                                    </Trans>
-                                  </FormLabel>
-
-                                  <FormControl>
-                                    <Input {...field} maxLength={255} />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-
-                            <FormField
-                              control={form.control}
-                              name="meta.message"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel className="flex flex-row items-center">
-                                    <Trans>
-                                      Message <span className="text-muted-foreground">(Optional)</span>
-                                    </Trans>
-                                    <Tooltip>
-                                      <TooltipTrigger type="button">
-                                        <InfoIcon className="mx-2 h-4 w-4" />
-                                      </TooltipTrigger>
-                                      <TooltipContent className="p-4 text-muted-foreground">
-                                        <DocumentSendEmailMessageHelper />
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </FormLabel>
-
-                                  <FormControl>
-                                    <Textarea
-                                      className="mt-2 h-16 resize-none bg-background"
-                                      {...field}
-                                      maxLength={5000}
-                                    />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </fieldset>
-                        </Form>
-                      </motion.div>
-                    ) : distributionMethod === DocumentDistributionMethod.NONE ? (
-                      <motion.div
-                        key={'Links'}
-                        initial={{ opacity: 0, y: 5 }}
-                        animate={{ opacity: 1, y: 0, transition: { duration: 0.3 } }}
-                        exit={{ opacity: 0, transition: { duration: 0.15 } }}
-                        className="min-h-60 rounded-lg border"
-                      >
-                        <div className="py-24 text-center text-muted-foreground text-sm">
-                          <p>
-                            <Trans>We won't send anything to notify recipients.</Trans>
-                          </p>
-
-                          <p className="mt-2">
-                            <Trans>
-                              We will generate signing links for you, which you can send to the recipients through your
-                              method of choice.
-                            </Trans>
-                          </p>
-                        </div>
-                      </motion.div>
-                    ) : null}
-                  </AnimatePresence>
-                </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
 
                 <DialogFooter>
                   <DialogClose asChild>

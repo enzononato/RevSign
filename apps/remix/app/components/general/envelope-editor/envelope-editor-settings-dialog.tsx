@@ -29,7 +29,6 @@ import {
   DocumentGlobalAuthActionSelect,
   DocumentGlobalAuthActionTooltip,
 } from '@documenso/ui/components/document/document-global-auth-action-select';
-import { DocumentSendEmailMessageHelper } from '@documenso/ui/components/document/document-send-email-message-helper';
 import { DocumentSignatureSettingsTooltip } from '@documenso/ui/components/document/document-signature-settings-tooltip';
 import {
   DocumentVisibilitySelect,
@@ -55,7 +54,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@documenso/ui/primitives/input';
 import { MultiSelectCombobox } from '@documenso/ui/primitives/multi-select-combobox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@documenso/ui/primitives/select';
-import { Textarea } from '@documenso/ui/primitives/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@documenso/ui/primitives/tooltip';
 import { useToast } from '@documenso/ui/primitives/use-toast';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -787,79 +785,8 @@ export const EnvelopeEditorSettingsDialog = ({ trigger, ...props }: EnvelopeEdit
                         />
                       )}
 
-                      {settings.allowConfigureEmailReplyTo && (
-                        <FormField
-                          control={form.control}
-                          name="meta.emailReplyTo"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>
-                                <Trans>
-                                  Reply To Email <span className="text-muted-foreground">(Optional)</span>
-                                </Trans>
-                              </FormLabel>
-
-                              <FormControl>
-                                <Input {...field} disabled={!isEmailDistribution} />
-                              </FormControl>
-
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      )}
-
-                      <FormField
-                        control={form.control}
-                        name="meta.subject"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>
-                              <Trans>
-                                Subject <span className="text-muted-foreground">(Optional)</span>
-                              </Trans>
-                            </FormLabel>
-
-                            <FormControl>
-                              <Input {...field} disabled={!isEmailDistribution} />
-                            </FormControl>
-
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="meta.message"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="flex flex-row items-center">
-                              <Trans>
-                                Message <span className="text-muted-foreground">(Optional)</span>
-                              </Trans>
-                              <Tooltip>
-                                <TooltipTrigger>
-                                  <InfoIcon className="mx-2 h-4 w-4" />
-                                </TooltipTrigger>
-                                <TooltipContent className="p-4 text-muted-foreground">
-                                  <DocumentSendEmailMessageHelper />
-                                </TooltipContent>
-                              </Tooltip>
-                            </FormLabel>
-
-                            <FormControl>
-                              <Textarea
-                                className="h-16 resize-none bg-background"
-                                {...field}
-                                disabled={!isEmailDistribution}
-                              />
-                            </FormControl>
-
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      {/* REVALLE: envio simplificado: sem "E-mail para resposta", "Assunto" e "Mensagem" na tela. Os valores
+                          gravados (documento antigo, API) seguem no formulário e são salvos como estão. */}
 
                       <DocumentEmailCheckboxes
                         value={emailSettings}

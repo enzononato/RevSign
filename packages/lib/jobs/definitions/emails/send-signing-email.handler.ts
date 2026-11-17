@@ -15,6 +15,7 @@ import { createElement } from 'react';
 import { getI18nInstance } from '../../../client-only/providers/i18n-server';
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../../constants/app';
 import { RECIPIENT_ROLE_TO_EMAIL_TYPE, RECIPIENT_ROLES_DESCRIPTION } from '../../../constants/recipient-roles';
+import { revalleInviteReplyTo, revalleInviteSubject } from '../../../revalle/invite-email'; // REVALLE:
 import { buildEnvelopeEmailHeaders } from '../../../server-only/email/build-envelope-email-headers';
 import { getEmailContext } from '../../../server-only/email/get-email-context';
 import { assertOrganisationRatesAndLimits } from '../../../server-only/rate-limit/assert-organisation-rates-and-limits';
@@ -161,6 +162,17 @@ export const run = async ({ payload, io }: { payload: TSendSigningEmailJobDefini
     }
   }
 
+  // REVALLE: assunto padrão do convite (envio simplificado): `{quem enviou} enviou "{título}" para você {verbo}`, com o
+  // nome do time se quem enviou não tiver nome. O assunto gravado no documento (`documentMeta.subject`) continua valendo.
+  emailSubject = i18n._(
+    revalleInviteSubject({
+      role: recipient.role,
+      senderName: user.name,
+      teamName: team.name,
+      documentTitle: envelope.title,
+    }),
+  );
+
   const customEmailTemplate = {
     'signer.name': name,
     'signer.email': email,
@@ -232,7 +244,7 @@ export const run = async ({ payload, io }: { payload: TSendSigningEmailJobDefini
           address: recipient.email,
         },
         from: senderEmail,
-        replyTo: replyToEmail,
+        replyTo: revalleInviteReplyTo(replyToEmail, user.email), // REVALLE: sem resposta configurada, quem enviou
         subject: renderCustomEmailTemplate(documentMeta?.subject || emailSubject, customEmailTemplate),
         html,
         text,
