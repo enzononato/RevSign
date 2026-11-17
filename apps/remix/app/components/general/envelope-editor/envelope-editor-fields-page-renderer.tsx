@@ -36,6 +36,8 @@ import type { Transformer } from 'konva/lib/shapes/Transformer';
 import { CopyPlusIcon, ShapesIcon, SquareStackIcon, TrashIcon, UserCircleIcon } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { useAnnotationBoxCanvas } from '~/components/revalle/invoice/annotation-box/use-annotation-box-canvas'; // REVALLE:
+
 import { fieldButtonList } from './envelope-editor-fields-drag-drop';
 import { EnvelopeRecipientSelectorCommand } from './envelope-recipient-selector';
 
@@ -68,6 +70,14 @@ export const EnvelopeEditorFieldsPageRenderer = ({ pageData }: { pageData: PageR
   );
 
   const { scale, pageNumber } = pageData;
+
+  // REVALLE: o bloco "Conta e centro de custo", num grupo Konva próprio (fora de `editorFields`).
+  const annotationBox = useAnnotationBoxCanvas({
+    stage,
+    pageLayer,
+    pageData,
+    envelopeItemId: currentEnvelopeItem?.id ?? null,
+  });
 
   const localPageFields = useMemo(
     () =>
@@ -783,6 +793,9 @@ export const EnvelopeEditorFieldsPageRenderer = ({ pageData }: { pageData: PageR
           ))}
         </div>
       )}
+
+      {/* REVALLE: etiqueta e botão de tirar do bloco de conta e centro. */}
+      {annotationBox.overlay}
 
       {/* The element Konva will inject it's canvas into. */}
       <div className="konva-container absolute inset-0 z-10 w-full" ref={konvaContainer}></div>

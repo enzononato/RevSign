@@ -15,6 +15,7 @@ import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
 import { AccountCombobox } from './account-combobox';
+import { InvoiceAnnotationBoxWarnings, InvoicePdfAnnotationLine } from './annotation-box/invoice-annotation-box-notice';
 import { CostCenterSelect } from './cost-center-select';
 import { InvoiceBoletoBlock } from './invoice-boleto-block';
 import { InvoiceDuplicateNotice } from './invoice-duplicate-notice';
@@ -43,6 +44,11 @@ export type InvoiceAccountPanelProps = {
    * avisa (com o mesmo texto da recusa do servidor) e o envio fica bloqueado.
    */
   recipientEmails?: string[];
+  /**
+   * `false` no editor antigo, que não tem o bloco "Conta e centro de custo": a linha "No PDF: sem conta e centro (…
+   * coloque o bloco …)" não aparece ali.
+   */
+  hasAnnotationBox?: boolean;
 };
 
 const POLL_INTERVAL_MS = 2_000;
@@ -102,6 +108,7 @@ export const InvoiceAccountPanel = ({
   onReadyChange,
   hasDuplicateAcknowledgement = true,
   recipientEmails = [],
+  hasAnnotationBox = true,
 }: InvoiceAccountPanelProps) => {
   const { t } = useLingui();
   const { toast } = useToast();
@@ -365,6 +372,12 @@ export const InvoiceAccountPanel = ({
       </AlertDescription>
     </Alert>
   ) : null;
+  // O bloco "Conta e centro de custo" posto no editor: o que sai no PDF de cada nota, e o aviso do bloco fora de nota.
+  const pdfLineOf = (envelopeItemId: string | null) => (
+    <InvoicePdfAnnotationLine state={state} envelopeItemId={envelopeItemId} hasAnnotationBox={hasAnnotationBox} />
+  );
+  const annotationWarnings = <InvoiceAnnotationBoxWarnings state={state} />;
+  const singleInvoiceItemId = documents.find((doc) => doc.kind === 'NF')?.envelopeItemId ?? null;
   const duplicateNotice = (
     <InvoiceDuplicateNotice
       duplicates={duplicates}
@@ -413,8 +426,10 @@ export const InvoiceAccountPanel = ({
                   acknowledgement={acknowledgementOf(doc.envelopeItemId)}
                 />
               )}
+              {pdfLineOf(doc.envelopeItemId)}
             </InvoiceFileSummary>
           ))}
+          {annotationWarnings}
           <p className="text-muted-foreground text-sm">{lockedNotice}</p>
         </section>
       );
@@ -439,6 +454,7 @@ export const InvoiceAccountPanel = ({
               onChooseCostCenter={(code) => void onChooseFileCostCenter(envelopeItemId, code)}
               onResuggest={() => void onResuggest(envelopeItemId)}
               onNotInvoice={() => void onFileKind(envelopeItemId, 'OTHER')}
+              pdfLine={pdfLineOf(envelopeItemId)}
             />
           );
         case 'BOLETO':
@@ -489,24 +505,36 @@ export const InvoiceAccountPanel = ({
         )}
 
         {documents.map(blockOf)}
+
+        {annotationWarnings}
       </section>
     );
   }
 
   if (state.isInvoice === 'NO') {
-    // Só quem marcou "Não é nota fiscal" vê o desfazer; documento comum não muda em nada.
+    // Só quem marcou "Não é nota fiscal" vê o desfazer; documento comum não muda em nada (só o aviso de um bloco de conta e
+    // centro posto nele, que não sai no PDF).
     if (state.detectedBy !== 'SENDER') {
-      return null;
+      return <div className="mb-4 empty:hidden">{annotationWarnings}</div>;
     }
 
     return (
-      <div className="mb-4 flex flex-wrap items-center gap-x-2 text-muted-foreground text-sm">
-        <span>
-          <Trans>Você marcou que não é nota fiscal.</Trans>
-        </span>
-        <Button type="button" variant="link" className="h-11 px-0" disabled={isBusy} onClick={() => void onFlag(true)}>
-          <Trans>Desfazer</Trans>
-        </Button>
+      <div className="mb-4 flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-x-2 text-muted-foreground text-sm">
+          <span>
+            <Trans>Você marcou que não é nota fiscal.</Trans>
+          </span>
+          <Button
+            type="button"
+            variant="link"
+            className="h-11 px-0"
+            disabled={isBusy}
+            onClick={() => void onFlag(true)}
+          >
+            <Trans>Desfazer</Trans>
+          </Button>
+        </div>
+        {annotationWarnings}
       </div>
     );
   }
@@ -562,6 +590,8 @@ export const InvoiceAccountPanel = ({
             <Trans>Centro de custo: {costCenterLabel(state.costCenter.code)}</Trans>
           </p>
         )}
+        {pdfLineOf(singleInvoiceItemId)}
+        {annotationWarnings}
         <p className="text-muted-foreground text-sm">
           {state.financeStatus === 'APPROVED' ? (
             <Trans>Conta aprovada pelo Financeiro. O envio anterior falhou: corrija o rascunho e envie.</Trans>
@@ -587,6 +617,7 @@ export const InvoiceAccountPanel = ({
             <Trans>Centro de custo: {costCenterLabel(state.costCenter.code)}</Trans>
           </p>
         )}
+        {pdfLineOf(singleInvoiceItemId)}
         <p className="text-muted-foreground text-sm">
           <Trans>O Financeiro está enviando esta nova versão. Os convites saem em instantes.</Trans>
         </p>
@@ -726,6 +757,10 @@ export const InvoiceAccountPanel = ({
           <Trans>Escolha o centro de custo.</Trans>
         </p>
       )}
+
+      {pdfLineOf(singleInvoiceItemId)}
+
+      {annotationWarnings}
     </section>
   );
 };

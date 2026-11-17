@@ -15,7 +15,11 @@ export const ZAnnotationBoxSchema = ZAnnotationBoxRectSchema.extend({ envelopeIt
 
 export const ZFindAnnotationBoxesRequestSchema = ZInvoiceEnvelopeRequestSchema;
 
-export const ZFindAnnotationBoxesResponseSchema = z.object({ boxes: z.array(ZAnnotationBoxSchema) });
+/** `autoAnnotation`: envio de antes do bloco (a selagem escreve sozinha); o editor não mostra o bloco. */
+export const ZFindAnnotationBoxesResponseSchema = z.object({
+  boxes: z.array(ZAnnotationBoxSchema),
+  autoAnnotation: z.boolean(),
+});
 
 export const ZAnnotationBoxItemRequestSchema = ZInvoiceEnvelopeRequestSchema.extend({
   envelopeItemId: z.string().min(1),

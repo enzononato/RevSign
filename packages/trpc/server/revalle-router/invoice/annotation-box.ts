@@ -1,6 +1,7 @@
 import {
   deleteInvoiceAnnotationBox,
   findInvoiceAnnotationBoxesForUser,
+  findInvoiceAutoAnnotation,
   setInvoiceAnnotationBox,
 } from '@documenso/lib/server-only/revalle/invoice/annotation-box';
 
@@ -22,13 +23,15 @@ export const annotationBoxRouter = router({
   find: authenticatedProcedure
     .input(ZFindAnnotationBoxesRequestSchema)
     .output(ZFindAnnotationBoxesResponseSchema)
-    .query(async ({ input, ctx }) => ({
-      boxes: await findInvoiceAnnotationBoxesForUser({
+    .query(async ({ input, ctx }) => {
+      const boxes = await findInvoiceAnnotationBoxesForUser({
         userId: ctx.user.id,
         teamId: ctx.teamId,
         envelopeId: input.envelopeId,
-      }),
-    })),
+      });
+
+      return { boxes, autoAnnotation: await findInvoiceAutoAnnotation(input.envelopeId) };
+    }),
 
   set: authenticatedProcedure
     .input(ZSetAnnotationBoxRequestSchema)

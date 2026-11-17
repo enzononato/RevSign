@@ -142,6 +142,7 @@ export default function DocumentEditPage() {
             envelopeId={document.envelopeId}
             onReadyChange={() => undefined}
             hasDuplicateAcknowledgement={false}
+            hasAnnotationBox={false} // REVALLE: o editor antigo não tem o bloco de conta e centro
             recipientEmails={recipients.map((recipient) => recipient.email)}
           />
         </div>

@@ -58,6 +58,8 @@ export type InvoiceFileBlockProps = {
   onChooseCostCenter: (code: string) => void;
   onResuggest: () => void;
   onNotInvoice: () => void;
+  /** A linha "No PDF: …" desta nota (o bloco de conta e centro do editor). */
+  pdfLine?: ReactNode;
 };
 
 /**
@@ -77,6 +79,7 @@ export const InvoiceFileBlock = ({
   onChooseCostCenter,
   onResuggest,
   onNotInvoice,
+  pdfLine,
 }: InvoiceFileBlockProps) => {
   const [isChanging, setIsChanging] = useState(false);
   const headerId = useId();
@@ -209,6 +212,8 @@ export const InvoiceFileBlock = ({
           <Trans>Escolha o centro de custo.</Trans>
         </p>
       )}
+
+      {pdfLine}
     </section>
   );
 };

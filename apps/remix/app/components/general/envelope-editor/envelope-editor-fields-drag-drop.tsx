@@ -28,6 +28,8 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { AnnotationBoxPaletteButton } from '~/components/revalle/invoice/annotation-box/annotation-box-palette-button'; // REVALLE:
+
 const MIN_HEIGHT_PX = 12;
 const MIN_WIDTH_PX = 36;
 
@@ -286,6 +288,9 @@ export const EnvelopeEditorFieldDragDrop = ({
           </button>
         ))}
       </div>
+
+      {/* REVALLE: o bloco "Conta e centro de custo" (sem destinatário; não é campo). */}
+      <AnnotationBoxPaletteButton envelopeItemId={selectedEnvelopeItemId} />
 
       {selectedField && (
         <div
