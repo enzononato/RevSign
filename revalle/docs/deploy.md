@@ -626,6 +626,18 @@ ser **opcional**: só sai onde o remetente coloca o bloco **Conta e centro de cu
 6. **Voltar à imagem anterior.** A imagem antiga ignora a tabela e a coluna novas (só acrescentadas) e volta ao texto
    automático em todos os envios.
 
+## Avise quem envia (envio simplificado e nome do destinatário, v.20)
+
+Sem variável nem migração nova. Avise os remetentes de três mudanças no diálogo de envio:
+
+- O diálogo só pergunta como o convite chega: **Enviar por e-mail (recomendado)** ou **Só gerar os links** (esta abre a
+  tela dos links depois do envio). Os campos de e-mail para resposta, assunto e mensagem saíram.
+- O assunto é automático: `{quem enviou} enviou "{título}" para você assinar`. As respostas vão para quem enviou. No
+  reenvio e no lembrete o assunto ganha "Lembrete: ". Um assunto já gravado num documento continua valendo, e a API
+  ainda aceita `subject`, `message` e `replyTo`.
+- O nome de quem assina não é mais digitado: vem da conta (o editor mostra "Conta: {nome}") ou, quando a pessoa confirma
+  o CPF no portão, da base do RH (`verificacao.md`, "Nome de quem assina").
+
 ## Atualizar a versão depois
 
 0. Antes de trocar a versão, confirme que as DUAS imagens existem para a tag nova: `ghcr.io/enzononato/revsign:<tag>` e `ghcr.io/enzononato/revsign-backup:<tag>` (GitHub → Packages; os dois jobs de publicação são independentes e um pode falhar sozinho).

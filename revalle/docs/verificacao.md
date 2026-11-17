@@ -118,6 +118,14 @@ da empresa (acima), com o e-mail que for (da empresa ou pessoal), e mais uma:
 - Assim como no e-mail de fora: CPF e data sempre, sem as checagens de conflito (o Patrimônio responde pela ligação
   e-mail ↔ colaborador) e **nenhum vínculo criado**.
 
+### Nome de quem assina (desde 17/11/2026)
+
+Quem envia informa só o **e-mail**; o editor não tem mais o campo Nome. Ao gravar, se o nome está vazio e o e-mail é de
+uma conta, o nome passa a ser o da conta (no editor aparece a dica "Conta: {nome}"). Quando a pessoa passa pelo portão
+(CPF confirmado, vínculo salvo ou e-mail na base), o nome passa a ser o da **base do RH**. O histórico registra "Nome do
+destinatário atualizado/definido pela base do RH", sem CPF. Antes disso, quem não tem conta aparece pelo e-mail (convite,
+lembrete, código e tela do portão). Com a base fora do ar, o nome fica como estava.
+
 ### Quem não passa pelo portão
 
 - Papéis **só visualizar** e **cópia** (CC): não assinam, então não veem termo nem CPF.

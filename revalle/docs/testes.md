@@ -313,6 +313,12 @@ node --test --test-concurrency=1 scripts/revalle/tests/acceptance-f7.test.mjs
 
 `invoice-pdf-annotation.test.mjs` marca os envios dele como "enviados antes da atualização" (`markAutoAnnotation`, em `helpers.mjs`) para continuar testando o texto automático acima da assinatura; o bloco novo é testado no `invoice-annotation-box`. O `acceptance-f9` põe um bloco em cada nota (`setAnnotationBox`) antes de enviar.
 
+`recipient-name.test.mjs` (v.20) cobre o nome de quem assina sem digitar: ao gravar por tRPC e pela API, o nome vem da conta; sem conta, a saudação usa o e-mail; o portão grava o nome da base do RH, com o evento no histórico e só se o nome mudou; com a base fora do ar o nome não muda (o teste para e religa o `colaboradores-db`, como o `gate.test`).
+
+`recipient-name-ui.test.mjs` (v.20) confere no navegador, na imagem do Playwright (sem ela, os casos são pulados), que o editor não tem o campo Nome, mostra a dica "Conta:" e deixa enviar só com o e-mail.
+
+`send-simplified.test.mjs` (v.20) cobre o envio simplificado: assunto `{quem enviou} enviou "{título}" para você {verbo}`, Reply-To de quem enviou, um e-mail por signatário e o reenvio com "Lembrete: ". No navegador, confere as duas opções ("Enviar por e-mail (recomendado)" e "Só gerar os links") e a tela dos links depois do envio.
+
 ## Aceite da Fase 9
 
 `scripts/revalle/tests/acceptance-f9.test.mjs` é o aceite das várias notas fiscais e boletos no mesmo envio (spec de 16/11/2026), num envio só com três notas, um boleto que bate (a soma das notas) e dois signatários, com o servidor falso do Gemini:
