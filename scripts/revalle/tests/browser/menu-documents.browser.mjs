@@ -7,7 +7,7 @@
 // cookie, teamUrl ou null).
 import { finish, openAs, payload, report, section, shot } from './shared.mjs';
 
-const { baseUrl, twoTeams, oneTeam, healed } = payload;
+const { baseUrl, lastTeamCookie, oneYearInSeconds, twoTeams, oneTeam, healed } = payload;
 
 const HYDRATION = /hydrat|did not match|server rendered/i;
 
@@ -59,8 +59,26 @@ await section('dois times', async () => {
   );
   await shot(page, 'menu-dois-times');
 
-  // Abre o time pessoal e volta a Notas fiscais pelo menu, sem recarregar.
+  // Abre o time pessoal: o navegador grava o cookie do último time (1 ano, todo o site).
   await visit(page, href(twoTeams.personalTeamUrl));
+
+  const cookie = (await context.cookies(baseUrl)).find((item) => item.name === lastTeamCookie);
+  const daysLeft = cookie ? (cookie.expires - Date.now() / 1000) / 86_400 : 0;
+
+  report(
+    cookie?.value === twoTeams.personalTeamUrl && cookie.path === '/' && daysLeft > oneYearInSeconds / 86_400 - 2,
+    `ao abrir o time pessoal, o cookie do último time é gravado (${cookie?.value}, ${Math.round(daysLeft)} dias)`,
+  );
+
+  // O pedido seguinte, sem JavaScript: o HTML do servidor já traz Documentos para o time pessoal.
+  const ssr = await (await context.request.get(`${baseUrl}/notas-fiscais`)).text();
+
+  report(
+    ssr.includes(`href="${href(twoTeams.personalTeamUrl)}"`),
+    'no pedido seguinte, o HTML do servidor já traz Documentos para o time pessoal',
+  );
+
+  // Volta a Notas fiscais pelo menu, sem recarregar.
   await mainNav(page).getByRole('link', { name: 'Notas fiscais' }).click();
   await page.waitForURL(/\/notas-fiscais$/);
 

@@ -1,8 +1,8 @@
 // v.20: o item "Documentos" do menu lateral aparece sempre para quem tem time (ver
 // docs/superpowers/specs/2026-11-17-menu-documentos-design.md). Fora de uma página de time, o link vai ao último time
-// aberto (cookie `revalle_last_team`, gravado ao abrir qualquer página de time), senão ao primeiro time que não é o
-// pessoal, senão ao pessoal. Conta sem organização ganha a pessoal ao carregar a sessão (uma vez só, mesmo com pedidos
-// ao mesmo tempo), menos conta desativada.
+// aberto (cookie `revalle_last_team`, gravado pelo navegador ao abrir qualquer página de time), senão ao primeiro time
+// que não é o pessoal, senão ao pessoal. Conta sem organização ao carregar a sessão volta à própria organização pessoal,
+// ou ganha uma se não tiver (uma vez só, mesmo com pedidos ao mesmo tempo), menos conta desativada.
 //
 // Contas novas pelo cadastro de verdade (`createConfirmedAccount`); o segundo time nasce pelo app (`team.create`, a conta
 // é ADMIN da própria organização pessoal). O HTML do servidor é conferido aqui (o menu sai certo sem piscar); o
@@ -11,7 +11,7 @@
 
 import assert from 'node:assert/strict';
 import { before, test } from 'node:test';
-
+import { sessionFor } from './account-helpers.mjs';
 import {
   BASE_URL,
   createConfirmedAccount,
@@ -27,6 +27,7 @@ const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}
 const PASSWORD = `Menu-${RUN}-Senha1`;
 const SHOT_DIR = process.env.REVSIGN_MENU_SHOTS;
 const LAST_TEAM_COOKIE = 'revalle_last_team';
+const ONE_YEAR_IN_SECONDS = 60 * 60 * 24 * 365;
 
 const emailOf = (tag) => `menu-${tag}-${RUN}@revalle.com.br`;
 
@@ -94,23 +95,6 @@ test('dois times, fora de time: o servidor já manda Documentos para o time que 
   assert.ok(documentsHrefs(html).includes(`/t/${twoTeams.otherTeamUrl}/documents`), documentsHrefs(html).join(', '));
 });
 
-test('a página de time grava o cookie do último time (1 ano, todo o site)', async () => {
-  const res = await fetch(`${BASE_URL}/t/${twoTeams.personalTeamUrl}/documents`, {
-    headers: { Cookie: twoTeams.cookie },
-    redirect: 'manual',
-  });
-
-  await res.arrayBuffer();
-
-  const setCookie = res.headers.getSetCookie().find((line) => line.startsWith(`${LAST_TEAM_COOKIE}=`));
-
-  assert.equal(res.status, 200);
-  assert.ok(setCookie, 'sem o cookie do último time');
-  assert.match(setCookie, new RegExp(`^${LAST_TEAM_COOKIE}=${twoTeams.personalTeamUrl};`));
-  assert.match(setCookie, /Max-Age=31536000/);
-  assert.match(setCookie, /Path=\//);
-});
-
 test('com o cookie do último time, o servidor manda Documentos para ele; time que não é da pessoa é ignorado', async () => {
   const withLast = await serverHtml(
     '/notas-fiscais',
@@ -139,15 +123,17 @@ test('um time só: Documentos vai a ele, como antes', async () => {
   assert.ok(documentsHrefs(html).includes(`/t/${oneTeam.personalTeamUrl}/documents`), documentsHrefs(html).join(', '));
 });
 
-test('conta sem organização ganha a pessoal ao carregar a sessão, uma vez só', async () => {
+test('conta tirada da própria organização pessoal volta a ela ao carregar a sessão, sem criar outra', async () => {
   const account = await createConfirmedAccount({ email: emailOf('zero'), name: 'Teste Menu Zero', password: PASSWORD });
+  const orgId = personalOrgOf(account.id);
+  const teamUrl = firstTeamOf(orgId);
 
   db(`delete from "OrganisationMember" where "userId" = ${account.id}`);
   assert.equal(membershipsOf(account.id), 0);
 
   const ownedBefore = ownedPersonalOrgsOf(account.id);
 
-  // Vários pedidos ao mesmo tempo: a trava por conta deixa só um criar.
+  // Vários pedidos ao mesmo tempo: a trava por conta deixa só um refazer o vínculo.
   const sessions = await Promise.all(Array.from({ length: 5 }, () => loadSession(account.cookie)));
 
   for (const res of sessions) {
@@ -156,22 +142,47 @@ test('conta sem organização ganha a pessoal ao carregar a sessão, uma vez só
   }
 
   assert.equal(membershipsOf(account.id), 1);
-  assert.equal(ownedPersonalOrgsOf(account.id), ownedBefore + 1);
+  assert.equal(ownedPersonalOrgsOf(account.id), ownedBefore, 'criou outra organização pessoal');
+  assert.equal(personalOrgOf(account.id), orgId, 'não voltou para a própria organização pessoal');
+
+  const [organisation] = organisationsOf(sessions[0]);
+
+  assert.equal(organisation.id, orgId);
+  assert.equal(organisation.currentOrganisationRole, 'ADMIN');
+  assert.deepEqual(
+    organisation.teams.map((team) => team.url),
+    [teamUrl],
+  );
+
+  const html = await serverHtml('/notas-fiscais', account.cookie);
+
+  assert.ok(documentsHrefs(html).includes(`/t/${teamUrl}/documents`), documentsHrefs(html).join(', '));
+
+  // A tela também: ao entrar, o menu mostra Documentos (navegador abaixo, quando houver a imagem).
+  healed = { cookie: account.cookie, teamUrl };
+});
+
+test('conta sem organização nenhuma (criada fora do cadastro) ganha a pessoal uma vez só', async () => {
+  const cookie = await sessionFor(emailOf('nova'));
+  const userId = Number(db(`select id from "User" where email = '${emailOf('nova')}'`));
+
+  assert.equal(membershipsOf(userId), 0);
+  assert.equal(ownedPersonalOrgsOf(userId), 0);
+
+  const sessions = await Promise.all(Array.from({ length: 5 }, () => loadSession(cookie)));
+
+  for (const res of sessions) {
+    assert.equal(res.status, 200, res.text);
+    assert.equal(organisationsOf(res).length, 1, res.text);
+  }
+
+  assert.equal(membershipsOf(userId), 1);
+  assert.equal(ownedPersonalOrgsOf(userId), 1);
 
   const [organisation] = organisationsOf(sessions[0]);
 
   assert.equal(organisation.type, 'PERSONAL');
   assert.equal(organisation.teams.length, 1);
-
-  const html = await serverHtml('/notas-fiscais', account.cookie);
-
-  assert.ok(
-    documentsHrefs(html).includes(`/t/${organisation.teams[0].url}/documents`),
-    documentsHrefs(html).join(', '),
-  );
-
-  // A tela também: ao entrar, o menu mostra Documentos (navegador abaixo, quando houver a imagem).
-  healed = { cookie: account.cookie, teamUrl: organisation.teams[0].url };
 });
 
 test('conta desativada sem organização não ganha a pessoal', async () => {
@@ -181,10 +192,20 @@ test('conta desativada sem organização não ganha a pessoal', async () => {
   db(`update "User" set disabled = true where id = ${account.id}`);
 
   try {
-    await loadSession(account.cookie);
-    await serverHtml('/notas-fiscais', account.cookie);
+    // O tRPC barra a conta desativada (403) antes de carregar a sessão.
+    const session = await loadSession(account.cookie);
 
+    assert.equal(session.status, 403, session.text);
+
+    // A página carrega a sessão no servidor (a sessão continua válida depois de desativar), passando pela recuperação:
+    // 200, sem o item Documentos, e nenhum vínculo criado.
+    const res = await fetch(`${BASE_URL}/notas-fiscais`, { headers: { Cookie: account.cookie }, redirect: 'manual' });
+    const html = await res.text();
+
+    assert.equal(res.status, 200, html.slice(0, 300));
+    assert.deepEqual(documentsHrefs(html), []);
     assert.equal(membershipsOf(account.id), 0);
+    assert.equal(ownedPersonalOrgsOf(account.id), 1);
   } finally {
     db(`update "User" set disabled = false where id = ${account.id}`);
   }
@@ -201,6 +222,8 @@ test('navegador: Documentos pelo menu, com dois times, com um time e na conta re
     script: 'menu-documents.browser.mjs',
     payload: {
       baseUrl: BASE_URL,
+      lastTeamCookie: LAST_TEAM_COOKIE,
+      oneYearInSeconds: ONE_YEAR_IN_SECONDS,
       twoTeams: {
         cookie: twoTeams.cookie,
         personalTeamUrl: twoTeams.personalTeamUrl,
