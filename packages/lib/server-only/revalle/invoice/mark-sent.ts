@@ -10,6 +10,7 @@ import {
 } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
+import { pickSentInvoiceTargets } from '../../../revalle/invoice/invoice-files';
 import { isAdmin } from '../../../utils/is-admin';
 import type { InvoiceState } from './classify';
 import { getInvoiceState } from './classify';
@@ -23,7 +24,8 @@ import { loadInvoiceFiles, lockInvoiceEnvelope, syncInvoiceEnvelopeMirror } from
  * A classificação continua congelada (nada é relido nem reclassificado) e a IA não é chamada: grava `isInvoice = YES`,
  * `detectedBy = SENDER`, quem/quando e (Fase 6) `PENDING_APPROVAL`: a NF passa pelo Financeiro. A primeira conta vem
  * em seguida, no mesmo cartão (`setInvoiceChoice`). Já marcado como NF: devolve o estado, sem gravar.
- * Fase 9: vira nota o arquivo pedido (`envelopeItemId`); sem ele, os arquivos sem texto e, sem nenhum, o primeiro.
+ * Fase 9: vira nota o arquivo pedido (`envelopeItemId`); sem ele, os de `pickSentInvoiceTargets` (nunca um boleto antes
+ * de outro arquivo).
  * Com um destinatário de fora da empresa, recusa (`INVOICE_EXTERNAL_RECIPIENT`): NF só vai para e-mails da empresa.
  */
 export const markSentEnvelopeAsInvoice = async ({
@@ -116,13 +118,10 @@ export const markSentEnvelopeAsInvoice = async ({
     });
 
     const rows = await loadInvoiceFiles(envelopeId, tx);
-    const unknown = rows.filter((file) => file.kind === RevalleInvoiceFileKind.UNKNOWN);
     const targets =
       envelopeItemId !== undefined
         ? rows.filter((file) => file.envelopeItemId === envelopeItemId)
-        : unknown.length > 0
-          ? unknown
-          : rows.slice(0, 1);
+        : pickSentInvoiceTargets(rows);
 
     await tx.revalleInvoiceFile.updateMany({
       where: { id: { in: targets.map((file) => file.id) } },

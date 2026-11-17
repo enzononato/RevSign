@@ -102,7 +102,7 @@ export const approveInvoiceAccount = async ({
   }
 
   // Fase 9: a aprovação vale para a nota (a linha do arquivo); com 2+ notas, `envelopeItemId` diz qual.
-  await ensureLegacyInvoiceFiles(envelopeId);
+  await ensureLegacyInvoiceFiles(envelopeId, { withoutTextOnReadError: true });
 
   const file = await resolveInvoiceFile({ envelopeId, envelopeItemId });
   const files = await loadInvoiceFiles(envelopeId);

@@ -10,6 +10,8 @@ import {
   invoiceMirrorColumns,
   invoicePositions,
   invoiceRowTitle,
+  pickLegacyInvoiceFile,
+  pickSentInvoiceTargets,
   sameEnvelopeDuplicateIndex,
 } from './invoice-files';
 
@@ -216,6 +218,49 @@ describe('classifyFileKind', () => {
     expect(classifyFileKind({ detection: { status: 'UNKNOWN', signals: [] }, boleto: none, isSparse: true })).toBe(
       'UNKNOWN',
     );
+  });
+});
+
+describe('pickLegacyInvoiceFile', () => {
+  const contract = { name: 'contrato', isSparse: false, detection: { status: 'NO' as const } };
+  const scanned = { name: 'escaneado', isSparse: true, detection: { status: 'UNKNOWN' as const } };
+  const danfe = { name: 'danfe', isSparse: false, detection: { status: 'YES' as const } };
+
+  it('sem nota pelo texto, a nota fica no escaneado, nunca no contrato com texto', () => {
+    expect(pickLegacyInvoiceFile([contract, scanned])).toEqual({ invoice: scanned, canAutoRead: true });
+  });
+
+  it('a nota pelo texto vence o arquivo que vem antes', () => {
+    expect(pickLegacyInvoiceFile([contract, danfe, scanned])).toEqual({ invoice: danfe, canAutoRead: true });
+  });
+
+  it('só o contrato: fica nele, mas sem leitura automática da IA', () => {
+    expect(pickLegacyInvoiceFile([contract])).toEqual({ invoice: contract, canAutoRead: false });
+    expect(pickLegacyInvoiceFile([])).toBeNull();
+  });
+});
+
+describe('pickSentInvoiceTargets', () => {
+  const row = (id: string, kind: 'NF' | 'BOLETO' | 'OTHER' | 'UNKNOWN', signals: string[] = []) => ({
+    id,
+    kind,
+    signals,
+  });
+  const ids = (rows: Array<{ id: string }>) => rows.map((r) => r.id);
+
+  it('os sem texto; senão os com sinal de nota (fora boleto); senão o primeiro que não é boleto', () => {
+    expect(ids(pickSentInvoiceTargets([row('b', 'BOLETO'), row('s', 'UNKNOWN'), row('o', 'OTHER')]))).toEqual(['s']);
+    expect(
+      ids(
+        pickSentInvoiceTargets([
+          row('b', 'BOLETO', ['NF_CNPJ_VALOR']),
+          row('c', 'OTHER'),
+          row('n', 'OTHER', ['DANFE']),
+        ]),
+      ),
+    ).toEqual(['n']);
+    expect(ids(pickSentInvoiceTargets([row('b', 'BOLETO'), row('c', 'OTHER')]))).toEqual(['c']);
+    expect(ids(pickSentInvoiceTargets([row('b', 'BOLETO')]))).toEqual(['b']);
   });
 });
 

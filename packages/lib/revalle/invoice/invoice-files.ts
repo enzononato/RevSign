@@ -48,6 +48,47 @@ export const classifyFileKind = ({
   return isSparse ? 'UNKNOWN' : 'OTHER';
 };
 
+/**
+ * Onde fica a nota ao refazer as linhas de um envio NF de antes da Fase 9 (vários arquivos): o primeiro que o texto
+ * reconhece como NF; senão o primeiro sem texto (escaneado); só então o primeiro arquivo. Neste último caso, um arquivo
+ * com texto que não parece nota (um contrato) não pode ir sozinho para a IA (`canAutoRead` falso): antes da Fase 9, sem
+ * nota pelo texto, só os escaneados iam. Nulo sem arquivo.
+ */
+export const pickLegacyInvoiceFile = <T extends { isSparse: boolean; detection: Pick<InvoiceDetection, 'status'> }>(
+  contents: T[],
+): { invoice: T; canAutoRead: boolean } | null => {
+  const invoice =
+    contents.find((content) => content.detection.status === 'YES') ??
+    contents.find((content) => content.isSparse) ??
+    contents[0];
+
+  if (!invoice) {
+    return null;
+  }
+
+  return { invoice, canAutoRead: invoice.detection.status === 'YES' || invoice.isSparse };
+};
+
+/**
+ * Os arquivos que viram nota quando o dono marca como NF um envio já enviado sem dizer qual: os sem texto; senão os que
+ * têm sinal de nota (fora boletos); senão o primeiro que não é boleto; só então o primeiro.
+ */
+export const pickSentInvoiceTargets = <T extends { kind: InvoiceFileKind; signals: string[] }>(rows: T[]): T[] => {
+  const unknown = rows.filter((row) => row.kind === 'UNKNOWN');
+
+  if (unknown.length > 0) {
+    return unknown;
+  }
+
+  const withSignals = rows.filter((row) => row.kind !== 'BOLETO' && row.signals.length > 0);
+
+  if (withSignals.length > 0) {
+    return withSignals;
+  }
+
+  return [rows.find((row) => row.kind !== 'BOLETO') ?? rows[0]].filter((row) => row !== undefined);
+};
+
 /** O envio é NF se tem pelo menos uma; sem NF, um arquivo sem texto deixa em dúvida; senão (ou vazio), não é. */
 export const aggregateIsInvoice = (kinds: InvoiceFileKind[]): 'YES' | 'NO' | 'UNKNOWN' => {
   if (kinds.includes('NF')) {

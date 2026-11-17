@@ -199,7 +199,7 @@ export const setInvoiceChoice = async ({
   if (isDraft) {
     await classifyEnvelope(envelopeId, { userId: user.id });
   } else {
-    await ensureLegacyInvoiceFiles(envelopeId);
+    await ensureLegacyInvoiceFiles(envelopeId, { withoutTextOnReadError: true });
   }
 
   const { row, file } = await loadInvoiceForChoice(envelopeId, envelopeItemId);
@@ -336,7 +336,7 @@ export const setInvoiceCostCenter = async ({
   if (isDraft) {
     await classifyEnvelope(envelopeId, { userId: user.id });
   } else {
-    await ensureLegacyInvoiceFiles(envelopeId);
+    await ensureLegacyInvoiceFiles(envelopeId, { withoutTextOnReadError: true });
   }
 
   const { row, file } = await loadInvoiceForChoice(envelopeId, envelopeItemId);

@@ -84,7 +84,7 @@ export const loadActionableInvoice = async (envelopeId: string) => {
  */
 const loadActionableInvoiceFile = async (envelopeId: string, envelopeItemId: string | undefined) => {
   await loadActionableInvoice(envelopeId);
-  await ensureLegacyInvoiceFiles(envelopeId);
+  await ensureLegacyInvoiceFiles(envelopeId, { withoutTextOnReadError: true });
 
   const file = await resolveInvoiceFile({ envelopeId, envelopeItemId });
   const document = invoiceAuditDocument(file, invoicePositions(await loadInvoiceFiles(envelopeId)));

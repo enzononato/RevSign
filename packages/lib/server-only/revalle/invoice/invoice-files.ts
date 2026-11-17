@@ -1,11 +1,17 @@
 import { prisma } from '@documenso/prisma';
 import type { RevalleFinanceStatus, RevalleInvoiceClassification, RevalleInvoiceFile } from '@prisma/client';
-import { DocumentStatus, Prisma, RevalleInvoiceFileKind, RevalleInvoiceStatus } from '@prisma/client';
+import {
+  DocumentStatus,
+  Prisma,
+  RevalleInvoiceFileKind,
+  RevalleInvoiceStatus,
+  RevalleSuggestionStatus,
+} from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { isNewVersionDraftRow, NEW_VERSION_DRAFT_STATUSES } from '../../../revalle/finance/finance-status';
 import { extractAccessKeys } from '../../../revalle/invoice/detect-invoice';
-import { invoiceMirrorColumns } from '../../../revalle/invoice/invoice-files';
+import { invoiceMirrorColumns, pickLegacyInvoiceFile } from '../../../revalle/invoice/invoice-files';
 import { logger } from '../../../utils/logger';
 import { loadEnvelopeFiles, readFilesContent } from './envelope-files';
 
@@ -180,17 +186,90 @@ const legacyNfColumns = (row: RevalleInvoiceClassification) => ({
   approvedByName: row.approvedByName,
 });
 
+type LegacyRowsOf = (current: RevalleInvoiceClassification) => Prisma.RevalleInvoiceFileCreateManyInput[];
+
+/** As linhas refeitas pelo texto de cada arquivo. Nulo sem arquivo. */
+const legacyRowsFromContent = async (envelopeId: string): Promise<LegacyRowsOf | null> => {
+  const contents = await readFilesContent(await loadEnvelopeFiles(envelopeId));
+  const picked = pickLegacyInvoiceFile(contents);
+
+  if (!picked) {
+    return null;
+  }
+
+  return (current) =>
+    contents.map((content) => {
+      if (content !== picked.invoice) {
+        return {
+          envelopeId,
+          envelopeItemId: content.file.envelopeItemId,
+          kind: content.isSparse ? RevalleInvoiceFileKind.UNKNOWN : RevalleInvoiceFileKind.OTHER,
+          fileSha256: content.file.sha256,
+          // Sem isto, a duplicada não acharia a chave se o remetente marcasse este arquivo como nota depois. Só o texto
+          // (sem IA, sem log do documento); como a classificação, sem texto = sem chaves.
+          accessKeys: content.isSparse ? [] : extractAccessKeys(content.pages),
+        };
+      }
+
+      const nf = legacyNfColumns(current);
+
+      // A nota caiu num arquivo com texto que não parece nota (um contrato): a leitura automática nunca o manda para a
+      // IA (privacidade). FAILED não volta sozinho para a leitura; o "Sugerir de novo" fica com quem vê o arquivo.
+      const isBlocked = !picked.canAutoRead && nf.suggestionStatus === RevalleSuggestionStatus.SKIPPED;
+
+      return {
+        envelopeId,
+        envelopeItemId: content.file.envelopeItemId,
+        kind: RevalleInvoiceFileKind.NF,
+        fileSha256: content.file.sha256,
+        ...nf,
+        ...(isBlocked
+          ? { suggestionStatus: RevalleSuggestionStatus.FAILED, suggestion: { failure: 'NO_CONTENT' } }
+          : {}),
+      };
+    });
+};
+
+/**
+ * Sem os arquivos (não deu para ler): as linhas só pelos itens do envio, sem texto nem SHA-256. A nota no primeiro, os
+ * outros "outro". Nulo sem item.
+ */
+const legacyRowsWithoutText = async (envelopeId: string): Promise<LegacyRowsOf | null> => {
+  const items = await prisma.envelopeItem.findMany({
+    where: { envelopeId },
+    orderBy: [{ order: 'asc' }, { id: 'asc' }],
+    select: { id: true },
+  });
+
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (current) =>
+    items.map((item, index) =>
+      index === 0
+        ? { envelopeId, envelopeItemId: item.id, kind: RevalleInvoiceFileKind.NF, ...legacyNfColumns(current) }
+        : { envelopeId, envelopeItemId: item.id, kind: RevalleInvoiceFileKind.OTHER },
+    );
+};
+
 /**
  * Envio NF (`YES`) sem nenhuma linha de arquivo: de antes da Fase 9 e com mais de um arquivo (a migração só cria a linha
- * dos envios de um arquivo). Refaz as linhas: a NF fica no primeiro arquivo que o texto reconhece como NF (senão no
- * primeiro), com tudo que a linha do envio tem; os outros arquivos ficam como "outro" (ou "sem texto"). Uma nota só: o
- * espelho continua igual. Só envio já enviado, salvo `allowDraft` (o rascunho de antes da Fase 9 com os mesmos arquivos,
- * que a classificação refaz sem apagar a escolha). Idempotente e seguro contra pedidos simultâneos (trava o envio).
- * Devolve `true` só se criou as linhas (nada a refazer, ou outro pedido já refez: `false`).
+ * dos envios de um arquivo). Refaz as linhas: a NF fica no arquivo de `pickLegacyInvoiceFile`, com tudo que a linha do
+ * envio tem; os outros arquivos ficam como "outro" (ou "sem texto"). Uma nota só: o espelho continua igual. Só envio já
+ * enviado, salvo `allowDraft` (o rascunho de antes da Fase 9 com os mesmos arquivos, que a classificação refaz sem apagar
+ * a escolha). Idempotente e seguro contra pedidos simultâneos (trava o envio). Devolve `true` só se criou as linhas (nada
+ * a refazer, ou outro pedido já refez: `false`).
+ *
+ * `withoutTextOnReadError`: se os arquivos não puderem ser lidos (ex.: um sumiu do armazenamento), refaz mesmo assim, sem
+ * texto (`legacyRowsWithoutText`), para a ação do Financeiro ou da Contabilidade não ficar travada para sempre.
  */
 export const ensureLegacyInvoiceFiles = async (
   envelopeId: string,
-  { allowDraft = false }: { allowDraft?: boolean } = {},
+  {
+    allowDraft = false,
+    withoutTextOnReadError = false,
+  }: { allowDraft?: boolean; withoutTextOnReadError?: boolean } = {},
 ): Promise<boolean> => {
   const row = await prisma.revalleInvoiceClassification.findUnique({
     where: { envelopeId },
@@ -216,13 +295,23 @@ export const ensureLegacyInvoiceFiles = async (
     return false;
   }
 
-  const contents = await readFilesContent(await loadEnvelopeFiles(envelopeId));
+  const rowsOf = await legacyRowsFromContent(envelopeId).catch(async (error: unknown) => {
+    if (!withoutTextOnReadError) {
+      throw error;
+    }
 
-  if (contents.length === 0) {
+    logger.warn({
+      msg: 'revalle.invoice.legacy-files.without-text',
+      envelopeId,
+      error: error instanceof Error ? error.name : 'unknown',
+    });
+
+    return await legacyRowsWithoutText(envelopeId);
+  });
+
+  if (!rowsOf) {
     return false;
   }
-
-  const invoice = contents.find((content) => content.detection.status === 'YES') ?? contents[0];
 
   return await prisma.$transaction(async (tx) => {
     await lockInvoiceEnvelope(tx, envelopeId);
@@ -237,28 +326,7 @@ export const ensureLegacyInvoiceFiles = async (
       return false;
     }
 
-    const created = await tx.revalleInvoiceFile.createMany({
-      data: contents.map((content) =>
-        content === invoice
-          ? {
-              envelopeId,
-              envelopeItemId: content.file.envelopeItemId,
-              kind: RevalleInvoiceFileKind.NF,
-              fileSha256: content.file.sha256,
-              ...legacyNfColumns(current),
-            }
-          : {
-              envelopeId,
-              envelopeItemId: content.file.envelopeItemId,
-              kind: content.isSparse ? RevalleInvoiceFileKind.UNKNOWN : RevalleInvoiceFileKind.OTHER,
-              fileSha256: content.file.sha256,
-              // Sem isto, a duplicada não acharia a chave se o remetente marcasse este arquivo como nota depois. Só o
-              // texto (sem IA, sem log do documento); como a classificação, sem texto = sem chaves.
-              accessKeys: content.isSparse ? [] : extractAccessKeys(content.pages),
-            },
-      ),
-      skipDuplicates: true,
-    });
+    const created = await tx.revalleInvoiceFile.createMany({ data: rowsOf(current), skipDuplicates: true });
 
     await syncInvoiceEnvelopeMirror(tx, envelopeId);
 
