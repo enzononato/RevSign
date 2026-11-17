@@ -1,6 +1,7 @@
 import { useChildRouteFlags } from '@documenso/lib/client-only/hooks/use-child-route-flags';
 import { OrganisationProvider } from '@documenso/lib/client-only/providers/organisation';
 import { useSession } from '@documenso/lib/client-only/providers/session';
+import { readLastTeamCookie } from '@documenso/lib/revalle/last-team'; // REVALLE:
 import { getSiteSettings } from '@documenso/lib/server-only/site-settings/get-site-settings';
 import { SITE_SETTINGS_BANNER_ID } from '@documenso/lib/server-only/site-settings/schemas/banner';
 import { Button } from '@documenso/ui/primitives/button';
@@ -29,13 +30,15 @@ export const shouldRevalidate = () => false;
 
 export const middleware = [authenticatedMiddleware];
 
-export async function loader() {
+export async function loader({ request }: Route.LoaderArgs) {
   const banner = await getSiteSettings().then((settings) =>
     settings.find((setting) => setting.id === SITE_SETTINGS_BANNER_ID),
   );
 
   return {
     banner,
+    // REVALLE: último time aberto, para o menu sair certo já na renderização do servidor (ver shell-nav).
+    lastTeamUrl: readLastTeamCookie(request.headers.get('cookie')),
   };
 }
 

@@ -2,6 +2,8 @@ import { DEFAULT_MINIMUM_ENVELOPE_ITEM_COUNT, PAID_PLAN_LIMITS } from '@documens
 import { LimitsProvider } from '@documenso/ee/server-only/limits/provider/client';
 import { useChildRouteFlags } from '@documenso/lib/client-only/hooks/use-child-route-flags';
 import { useOptionalCurrentOrganisation } from '@documenso/lib/client-only/providers/organisation';
+import { shouldUseSecureCookies } from '@documenso/lib/constants/auth'; // REVALLE:
+import { serializeLastTeamCookie } from '@documenso/lib/revalle/last-team'; // REVALLE:
 import { isOrganisationPendingPayment } from '@documenso/lib/utils/billing';
 import { TrpcProvider } from '@documenso/trpc/react';
 import { cn } from '@documenso/ui/lib/utils';
@@ -10,10 +12,20 @@ import { msg } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { SubscriptionStatus } from '@prisma/client';
 import { useMemo } from 'react';
-import { Link, Outlet } from 'react-router';
+import { data, Link, Outlet } from 'react-router';
 
 import { GenericErrorLayout } from '~/components/general/generic-error-layout';
 import { useOptionalCurrentTeam } from '~/providers/team';
+
+import type { Route } from './+types/_layout';
+
+// REVALLE: guarda o último time aberto, para o "Documentos" do menu fora das páginas de time. O menu só usa o valor se o
+// time ainda é da pessoa (ver `pickDocumentsTeamUrl`).
+export function loader({ params }: Route.LoaderArgs) {
+  return data(null, {
+    headers: { 'Set-Cookie': serializeLastTeamCookie(params.teamUrl, { secure: shouldUseSecureCookies() }) },
+  });
+}
 
 export default function Layout() {
   const team = useOptionalCurrentTeam();

@@ -1,4 +1,5 @@
 import { useSession } from '@documenso/lib/client-only/providers/session';
+import { pickDocumentsTeamUrl, readLastTeamCookie } from '@documenso/lib/revalle/last-team';
 import { isAdmin } from '@documenso/lib/utils/is-admin';
 import { trpc } from '@documenso/trpc/react';
 import { cn } from '@documenso/ui/lib/utils';
@@ -8,8 +9,8 @@ import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
 import { ReadStatus } from '@prisma/client';
 import { SearchIcon } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { Link, useLocation, useRouteLoaderData } from 'react-router';
 
 import { InvoicesNavBadge } from '~/components/revalle/invoice/invoices-nav-badge';
 import { useOptionalCurrentTeam } from '~/providers/team';
@@ -25,22 +26,39 @@ const SETTINGS_PATH = /^\/(?:(?:o|t)\/[^/]+\/)?settings(?:\/|$)/;
 
 const startsWithSegment = (pathname: string, href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
+// O cookie não avisa quando muda: o valor é relido a cada renderização do menu (que acompanha a rota).
+const subscribeToNothing = () => () => {};
+
 /**
- * Links of the blue shell, shared by the desktop sidebar and the mobile sheet. The documents link keeps the upstream
- * rule: the current team, or the only team when the person has exactly one.
+ * Último time aberto (cookie `revalle_last_team`). Na renderização do servidor e na hidratação vem do loader do layout
+ * autenticado, para o HTML e a hidratação baterem; depois, do `document.cookie`, que o loader do time atualiza a cada
+ * time aberto.
+ */
+const useLastTeamUrl = () => {
+  const layoutData = useRouteLoaderData('routes/_authenticated+/_layout') as
+    | { lastTeamUrl?: string | null }
+    | undefined;
+
+  return useSyncExternalStore(
+    subscribeToNothing,
+    () => readLastTeamCookie(document.cookie),
+    () => layoutData?.lastTeamUrl ?? null,
+  );
+};
+
+/**
+ * Links of the blue shell, shared by the desktop sidebar and the mobile sheet. "Documentos" shows whenever the person has
+ * a team: the current team, else the last team opened, else the first non-personal team, else the personal one.
  */
 const useShellNavLinks = (): ShellNavLink[] => {
   const { user, organisations } = useSession();
   const { pathname } = useLocation();
 
   const currentTeam = useOptionalCurrentTeam();
+  const lastTeamUrl = useLastTeamUrl();
 
   return useMemo(() => {
-    let teamUrl = currentTeam?.url || null;
-
-    if (!teamUrl && organisations.length === 1 && organisations[0].teams.length === 1) {
-      teamUrl = organisations[0].teams[0].url;
-    }
+    const teamUrl = pickDocumentsTeamUrl({ organisations, currentTeamUrl: currentTeam?.url, lastTeamUrl });
 
     const links: ShellNavLink[] = [];
 
@@ -67,7 +85,7 @@ const useShellNavLinks = (): ShellNavLink[] => {
     }
 
     return links;
-  }, [currentTeam, organisations, pathname, user]);
+  }, [currentTeam, lastTeamUrl, organisations, pathname, user]);
 };
 
 export type ShellNavListProps = {

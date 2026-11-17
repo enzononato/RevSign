@@ -1,3 +1,4 @@
+import { ensurePersonalOrganisation } from '@documenso/lib/server-only/revalle/personal-organisation'; // REVALLE:
 import { getHighestOrganisationRoleInGroup } from '@documenso/lib/utils/organisations';
 import { buildTeamWhereQuery, extractDerivedTeamSettings, getHighestTeamRoleInGroup } from '@documenso/lib/utils/teams';
 import { prisma } from '@documenso/prisma';
@@ -17,8 +18,10 @@ export const getOrganisationSessionRoute = authenticatedProcedure
 
 export const getOrganisationSession = async ({
   userId,
+  revalleHealed = false, // REVALLE: só uma tentativa de criar a organização pessoal por chamada
 }: {
   userId: number;
+  revalleHealed?: boolean;
 }): Promise<TGetOrganisationSessionResponse> => {
   const organisations = await prisma.organisation.findMany({
     where: {
@@ -68,6 +71,11 @@ export const getOrganisationSession = async ({
       },
     },
   });
+
+  // REVALLE: conta sem organização ganha a pessoal (uma vez, com trava contra corrida; não vale para conta desativada).
+  if (organisations.length === 0 && !revalleHealed && (await ensurePersonalOrganisation({ userId }))) {
+    return await getOrganisationSession({ userId, revalleHealed: true });
+  }
 
   return organisations.map((organisation) => {
     const { organisationGlobalSettings } = organisation;
