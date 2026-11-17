@@ -136,23 +136,24 @@ export const parseDigitableLine = (
 const LINE_PATTERN =
   /(?<!\d)\d{5}[.\s]?\d{5}\s*\d{5}[.\s]?\d{6}\s*\d{5}[.\s]?\d{6}\s*\d\s*\d{14}(?!\d)|(?<!\d)\d{47}(?!\d)/g;
 
-const BOLETO_MARKERS = [
+// Só boleto imprime estas. As fracas (beneficiário, vencimento, local de pagamento) aparecem em contrato e fatura, e
+// um contrato tomado por boleto teria o texto mandado para a IA.
+const STRONG_BOLETO_MARKERS = [
   /linha\s+digitavel/,
   /ficha\s+de\s+compensacao/,
   /recibo\s+do\s+(?:pagador|sacado)/,
   /nosso\s+numero/,
-  /beneficiario|cedente/,
-  /local\s+de\s+pagamento/,
-  /vencimento/,
 ];
+
+const WEAK_BOLETO_MARKERS = [/beneficiario|cedente/, /local\s+de\s+pagamento/, /vencimento/];
 
 const MIN_BOLETO_MARKERS = 3;
 
 const normalizeText = (text: string) => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 /**
- * Boleto pelo texto: uma linha digitável de 47 dígitos válida, ou pelo menos três das marcas de boleto (sem acento,
- * minúsculo). Devolve a primeira linha válida, só com os dígitos.
+ * Boleto pelo texto: uma linha digitável de 47 dígitos válida, ou pelo menos três marcas de boleto com uma forte entre
+ * elas (sem acento, minúsculo). Devolve a primeira linha válida, só com os dígitos.
  */
 export const detectBoleto = (pages: string[]): { isBoleto: boolean; digitableLine: string | null } => {
   const text = pages.join('\n');
@@ -164,9 +165,10 @@ export const detectBoleto = (pages: string[]): { isBoleto: boolean; digitableLin
   }
 
   const normalized = normalizeText(text);
-  const markers = BOLETO_MARKERS.filter((marker) => marker.test(normalized)).length;
+  const strong = STRONG_BOLETO_MARKERS.filter((marker) => marker.test(normalized)).length;
+  const weak = WEAK_BOLETO_MARKERS.filter((marker) => marker.test(normalized)).length;
 
-  return { isBoleto: markers >= MIN_BOLETO_MARKERS, digitableLine: null };
+  return { isBoleto: strong >= 1 && strong + weak >= MIN_BOLETO_MARKERS, digitableLine: null };
 };
 
 /**

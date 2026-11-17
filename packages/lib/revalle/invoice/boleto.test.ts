@@ -47,10 +47,21 @@ describe('parseDigitableLine', () => {
 });
 
 describe('detectBoleto', () => {
-  it('reconhece o boleto pelas marcas do texto (três ou mais)', () => {
+  it('reconhece o boleto pelas marcas do texto (três ou mais, uma delas só de boleto)', () => {
     expect(detectBoleto(['Ficha de Compensação', 'Beneficiário ACME', 'Vencimento 01/12/2026']).isBoleto).toBe(true);
     expect(detectBoleto(['Contrato de prestação de serviços']).isBoleto).toBe(false);
     expect(detectBoleto(['Vencimento 01/12/2026', 'Beneficiário ACME']).isBoleto).toBe(false);
+  });
+
+  it('contrato que fala de vencimento, beneficiário e local de pagamento não é boleto', () => {
+    const contract = [
+      'CONTRATO DE PRESTAÇÃO DE SERVIÇOS',
+      'O beneficiário dos pagamentos é a CONTRATADA. Vencimento todo dia 10.',
+      'Local de pagamento: na sede da CONTRATANTE.',
+    ];
+
+    expect(detectBoleto(contract)).toEqual({ isBoleto: false, digitableLine: null });
+    expect(detectBoleto([...contract, 'Nosso número 123']).isBoleto).toBe(true);
   });
 
   it('reconhece o boleto pela linha digitável válida e a devolve só com os dígitos', () => {

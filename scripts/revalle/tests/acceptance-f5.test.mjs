@@ -65,10 +65,10 @@ const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}
 const PASSWORD = `Aceite-F5-${RUN}!`;
 const PROMPT = `Prompt do aceite da Fase 5 (${RUN}): fornecedores de mercadoria vão para 4.1.07.`;
 const CHAVE = '29241012345678000195550010000123451123456784';
-// Fase 8: a IA também lê o fornecedor, o número, o valor e a chave de acesso da nota; a frase de antes ("apenas para sugerir
-// a conta contábil") ficou curta e não pode voltar.
+// Fase 8: a IA também lê o fornecedor, o número, o valor e a chave de acesso da nota; Fase 9: e lê o boleto que vem junto.
+// A frase de antes ("apenas para sugerir a conta contábil") ficou curta e não pode voltar.
 const PRIVACY_SENTENCE =
-  'As notas fiscais enviadas para assinatura são analisadas por um serviço de inteligência artificial (Google Gemini) para sugerir a conta contábil e para ler da nota o fornecedor, o número, o valor e a chave de acesso.';
+  'As notas fiscais enviadas para assinatura, e os boletos que vierem junto com elas, são analisados por um serviço de inteligência artificial (Google Gemini) para sugerir a conta contábil, ler da nota o fornecedor, o número, o valor e a chave de acesso, e ler do boleto o beneficiário, o CNPJ, o valor, o vencimento e a linha digitável.';
 const PRIVACY_OLD_SENTENCE = 'apenas para sugerir a conta contábil';
 // O que de fato vai ao Gemini: o texto com o CPF mascarado; a NF digitalizada vai como imagem, sem máscara possível.
 const PRIVACY_CPF_SENTENCE =
@@ -719,9 +719,9 @@ testStep('9. a política de privacidade tem a frase do Gemini (conta e dados da 
     .replace(/&quot;/g, '"')
     .replace(/\s+/g, ' ');
 
-  assert.ok(text.includes(PRIVACY_SENTENCE), 'frase do Gemini (conta, fornecedor, número, valor e chave) ausente');
+  assert.ok(text.includes(PRIVACY_SENTENCE), 'frase do Gemini (conta, dados da nota e do boleto) ausente');
   assert.ok(!text.includes(PRIVACY_OLD_SENTENCE), 'a política ainda diz que a IA só sugere a conta contábil');
-  assert.ok(text.includes('Versão 1 — 05/11/2026'), 'cabeçalho da política sem a data de 05/11/2026 e a versão 1');
+  assert.ok(text.includes('Versão 1 — 16/11/2026'), 'cabeçalho da política sem a data de 16/11/2026 e a versão 1');
   assert.ok(text.includes(PRIVACY_CPF_SENTENCE), 'frase do CPF (texto mascarado, imagem como está) ausente');
   // A promessa antiga ("nunca enviamos o CPF") não vale para a NF digitalizada.
   assert.ok(!/Nunca enviamos o CPF/i.test(text), 'a política ainda promete nunca enviar o CPF');
