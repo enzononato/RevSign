@@ -12,11 +12,15 @@ const SAVE_DEBOUNCE_MS = 400;
 
 const EMPTY_BOXES: TAnnotationBox[] = [];
 
-// Uma fila só para o editor inteiro: a paleta (pôr) e cada página (mover, tirar) usam instâncias diferentes do hook, e a
-// última gravação do bloco precisa chegar por último.
+// Estado do módulo, não da instância: a paleta (pôr) e cada página (mover, tirar) usam instâncias diferentes do hook, as
+// páginas saem da tela (lista virtual) com uma gravação ainda esperando, e o diálogo de envio precisa de tudo gravado
+// antes de classificar (`flushAnnotationBoxSaves`). Uma fila só: a última gravação de um bloco chega por último.
 let saveQueue: Promise<unknown> = Promise.resolve();
+const pendingSaves = new Map<string, { timer: ReturnType<typeof setTimeout>; run: () => void }>();
+// Cada mudança feita na tela muda a versão do bloco; a resposta de uma gravação só vai para o cache se nada mudou depois.
+const localVersions = new Map<string, number>();
 
-const enqueue = (write: () => Promise<unknown>) => {
+const enqueue = <T>(write: () => Promise<T>) => {
   const next = saveQueue.then(write);
 
   saveQueue = next.catch(() => undefined);
@@ -24,13 +28,47 @@ const enqueue = (write: () => Promise<unknown>) => {
   return next;
 };
 
+const cancelPendingSave = (envelopeItemId: string) => {
+  const entry = pendingSaves.get(envelopeItemId);
+
+  if (entry) {
+    clearTimeout(entry.timer);
+    pendingSaves.delete(envelopeItemId);
+  }
+};
+
+const bumpVersion = (envelopeItemId: string) => {
+  const version = (localVersions.get(envelopeItemId) ?? 0) + 1;
+
+  localVersions.set(envelopeItemId, version);
+
+  return version;
+};
+
+/** Grava agora o que esperava a pessoa parar de mexer no bloco, e espera a fila de gravações terminar. */
+export const flushAnnotationBoxSaves = async () => {
+  for (const [envelopeItemId, entry] of [...pendingSaves]) {
+    clearTimeout(entry.timer);
+    pendingSaves.delete(envelopeItemId);
+    entry.run();
+  }
+
+  await saveQueue;
+};
+
+type UseAnnotationBoxesOptions = {
+  /** Relê os blocos do servidor ao montar (a paleta: a cada vez que o passo "Adicionar campos" abre). */
+  refetchOnMount?: boolean;
+};
+
 /**
  * O bloco "Conta e centro de custo" de cada arquivo do rascunho aberto no editor. O cache da consulta `find` é o estado
  * dividido entre a paleta e as páginas: cada mudança vai para ele na hora e para o servidor em seguida (mover e
- * redimensionar esperam a pessoa parar). Fora de rascunho e em envio de antes do bloco (`autoAnnotation`), o bloco não
- * existe no editor.
+ * redimensionar esperam a pessoa parar). O cache só é relido de propósito (paleta montada, arquivos trocados, erro):
+ * uma releitura no meio de uma gravação traria o lugar antigo de volta. Fora de rascunho e em envio de antes do bloco
+ * (`autoAnnotation`), o bloco não existe no editor.
  */
-export const useAnnotationBoxes = () => {
+export const useAnnotationBoxes = ({ refetchOnMount = false }: UseAnnotationBoxesOptions = {}) => {
   const { t } = useLingui();
   const { toast } = useToast();
   const utils = trpc.useUtils();
@@ -39,21 +77,31 @@ export const useAnnotationBoxes = () => {
   const envelopeId = envelope.id;
   // Modelo também: o documento criado a partir dele leva o bloco de cada arquivo.
   const isDraft = envelope.status === DocumentStatus.DRAFT;
+  const findUtils = utils.revalle.invoice.annotationBox.find;
 
-  const { data, refetch } = trpc.revalle.invoice.annotationBox.find.useQuery(
+  const { data } = trpc.revalle.invoice.annotationBox.find.useQuery(
     { envelopeId },
-    { ...DO_NOT_INVALIDATE_QUERY_ON_MUTATION, enabled: isDraft },
-  );
-
-  const { mutateAsync: saveBox } = trpc.revalle.invoice.annotationBox.set.useMutation(
-    DO_NOT_INVALIDATE_QUERY_ON_MUTATION,
-  );
-  const { mutateAsync: deleteBox } = trpc.revalle.invoice.annotationBox.delete.useMutation(
-    DO_NOT_INVALIDATE_QUERY_ON_MUTATION,
+    {
+      ...DO_NOT_INVALIDATE_QUERY_ON_MUTATION,
+      enabled: isDraft,
+      staleTime: Number.POSITIVE_INFINITY,
+      refetchOnWindowFocus: false,
+    },
   );
 
   const boxes = data?.boxes ?? EMPTY_BOXES;
   const isEnabled = isDraft && data !== undefined && !data.autoAnnotation;
+
+  const reload = async () => {
+    await flushAnnotationBoxSaves();
+    await findUtils.refetch({ envelopeId });
+  };
+
+  useEffect(() => {
+    if (refetchOnMount && isDraft) {
+      void reload();
+    }
+  }, []);
 
   // Trocar o PDF de um arquivo apaga o bloco dele no servidor: relê quando os arquivos mudam.
   const itemsKey = envelope.envelopeItems.map((item) => `${item.id}:${item.documentDataId}`).join(',');
@@ -65,13 +113,13 @@ export const useAnnotationBoxes = () => {
     }
 
     lastItemsKey.current = itemsKey;
-    void refetch();
+    void reload();
   }, [itemsKey]);
 
-  const pending = useRef(new Map<string, { timer: ReturnType<typeof setTimeout>; rect: AnnotationBoxRect }>());
-
-  const writeCache = (envelopeItemId: string, rect: AnnotationBoxRect | null) =>
-    utils.revalle.invoice.annotationBox.find.setData({ envelopeId }, (current) => {
+  // Uma leitura em andamento não pode sobrescrever o que acabou de mudar na tela: cancela antes.
+  const writeCache = (envelopeItemId: string, rect: AnnotationBoxRect | null) => {
+    void findUtils.cancel({ envelopeId });
+    findUtils.setData({ envelopeId }, (current) => {
       const others = (current?.boxes ?? []).filter((box) => box.envelopeItemId !== envelopeItemId);
 
       return {
@@ -79,6 +127,7 @@ export const useAnnotationBoxes = () => {
         boxes: rect ? [...others, { envelopeItemId, ...rect }] : others,
       };
     });
+  };
 
   const onSaveError = () => {
     toast({
@@ -87,39 +136,30 @@ export const useAnnotationBoxes = () => {
       duration: 5000,
     });
 
-    void refetch();
+    void findUtils.refetch({ envelopeId });
   };
 
-  const save = (envelopeItemId: string, rect: AnnotationBoxRect) =>
-    void enqueue(async () => await saveBox({ envelopeId, envelopeItemId, rect })).catch(onSaveError);
+  // O cliente do tRPC (não o `useMutation`): a gravação esperando continua depois que a página sai da tela.
+  const save = (envelopeItemId: string, rect: AnnotationBoxRect) => {
+    const version = localVersions.get(envelopeItemId);
 
-  const cancelPending = (envelopeItemId: string) => {
-    const entry = pending.current.get(envelopeItemId);
-
-    if (entry) {
-      clearTimeout(entry.timer);
-      pending.current.delete(envelopeItemId);
-    }
+    void enqueue(
+      async () => await utils.client.revalle.invoice.annotationBox.set.mutate({ envelopeId, envelopeItemId, rect }),
+    )
+      .then((saved) => {
+        if (localVersions.get(envelopeItemId) === version) {
+          writeCache(envelopeItemId, saved);
+        }
+      })
+      .catch(onSaveError);
   };
-
-  // A página saiu da tela (lista virtual) ou o editor fechou: grava o que ainda esperava.
-  useEffect(
-    () => () => {
-      for (const [envelopeItemId, { timer, rect }] of pending.current) {
-        clearTimeout(timer);
-        save(envelopeItemId, rect);
-      }
-
-      pending.current.clear();
-    },
-    [],
-  );
 
   /** Põe o bloco no arquivo (ou move o que já existe para lá) e grava na hora. */
   const placeBox = (envelopeItemId: string, rect: AnnotationBoxRect) => {
     const clamped = clampAnnotationBox(rect);
 
-    cancelPending(envelopeItemId);
+    cancelPendingSave(envelopeItemId);
+    bumpVersion(envelopeItemId);
     writeCache(envelopeItemId, clamped);
     save(envelopeItemId, clamped);
   };
@@ -127,24 +167,29 @@ export const useAnnotationBoxes = () => {
   /** Arrastou ou redimensionou: o cache muda na hora, o servidor quando a pessoa para. */
   const moveBox = (envelopeItemId: string, rect: AnnotationBoxRect) => {
     const clamped = clampAnnotationBox(rect);
+    const run = () => save(envelopeItemId, clamped);
 
-    cancelPending(envelopeItemId);
+    cancelPendingSave(envelopeItemId);
+    bumpVersion(envelopeItemId);
     writeCache(envelopeItemId, clamped);
 
-    pending.current.set(envelopeItemId, {
-      rect: clamped,
+    pendingSaves.set(envelopeItemId, {
+      run,
       timer: setTimeout(() => {
-        pending.current.delete(envelopeItemId);
-        save(envelopeItemId, clamped);
+        pendingSaves.delete(envelopeItemId);
+        run();
       }, SAVE_DEBOUNCE_MS),
     });
   };
 
   const removeBox = (envelopeItemId: string) => {
-    cancelPending(envelopeItemId);
+    cancelPendingSave(envelopeItemId);
+    bumpVersion(envelopeItemId);
     writeCache(envelopeItemId, null);
 
-    void enqueue(async () => await deleteBox({ envelopeId, envelopeItemId })).catch(onSaveError);
+    void enqueue(
+      async () => await utils.client.revalle.invoice.annotationBox.delete.mutate({ envelopeId, envelopeItemId }),
+    ).catch(onSaveError);
   };
 
   const boxOf = (envelopeItemId: string | null | undefined) =>

@@ -3,7 +3,8 @@
 // "No PDF: …" e o aviso em âmbar no diálogo de envio (sem rolagem lateral no celular de 390 px).
 //
 // Entrada: a URL, o time, a sessão do dono, o rascunho (`draftId`), o ponto onde soltar o bloco (`dropAt`, % da página)
-// e o caso (`case`: 'drag', 'remove', 'contract' ou 'not-a-field').
+// e o caso (`case`: 'drag', 'move-resize', 'remove', 'contract' ou 'not-a-field'). Em 'move-resize', `moveBy` e
+// `resizeBy` (% da página) dizem quanto arrastar o bloco e quanto puxar a âncora de baixo à direita.
 import { finish, openAs, payload, report, section, shot } from './shared.mjs';
 
 const { baseUrl, teamUrl, ownerCookie, draftId, dropAt } = payload;
@@ -155,6 +156,83 @@ if (payload.case === 'drag') {
       `o diálogo diz "${LINE_WITH_BOX}" (veio ${JSON.stringify(lines)})`,
     );
     await shot(page, 'conta-cc-envio-com-bloco');
+    await context.close();
+  });
+}
+
+if (payload.case === 'move-resize') {
+  await section('mover e redimensionar o bloco, recarregar e ver o lugar e o tamanho novos', async () => {
+    const { context, page } = await openAs(ownerCookie, DESKTOP);
+    const { moveBy, resizeBy } = payload;
+
+    await openFieldsStep(page);
+
+    const overlay = page.getByTestId('annotation-box').first();
+
+    await overlay.waitFor();
+    await overlay.scrollIntoViewIfNeeded();
+
+    const before = await boxOnScreen(page);
+    const target = await pageImage(page).boundingBox();
+    const start = await overlay.boundingBox();
+
+    // Arrasta pelo meio do bloco (a moldura HTML não recebe o mouse: o canvas recebe).
+    const moved = page.waitForResponse(isBoxRoute('set'));
+    const grabX = start.x + start.width / 2;
+    const grabY = start.y + start.height / 2;
+
+    await page.mouse.move(grabX, grabY);
+    await page.mouse.down();
+    await page.mouse.move(grabX + (target.width * moveBy.x) / 100, grabY, { steps: 12 });
+    await page.mouse.up();
+    report((await moved).ok(), 'o bloco arrastado foi gravado');
+
+    const afterMove = await boxOnScreen(page);
+
+    report(
+      near(afterMove.x, before.x + moveBy.x) && near(afterMove.y, before.y),
+      `o bloco andou ${moveBy.x}% para a direita (${fmt(afterMove)} x ${fmt(before)})`,
+    );
+
+    // O bloco ficou selecionado ao arrastar: a âncora de baixo à direita está no canto do retângulo.
+    const corner = await overlay.boundingBox();
+    const resized = page.waitForResponse(isBoxRoute('set'));
+    const cornerX = corner.x + corner.width;
+    const cornerY = corner.y + corner.height;
+
+    await page.mouse.move(cornerX, cornerY);
+    await page.mouse.down();
+    await page.mouse.move(
+      cornerX + (target.width * resizeBy.width) / 100,
+      cornerY + (target.height * resizeBy.height) / 100,
+      { steps: 12 },
+    );
+    await page.mouse.up();
+    report((await resized).ok(), 'o bloco redimensionado foi gravado');
+
+    const afterResize = await boxOnScreen(page);
+
+    report(
+      near(afterResize.x, afterMove.x) &&
+        near(afterResize.y, afterMove.y) &&
+        near(afterResize.width, afterMove.width + resizeBy.width) &&
+        near(afterResize.height, afterMove.height + resizeBy.height),
+      `o bloco cresceu pela âncora de baixo à direita (${fmt(afterResize)} x ${fmt(afterMove)})`,
+    );
+    await shot(page, 'conta-cc-editor-redimensionado');
+
+    await page.reload({ waitUntil: 'networkidle' });
+    await pageImage(page).waitFor();
+
+    const reloaded = await boxOnScreen(page);
+
+    report(
+      near(reloaded.x, afterResize.x) &&
+        near(reloaded.y, afterResize.y) &&
+        near(reloaded.width, afterResize.width) &&
+        near(reloaded.height, afterResize.height),
+      `depois de recarregar, o bloco tem o lugar e o tamanho novos (${fmt(reloaded)} x ${fmt(afterResize)})`,
+    );
     await context.close();
   });
 }

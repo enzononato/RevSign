@@ -13,11 +13,11 @@ type Ghost = { x: number; y: number; width: number; height: number; isOverPage: 
 /**
  * O botão "Conta e centro de custo" da paleta do editor, abaixo de "Assinatura": tracejado e cinza-azulado, para não
  * parecer um campo de assinatura. Mesmo gesto da paleta do upstream: arrastar até a página, ou clicar e depois clicar na
- * página. Um bloco por arquivo: pôr de novo move o que já existe (com o tamanho dele).
+ * página (Esc desiste). Um bloco por arquivo: pôr de novo move o que já existe (com o tamanho dele).
  */
 export const AnnotationBoxPaletteButton = ({ envelopeItemId }: { envelopeItemId: string | null }) => {
   const { t } = useLingui();
-  const { isEnabled, boxOf, placeBox } = useAnnotationBoxes();
+  const { isEnabled, boxOf, placeBox } = useAnnotationBoxes({ refetchOnMount: true });
   const { getPage } = useDocumentElement();
 
   const [isPlacing, setIsPlacing] = useState(false);
@@ -82,12 +82,20 @@ export const AnnotationBoxPaletteButton = ({ envelopeItemId }: { envelopeItemId:
       return;
     }
 
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        stopPlacing();
+      }
+    };
+
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('keydown', onKeyDown);
 
     return () => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('keydown', onKeyDown);
     };
   }, [isPlacing, onMouseMove, onMouseUp]);
 

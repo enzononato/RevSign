@@ -18,7 +18,7 @@ const PDF_TEXT_COLOR = '#0070c0';
 const BOX_STROKE = '#64748b';
 const BOX_FILL = 'rgba(241, 245, 249, 0.85)';
 // Altura da etiqueta acima do bloco, em pixels de tela; sem espaço acima (bloco no alto da página), ela vai abaixo.
-const LABEL_OFFSET_PX = 24;
+const LABEL_OFFSET_PX = 40;
 
 type ScreenRect = { x: number; y: number; width: number; height: number };
 
@@ -27,13 +27,18 @@ type UseAnnotationBoxCanvasOptions = {
   pageLayer: MutableRefObject<Konva.Layer | null>;
   pageData: PageRenderData;
   envelopeItemId: string | null;
+  /** Algum campo do upstream está selecionado: o bloco deixa de estar. */
+  isFieldSelected: boolean;
+  /** O bloco foi selecionado: o renderizador limpa a seleção dos campos. */
+  onSelect: () => void;
 };
 
 /**
  * O bloco "Conta e centro de custo" numa página do editor: um grupo Konva próprio (fora dos campos do upstream: não entra
- * na seleção em área, no seletor de destinatário nem nos campos salvos), com o seu Transformer. O texto de exemplo fica
- * no alto e à esquerda, na fonte e no azul do PDF final. A etiqueta e o botão de tirar são HTML sobre o canvas
- * (`overlay`, para o renderizador da página pôr ao lado do canvas).
+ * na seleção em área, no seletor de destinatário nem nos campos salvos), abaixo dos campos (a assinatura por cima continua
+ * clicável), com o seu Transformer por cima de tudo. O texto de exemplo fica no alto e à esquerda, na fonte e no azul do
+ * PDF final, e passa da borda de baixo como na selagem. A etiqueta e o botão de tirar são HTML sobre o canvas (`overlay`,
+ * para o renderizador da página pôr ao lado do canvas).
  *
  * Chamar depois do `usePageRenderer`: o efeito que desenha precisa rodar depois do que cria o palco.
  */
@@ -42,6 +47,8 @@ export const useAnnotationBoxCanvas = ({
   pageLayer,
   pageData,
   envelopeItemId,
+  isFieldSelected,
+  onSelect,
 }: UseAnnotationBoxCanvasOptions): { overlay: ReactNode } => {
   const { t } = useLingui();
   const { isEnabled, boxOf, moveBox, removeBox } = useAnnotationBoxes();
@@ -51,9 +58,12 @@ export const useAnnotationBoxCanvas = ({
   const box = isEnabled ? boxOf(envelopeItemId) : null;
   const pageBox = box && box.page === pageNumber ? box : null;
 
-  const groupRef = useRef<Konva.Group | null>(null);
+  const rectRef = useRef<Konva.Rect | null>(null);
   const transformerRef = useRef<Konva.Transformer | null>(null);
   const isSelectedRef = useRef(false);
+  const onSelectRef = useRef(onSelect);
+
+  onSelectRef.current = onSelect;
 
   const [isSelected, setIsSelected] = useState(false);
   const [isChanging, setIsChanging] = useState(false);
@@ -62,6 +72,10 @@ export const useAnnotationBoxCanvas = ({
   const placeholder = [t`Conta: (conta aprovada)`, t`CC: (centro de custo)`].join('\n');
 
   const select = (value: boolean) => {
+    if (value && !isSelectedRef.current) {
+      onSelectRef.current();
+    }
+
     isSelectedRef.current = value;
     setIsSelected(value);
   };
@@ -86,6 +100,7 @@ export const useAnnotationBoxCanvas = ({
       draggable: true,
     });
 
+    // O Transformer segura o retângulo (não o grupo): o texto que passa da borda não aumenta a área de redimensionar.
     const rect = new Konva.Rect({
       width,
       height,
@@ -101,8 +116,6 @@ export const useAnnotationBoxCanvas = ({
       x: ANNOTATION_BOX_PADDING_PT,
       y: ANNOTATION_BOX_PADDING_PT,
       width: Math.max(1, width - ANNOTATION_BOX_PADDING_PT * 2),
-      // Altura fixa: o texto que não cabe não aparece, e o grupo (e o Transformer) fica do tamanho do bloco.
-      height: Math.max(1, height - ANNOTATION_BOX_PADDING_PT * 2),
       text: placeholder,
       fontSize: INVOICE_ANNOTATION_FONT_SIZE,
       lineHeight: 1.4,
@@ -147,12 +160,13 @@ export const useAnnotationBoxCanvas = ({
     });
 
     layer.add(group);
+    group.moveToBottom();
     layer.add(transformer);
 
-    groupRef.current = group;
+    rectRef.current = rect;
     transformerRef.current = transformer;
 
-    const syncScreenRect = () => setScreenRect(group.getClientRect({ skipStroke: true, skipShadow: true }));
+    const syncScreenRect = () => setScreenRect(rect.getClientRect({ skipStroke: true, skipShadow: true }));
 
     const commit = () => {
       moveBox(envelopeItemId, {
@@ -171,24 +185,34 @@ export const useAnnotationBoxCanvas = ({
     group.on('mouseleave', () => {
       currentStage.container().style.cursor = '';
     });
-    group.on('dragstart transformstart', () => setIsChanging(true));
+    group.on('dragstart', () => setIsChanging(true));
     group.on('dragmove', syncScreenRect);
+    group.on('dragend', () => {
+      setIsChanging(false);
+      commit();
+    });
 
-    // Redimensiona o retângulo em vez de esticar o grupo: o texto de exemplo não deforma.
-    group.on('transform', () => {
-      const nextWidth = rect.width() * group.scaleX();
-      const nextHeight = rect.height() * group.scaleY();
+    rect.on('transformstart', () => setIsChanging(true));
 
-      group.scale({ x: 1, y: 1 });
-      rect.size({ width: nextWidth, height: nextHeight });
-      text.size({
+    // Redimensiona o retângulo em vez de esticar: o texto de exemplo não deforma.
+    rect.on('transform', () => {
+      const nextWidth = rect.width() * rect.scaleX();
+      const nextHeight = rect.height() * rect.scaleY();
+
+      rect.setAttrs({ width: nextWidth, height: nextHeight, scaleX: 1, scaleY: 1 });
+      text.setAttrs({
+        x: rect.x() + ANNOTATION_BOX_PADDING_PT,
+        y: rect.y() + ANNOTATION_BOX_PADDING_PT,
         width: Math.max(1, nextWidth - ANNOTATION_BOX_PADDING_PT * 2),
-        height: Math.max(1, nextHeight - ANNOTATION_BOX_PADDING_PT * 2),
       });
       syncScreenRect();
     });
 
-    group.on('dragend transformend', () => {
+    // A âncora de cima ou da esquerda move o retângulo dentro do grupo: o grupo vai para lá e o retângulo volta a 0,0.
+    rect.on('transformend', () => {
+      group.position({ x: group.x() + rect.x(), y: group.y() + rect.y() });
+      rect.position({ x: 0, y: 0 });
+      text.position({ x: ANNOTATION_BOX_PADDING_PT, y: ANNOTATION_BOX_PADDING_PT });
       setIsChanging(false);
       commit();
     });
@@ -205,7 +229,8 @@ export const useAnnotationBoxCanvas = ({
       },
     );
 
-    transformer.nodes(isSelectedRef.current ? [group] : []);
+    transformer.nodes(isSelectedRef.current ? [rect] : []);
+    transformer.moveToTop();
     syncScreenRect();
     layer.batchDraw();
 
@@ -214,7 +239,7 @@ export const useAnnotationBoxCanvas = ({
       currentStage.container().style.cursor = '';
       transformer.destroy();
       group.destroy();
-      groupRef.current = null;
+      rectRef.current = null;
       transformerRef.current = null;
     };
   }, [
@@ -232,23 +257,35 @@ export const useAnnotationBoxCanvas = ({
   ]);
 
   useEffect(() => {
-    const group = groupRef.current;
+    const rect = rectRef.current;
     const transformer = transformerRef.current;
 
-    if (!group || !transformer) {
+    if (!rect || !transformer) {
       return;
     }
 
-    transformer.nodes(isSelected ? [group] : []);
+    transformer.nodes(isSelected ? [rect] : []);
+    // Os campos sobem ao serem selecionados (`moveToTop` do upstream): as alças do bloco ficam sempre por cima.
+    transformer.moveToTop();
     transformer.getLayer()?.batchDraw();
   }, [isSelected, screenRect !== null]);
 
-  // Outro arquivo ou bloco tirado: nada fica selecionado.
+  useEffect(() => {
+    if (isFieldSelected) {
+      select(false);
+    }
+  }, [isFieldSelected]);
+
+  // Outro arquivo, ou o bloco tirado: nada fica selecionado.
+  useEffect(() => {
+    select(false);
+  }, [envelopeItemId]);
+
   useEffect(() => {
     if (!pageBox) {
       select(false);
     }
-  }, [pageBox === null, envelopeItemId]);
+  }, [pageBox === null]);
 
   if (!pageBox || !screenRect || !envelopeItemId) {
     return { overlay: null };
@@ -280,14 +317,14 @@ export const useAnnotationBoxCanvas = ({
             type="button"
             title={t`Tirar o bloco`}
             aria-label={t`Tirar o bloco`}
-            className="pointer-events-auto rounded-sm bg-gray-900 p-1 text-gray-300 transition-colors hover:text-white"
+            className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-sm bg-gray-900 text-gray-300 transition-colors hover:text-white"
             data-testid="annotation-box-remove"
             onClick={() => {
               select(false);
               removeBox(envelopeItemId);
             }}
           >
-            <TrashIcon className="h-3 w-3" />
+            <TrashIcon className="h-4 w-4" />
           </button>
         )}
       </div>

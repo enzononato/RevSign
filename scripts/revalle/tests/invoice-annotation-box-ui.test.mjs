@@ -149,7 +149,7 @@ const choose = async (envelopeId) => {
   assert.equal(res.status, 200, res.text);
 };
 
-const runCase = async (t, draft, browserCase) => {
+const runCase = async (t, draft, browserCase, extra = {}) => {
   const browser = await runBrowserScript({
     script: 'invoice-annotation-box-ui.browser.mjs',
     payload: {
@@ -159,6 +159,7 @@ const runCase = async (t, draft, browserCase) => {
       draftId: draft.id,
       dropAt: DROP_AT,
       case: browserCase,
+      ...extra,
     },
     shotDir: SHOT_DIR,
     timeout: 240_000,
@@ -214,6 +215,44 @@ uiTest('arrastar o bloco para a nota, recarregar e ver no mesmo lugar', async (t
   assert.ok(Math.abs(box.positionX + box.width / 2 - DROP_AT.x) <= TOLERANCE, `centro x fora: ${JSON.stringify(box)}`);
   assert.ok(Math.abs(box.positionY + box.height / 2 - DROP_AT.y) <= TOLERANCE, `centro y fora: ${JSON.stringify(box)}`);
   assert.equal(db(`select status from "Envelope" where id = '${draft.id}'`), 'DRAFT');
+});
+
+uiTest('mover e redimensionar o bloco, recarregar e ver o lugar e o tamanho novos', async (t) => {
+  const draft = await newDraft([nf('nf-mover')], 'mover');
+  const item = draft.items['nf-mover.pdf'];
+  const start = { page: 1, positionX: 10, positionY: 40, width: 40, height: 8 };
+  const moveBy = { x: 10 };
+  const resizeBy = { width: 8, height: 4 };
+  const placed = await setAnnotationBox({
+    cookie: userCookie,
+    envelopeId: draft.id,
+    envelopeItemId: item,
+    rect: start,
+  });
+
+  assert.equal(placed.status, 200, placed.text);
+
+  await runCase(t, draft, 'move-resize', { moveBy, resizeBy });
+
+  // O banco tem o lugar e o tamanho novos: 10% à direita, a mesma altura na página, maior pela âncora.
+  const box = boxOf(item);
+  const expected = {
+    page: 1,
+    positionX: start.positionX + moveBy.x,
+    positionY: start.positionY,
+    width: start.width + resizeBy.width,
+    height: start.height + resizeBy.height,
+  };
+
+  assert.ok(box, 'o bloco sumiu');
+  assert.equal(box.page, 1);
+
+  for (const key of ['positionX', 'positionY', 'width', 'height']) {
+    assert.ok(
+      Math.abs(box[key] - expected[key]) <= TOLERANCE,
+      `${key}: ${box[key]} (esperado ${expected[key]}): ${JSON.stringify(box)}`,
+    );
+  }
 });
 
 uiTest('sem bloco: a linha diz sem conta e centro', async (t) => {

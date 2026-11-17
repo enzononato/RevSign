@@ -3,8 +3,8 @@ import { Trans } from '@lingui/react/macro';
 import { AlertTriangleIcon } from 'lucide-react';
 
 type InvoicePdfAnnotationLineProps = {
-  state: Pick<TInvoiceState, 'autoAnnotation' | 'annotationBoxes'>;
-  /** A nota; nulo quando o estado não diz qual arquivo é (o bloco de qualquer arquivo vale). */
+  state: Pick<TInvoiceState, 'autoAnnotation' | 'annotationBoxes' | 'documents'>;
+  /** A nota; nulo quando o estado não diz qual arquivo é (vale o bloco de qualquer arquivo que seja nota). */
   envelopeItemId: string | null;
   /** `false` no editor antigo, que não tem o bloco: sem bloco, a linha não aparece. */
   hasAnnotationBox: boolean;
@@ -26,7 +26,12 @@ export const InvoicePdfAnnotationLine = ({
     );
   }
 
-  const box = state.annotationBoxes.find((candidate) => !envelopeItemId || candidate.envelopeItemId === envelopeItemId);
+  // Só o bloco de uma nota: o bloco num contrato tem o aviso em âmbar, nunca "na página N".
+  const box = state.annotationBoxes.find((candidate) =>
+    envelopeItemId
+      ? candidate.envelopeItemId === envelopeItemId
+      : state.documents.some((doc) => doc.envelopeItemId === candidate.envelopeItemId && doc.kind === 'NF'),
+  );
 
   if (box) {
     const page = box.page;

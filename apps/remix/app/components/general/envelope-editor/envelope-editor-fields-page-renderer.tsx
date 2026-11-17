@@ -77,6 +77,8 @@ export const EnvelopeEditorFieldsPageRenderer = ({ pageData }: { pageData: PageR
     pageLayer,
     pageData,
     envelopeItemId: currentEnvelopeItem?.id ?? null,
+    isFieldSelected: selectedKonvaFieldGroups.length > 0,
+    onSelect: () => setSelectedFields([]),
   });
 
   const localPageFields = useMemo(

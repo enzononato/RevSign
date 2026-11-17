@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { AccountCombobox } from './account-combobox';
 import { InvoiceAnnotationBoxWarnings, InvoicePdfAnnotationLine } from './annotation-box/invoice-annotation-box-notice';
+import { flushAnnotationBoxSaves } from './annotation-box/use-annotation-boxes';
 import { CostCenterSelect } from './cost-center-select';
 import { InvoiceBoletoBlock } from './invoice-boleto-block';
 import { InvoiceDuplicateNotice } from './invoice-duplicate-notice';
@@ -138,8 +139,10 @@ export const InvoiceAccountPanel = ({
   };
 
   useEffect(() => {
-    // Os arquivos podem ter mudado no editor: classifica (só refaz a detecção se mudaram).
-    classify({ envelopeId })
+    // Os arquivos podem ter mudado no editor: classifica (só refaz a detecção se mudaram). Antes, o bloco de conta e centro
+    // que acabou de ser movido no editor termina de gravar: o estado traz a página certa.
+    flushAnnotationBoxSaves()
+      .then(async () => await classify({ envelopeId }))
       .then(store)
       .catch(() => undefined)
       .finally(() => setIsClassified(true));
