@@ -348,6 +348,33 @@ describe('nextInvoiceFiles', () => {
     });
   });
 
+  it('a saída leva só as colunas de versão, mesmo com a linha inteira do banco', () => {
+    const versionKeys = Object.keys(strip(note('x', '2.1.03', '101', false))).sort();
+    const extra = { envelopeId: 'env', envelopeItemId: 'item', order: 1, title: 'nf-a.pdf', createdAt: now };
+    const withExtra = (file: InvoiceFileVersionRow) => ({ ...file, ...extra }) as InvoiceFileVersionRow;
+
+    for (const files of [[note('a', '2.1.03', '101', false), boleto], three()]) {
+      for (const change of [
+        { kind: 'ACCOUNT', code: '3.1.01' },
+        { kind: 'COST_CENTER', code: '401' },
+      ] as const) {
+        const result = nextInvoiceFiles({
+          files: files.map(withExtra),
+          targetFileId: 'a',
+          change,
+          previousFinanceStatus: 'PENDING_APPROVAL',
+          user,
+          now,
+          accountName: 'Serviços',
+        });
+
+        for (const columns of result.files.values()) {
+          expect(Object.keys(columns).sort()).toEqual(versionKeys);
+        }
+      }
+    }
+  });
+
   it('a nota alvo tem de ser uma nota do envio', () => {
     expect(() =>
       nextInvoiceFiles({

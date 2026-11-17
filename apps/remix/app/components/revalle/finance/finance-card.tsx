@@ -145,8 +145,11 @@ export const FinanceCard = ({ envelopeId, envelopeItemId, onChanged, showSignedV
   }
 
   const refresh = async () => {
-    // Todas as notas do envio (a aprovação da última muda a situação do envio).
-    await utils.revalle.finance.get.invalidate({ envelopeId });
+    // Todas as notas do envio (a aprovação da última muda a situação do envio), nos dois cartões.
+    await Promise.all([
+      utils.revalle.finance.get.invalidate({ envelopeId }),
+      utils.revalle.accounting.get.invalidate({ envelopeId }),
+    ]);
     onChanged?.();
   };
 
@@ -245,6 +248,8 @@ export const FinanceCard = ({ envelopeId, envelopeItemId, onChanged, showSignedV
   const definedAccount = accountsData?.accounts.find((option) => option.code === definedCode);
   const definedLabel = formatAccount(definedAccount ?? null) ?? '-';
   const accountLabel = account ?? '-';
+  // O que é do envio (motivo da substituição, nova versão, troca a retomar) aparece uma vez, no cartão da primeira nota.
+  const isFirstNote = card.position.index === 1;
 
   // REVALLE v3: cartão macio, linhas "rótulo à esquerda, valor à direita", códigos em azul, ações em pílula na largura
   // toda (a coluna da direita é estreita); as regras e as confirmações não mudam.
@@ -299,7 +304,7 @@ export const FinanceCard = ({ envelopeId, envelopeItemId, onChanged, showSignedV
           </InvoiceRow>
         )}
 
-        {card.financeStatus === 'SUPERSEDED' && card.supersedeReason && (
+        {isFirstNote && card.financeStatus === 'SUPERSEDED' && card.supersedeReason && (
           <InvoiceRow
             stacked
             label={
@@ -311,13 +316,13 @@ export const FinanceCard = ({ envelopeId, envelopeItemId, onChanged, showSignedV
         )}
       </InvoiceRows>
 
-      {card.financeStatus === 'SUPERSEDED' && card.canRetakeChange && (
+      {isFirstNote && card.financeStatus === 'SUPERSEDED' && card.canRetakeChange && (
         <p className="rounded-lg bg-warning-bg px-3 py-2 text-warning-text" data-testid="finance-card-retake">
           <Trans>A nova versão não existe mais: troque a conta de novo.</Trans>
         </p>
       )}
 
-      {card.financeStatus === 'SUPERSEDED' && card.supersededByEnvelopeId && (
+      {isFirstNote && card.financeStatus === 'SUPERSEDED' && card.supersededByEnvelopeId && (
         <Button asChild variant="outline" className="w-full whitespace-normal">
           <Link to={invoiceViewPath(card.supersededByEnvelopeId)}>
             <Trans>Abrir a nova versão</Trans>

@@ -444,7 +444,8 @@ beforeEach(() => {
 });
 
 sessionTest('aprovar sem dizer a nota num envio de três: INVOICE_FILE_REQUIRED', async () => {
-  const doc = await newSentInvoice('sem-nota');
+  // Com um boleto: o arquivo que não é nota também não serve para aprovar.
+  const doc = await newSentInvoice('sem-nota', { boletoCents: 149900 });
 
   for (const res of [
     await approve(adminCookie, doc.id),
@@ -461,9 +462,23 @@ sessionTest('aprovar sem dizer a nota num envio de três: INVOICE_FILE_REQUIRED'
   assert.deepEqual(approvedEvents(doc.id), []);
 
   // Item de outro envio: 404.
-  const other = await approve(adminCookie, doc.id, 'item-que-nao-existe');
+  // Um arquivo de verdade, mas de outro envio: 404. O boleto do próprio envio (não é nota): 404 também.
+  const foreignItem = db(
+    `select i.id from "EnvelopeItem" i join "Envelope" e on e.id = i."envelopeId" where i."envelopeId" <> '${doc.id}' order by e."createdAt" desc limit 1`,
+  );
 
-  assert.equal(other.status, 404, other.text);
+  assert.ok(foreignItem, 'nenhum arquivo de outro envio no banco');
+
+  for (const envelopeItemId of [foreignItem, doc.items['boleto.pdf']]) {
+    assert.ok(envelopeItemId);
+
+    const res = await approve(adminCookie, doc.id, envelopeItemId);
+
+    assert.equal(res.status, 404, res.text);
+    assert.ok(res.text.includes('Nota fiscal não encontrada neste envio.'), res.text);
+  }
+
+  assert.deepEqual(approvedEvents(doc.id), []);
 });
 
 sessionTest('aprova 2 de 3: não conclui; aprova a 3ª: conclui e sela', async () => {
@@ -767,8 +782,18 @@ sessionTest('aprovação e troca de conta ao mesmo tempo', async () => {
   }
 
   if (approved.status === 200) {
-    // A aprovação veio antes da marca: ficou na versão antiga, e a nova reabre.
+    // A aprovação veio antes da marca: ficou na versão antiga, e a nova reabre. Prova da ordem: o evento da aprovação é
+    // de uma transação que começou antes da que registrou a troca na versão antiga (as duas datas são do banco; a
+    // `supersededAt` não serve: é lida no começo do pedido da troca, antes de ele conferir as notas, e uma aprovação
+    // gravada nesse meio é legítima).
     assert.notEqual(fileColumn(a, 'approvedAt'), '-');
+    assert.equal(
+      db(
+        `select (select max("createdAt") from "DocumentAuditLog" where "envelopeId" = '${doc.id}' and type = 'REVALLE_FINANCE_APPROVED') < (select min("createdAt") from "DocumentAuditLog" where "envelopeId" = '${doc.id}' and type = 'REVALLE_FINANCE_ACCOUNT_CHANGED')`,
+      ),
+      't',
+      'aprovação gravada na versão antiga depois da troca',
+    );
   } else {
     // A marca veio antes: a aprovação não grava nada na versão antiga.
     assert.equal(approved.status, 400, approved.text);

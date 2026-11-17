@@ -122,15 +122,21 @@ export const AccountingCard = ({
   }
 
   const actions = actionsFor(card);
-  // Fase 9: o envio com várias notas; "Enviar de novo" é do envio e fica só no cartão da primeira nota.
+  // Fase 9: o envio com várias notas; o que é do envio ("Enviar de novo", motivo da substituição, nova versão, correção a
+  // retomar) fica só no cartão da primeira nota.
   const isMulti = card.position.total > 1;
+  const isFirstNote = card.position.index === 1;
 
-  if (card.position.index > 1) {
+  if (!isFirstNote) {
     actions.resend = false;
   }
 
   const refresh = async () => {
-    await utils.revalle.accounting.get.invalidate({ envelopeId });
+    // Todas as notas do envio, nos dois cartões.
+    await Promise.all([
+      utils.revalle.accounting.get.invalidate({ envelopeId }),
+      utils.revalle.finance.get.invalidate({ envelopeId }),
+    ]);
     onChanged?.();
   };
 
@@ -275,7 +281,7 @@ export const AccountingCard = ({
           </InvoiceStatePill>
         </InvoiceRow>
 
-        {card.financeStatus === 'SUPERSEDED' && card.supersedeReason && (
+        {isFirstNote && card.financeStatus === 'SUPERSEDED' && card.supersedeReason && (
           <InvoiceRow
             stacked
             label={
@@ -287,13 +293,13 @@ export const AccountingCard = ({
         )}
       </InvoiceRows>
 
-      {card.financeStatus === 'SUPERSEDED' && card.canRetakeChange && (
+      {isFirstNote && card.financeStatus === 'SUPERSEDED' && card.canRetakeChange && (
         <p className="rounded-lg bg-warning-bg px-3 py-2 text-warning-text" data-testid="accounting-card-retake">
           <Trans>A nova versão não existe mais: corrija o centro de custo de novo.</Trans>
         </p>
       )}
 
-      {card.financeStatus === 'SUPERSEDED' && card.supersededByEnvelopeId && (
+      {isFirstNote && card.financeStatus === 'SUPERSEDED' && card.supersededByEnvelopeId && (
         <Button asChild variant="outline" className="w-full whitespace-normal">
           <Link to={invoiceViewPath(card.supersededByEnvelopeId)}>
             <Trans>Abrir a nova versão</Trans>

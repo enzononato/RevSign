@@ -109,8 +109,13 @@ export const approveInvoiceAccount = async ({
   const isMulti = files.filter((other) => other.kind === RevalleInvoiceFileKind.NF).length > 1;
   const document = invoiceAuditDocument(file, invoicePositions(files));
 
-  // A nota já aprovada (o envio ainda aguarda as outras): repetição, nada a gravar.
+  // A nota já aprovada (o envio ainda aguarda as outras): repetição, nada a gravar. Uma conta diferente da dela não é
+  // repetição: a mesma recusa da nota única.
   if (isMulti && file.approvedAt !== null) {
+    if (definedCode && file.choiceCode && definedCode !== file.choiceCode) {
+      throw invalid(HAS_ACCOUNT_MESSAGE);
+    }
+
     return { approved: false };
   }
 

@@ -755,7 +755,7 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
       const account = data.name ? `${data.code} – ${data.name}` : data.code;
       const { index, total, title } = data.document ?? { index: 0, total: 0, title: '' }; // REVALLE: Fase 9
       const text = data.document
-        ? msg`Conta contábil definida pelo Financeiro: ${account} (já aprovada) (nota ${index} de ${total}: ${title})`
+        ? msg`Conta contábil definida pelo Financeiro: ${account} (já aprovada; nota ${index} de ${total}: ${title})`
         : msg`Conta contábil definida pelo Financeiro: ${account} (já aprovada)`;
 
       return { anonymous: text, you: text, user: text };

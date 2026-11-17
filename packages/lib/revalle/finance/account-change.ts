@@ -183,8 +183,26 @@ export type InvoiceFileVersionRow = { id: string; kind: InvoiceFileKind } & Pick
 
 type InvoiceFileVersionColumns = Omit<InvoiceFileVersionRow, 'id' | 'kind'>;
 
-const versionColumns = ({ id: _id, kind: _kind, ...columns }: InvoiceFileVersionRow): InvoiceFileVersionColumns =>
-  columns;
+/**
+ * Só as colunas de versão, nomeadas uma a uma: quem chama passa a linha inteira do banco (com `envelopeId`, `order`,
+ * `title`, datas…), e nada disso pode ir para a linha da nova versão.
+ */
+const versionColumns = (file: InvoiceFileVersionRow): InvoiceFileVersionColumns => ({
+  choiceCode: file.choiceCode,
+  choiceById: file.choiceById,
+  choiceAt: file.choiceAt,
+  acceptedSuggestion: file.acceptedSuggestion,
+  costCenterCode: file.costCenterCode,
+  costCenterById: file.costCenterById,
+  costCenterAt: file.costCenterAt,
+  costCenterValidatedAt: file.costCenterValidatedAt,
+  costCenterValidatedById: file.costCenterValidatedById,
+  costCenterValidatedByName: file.costCenterValidatedByName,
+  approvedById: file.approvedById,
+  approvedAt: file.approvedAt,
+  approvedAccountName: file.approvedAccountName,
+  approvedByName: file.approvedByName,
+});
 
 const NO_APPROVAL = {
   approvedById: null,
