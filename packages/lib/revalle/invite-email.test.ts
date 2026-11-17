@@ -2,7 +2,7 @@ import { setupI18n } from '@lingui/core';
 import { RecipientRole } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 
-import { revalleInviteReplyTo, revalleInviteSubject } from './invite-email';
+import { revalleInviteReplyTo, revalleInviteSubject, revalleReminderSubject } from './invite-email';
 
 // Catálogo vazio: o texto sai do próprio msgid (já em pt-BR).
 const i18n = setupI18n({ locale: 'pt-BR', messages: { 'pt-BR': {} } });
@@ -36,5 +36,13 @@ describe('revalleInviteReplyTo', () => {
     expect(revalleInviteReplyTo(undefined, 'dono@revalle.com.br')).toBe('dono@revalle.com.br');
     expect(revalleInviteReplyTo('', 'dono@revalle.com.br')).toBe('dono@revalle.com.br');
     expect(revalleInviteReplyTo(null, '')).toBeUndefined();
+  });
+});
+
+describe('revalleReminderSubject', () => {
+  it('põe "Lembrete: " antes do assunto', () => {
+    expect(i18n._(revalleReminderSubject('Ana enviou "X" para você assinar'))).toBe(
+      'Lembrete: Ana enviou "X" para você assinar',
+    );
   });
 });

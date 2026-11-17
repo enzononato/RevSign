@@ -15,6 +15,7 @@ import { createElement } from 'react';
 import { getI18nInstance } from '../../../client-only/providers/i18n-server';
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../../constants/app';
 import { RECIPIENT_ROLES_DESCRIPTION } from '../../../constants/recipient-roles';
+import { revalleInviteReplyTo, revalleInviteSubject, revalleReminderSubject } from '../../../revalle/invite-email'; // REVALLE:
 import { greetingName } from '../../../revalle/recipient-name'; // REVALLE:
 import { buildEnvelopeEmailHeaders } from '../../../server-only/email/build-envelope-email-headers';
 import { getEmailContext } from '../../../server-only/email/get-email-context';
@@ -141,6 +142,20 @@ export const run = async ({ payload, io }: { payload: TProcessSigningReminderJob
     emailSubject = i18n._(msg`Reminder: ${envelope.team.name} invited you to ${recipientActionVerb} a document`);
   }
 
+  // REVALLE: envio simplificado: o mesmo assunto padrão do convite (o dono do envelope, ou o time), com "Lembrete: ".
+  emailSubject = i18n._(
+    revalleReminderSubject(
+      i18n._(
+        revalleInviteSubject({
+          role: recipient.role,
+          senderName: envelope.user.name,
+          teamName: envelope.team.name,
+          documentTitle: envelope.title,
+        }),
+      ),
+    ),
+  );
+
   const customEmailTemplate = {
     'signer.name': greetingName(recipient.name, recipient.email), // REVALLE: sem nome ainda, o e-mail
     'signer.email': recipient.email,
@@ -221,7 +236,7 @@ export const run = async ({ payload, io }: { payload: TProcessSigningReminderJob
         address: recipient.email,
       },
       from: senderEmail,
-      replyTo: replyToEmail,
+      replyTo: revalleInviteReplyTo(replyToEmail, envelope.user.email), // REVALLE: sem resposta configurada, o dono
       subject: emailSubject,
       html,
       text,

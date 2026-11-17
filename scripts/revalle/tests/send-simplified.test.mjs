@@ -13,6 +13,7 @@ import { randomUUID } from 'node:crypto';
 import { before, test } from 'node:test';
 
 import {
+  api,
   BASE_URL,
   createEnvelope,
   db,
@@ -154,6 +155,33 @@ test('assunto e e-mail para resposta gravados (API, documento antigo) continuam 
 
   assert.equal(mail.Subject, subject);
   assert.deepEqual(replyToOf(mail), ['resposta-gravada@revalle.com.br']);
+});
+
+test('reenvio: "Lembrete: " + o mesmo assunto padrão e o mesmo Reply-To do convite', { skip }, async () => {
+  const title = `[TESTE] reenvio simplificado ${randomUUID().slice(0, 8)}`;
+  const signer = unique('simples-reenvio');
+
+  const created = await createEnvelope({
+    title,
+    meta: { distributionMethod: 'EMAIL' },
+    recipients: [{ email: signer, name: 'Fábio Reenvio' }],
+  });
+
+  assert.equal(created.status, 200, created.text);
+
+  const [recipient] = await distribute(created.id);
+  const invite = (await waitOneInviteEach([signer])).get(signer);
+  const seen = new Set((await mailsTo(signer)).map((message) => message.ID));
+  const res = await api('POST', '/envelope/redistribute', { envelopeId: created.id, recipients: [recipient.id] });
+
+  assert.equal(res.status, 200, res.text);
+
+  const resent = await waitNewMail(signer, seen, { what: 'reenvio' });
+
+  assert.equal(resent.Subject, `Lembrete: ${senderLabel(created.id)} enviou "${title}" para você assinar`);
+  assert.equal(resent.Subject, `Lembrete: ${invite.Subject}`);
+  assert.deepEqual(replyToOf(resent), replyToOf(invite));
+  assert.deepEqual(replyToOf(resent), [expectedReplyTo(created.id).toLowerCase()]);
 });
 
 test('navegador: diálogo com as duas opções, "Só gerar os links" e "Enviar por e-mail"', async (t) => {

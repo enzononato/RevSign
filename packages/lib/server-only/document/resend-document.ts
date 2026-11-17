@@ -21,6 +21,7 @@ import { createElement } from 'react';
 
 import { getI18nInstance } from '../../client-only/providers/i18n-server';
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../constants/app';
+import { revalleInviteReplyTo, revalleInviteSubject, revalleReminderSubject } from '../../revalle/invite-email'; // REVALLE:
 import { greetingName } from '../../revalle/recipient-name'; // REVALLE:
 import { extractDerivedDocumentEmailSettings } from '../../types/document-email';
 import { mapEnvelopeToWebhookDocumentPayload, ZWebhookDocumentSchema } from '../../types/webhook-payload';
@@ -266,6 +267,20 @@ export const resendDocument = async ({
         }
       }
 
+      // REVALLE: envio simplificado: o mesmo assunto padrão do convite (quem reenviou, ou o time), com "Lembrete: ".
+      emailSubject = i18n._(
+        revalleReminderSubject(
+          i18n._(
+            revalleInviteSubject({
+              role: recipient.role,
+              senderName: user.name,
+              teamName: envelope.team.name,
+              documentTitle: envelope.title,
+            }),
+          ),
+        ),
+      );
+
       const customEmailTemplate = {
         'signer.name': greetingName(name, email), // REVALLE: sem nome ainda, o e-mail
         'signer.email': email,
@@ -315,7 +330,7 @@ export const resendDocument = async ({
           name,
         },
         from: senderEmail,
-        replyTo: replyToEmail,
+        replyTo: revalleInviteReplyTo(replyToEmail, user.email), // REVALLE: sem resposta configurada, quem reenviou
         subject: envelope.documentMeta.subject
           ? renderCustomEmailTemplate(i18n._(msg`Reminder: ${envelope.documentMeta.subject}`), customEmailTemplate)
           : emailSubject,

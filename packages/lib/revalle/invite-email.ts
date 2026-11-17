@@ -34,6 +34,9 @@ export const revalleInviteSubject = ({
   }
 };
 
+/** Assunto do reenvio e do lembrete automático: `Lembrete: ` + o assunto (o gravado no documento ou o padrão). */
+export const revalleReminderSubject = (subject: string): MessageDescriptor => msg`Lembrete: ${subject}`;
+
 /** Resposta ao convite: a configurada (documento, time ou organização); sem nenhuma, o e-mail de quem enviou. */
 export const revalleInviteReplyTo = (
   configured: string | null | undefined,

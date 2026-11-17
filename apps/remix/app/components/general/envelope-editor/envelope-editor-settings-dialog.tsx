@@ -1,7 +1,7 @@
 import { useCurrentEnvelopeEditor } from '@documenso/lib/client-only/providers/envelope-editor-provider';
 import { useCurrentOrganisation } from '@documenso/lib/client-only/providers/organisation';
 import { DATE_FORMATS, DEFAULT_DOCUMENT_DATE_FORMAT } from '@documenso/lib/constants/date-formats';
-import { DOCUMENT_DISTRIBUTION_METHODS, DOCUMENT_SIGNATURE_TYPES } from '@documenso/lib/constants/document';
+import { DOCUMENT_SIGNATURE_TYPES } from '@documenso/lib/constants/document'; // REVALLE: sem DOCUMENT_DISTRIBUTION_METHODS
 import { ZEnvelopeExpirationPeriod } from '@documenso/lib/constants/envelope-expiration';
 import { ZEnvelopeReminderSettings } from '@documenso/lib/constants/envelope-reminder';
 import { isValidLanguageCode, SUPPORTED_LANGUAGE_CODES, SUPPORTED_LANGUAGES } from '@documenso/lib/constants/i18n';
@@ -632,17 +632,21 @@ export const EnvelopeEditorSettingsDialog = ({ trigger, ...props }: EnvelopeEdit
                                       </Trans>
                                     </p>
 
+                                    {/* REVALLE: envio simplificado: as mesmas duas opções e textos do diálogo de envio. */}
                                     <ul className="ml-3.5 list-outside list-disc space-y-0.5 py-2">
                                       <li>
-                                        <Trans>
-                                          <strong>Email</strong> - The recipient will be emailed the document to sign,
-                                          approve, etc.
-                                        </Trans>
+                                        <strong>
+                                          <Trans>Enviar por e-mail (recomendado)</Trans>
+                                        </strong>{' '}
+                                        - <Trans>Cada signatário recebe o próprio e-mail com o próprio link.</Trans>
                                       </li>
                                       <li>
+                                        <strong>
+                                          <Trans>Só gerar os links</Trans>
+                                        </strong>{' '}
+                                        -{' '}
                                         <Trans>
-                                          <strong>None</strong> - We will generate links which you can send to the
-                                          recipients manually.
+                                          Nenhum e-mail sai. Você recebe os links para mandar a cada pessoa como quiser.
                                         </Trans>
                                       </li>
                                     </ul>
@@ -662,11 +666,13 @@ export const EnvelopeEditorSettingsDialog = ({ trigger, ...props }: EnvelopeEdit
                                   </SelectTrigger>
 
                                   <SelectContent position="popper">
-                                    {Object.values(DOCUMENT_DISTRIBUTION_METHODS).map(({ value, description }) => (
-                                      <SelectItem key={value} value={value}>
-                                        {t(description)}
-                                      </SelectItem>
-                                    ))}
+                                    {/* REVALLE: só e-mail e só links, com os textos do diálogo de envio. */}
+                                    <SelectItem value={DocumentDistributionMethod.EMAIL}>
+                                      {t`Enviar por e-mail (recomendado)`}
+                                    </SelectItem>
+                                    <SelectItem
+                                      value={DocumentDistributionMethod.NONE}
+                                    >{t`Só gerar os links`}</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </FormControl>
