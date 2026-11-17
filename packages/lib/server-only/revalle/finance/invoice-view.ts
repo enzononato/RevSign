@@ -26,8 +26,7 @@ import {
   findInvoiceDuplicatesOrEmpty,
   type InvoiceDuplicate,
 } from '../invoice/duplicates';
-import { type LoadedInvoiceFile, loadInvoiceFiles } from '../invoice/invoice-files';
-import { refreshLegacyInvoiceFiles } from './card';
+import { type LoadedInvoiceFile, loadInvoiceFiles, refreshLegacyInvoiceFiles } from '../invoice/invoice-files';
 import { isFinanceMember } from './members';
 import { findVisibleSuccessor } from './successor';
 

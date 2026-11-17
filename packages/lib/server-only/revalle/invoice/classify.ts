@@ -46,6 +46,7 @@ import {
   ensureLegacyInvoiceFiles,
   loadInvoiceFiles,
   lockInvoiceEnvelope,
+  refreshLegacyInvoiceFiles,
   syncInvoiceEnvelopeMirror,
   updateInvoiceFiles,
 } from './invoice-files';
@@ -773,7 +774,7 @@ export const classifyEnvelope = async (
       return unclassifiedState();
     }
 
-    await ensureLegacyInvoiceFiles(envelopeId);
+    await refreshLegacyInvoiceFiles(envelopeId);
 
     return await toInvoiceState(await expireStalePending(row));
   }
@@ -796,8 +797,9 @@ export const getInvoiceState = async (envelopeId: string, requester: InvoiceRequ
     return await classifyEnvelope(envelopeId, requester);
   }
 
+  // Sem conseguir refazer (ex.: um arquivo sumiu do armazenamento), o estado sai da linha do envio, como antes da Fase 9.
   if (row.isInvoice === RevalleInvoiceStatus.YES && !(await isEnvelopeDraft(envelopeId))) {
-    await ensureLegacyInvoiceFiles(envelopeId);
+    await refreshLegacyInvoiceFiles(envelopeId);
   }
 
   return await toInvoiceState(await expireStalePending(row));

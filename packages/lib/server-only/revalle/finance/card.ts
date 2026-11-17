@@ -14,8 +14,7 @@ import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { isNewVersionDraftRow } from '../../../revalle/finance/finance-status';
 import { costCenterLabel } from '../../../revalle/invoice/cost-centers';
 import { fileFinanceStatus, type InvoicePosition, invoicePositions } from '../../../revalle/invoice/invoice-files';
-import { logger } from '../../../utils/logger';
-import { ensureLegacyInvoiceFiles, loadInvoiceFiles, resolveInvoiceFile } from '../invoice/invoice-files';
+import { loadInvoiceFiles, refreshLegacyInvoiceFiles, resolveInvoiceFile } from '../invoice/invoice-files';
 import { findVisibleSuccessor, isStaleChangeClaim } from './successor';
 
 export type FinanceCard = {
@@ -69,20 +68,6 @@ const readSuggestion = (status: RevalleSuggestionStatus, stored: unknown) => {
   return typeof accountCode === 'string' && typeof confidence === 'string'
     ? { code: accountCode, confidence, reason: typeof reason === 'string' ? reason : '' }
     : null;
-};
-
-/**
- * A primeira leitura refaz as linhas de arquivo de um envio de antes da Fase 9 (`ensureLegacyInvoiceFiles`); se falhar, a
- * leitura segue com a linha do envio (a próxima tenta de novo). Registra só o tipo do erro.
- */
-export const refreshLegacyInvoiceFiles = async (envelopeId: string) => {
-  await ensureLegacyInvoiceFiles(envelopeId).catch((error: unknown) => {
-    logger.warn({
-      msg: 'revalle.invoice.legacy-files.failed',
-      envelopeId,
-      error: error instanceof Error ? error.name : 'unknown',
-    });
-  });
 };
 
 /** As colunas "da nota" que os cartões do Financeiro e da Contabilidade leem. */

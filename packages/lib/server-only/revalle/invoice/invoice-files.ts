@@ -335,6 +335,20 @@ export const ensureLegacyInvoiceFiles = async (
 };
 
 /**
+ * A primeira leitura refaz as linhas de arquivo de um envio de antes da Fase 9 (`ensureLegacyInvoiceFiles`); se falhar, a
+ * leitura segue com a linha do envio (a próxima tenta de novo). Registra só o tipo do erro.
+ */
+export const refreshLegacyInvoiceFiles = async (envelopeId: string) => {
+  await ensureLegacyInvoiceFiles(envelopeId).catch((error: unknown) => {
+    logger.warn({
+      msg: 'revalle.invoice.legacy-files.failed',
+      envelopeId,
+      error: error instanceof Error ? error.name : 'unknown',
+    });
+  });
+};
+
+/**
  * Envio NF que as listas, as filas e os contadores contam (enviado, ou o rascunho de uma nova versão com o envio parado)
  * sem nenhuma linha de arquivo NF.
  */
