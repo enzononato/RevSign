@@ -747,3 +747,38 @@ export const ensureInvoiceAccounts = async (adminCookie) => {
     throw new Error(`importação da lista de contas: HTTP ${imported.status} ${imported.text}`);
   }
 };
+
+// Fase 9: roda de novo o backfill da migração `20261116100000_revalle_invoice_files` (o bloco entre as linhas
+// `-- backfill:inicio` e `-- backfill:fim`) no banco da stack local, como a subida rodou. Idempotente.
+const INVOICE_FILES_MIGRATION = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../packages/prisma/migrations/20261116100000_revalle_invoice_files/migration.sql',
+);
+
+export const runInvoiceFilesBackfill = () => {
+  const block = execFileSync('sed', ['-n', '/^-- backfill:inicio$/,/^-- backfill:fim$/p', INVOICE_FILES_MIGRATION], {
+    encoding: 'utf8',
+  });
+
+  if (!block.includes('INSERT INTO "RevalleInvoiceFile"')) {
+    throw new Error('bloco do backfill não achado na migração 20261116100000_revalle_invoice_files');
+  }
+
+  return execFileSync(
+    'docker',
+    [
+      'exec',
+      '-i',
+      'revsign-hml-database-1',
+      'psql',
+      '-U',
+      'documenso',
+      '-d',
+      'documenso',
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-At',
+    ],
+    { input: block, encoding: 'utf8' },
+  ).trim();
+};

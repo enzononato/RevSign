@@ -507,6 +507,7 @@ model Envelope {
 
   revalleInvoice         RevalleInvoiceClassification? // REVALLE: back-relation (nota fiscal e conta contábil)
   revallePatrimonioTermo RevallePatrimonioTermo? // REVALLE: back-relation (termo do Patrimônio)
+  revalleInvoiceFiles    RevalleInvoiceFile[] // REVALLE: back-relation (Fase 9, uma linha por arquivo da NF)
 
   @@index([type])
   @@index([status])
@@ -531,7 +532,8 @@ model EnvelopeItem {
 
   field Field[]
 
-  revalleHash RevalleDocumentHash? // REVALLE: back-relation (hashes SHA-256)
+  revalleHash        RevalleDocumentHash? // REVALLE: back-relation (hashes SHA-256)
+  revalleInvoiceFile RevalleInvoiceFile? // REVALLE: back-relation (Fase 9, a linha da nota deste arquivo)
 
   @@unique([documentDataId])
   @@index([envelopeId])
@@ -1352,6 +1354,9 @@ model RevalleRecipientGate {
   invoiceAccountShownCode    String?
   /// Fase 7: código do centro de custo da NF que a página de assinatura mostrou (congelado só se for o atual).
   invoiceCostCenterShownCode String?
+  /// Fase 9: com 2+ notas, a conta e o centro que a página mostrou em cada arquivo de nota (por envelopeItemId:
+  /// accountCode e costCenterCode). Nulo com uma nota (valem as duas colunas de cima).
+  invoiceShown               Json?
   createdAt                  DateTime  @default(now())
   updatedAt                  DateTime  @updatedAt
 }
@@ -1403,6 +1408,9 @@ model RevalleSignatureProof {
   invoiceAccount    Json?
   /// Fase 7: { code, name } do centro de custo da NF visto ao assinar (congelado). Nulo em NF sem centro e em documento comum.
   invoiceCostCenter Json?
+  /// Fase 9: com 2+ notas, por arquivo de nota, a conta e o centro vistos ao assinar (congelados): uma lista de
+  /// envelopeItemId, title, index, total, account e costCenter. Nula com uma nota (valem as duas colunas de cima).
+  invoiceDocuments  Json?
   createdAt         DateTime  @default(now())
 }
 
@@ -1465,36 +1473,57 @@ model RevalleInvoiceClassification {
   flagChangedAt             DateTime?
   signals                   String[]
   fileSha256                String?
+  /// Espelho (Fase 9): gravado só por syncInvoiceEnvelopeMirror.
   suggestionStatus          RevalleSuggestionStatus  @default(SKIPPED)
+  /// Espelho (Fase 9): gravado só por syncInvoiceEnvelopeMirror.
   suggestion                Json?
+  /// Espelho (Fase 9): gravado só por syncInvoiceEnvelopeMirror.
   suggestionAttempts        Int                      @default(0)
+  /// Espelho (Fase 9): gravado só por syncInvoiceEnvelopeMirror.
   /// Fase 8: o que a IA leu da NF junto com a sugestão (podem estar errados, a tela diz que vieram da IA). Valor em
   /// centavos; nulos quando a IA não leu, a sugestão falhou ou o arquivo mudou.
   supplierName              String?
+  /// Espelho (Fase 9): gravado só por syncInvoiceEnvelopeMirror.
   invoiceNumber             String?
+  /// Espelho (Fase 9): gravado só por syncInvoiceEnvelopeMirror.
   totalAmountCents          Int?
+  /// Espelho (Fase 9): gravado só por syncInvoiceEnvelopeMirror.
   /// Fase 8: chaves de acesso válidas (44 dígitos, modelos 55, 57, 65 e 67) achadas no texto dos arquivos da NF e, na NF
   /// escaneada, a que a IA leu. Duas NFs com uma chave em comum são a mesma nota. Vazio quando o arquivo não tem chave.
   accessKeys                String[]                 @default([])
+  /// Espelho (Fase 9): gravado só por syncInvoiceEnvelopeMirror.
   choiceCode                String?
+  /// Espelho (Fase 9): gravado só por syncInvoiceEnvelopeMirror.
   choiceById                Int?
+  /// Espelho (Fase 9): gravado só por syncInvoiceEnvelopeMirror.
   choiceAt                  DateTime?
+  /// Espelho (Fase 9): gravado só por syncInvoiceEnvelopeMirror.
   acceptedSuggestion        Boolean?
+  /// Espelho (Fase 9): gravado só por syncInvoiceEnvelopeMirror.
   /// Fase 7: centro de custo (lista fixa no código, `cost-centers.ts`), escolhido pela pessoa, com quem e quando (sem FK).
   costCenterCode            String?
+  /// Espelho (Fase 9): gravado só por syncInvoiceEnvelopeMirror.
   costCenterById            Int?
+  /// Espelho (Fase 9): gravado só por syncInvoiceEnvelopeMirror.
   costCenterAt              DateTime?
+  /// Espelho (Fase 9): gravado só por syncInvoiceEnvelopeMirror.
   /// Fase 7: a Contabilidade validou o centro: quando, quem (sem FK) e o nome congelado. Não segura a conclusão.
   costCenterValidatedAt     DateTime?
+  /// Espelho (Fase 9): gravado só por syncInvoiceEnvelopeMirror.
   costCenterValidatedById   Int?
+  /// Espelho (Fase 9): gravado só por syncInvoiceEnvelopeMirror.
   costCenterValidatedByName String?
   /// Fase 6: aprovação do Financeiro. Nulo = não é NF (ou NF ainda em rascunho); `LEGACY` = NF de antes da Fase 6.
   financeStatus             RevalleFinanceStatus?
+  /// Espelho (Fase 9): gravado só por syncInvoiceEnvelopeMirror.
   /// Quem do Financeiro aprovou (ou definiu) a conta e quando (sem FK, como choiceById).
   approvedById              Int?
+  /// Espelho (Fase 9): gravado só por syncInvoiceEnvelopeMirror.
   approvedAt                DateTime?
+  /// Espelho (Fase 9): gravado só por syncInvoiceEnvelopeMirror.
   /// Nome da conta aprovada, congelado na aprovação (a lista pode ser reimportada com outro nome). Nulo = usa o atual.
   approvedAccountName       String?
+  /// Espelho (Fase 9): gravado só por syncInvoiceEnvelopeMirror.
   /// Nome de quem aprovou (ou definiu), congelado no mesmo momento. Nulo = usa o nome atual.
   approvedByName            String?
   /// Versão substituída por outra (conta trocada pelo Financeiro ou centro corrigido pela Contabilidade): quando, quem,
@@ -1504,6 +1533,8 @@ model RevalleInvoiceClassification {
   supersedeReason           String?
   supersedeKind             RevalleSupersedeKind?
   supersededByEnvelopeId    String?
+  /// Fase 9: com 2+ notas, o arquivo (item desta versão) cuja conta ou centro mudou na nova versão.
+  supersededEnvelopeItemId  String?
   /// Versão anterior (esta é a v2, v3…). Sem FK: a ligação fica também no log de auditoria das duas versões.
   previousEnvelopeId        String?
   version                   Int                      @default(1)
@@ -1519,6 +1550,71 @@ model RevalleInvoiceClassification {
 model RevalleInvoiceSuggestionCache {
   fileSha256 String   @id
   suggestion Json
+  model      String
+  createdAt  DateTime @default(now())
+}
+
+/// REVALLE (Fase 9): o que cada arquivo do envio é. `UNKNOWN` = PDF sem texto, o remetente diz o que é.
+enum RevalleInvoiceFileKind {
+  NF
+  BOLETO
+  OTHER
+  UNKNOWN
+}
+
+/// REVALLE (Fase 9): uma linha por arquivo do envio. Fonte de verdade de tudo que é "da nota" (IA, dados lidos, conta,
+/// centro, validação da Contabilidade e aprovação do Financeiro). A linha do envio (`RevalleInvoiceClassification`) guarda
+/// o espelho (cópia da nota única; nulo com várias), gravado só por `syncInvoiceEnvelopeMirror`.
+model RevalleInvoiceFile {
+  id                        String                   @id @default(cuid())
+  envelopeId                String
+  envelope                  Envelope                 @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
+  envelopeItemId            String                   @unique
+  envelopeItem              EnvelopeItem             @relation(fields: [envelopeItemId], references: [id], onDelete: Cascade)
+  kind                      RevalleInvoiceFileKind
+  detectedBy                RevalleInvoiceDetectedBy @default(TEXT)
+  /// Quem disse o tipo do arquivo (o remetente) e quando (sem FK, como choiceById).
+  kindChangedById           Int?
+  kindChangedAt             DateTime?
+  signals                   String[]                 @default([])
+  /// SHA-256 deste arquivo (o PDF enviado, `initialData`).
+  fileSha256                String?
+  suggestionStatus          RevalleSuggestionStatus  @default(SKIPPED)
+  /// NF: como na linha do envio; BOLETO: { ...BoletoData, model } ou { failure }.
+  suggestion                Json?
+  suggestionAttempts        Int                      @default(0)
+  supplierName              String?
+  invoiceNumber             String?
+  totalAmountCents          Int?
+  accessKeys                String[]                 @default([])
+  /// Dados do boleto (beneficiário, CNPJ, valor, vencimento, linha digitável).
+  boletoData                Json?
+  choiceCode                String?
+  choiceById                Int?
+  choiceAt                  DateTime?
+  acceptedSuggestion        Boolean?
+  costCenterCode            String?
+  costCenterById            Int?
+  costCenterAt              DateTime?
+  costCenterValidatedAt     DateTime?
+  costCenterValidatedById   Int?
+  costCenterValidatedByName String?
+  approvedById              Int?
+  approvedAt                DateTime?
+  approvedAccountName       String?
+  approvedByName            String?
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
+
+  @@index([envelopeId])
+  @@index([accessKeys], type: Gin)
+  @@index([fileSha256])
+}
+
+/// REVALLE (Fase 9): dados do boleto lidos pela IA, por SHA-256 do arquivo (o mesmo boleto nunca vai ao Gemini duas vezes).
+model RevalleBoletoCache {
+  fileSha256 String   @id
+  data       Json
   model      String
   createdAt  DateTime @default(now())
 }
