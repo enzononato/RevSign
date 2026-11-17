@@ -6,6 +6,7 @@ import type { Prisma } from '@prisma/client';
 import { FieldType, RevalleFinanceStatus, RevalleInvoiceFileKind, RevalleInvoiceStatus } from '@prisma/client';
 
 import { NEXT_PRIVATE_INTERNAL_WEBAPP_URL } from '../../../constants/app';
+import { type AnnotationBoxRect, placeAnnotationText } from '../../../revalle/invoice/annotation-box';
 import { fileFinanceStatus } from '../../../revalle/invoice/invoice-files';
 import {
   INVOICE_ANNOTATION_FONT_SIZE,
@@ -14,17 +15,24 @@ import {
   pickAnnotationField,
 } from '../../../revalle/invoice/pdf-annotation';
 import { logger } from '../../../utils/logger';
+import { findInvoiceAnnotationBoxes } from './annotation-box';
 import { loadInvoiceFiles } from './invoice-files';
 
 // #0070C0
 const ANNOTATION_COLOR = rgb(0, 0x70 / 255, 0xc0 / 255);
+// Dentro do bloco, a fonte encolhe até aqui antes de quebrar linha.
+const ANNOTATION_BOX_MIN_FONT_SIZE = 6;
 
 export type RevalleInvoiceAnnotation = {
+  /** Só para o log de uma falha (nunca dados da nota). */
+  envelopeId: string;
   lines: string[];
   /** Arquivo do envelope onde o texto entra. */
   envelopeItemId: string;
-  /** Campo da primeira assinatura, em % da página; nulo = alto da primeira página. */
+  /** Envio de antes do bloco: campo da primeira assinatura, em % da página; nulo = alto da primeira página. */
   field: { page: number; positionX: number; positionY: number; width: number; height: number } | null;
+  /** O bloco "Conta e centro de custo" do arquivo: o texto vai dentro dele (e `field` fica nulo). */
+  box?: AnnotationBoxRect | null;
 };
 
 type AnnotationFieldRow = {
@@ -63,10 +71,12 @@ type AnnotationTarget = {
 };
 
 /**
- * Os textos de conta e centro que a selagem escreve nas NFs: uma anotação por arquivo NF com linhas, acima da primeira
- * assinatura DAQUELE arquivo (sem campo: alto da primeira página). Vazio para documento comum e para NF sem conta nem
- * centro; boleto e outros arquivos não recebem nada. A conta só conta se o Financeiro aprovou; o nome é o congelado na
- * aprovação daquela nota, senão o atual da lista.
+ * Os textos de conta e centro que a selagem escreve nas NFs: uma anotação por arquivo NF com linhas, dentro do bloco
+ * "Conta e centro de custo" que o remetente pôs naquele arquivo; NF sem bloco não recebe nada. Envio de antes do bloco
+ * (`autoAnnotation`): como era, acima da primeira assinatura DAQUELE arquivo (sem campo: alto da primeira página), e o
+ * bloco não vale. Vazio para documento comum e para NF sem conta nem centro; boleto e outros arquivos não recebem nada,
+ * nem com bloco. A conta só conta se o Financeiro aprovou; o nome é o congelado na aprovação daquela nota, senão o atual
+ * da lista.
  */
 export const loadRevalleInvoiceAnnotations = async (envelopeId: string): Promise<RevalleInvoiceAnnotation[]> => {
   const row = await prisma.revalleInvoiceClassification.findUnique({
@@ -78,11 +88,16 @@ export const loadRevalleInvoiceAnnotations = async (envelopeId: string): Promise
       approvedAt: true,
       approvedAccountName: true,
       costCenterCode: true,
+      autoAnnotation: true,
     },
   });
 
   if (!row || row.isInvoice !== RevalleInvoiceStatus.YES) {
     return [];
+  }
+
+  if (!row.autoAnnotation) {
+    return await loadBoxAnnotations(envelopeId, row.financeStatus);
   }
 
   const [files, items, fields] = await Promise.all([
@@ -128,6 +143,40 @@ export const loadRevalleInvoiceAnnotations = async (envelopeId: string): Promise
           },
         ];
 
+  const linesOf = await annotationLinesLoader(targets);
+  const orderOf = new Map(items.map((item) => [item.id, item.order]));
+  const annotations: RevalleInvoiceAnnotation[] = [];
+
+  for (const target of targets) {
+    const lines = linesOf(target);
+
+    if (lines.length === 0) {
+      continue;
+    }
+
+    const picked = pickAnnotationField(
+      fields
+        .filter((field) => target.envelopeItemId === null || field.envelopeItemId === target.envelopeItemId)
+        .map((field) => ({ ...field, itemOrder: orderOf.get(field.envelopeItemId) ?? 0 })),
+    );
+
+    if (picked) {
+      annotations.push({ envelopeId, lines, envelopeItemId: picked.envelopeItemId, field: fieldOf(picked) });
+      continue;
+    }
+
+    const itemId = target.envelopeItemId ?? items[0]?.id;
+
+    if (itemId) {
+      annotations.push({ envelopeId, lines, envelopeItemId: itemId, field: null });
+    }
+  }
+
+  return annotations;
+};
+
+/** As linhas de cada nota, com o nome atual da lista para a conta aprovada sem nome congelado (uma consulta só). */
+const annotationLinesLoader = async (targets: AnnotationTarget[]) => {
   const codesToName = [
     ...new Set(
       targets.flatMap((target) =>
@@ -146,45 +195,53 @@ export const loadRevalleInvoiceAnnotations = async (envelopeId: string): Promise
       : [],
   );
 
-  const orderOf = new Map(items.map((item) => [item.id, item.order]));
-  const annotations: RevalleInvoiceAnnotation[] = [];
-
-  for (const target of targets) {
-    const lines = invoiceAnnotationLines({
+  return (target: AnnotationTarget) =>
+    invoiceAnnotationLines({
       accountCode: target.accountCode,
       accountName: target.approvedAccountName ?? (target.accountCode ? (names.get(target.accountCode) ?? null) : null),
       costCenterCode: target.costCenterCode,
     });
+};
 
-    if (lines.length === 0) {
-      continue;
-    }
+/** A regra nova: só arquivo NF com bloco, e o texto vai dentro do bloco. */
+const loadBoxAnnotations = async (
+  envelopeId: string,
+  financeStatus: RevalleFinanceStatus | null,
+): Promise<RevalleInvoiceAnnotation[]> => {
+  const boxes = await findInvoiceAnnotationBoxes(envelopeId);
 
-    const picked = pickAnnotationField(
-      fields
-        .filter((field) => target.envelopeItemId === null || field.envelopeItemId === target.envelopeItemId)
-        .map((field) => ({ ...field, itemOrder: orderOf.get(field.envelopeItemId) ?? 0 })),
-    );
-
-    if (picked) {
-      annotations.push({ lines, envelopeItemId: picked.envelopeItemId, field: fieldOf(picked) });
-      continue;
-    }
-
-    const itemId = target.envelopeItemId ?? items[0]?.id;
-
-    if (itemId) {
-      annotations.push({ lines, envelopeItemId: itemId, field: null });
-    }
+  if (boxes.length === 0) {
+    return [];
   }
 
-  return annotations;
+  const boxOf = new Map(boxes.map(({ envelopeItemId, ...rect }) => [envelopeItemId, rect]));
+  const files = (await loadInvoiceFiles(envelopeId)).filter(
+    (file) => file.kind === RevalleInvoiceFileKind.NF && boxOf.has(file.envelopeItemId),
+  );
+  const targets: Array<AnnotationTarget & { envelopeItemId: string }> = files.map((file) => ({
+    envelopeItemId: file.envelopeItemId,
+    accountCode: isAccountApproved(financeStatus, file.approvedAt) ? file.choiceCode : null,
+    approvedAccountName: file.approvedAccountName,
+    costCenterCode: file.costCenterCode,
+  }));
+  const linesOf = await annotationLinesLoader(targets);
+
+  return targets.flatMap((target) => {
+    const lines = linesOf(target);
+    const box = boxOf.get(target.envelopeItemId);
+
+    return lines.length > 0 && box
+      ? [{ envelopeId, lines, envelopeItemId: target.envelopeItemId, field: null, box }]
+      : [];
+  });
 };
 
 type DrawRevalleInvoiceAnnotationOptions = {
   pdfDoc: PDF;
   annotations: RevalleInvoiceAnnotation[];
   envelopeItemId: string;
+  /** Páginas do próprio arquivo: o certificado e o log já foram anexados ao fim de `pdfDoc` e não recebem o texto. */
+  documentPageCount: number;
 };
 
 /**
@@ -196,20 +253,29 @@ export const drawRevalleInvoiceAnnotation = async ({
   pdfDoc,
   annotations,
   envelopeItemId,
+  documentPageCount,
 }: DrawRevalleInvoiceAnnotationOptions) => {
   for (const annotation of annotations) {
     if (annotation.envelopeItemId === envelopeItemId) {
-      await drawOne(pdfDoc, annotation);
+      await drawOne(pdfDoc, annotation, documentPageCount);
     }
   }
 };
 
-const drawOne = async (pdfDoc: PDF, annotation: RevalleInvoiceAnnotation) => {
+const drawOne = async (pdfDoc: PDF, annotation: RevalleInvoiceAnnotation, documentPageCount: number) => {
   try {
-    const page = pdfDoc.getPage((annotation.field?.page ?? 1) - 1);
+    const pageNumber = annotation.box?.page ?? annotation.field?.page ?? 1;
+    const page = pageNumber >= 1 && pageNumber <= documentPageCount ? pdfDoc.getPage(pageNumber - 1) : null;
 
+    // O bloco numa página que não existe mais (o arquivo foi trocado por um mais curto): sai sem o texto.
     if (!page) {
-      throw new Error('Annotation page does not exist');
+      logger.error({
+        msg: 'revalle invoice annotation: a página da conta e do centro não existe no PDF',
+        envelopeId: annotation.envelopeId,
+        error: 'AnnotationPageMissing',
+      });
+
+      return;
     }
 
     const pageWidth = page.width;
@@ -230,26 +296,34 @@ const drawOne = async (pdfDoc: PDF, annotation: RevalleInvoiceAnnotation) => {
     const font = await overlay.embedFont(fontBytes);
     const overlayPage = overlay.addPage([pageWidth, pageHeight]);
 
-    const field = annotation.field;
-    const layout = layoutInvoiceAnnotation({
-      lines: annotation.lines,
-      field: field
-        ? {
-            x: pageWidth * (field.positionX / 100),
-            y: pageHeight * (field.positionY / 100),
-            width: pageWidth * (field.width / 100),
-            height: pageHeight * (field.height / 100),
-          }
-        : null,
-      page: { width: pageWidth, height: pageHeight },
-      measure: (text, size) => font.widthOfTextAtSize(text, size),
+    const toPt = (rect: { positionX: number; positionY: number; width: number; height: number }) => ({
+      x: pageWidth * (rect.positionX / 100),
+      y: pageHeight * (rect.positionY / 100),
+      width: pageWidth * (rect.width / 100),
+      height: pageHeight * (rect.height / 100),
     });
+    const measure = (text: string, size: number) => font.widthOfTextAtSize(text, size);
+    const field = annotation.field;
+    const layout = annotation.box
+      ? placeAnnotationText({
+          lines: annotation.lines,
+          box: toPt(annotation.box),
+          measure,
+          maxSize: INVOICE_ANNOTATION_FONT_SIZE,
+          minSize: ANNOTATION_BOX_MIN_FONT_SIZE,
+        })
+      : layoutInvoiceAnnotation({
+          lines: annotation.lines,
+          field: field ? toPt(field) : null,
+          page: { width: pageWidth, height: pageHeight },
+          measure,
+        });
 
     for (const line of layout.lines) {
       overlayPage.drawText(line.text, {
         x: line.x,
         y: pageHeight - line.baseline,
-        size: INVOICE_ANNOTATION_FONT_SIZE,
+        size: layout.size,
         font,
         color: ANNOTATION_COLOR,
       });
@@ -277,6 +351,7 @@ const drawOne = async (pdfDoc: PDF, annotation: RevalleInvoiceAnnotation) => {
   } catch (error) {
     logger.error({
       msg: 'revalle invoice annotation: não foi possível escrever a conta e o centro no PDF',
+      envelopeId: annotation.envelopeId,
       error: error instanceof Error ? error.message : 'unknown',
     });
   }

@@ -38,6 +38,7 @@ import {
   fetchIdempotent,
   invoicePdfFile,
   mailIdsTo,
+  markAutoAnnotation,
   poppler,
   retryCreateOnStaleSocket,
   runInvoiceFilesBackfill,
@@ -809,9 +810,11 @@ sessionTest('envio antigo de uma nota, aprovado depois da atualização', async 
   await signAll(doc);
   assert.equal(status(doc.id), 'PENDING');
 
-  // Como um envio de antes da Fase 9: sem linha de arquivo; a migração a cria de novo.
+  // Como um envio de antes da Fase 9: sem linha de arquivo; a migração a cria de novo. E de antes do bloco de conta e
+  // centro: o texto sai sozinho acima da assinatura (`autoAnnotation`, marcado pela migração do bloco).
   db(`delete from "RevalleInvoiceFile" where "envelopeId" = '${doc.id}'`);
   runInvoiceFilesBackfill();
+  markAutoAnnotation(doc.id);
   assert.equal(
     db(`select count(*) || '|' || min(kind::text) from "RevalleInvoiceFile" where "envelopeId" = '${doc.id}'`),
     '1|NF',

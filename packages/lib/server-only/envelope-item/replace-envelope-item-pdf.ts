@@ -113,6 +113,9 @@ export const UNSAFE_replaceEnvelopeItemPdf = async ({
 
     // Todo: Audit log if we're updating the title or order.
 
+    // REVALLE: o bloco "Conta e centro de custo" era do arquivo antigo; o novo arquivo começa sem bloco.
+    await tx.revalleInvoiceAnnotationBox.deleteMany({ where: { envelopeItemId } });
+
     // Delete fields that reference pages beyond the new PDF's page count.
     const outOfBoundsFields = await tx.field.findMany({
       where: {

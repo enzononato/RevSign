@@ -437,6 +437,31 @@ export const trpcAs = async (cookie, kind, procedure, input, extraHeaders = {}) 
   );
 };
 
+// O bloco "Conta e centro de custo" de um arquivo do rascunho, como o editor põe (com o time do envelope na sessão).
+// Página a partir de 1; posição e tamanho em % da página. Só onde há bloco, numa nota, a selagem escreve a conta e o centro.
+export const ANNOTATION_BOX_RECT = { page: 1, positionX: 10, positionY: 40, width: 45, height: 6 };
+
+export const setAnnotationBox = ({ cookie, envelopeId, envelopeItemId, rect = ANNOTATION_BOX_RECT }) =>
+  trpcAs(
+    cookie,
+    'mutation',
+    'revalle.invoice.annotationBox.set',
+    { envelopeId, envelopeItemId, rect },
+    { 'x-team-id': db(`select "teamId" from "Envelope" where id = '${envelopeId}'`) },
+  );
+
+// Envio de antes do bloco (a migração `20261117100000_revalle_annotation_box` marca): a selagem escreve a conta e o
+// centro sozinha, acima da primeira assinatura de cada nota. Só para os testes que reproduzem um envio antigo.
+export const markAutoAnnotation = (envelopeId) => {
+  const updated = db(
+    `update "RevalleInvoiceClassification" set "autoAnnotation" = true where "envelopeId" = '${envelopeId}'`,
+  );
+
+  if (updated !== 'UPDATE 1') {
+    throw new Error(`envio ${envelopeId} sem linha da nota para marcar como antigo (${updated})`);
+  }
+};
+
 // Escolhe a conta contábil e o centro de custo de uma NF em rascunho, como a tela faz (duas rotas). NF só é enviada com
 // os dois (Fase 7): todo teste que envia NF passa por aqui. `code` ou `costCenter` nulo pula a etapa (para testar o
 // envio com só um dos dois). Devolve a resposta da primeira etapa que falhou ou, se todas passaram, a da última.

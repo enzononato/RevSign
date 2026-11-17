@@ -1,4 +1,7 @@
-// Conta e centro de custo escritos no PDF final da NF (revalle/docs/notas-fiscais.md, "No PDF final").
+// Conta e centro de custo escritos no PDF final da NF (revalle/docs/notas-fiscais.md, "No PDF final"), pela regra dos
+// envios de ANTES do bloco "Conta e centro de custo" (`autoAnnotation`, marcado aqui direto no banco logo depois do envio,
+// como a migração `20261117100000_revalle_annotation_box` faz): o texto vai sozinho acima da primeira assinatura. A nova
+// versão herda a marca. A regra nova (só dentro do bloco) fica em invoice-annotation-box.test.mjs.
 //   - NF com 2 signatários, aprovada: a página da nota tem "Conta: {código} - {nome}" e "CC: {código} - {nome}", cada
 //     um uma vez, em azul, dentro da página e logo acima do carimbo da primeira assinatura (a de cima, não a do
 //     primeiro destinatário); durante a retenção (prévia) e no original, nada; o SHA-256 do original não muda; a
@@ -37,6 +40,7 @@ import {
   downloadItem,
   fetchIdempotent,
   invoicePdfFile,
+  markAutoAnnotation,
   poppler,
   retryCreateOnStaleSocket,
   signIn,
@@ -175,6 +179,7 @@ const newInvoice = async (
 
   assert.equal(chosen.status, 200, chosen.text);
   assert.equal((await distribute(created.id)).length, fields.length);
+  markAutoAnnotation(created.id);
 
   return { ...loadVersion(created.id), file };
 };
@@ -202,6 +207,7 @@ const newInvoiceWithoutCenter = async (label) => {
     200,
   );
   assert.equal((await chooseInvoice({ cookie: userCookie, envelopeId: doc.id, costCenter: null })).status, 200);
+  markAutoAnnotation(doc.id);
 
   return doc;
 };
@@ -250,6 +256,7 @@ const newV1Invoice = async (label) => {
   });
 
   assert.equal(sent.status, 200, await sent.text());
+  markAutoAnnotation(body.envelopeId);
 
   return { ...loadVersion(body.envelopeId), file };
 };
@@ -977,6 +984,9 @@ const sealedMulti = async (label, { contractFirst = true } = {}) => {
 
   const [recipient] = await distribute(env.id);
   const doc = loadVersion(env.id);
+
+  markAutoAnnotation(env.id);
+
   const fields = db(
     `select id from "Field" where "recipientId" = ${recipient.id} and type = 'SIGNATURE' order by "envelopeItemId"`,
   )
@@ -1106,6 +1116,9 @@ sessionTest('uma nota e um contrato: o texto vai na nota mesmo com a primeira as
 
   const [recipient] = await distribute(env.id);
   const doc = loadVersion(env.id);
+
+  markAutoAnnotation(env.id);
+
   const fields = db(
     `select id from "Field" where "recipientId" = ${recipient.id} and type = 'SIGNATURE' order by "envelopeItemId"`,
   )

@@ -129,6 +129,10 @@ export const ZInvoiceStateSchema = z.object({
    * agregada, a união das duplicadas e o resto nulo.
    */
   documents: z.array(ZInvoiceDocumentStateSchema),
+  /** Envio de antes do bloco (ou nova versão dele): a selagem escreve a conta e o centro sozinha, acima da assinatura. */
+  autoAnnotation: z.boolean(),
+  /** Os blocos "Conta e centro de custo" postos no editor: o arquivo e a página (um por arquivo, de qualquer tipo). */
+  annotationBoxes: z.array(z.object({ envelopeItemId: z.string(), page: z.number() })),
 });
 
 export type TInvoiceState = z.infer<typeof ZInvoiceStateSchema>;

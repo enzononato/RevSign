@@ -37,6 +37,7 @@ import { brasiliaToday } from '../../../revalle/invoice/invoice-filters';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { findNewVersionKind, findVisibleSuccessor } from '../finance/successor';
+import { findInvoiceAnnotationBoxes } from './annotation-box';
 import type { InvoiceDuplicate } from './duplicates';
 import { findEnvelopeNoteDuplicatesOrEmpty, findInvoiceDuplicatesOrEmpty } from './duplicates';
 import type { InvoiceEnvelopeFile, InvoiceFileContent } from './envelope-files';
@@ -101,6 +102,13 @@ export type InvoiceState = {
    * união das duplicadas e o resto nulo (cada nota tem o seu aqui).
    */
   documents: InvoiceDocumentState[];
+  /**
+   * Conta e centro no PDF: envio de antes do bloco (ou nova versão dele), em que a selagem escreve o texto sozinha acima
+   * da primeira assinatura. Falso sem linha da nota.
+   */
+  autoAnnotation: boolean;
+  /** Os blocos "Conta e centro de custo" postos no editor (um por arquivo, em qualquer tipo de arquivo). */
+  annotationBoxes: { envelopeItemId: string; page: number }[];
 };
 
 /** Fase 9: um arquivo do envio no estado da nota fiscal. */
@@ -167,7 +175,7 @@ const isSendReleased = async (row: RevalleInvoiceClassification) => {
 };
 
 /** O estado sem o aviso de duplicada nem os arquivos: o que quem só precisa da sugestão ou da escolha usa. */
-export type InvoiceStateBase = Omit<InvoiceState, 'duplicates' | 'documents'>;
+export type InvoiceStateBase = Omit<InvoiceState, 'duplicates' | 'documents' | 'autoAnnotation' | 'annotationBoxes'>;
 
 /** As colunas "da nota", iguais na linha do arquivo e no espelho da linha do envio. */
 type NoteColumns = Pick<
@@ -394,6 +402,11 @@ export const toInvoiceState = async (row: RevalleInvoiceClassification): Promise
     ...(await toInvoiceStateBase(row)),
     duplicates: union,
     documents: await toInvoiceDocuments(files, { financeStatus: row.financeStatus, duplicates: byFile }),
+    autoAnnotation: row.autoAnnotation,
+    annotationBoxes: (await findInvoiceAnnotationBoxes(row.envelopeId)).map(({ envelopeItemId, page }) => ({
+      envelopeItemId,
+      page,
+    })),
   };
 };
 
@@ -490,6 +503,8 @@ const unclassifiedState = (): InvoiceState => ({
   supersedeKind: null,
   aiAvailable: getRevalleInvoiceAiConfig().status === 'CONFIGURED',
   documents: [],
+  autoAnnotation: false,
+  annotationBoxes: [],
 });
 
 /** Fase 6: depois do envio, o remetente não troca mais a conta nem a marcação de NF; quem troca é o Financeiro. */

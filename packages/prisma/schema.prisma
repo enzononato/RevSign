@@ -508,6 +508,7 @@ model Envelope {
   revalleInvoice         RevalleInvoiceClassification? // REVALLE: back-relation (nota fiscal e conta contábil)
   revallePatrimonioTermo RevallePatrimonioTermo? // REVALLE: back-relation (termo do Patrimônio)
   revalleInvoiceFiles    RevalleInvoiceFile[] // REVALLE: back-relation (Fase 9, uma linha por arquivo da NF)
+  revalleAnnotationBoxes RevalleInvoiceAnnotationBox[] // REVALLE: back-relation (bloco de conta e centro no PDF)
 
   @@index([type])
   @@index([status])
@@ -532,8 +533,9 @@ model EnvelopeItem {
 
   field Field[]
 
-  revalleHash        RevalleDocumentHash? // REVALLE: back-relation (hashes SHA-256)
-  revalleInvoiceFile RevalleInvoiceFile? // REVALLE: back-relation (Fase 9, a linha da nota deste arquivo)
+  revalleHash          RevalleDocumentHash? // REVALLE: back-relation (hashes SHA-256)
+  revalleInvoiceFile   RevalleInvoiceFile? // REVALLE: back-relation (Fase 9, a linha da nota deste arquivo)
+  revalleAnnotationBox RevalleInvoiceAnnotationBox? // REVALLE: back-relation (bloco de conta e centro no PDF)
 
   @@unique([documentDataId])
   @@index([envelopeId])
@@ -1538,6 +1540,9 @@ model RevalleInvoiceClassification {
   /// Versão anterior (esta é a v2, v3…). Sem FK: a ligação fica também no log de auditoria das duas versões.
   previousEnvelopeId        String?
   version                   Int                      @default(1)
+  /// Conta e centro no PDF: true = envio de antes do bloco (ou nova versão dele), a selagem escreve o texto sozinha
+  /// acima da primeira assinatura de cada nota. false = só onde o remetente pôs o bloco "Conta e centro de custo".
+  autoAnnotation            Boolean                  @default(false)
   createdAt                 DateTime                 @default(now())
   updatedAt                 DateTime                 @updatedAt
 
@@ -1697,4 +1702,22 @@ model RevallePatrimonioEvent {
 
   @@unique([envelopeId, event])
   @@index([deliveredAt, nextAttemptAt])
+}
+
+/// REVALLE: o bloco "Conta e centro de custo" que o remetente põe no editor. Um por arquivo; a selagem escreve a conta e
+/// o centro da nota dentro dele (só em arquivo NF). Página a partir de 1; posição e tamanho em % da página, como `Field`.
+model RevalleInvoiceAnnotationBox {
+  envelopeItemId String       @id
+  envelopeItem   EnvelopeItem @relation(fields: [envelopeItemId], references: [id], onDelete: Cascade)
+  envelopeId     String
+  envelope       Envelope     @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
+  page           Int
+  positionX      Float
+  positionY      Float
+  width          Float
+  height         Float
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([envelopeId])
 }

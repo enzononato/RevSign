@@ -11,6 +11,7 @@ import type { EnvelopeIdOptions } from '../../utils/envelope';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { incrementDocumentId, incrementTemplateId } from '../envelope/increment-id';
 import { assertOrganisationRatesAndLimits } from '../rate-limit/assert-organisation-rates-and-limits';
+import { copyInvoiceAnnotationBoxes } from '../revalle/invoice/annotation-box'; // REVALLE:
 import { assertNotPatrimonioTermo } from '../revalle/patrimonio/guard'; // REVALLE:
 import { resolveSignatureLevel } from '../signature-level/resolve-signature-level';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
@@ -183,6 +184,12 @@ export const duplicateEnvelope = async ({ id, userId, teamId, overrides }: Dupli
       oldEnvelopeItemToNewEnvelopeItemIdMap[envelopeItem.id] = duplicatedEnvelopeItem.id;
     }),
   );
+
+  // REVALLE: o bloco "Conta e centro de custo" de cada arquivo vai junto com o arquivo copiado.
+  await copyInvoiceAnnotationBoxes({
+    itemMap: oldEnvelopeItemToNewEnvelopeItemIdMap,
+    envelopeId: duplicatedEnvelope.id,
+  });
 
   if (includeRecipients) {
     await pMap(

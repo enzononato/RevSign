@@ -4,6 +4,7 @@ import { adminGetSettingsRoute } from './admin-get-settings';
 import { adminImportAccountsRoute } from './admin-import-accounts';
 import { adminPreviewAccountsRoute } from './admin-preview-accounts';
 import { adminUpdateSettingsRoute } from './admin-update-settings';
+import { annotationBoxRouter } from './annotation-box';
 import { classifyInvoiceRoute } from './classify';
 import { invoiceDocumentTagsRoute } from './document-tags';
 import { findInvoicesRoute } from './find';
@@ -35,4 +36,5 @@ export const invoiceRouter = router({
   find: findInvoicesRoute,
   pendingCounts: invoicePendingCountsRoute,
   documentTags: invoiceDocumentTagsRoute,
+  annotationBox: annotationBoxRouter,
 });

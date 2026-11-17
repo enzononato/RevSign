@@ -510,6 +510,8 @@ const createNewVersion = async ({
     financeStatus,
     previousEnvelopeId: envelopeId,
     version,
+    // Envio de antes do bloco de conta e centro: a nova versão sai com o texto no mesmo lugar que a original.
+    autoAnnotation: row.autoAnnotation,
   };
 
   await prisma.$transaction(async (tx) => {

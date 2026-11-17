@@ -467,6 +467,7 @@ const decorateAndSignPdf = async ({
   revalleInvoiceAnnotations, // REVALLE:
 }: DecorateAndSignPdfOptions) => {
   let pdfDoc = await PDF.load(pdfData);
+  const revalleDocumentPageCount = pdfDoc.getPageCount(); // REVALLE: páginas do arquivo, antes do certificado
 
   // Normalize and flatten layers that could cause issues with the signature
   pdfDoc.flattenAll();
@@ -576,6 +577,7 @@ const decorateAndSignPdf = async ({
     pdfDoc,
     annotations: revalleInvoiceAnnotations,
     envelopeItemId: envelopeItem.id,
+    documentPageCount: revalleDocumentPageCount,
   });
 
   // Re-flatten the form to handle our checkbox and radio fields that

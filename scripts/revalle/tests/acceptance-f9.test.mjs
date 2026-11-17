@@ -11,6 +11,8 @@
 //      a 3ª com a conta de antes;
 //   5. a Contabilidade corrige o centro da 1ª: v3; todos assinam, o Financeiro aprova as três, e o PDF final da v3 tem o
 //      texto azul em cada nota (a conta e o centro DELA, uma vez) e nada no boleto; o certificado lista as três notas.
+//      O texto sai porque o remetente pôs o bloco "Conta e centro de custo" em cada arquivo (no boleto também: não sai)
+//      no passo 1, e as novas versões copiam os blocos.
 // As variantes do boleto (valor, beneficiário, vencido) ficam em invoice-boleto.test.mjs; corridas e envios antigos, em
 // finance-multi.test.mjs.
 //
@@ -44,6 +46,7 @@ import {
   makeAccessKey,
   poppler,
   retryCreateOnStaleSocket,
+  setAnnotationBox,
   signIn,
   trpc,
   trpcAs,
@@ -628,6 +631,13 @@ aceite('1. três notas e um boleto: cada arquivo classificado, uma sugestão por
     assert.equal(fileColumn(items[note.title], 'acceptedSuggestion'), 'true', `${note.title} sem a sugestão aceita`);
   }
 
+  // O bloco "Conta e centro de custo" em cada arquivo, como o editor põe; o do boleto não é impresso.
+  for (const title of FILE_TITLES) {
+    const box = await setAnnotationBox({ cookie: userCookie, envelopeId, envelopeItemId: items[title] });
+
+    assert.equal(box.status, 200, box.text);
+  }
+
   const sent = await api('POST', '/envelope/distribute', { envelopeId });
 
   assert.equal(sent.status, 200, sent.text);
@@ -737,6 +747,11 @@ aceite('4. troca a conta da 2ª: v2, todos assinam de novo, as três reabrem', a
   assert.equal(await waitStatus(v2.id, 'PENDING', 15), 'PENDING');
   assert.equal(financeStatus(v2.id), 'PENDING_APPROVAL');
   assert.deepEqual(Object.keys(v2.items), FILE_TITLES);
+  assert.equal(
+    db(`select count(*) from "RevalleInvoiceAnnotationBox" where "envelopeId" = '${v2.id}'`),
+    String(FILE_TITLES.length),
+    'a v2 não copiou os blocos de conta e centro',
+  );
 
   for (const recipient of v2.recipients) {
     assert.equal(recipient.signingStatus, 'NOT_SIGNED', `${recipient.email} não precisa assinar de novo`);
