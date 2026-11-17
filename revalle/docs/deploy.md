@@ -595,6 +595,10 @@ boletos** (`notas-fiscais.md`, seção 10). Envios de uma nota continuam iguais.
 7. **Voltar à imagem anterior.** Envios de uma nota continuam funcionando na imagem antiga (a linha do envio continua
    com a conta, o centro e a aprovação da nota única). Envios com várias notas feitos depois da atualização ficam
    incompletos na imagem antiga (sem a conta e o centro de cada nota): para voltar com eles, restaure o backup.
+   Voltar à imagem antiga é **só para emergência**. O que for feito nela (aprovações, conta e centro escolhidos) **não
+   passa** para a versão nova quando você atualizar de novo, e pode até ser trocado pelo valor antigo. Para atualizar de
+   novo depois de voltar: restaure o backup feito antes da primeira atualização. Se houve trabalho na imagem antiga que
+   precisa ficar, **chame o suporte antes** de atualizar de novo.
 8. **Conferência de primeiro uso.** Envie um teste com dois DANFEs e um boleto pela tela: o diálogo deve mostrar um bloco
    por arquivo ("Nota 1 de 2 · …", "Boleto · …") e, no boleto, "Lido: …". Se a leitura falhar, procure no log do app a
    linha `revalle.invoice.suggestion` com `kind` (`NF` ou `BOLETO`) e `providerStatusCode`: `400` no boleto indica que o
