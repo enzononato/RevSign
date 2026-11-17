@@ -3,6 +3,7 @@ import type { RevalleFinanceStatus, RevalleInvoiceClassification, RevalleInvoice
 import { DocumentStatus, Prisma, RevalleInvoiceFileKind, RevalleInvoiceStatus } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
+import { extractAccessKeys } from '../../../revalle/invoice/detect-invoice';
 import { invoiceMirrorColumns } from '../../../revalle/invoice/invoice-files';
 import { logger } from '../../../utils/logger';
 import { loadEnvelopeFiles, readFilesContent } from './envelope-files';
@@ -184,37 +185,38 @@ const legacyNfColumns = (row: RevalleInvoiceClassification) => ({
  * primeiro), com tudo que a linha do envio tem; os outros arquivos ficam como "outro" (ou "sem texto"). Uma nota só: o
  * espelho continua igual. Só envio já enviado, salvo `allowDraft` (o rascunho de antes da Fase 9 com os mesmos arquivos,
  * que a classificação refaz sem apagar a escolha). Idempotente e seguro contra pedidos simultâneos (trava o envio).
+ * Devolve `true` só se criou as linhas (nada a refazer, ou outro pedido já refez: `false`).
  */
 export const ensureLegacyInvoiceFiles = async (
   envelopeId: string,
   { allowDraft = false }: { allowDraft?: boolean } = {},
-): Promise<void> => {
+): Promise<boolean> => {
   const row = await prisma.revalleInvoiceClassification.findUnique({
     where: { envelopeId },
     select: { isInvoice: true, envelope: { select: { status: true } } },
   });
 
   if (!row || row.isInvoice !== RevalleInvoiceStatus.YES) {
-    return;
+    return false;
   }
 
   if (!allowDraft && row.envelope.status === DocumentStatus.DRAFT) {
-    return;
+    return false;
   }
 
   if ((await prisma.revalleInvoiceFile.count({ where: { envelopeId } })) > 0) {
-    return;
+    return false;
   }
 
   const contents = await readFilesContent(await loadEnvelopeFiles(envelopeId));
 
   if (contents.length === 0) {
-    return;
+    return false;
   }
 
   const invoice = contents.find((content) => content.detection.status === 'YES') ?? contents[0];
 
-  await prisma.$transaction(async (tx) => {
+  return await prisma.$transaction(async (tx) => {
     await lockInvoiceEnvelope(tx, envelopeId);
 
     const current = await tx.revalleInvoiceClassification.findUnique({ where: { envelopeId } });
@@ -224,10 +226,10 @@ export const ensureLegacyInvoiceFiles = async (
       current.isInvoice !== RevalleInvoiceStatus.YES ||
       (await tx.revalleInvoiceFile.count({ where: { envelopeId } })) > 0
     ) {
-      return;
+      return false;
     }
 
-    await tx.revalleInvoiceFile.createMany({
+    const created = await tx.revalleInvoiceFile.createMany({
       data: contents.map((content) =>
         content === invoice
           ? {
@@ -242,12 +244,17 @@ export const ensureLegacyInvoiceFiles = async (
               envelopeItemId: content.file.envelopeItemId,
               kind: content.isSparse ? RevalleInvoiceFileKind.UNKNOWN : RevalleInvoiceFileKind.OTHER,
               fileSha256: content.file.sha256,
+              // Sem isto, a duplicada não acharia a chave se o remetente marcasse este arquivo como nota depois. Só o
+              // texto (sem IA, sem log do documento); como a classificação, sem texto = sem chaves.
+              accessKeys: content.isSparse ? [] : extractAccessKeys(content.pages),
             },
       ),
       skipDuplicates: true,
     });
 
     await syncInvoiceEnvelopeMirror(tx, envelopeId);
+
+    return created.count > 0;
   });
 };
 
@@ -259,7 +266,12 @@ export const backfillLegacyInvoiceFiles = async (): Promise<number> => {
   const rows = await prisma.revalleInvoiceClassification.findMany({
     where: {
       isInvoice: RevalleInvoiceStatus.YES,
-      envelope: { status: { not: DocumentStatus.DRAFT }, revalleInvoiceFiles: { none: {} } },
+      // Sem arquivo nenhum não há o que refazer: não volta a cada subida.
+      envelope: {
+        status: { not: DocumentStatus.DRAFT },
+        revalleInvoiceFiles: { none: {} },
+        envelopeItems: { some: {} },
+      },
     },
     select: { envelopeId: true },
   });
@@ -268,8 +280,9 @@ export const backfillLegacyInvoiceFiles = async (): Promise<number> => {
 
   for (const { envelopeId } of rows) {
     try {
-      await ensureLegacyInvoiceFiles(envelopeId);
-      rebuilt += 1;
+      if (await ensureLegacyInvoiceFiles(envelopeId)) {
+        rebuilt += 1;
+      }
     } catch (error) {
       logger.warn({
         msg: 'revalle.invoice.legacy-files.failed',

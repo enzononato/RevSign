@@ -13,6 +13,7 @@ import { isNewVersionDraftRow } from '../../../revalle/finance/finance-status';
 import type { ApiRequestMetadata } from '../../../universal/extract-request-metadata';
 import { logger } from '../../../utils/logger';
 import { DOCUMENT_ALREADY_SENT_CODE, sendDocument } from '../../document/send-document';
+import { filesKey, loadEnvelopeFiles } from '../invoice/envelope-files';
 import {
   ensureLegacyInvoiceFiles,
   lockInvoiceEnvelope,
@@ -152,8 +153,14 @@ export const resendInvoiceVersion = async ({
 
   const now = new Date();
 
-  // Fase 9: a reserva fica na linha da nota (rascunho de antes da Fase 9: as linhas são refeitas antes).
-  await ensureLegacyInvoiceFiles(envelopeId, { allowDraft: true });
+  // Fase 9: a reserva fica na linha da nota (rascunho de antes da Fase 9: as linhas são refeitas antes). Só com os mesmos
+  // arquivos da classificação: se o dono trocou algum, a aprovação não pode ir para os arquivos novos (sem linha, abaixo
+  // vira "o remetente trocou o arquivo").
+  if ((await prisma.revalleInvoiceFile.count({ where: { envelopeId } })) === 0) {
+    if (row.fileSha256 === filesKey(await loadEnvelopeFiles(envelopeId))) {
+      await ensureLegacyInvoiceFiles(envelopeId, { allowDraft: true });
+    }
+  }
 
   const file = await resolveInvoiceFile({ envelopeId }).catch(async (error: unknown) => {
     // O dono trocou o arquivo (a nota pode ter deixado de ser NF): a mensagem de sempre.

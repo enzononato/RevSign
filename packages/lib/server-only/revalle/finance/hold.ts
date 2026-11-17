@@ -4,7 +4,7 @@ import { RevalleFinanceStatus, RevalleInvoiceStatus } from '@prisma/client';
 
 import { jobs } from '../../../jobs/client';
 import { logger } from '../../../utils/logger';
-import { syncInvoiceEnvelopeMirror } from '../invoice/invoice-files';
+import { lockInvoiceEnvelope, syncInvoiceEnvelopeMirror } from '../invoice/invoice-files';
 
 /**
  * Primeiro envio de uma NF com conta: aguardando a aprovação do Financeiro. Vale também sobre `LEGACY` (rascunho de
@@ -32,7 +32,11 @@ export const markInvoiceAwaitingApproval = async (envelopeId: string) => {
  * `choiceAt`, para o certificado ter a data. Só grava junto com o envio: um envio que falha deixa a reserva solta.
  */
 export const stampReleasedApproval = async (envelopeId: string, tx: Prisma.TransactionClient) => {
-  // Fase 9: na linha da nota (o envio continua `APPROVED`), e o espelho em seguida. Os nomes congelados vêm da reserva
+  // Fase 9: a ordem de sempre (a classificação travada primeiro, depois as linhas de arquivo e o espelho): sem isto, dois
+  // pedidos simultâneos travam um ao outro.
+  await lockInvoiceEnvelope(tx, envelopeId);
+
+  // Na linha da nota (o envio continua `APPROVED`), e o espelho em seguida. Os nomes congelados vêm da reserva
   // (a troca); sem eles, os atuais, junto com a data.
   const count = await tx.$executeRaw`
     UPDATE "RevalleInvoiceFile" f
