@@ -11,14 +11,17 @@ export type AnnotationBoxRect = {
   height: number;
 };
 
-/** Tamanho inicial (% da página): cabem duas linhas do texto numa folha A4. */
+/** Tamanho inicial (% da página): cabem duas linhas do texto, também numa folha A4 deitada. */
 export const ANNOTATION_BOX_DEFAULT: Omit<AnnotationBoxRect, 'page' | 'positionX' | 'positionY'> = {
   width: 30,
-  height: 5,
+  height: 6,
 };
 
-/** O menor bloco aceito (% da página): ainda cabe uma linha curta na fonte mínima. */
-export const ANNOTATION_BOX_MIN: { width: number; height: number } = { width: 12, height: 3 };
+/**
+ * O menor bloco aceito (% da página). A altura cabe as duas linhas na fonte 10 numa A4 deitada (595 pt: ~32 pt com a
+ * folga); a largura, uma linha curta na fonte mínima.
+ */
+export const ANNOTATION_BOX_MIN: { width: number; height: number } = { width: 12, height: 6 };
 
 const clampNumber = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
@@ -137,20 +140,26 @@ export const ANNOTATION_BOX_PADDING_PT = 2;
 // texto automático acima da assinatura).
 const LINE_HEIGHT_RATIO = 1.4;
 const BASELINE_RATIO = 1.1;
+/** Quanto a letra desce abaixo da linha de base, em relação à fonte (a Noto Sans desce ~0,29 em). */
+export const ANNOTATION_TEXT_DESCENT_RATIO = 0.3;
 
 /**
  * O texto dentro do bloco, alinhado ao alto e à esquerda. `box` e o retorno em pt, origem no topo-esquerda da página
- * (no sentido em que a página é vista); `baseline` é a linha de base de cada linha.
+ * (no sentido em que a página é vista); `baseline` é a linha de base de cada linha. O texto nunca é cortado: se ele
+ * passaria do pé da página (bloco no fim da página, ou muitas linhas quebradas), sobe inteiro até caber, mesmo que
+ * comece acima do bloco.
  */
 export const placeAnnotationText = ({
   lines,
   box,
+  pageHeight,
   measure,
   maxSize,
   minSize,
 }: {
   lines: string[];
   box: { x: number; y: number; width: number; height: number };
+  pageHeight: number;
   measure: Measure;
   maxSize: number;
   minSize: number;
@@ -164,7 +173,10 @@ export const placeAnnotationText = ({
     maxSize,
     minSize,
   });
-  const top = box.y + padding;
+  const { size } = layout;
+  const lastBaseline = box.y + padding + size * BASELINE_RATIO + (layout.lines.length - 1) * size * LINE_HEIGHT_RATIO;
+  const overflow = lastBaseline + size * ANNOTATION_TEXT_DESCENT_RATIO - (pageHeight - padding);
+  const top = box.y + padding - Math.max(0, overflow);
 
   return {
     size: layout.size,

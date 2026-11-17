@@ -55,6 +55,7 @@ import { insertFormValuesInPdf } from '../pdf/insert-form-values-in-pdf';
 import { assertOrganisationRatesAndLimits } from '../rate-limit/assert-organisation-rates-and-limits';
 import { assignOmittedRecipientSigningOrders } from '../recipient/assign-omitted-recipient-signing-orders';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
+import { copyInvoiceAnnotationBoxes } from '../revalle/invoice/annotation-box'; // REVALLE:
 import { assertCompatibleRecipientGrouping } from '../signature-level/assert-compatible-recipient-grouping';
 import { assertCompatibleRecipientRole } from '../signature-level/assert-compatible-recipient-role';
 import { resolveSignatureLevel } from '../signature-level/resolve-signature-level';
@@ -750,6 +751,9 @@ export const createDocumentFromTemplate = async ({
         fieldMeta: field.fieldMeta ? ZFieldMetaSchema.parse(field.fieldMeta) : undefined,
       })),
     });
+
+    // REVALLE: o bloco "Conta e centro de custo" de cada arquivo do modelo vai para o arquivo do documento.
+    await copyInvoiceAnnotationBoxes({ itemMap: oldEnvelopeItemToNewEnvelopeItemIdMap, envelopeId: envelope.id, tx });
 
     await tx.documentAuditLog.create({
       data: createDocumentAuditLogData({

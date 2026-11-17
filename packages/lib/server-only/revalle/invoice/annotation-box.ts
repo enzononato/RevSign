@@ -1,6 +1,5 @@
 import { prisma } from '@documenso/prisma';
-import type { Prisma } from '@prisma/client';
-import { DocumentStatus } from '@prisma/client';
+import { DocumentStatus, Prisma } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { type AnnotationBoxRect, clampAnnotationBox } from '../../../revalle/invoice/annotation-box';
@@ -76,11 +75,20 @@ export const setInvoiceAnnotationBox = async ({
   const clamped = clampAnnotationBox(rect);
 
   return await withEditableDraftItem(target, async (tx) => {
-    const row = await tx.revalleInvoiceAnnotationBox.upsert({
-      where: { envelopeItemId: target.envelopeItemId },
-      create: { envelopeItemId: target.envelopeItemId, envelopeId: target.envelopeId, ...clamped },
-      update: clamped,
-    });
+    // O arquivo pode ter sido tirado do envio entre a conferência e a gravação (chave estrangeira): 404, como antes.
+    const row = await tx.revalleInvoiceAnnotationBox
+      .upsert({
+        where: { envelopeItemId: target.envelopeItemId },
+        create: { envelopeItemId: target.envelopeItemId, envelopeId: target.envelopeId, ...clamped },
+        update: clamped,
+      })
+      .catch((error: unknown) => {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+          throw notFound();
+        }
+
+        throw error;
+      });
 
     return toRect(row);
   });
@@ -134,6 +142,16 @@ export const findInvoiceAnnotationBoxesForUser = async ({
   return await findInvoiceAnnotationBoxes(envelopeId);
 };
 
+/** Envio de antes do bloco (ou nova versão dele): o editor esconde o bloco. Sem a linha da nota: falso. */
+export const findInvoiceAutoAnnotation = async (envelopeId: string): Promise<boolean> => {
+  const row = await prisma.revalleInvoiceClassification.findUnique({
+    where: { envelopeId },
+    select: { autoAnnotation: true },
+  });
+
+  return row?.autoAnnotation ?? false;
+};
+
 /**
  * O `duplicateEnvelope` do upstream copia os arquivos: o bloco de cada arquivo vai junto, na mesma página e posição
  * (nova versão, duplicar, salvar como modelo). `itemMap`: arquivo de origem → arquivo copiado.
@@ -141,11 +159,14 @@ export const findInvoiceAnnotationBoxesForUser = async ({
 export const copyInvoiceAnnotationBoxes = async ({
   itemMap,
   envelopeId,
+  tx = prisma,
 }: {
   itemMap: Record<string, string>;
   envelopeId: string;
+  /** A transação que criou os arquivos copiados (documento a partir de modelo). */
+  tx?: Prisma.TransactionClient;
 }): Promise<void> => {
-  const boxes = await prisma.revalleInvoiceAnnotationBox.findMany({
+  const boxes = await tx.revalleInvoiceAnnotationBox.findMany({
     where: { envelopeItemId: { in: Object.keys(itemMap) } },
   });
 
@@ -156,6 +177,52 @@ export const copyInvoiceAnnotationBoxes = async ({
   });
 
   if (data.length > 0) {
-    await prisma.revalleInvoiceAnnotationBox.createMany({ data, skipDuplicates: true });
+    await tx.revalleInvoiceAnnotationBox.createMany({ data, skipDuplicates: true });
   }
+};
+
+const ANNOTATION_BOX_MIGRATION = '20261117100000_revalle_annotation_box';
+
+// Quando a migração do bloco terminou neste banco. Lido uma vez; sem a linha (banco sem o histórico do Prisma), nulo e
+// lido de novo na próxima vez.
+let annotationBoxMigrationAt: Date | null = null;
+
+const findAnnotationBoxMigrationAt = async (): Promise<Date | null> => {
+  if (annotationBoxMigrationAt) {
+    return annotationBoxMigrationAt;
+  }
+
+  const rows = await prisma.$queryRaw<Array<{ finishedAt: Date | null }>>`
+    SELECT "finished_at" AS "finishedAt" FROM "_prisma_migrations"
+    WHERE "migration_name" = ${ANNOTATION_BOX_MIGRATION} AND "finished_at" IS NOT NULL AND "rolled_back_at" IS NULL
+    ORDER BY "finished_at" ASC LIMIT 1`;
+
+  annotationBoxMigrationAt = rows[0]?.finishedAt ?? null;
+
+  return annotationBoxMigrationAt;
+};
+
+/**
+ * Envio que já tinha saído antes da migração do bloco e ganha a linha da nota só agora (marcado como NF depois do envio):
+ * mantém o texto automático, como a migração faz com as linhas que já existiam. A hora do envio é a do primeiro
+ * `DOCUMENT_SENT`; sem ele, a criação do envelope.
+ */
+export const wasSentBeforeAnnotationBox = async (envelopeId: string): Promise<boolean> => {
+  const migratedAt = await findAnnotationBoxMigrationAt();
+
+  if (!migratedAt) {
+    return false;
+  }
+
+  const [sent, envelope] = await Promise.all([
+    prisma.documentAuditLog.findFirst({
+      where: { envelopeId, type: 'DOCUMENT_SENT' },
+      orderBy: { createdAt: 'asc' },
+      select: { createdAt: true },
+    }),
+    prisma.envelope.findUnique({ where: { id: envelopeId }, select: { createdAt: true } }),
+  ]);
+  const sentAt = sent?.createdAt ?? envelope?.createdAt;
+
+  return sentAt !== undefined && sentAt < migratedAt;
 };

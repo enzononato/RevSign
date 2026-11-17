@@ -308,6 +308,7 @@ const drawOne = async (pdfDoc: PDF, annotation: RevalleInvoiceAnnotation, docume
       ? placeAnnotationText({
           lines: annotation.lines,
           box: toPt(annotation.box),
+          pageHeight,
           measure,
           maxSize: INVOICE_ANNOTATION_FONT_SIZE,
           minSize: ANNOTATION_BOX_MIN_FONT_SIZE,

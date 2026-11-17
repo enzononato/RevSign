@@ -12,6 +12,7 @@ import {
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { pickSentInvoiceTargets } from '../../../revalle/invoice/invoice-files';
 import { isAdmin } from '../../../utils/is-admin';
+import { wasSentBeforeAnnotationBox } from './annotation-box';
 import type { InvoiceState } from './classify';
 import { getInvoiceState } from './classify';
 import { filesKey, loadEnvelopeFiles } from './envelope-files';
@@ -79,6 +80,8 @@ export const markSentEnvelopeAsInvoice = async ({
   }
 
   const now = new Date();
+  // Enviado antes do bloco de conta e centro: a linha nova nasce com o texto automático (a migração não a viu).
+  const autoAnnotation = row ? false : await wasSentBeforeAnnotationBox(envelopeId);
 
   await prisma.$transaction(async (tx) => {
     if (!row) {
@@ -91,6 +94,7 @@ export const markSentEnvelopeAsInvoice = async ({
             detectedBy: RevalleInvoiceDetectedBy.TEXT,
             signals: [],
             fileSha256: filesKey(files),
+            autoAnnotation,
           },
         ],
         skipDuplicates: true,

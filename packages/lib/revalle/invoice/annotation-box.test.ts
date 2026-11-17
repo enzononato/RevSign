@@ -4,6 +4,7 @@ import {
   ANNOTATION_BOX_DEFAULT,
   ANNOTATION_BOX_MIN,
   ANNOTATION_BOX_PADDING_PT,
+  ANNOTATION_TEXT_DESCENT_RATIO,
   clampAnnotationBox,
   layoutAnnotationText,
   placeAnnotationText,
@@ -16,11 +17,11 @@ const widest = (list: string[], size: number) => Math.max(...list.map((line) => 
 
 describe('clampAnnotationBox', () => {
   it('pulls a box that passes the page edge back inside', () => {
-    const rect = clampAnnotationBox({ page: 1, positionX: 95, positionY: 98, width: 30, height: 5 });
+    const rect = clampAnnotationBox({ page: 1, positionX: 95, positionY: 98, width: 30, height: 7 });
 
     expect(rect.positionX + rect.width).toBeLessThanOrEqual(100);
     expect(rect.positionY + rect.height).toBeLessThanOrEqual(100);
-    expect(rect).toEqual({ page: 1, positionX: 70, positionY: 95, width: 30, height: 5 });
+    expect(rect).toEqual({ page: 1, positionX: 70, positionY: 93, width: 30, height: 7 });
   });
 
   it('raises a box smaller than the minimum and keeps negative positions on the page', () => {
@@ -99,7 +100,7 @@ describe('layoutAnnotationText', () => {
 describe('placeAnnotationText', () => {
   it('starts at the top-left corner of the box, one line under the other', () => {
     const box = { x: 59.5, y: 589.4, width: 220, height: 42.1 };
-    const placed = placeAnnotationText({ lines, box, measure, maxSize: 10, minSize: 6 });
+    const placed = placeAnnotationText({ lines, box, pageHeight: 842, measure, maxSize: 10, minSize: 6 });
 
     expect(placed.size).toBe(10);
     expect(placed.lines.map((line) => line.x)).toEqual([
@@ -108,5 +109,41 @@ describe('placeAnnotationText', () => {
     ]);
     expect(placed.lines[0].baseline).toBeCloseTo(box.y + ANNOTATION_BOX_PADDING_PT + 11);
     expect(placed.lines[1].baseline - placed.lines[0].baseline).toBeCloseTo(14);
+  });
+
+  // A linha de base menos a descida, em coordenadas do PDF (origem no pé da página), nunca abaixo de 0.
+  const lowestPdfY = (placed: ReturnType<typeof placeAnnotationText>, pageHeight: number) =>
+    Math.min(...placed.lines.map((line) => pageHeight - line.baseline - placed.size * ANNOTATION_TEXT_DESCENT_RATIO));
+
+  it.each([
+    ['portrait', 842, 595],
+    ['landscape', 595, 842],
+  ])('keeps a box at the bottom edge on the page (%s)', (_name, pageHeight, pageWidth) => {
+    const rect = clampAnnotationBox({ page: 1, positionX: 10, positionY: 99, width: 45, height: 1 });
+    const box = {
+      x: (rect.positionX / 100) * pageWidth,
+      y: (rect.positionY / 100) * pageHeight,
+      width: (rect.width / 100) * pageWidth,
+      height: (rect.height / 100) * pageHeight,
+    };
+    const placed = placeAnnotationText({ lines, box, pageHeight, measure, maxSize: 10, minSize: 6 });
+
+    expect(rect.height).toBe(ANNOTATION_BOX_MIN.height);
+    expect(placed.size).toBe(10);
+    expect(lowestPdfY(placed, pageHeight)).toBeGreaterThanOrEqual(0);
+    // Duas linhas na fonte 10 cabem no bloco mínimo, então o texto fica dentro dele.
+    expect(placed.lines[0].baseline - 10 * 1.1).toBeGreaterThanOrEqual(box.y);
+  });
+
+  it('moves a narrow box with four wrapped lines up so the last line stays on the page', () => {
+    const pageHeight = 842;
+    const box = { x: 520, y: pageHeight - 20, width: 50, height: 20 };
+    const placed = placeAnnotationText({ lines, box, pageHeight, measure, maxSize: 10, minSize: 6 });
+
+    expect(placed.size).toBe(6);
+    expect(placed.lines.length).toBeGreaterThanOrEqual(4);
+    expect(words(placed.lines.map((line) => line.text))).toEqual(words(lines));
+    expect(lowestPdfY(placed, pageHeight)).toBeGreaterThanOrEqual(0);
+    expect(placed.lines[0].baseline - 6 * 1.1).toBeLessThan(box.y + ANNOTATION_BOX_PADDING_PT);
   });
 });

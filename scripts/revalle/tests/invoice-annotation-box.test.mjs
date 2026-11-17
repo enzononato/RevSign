@@ -1,9 +1,10 @@
 // Conta e centro de custo no PDF final só onde o remetente põe o bloco "Conta e centro de custo" (spec
 // 2026-11-17-conta-cc-posicionavel): por padrão nada é escrito; com bloco numa nota, o texto azul sai dentro do bloco, na
 // página escolhida; bloco em contrato ou boleto não sai; a nova versão copia o bloco e a marca de envio antigo
-// (`autoAnnotation`); o envio de antes da atualização mantém o texto automático acima da assinatura; o bloco só muda no
-// rascunho, pelo envelope e por quem edita; página que não existe mais e arquivo trocado não derrubam nada; a migração
-// marca só o que já tinha saído do rascunho (ou era nova versão).
+// (`autoAnnotation`), e duplicar ou criar documento de um modelo copia só o bloco; o envio de antes da atualização mantém o
+// texto automático acima da assinatura, também quando é marcado como NF só agora; o bloco só muda no rascunho, pelo
+// envelope e por quem edita; página que não existe mais e arquivo trocado não derrubam nada; a migração marca só o que já
+// tinha saído do rascunho (ou era nova versão).
 // Sessões: REVSIGN_USER_* (dono do REVSIGN_API_TOKEN) e REVSIGN_ADMIN_* (rsadmin, marcado como Financeiro aqui), mais
 // uma conta de teste nova (account-helpers.mjs) para o "outro usuário". Ver revalle/docs/testes.md.
 
@@ -607,6 +608,8 @@ sessionTest('nova versão copia o bloco e o autoAnnotation', async () => {
     (await setAnnotationBox({ cookie: userCookie, envelopeId: draft.id, envelopeItemId: draft.item })).status,
     200,
   );
+  // Mesmo de um envio marcado como antigo, a cópia comum segue a regra nova.
+  markAutoAnnotation(draft.id);
 
   const duplicated = await trpcAs(
     userCookie,
@@ -622,7 +625,106 @@ sessionTest('nova versão copia o bloco e o autoAnnotation', async () => {
   const copyItem = db(`select id from "EnvelopeItem" where "envelopeId" = '${copyId}'`);
 
   assert.equal(boxRow(copyItem), rectRow(BOX), 'duplicar não copiou o bloco');
-  assert.notEqual(autoAnnotation(copyId), 't');
+
+  const classified = await trpcAs(userCookie, 'mutation', 'revalle.invoice.classify', { envelopeId: copyId });
+
+  assert.equal(classified.status, 200, classified.text);
+  assert.equal(autoAnnotation(copyId), 'f', 'a cópia comum herdou a marca de envio antigo');
+  assert.equal(data(classified).autoAnnotation, false);
+  assert.deepEqual(data(classified).annotationBoxes, [{ envelopeItemId: copyItem, page: 1 }]);
+
+  // Documento a partir de um modelo: o bloco do arquivo do modelo vai para o arquivo do documento.
+  const templateRect = { page: 1, positionX: 20, positionY: 60, width: 40, height: 8 };
+  const template = await retryCreateOnStaleSocket(async () =>
+    createEnvelope({
+      type: 'TEMPLATE',
+      pdf: await danfe('modelo'),
+      title: `[TESTE NF] bloco de conta modelo ${RUN}`,
+      recipients: [{ email: 'recipient.1@documenso.com', name: 'Recipient 1' }],
+    }),
+  );
+
+  assert.equal(template.status, 200, template.text);
+
+  const templateItem = db(`select id from "EnvelopeItem" where "envelopeId" = '${template.id}'`);
+
+  assert.equal(
+    (
+      await setAnnotationBox({
+        cookie: userCookie,
+        envelopeId: template.id,
+        envelopeItemId: templateItem,
+        rect: templateRect,
+      })
+    ).status,
+    200,
+  );
+
+  const form = new FormData();
+
+  form.append(
+    'payload',
+    JSON.stringify({
+      envelopeId: template.id,
+      distributeDocument: false,
+      recipients: [
+        {
+          id: template.envelope.recipients[0].id,
+          email: `bloco-conta-modelo-${RUN}@revalle.com.br`,
+          name: 'Teste',
+        },
+      ],
+    }),
+  );
+
+  const used = await fetch(`${BASE_URL}/api/v2-beta/envelope/use`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.REVSIGN_API_TOKEN}` },
+    body: form,
+  });
+  const usedText = await used.text();
+
+  assert.equal(used.status, 200, usedText);
+
+  const documentId = JSON.parse(usedText).id;
+  const documentItem = db(`select id from "EnvelopeItem" where "envelopeId" = '${documentId}'`);
+
+  assert.notEqual(documentItem, templateItem);
+  assert.equal(boxRow(documentItem), rectRow(templateRect), 'o documento do modelo não recebeu o bloco');
+  assert.equal(boxRow(templateItem), rectRow(templateRect), 'o modelo perdeu o bloco');
+});
+
+sessionTest('marcado como NF depois do envio: envio de antes da atualização mantém o texto automático', async () => {
+  for (const isOld of [true, false]) {
+    const label = isOld ? 'marcado-antigo' : 'marcado-novo';
+    const created = await retryCreateOnStaleSocket(() =>
+      createEnvelope({
+        recipients: [{ email: `bloco-conta-${label}-${RUN}@revalle.com.br` }],
+        title: `[TESTE] bloco de conta ${label} ${RUN}`,
+      }),
+    );
+
+    assert.equal(created.status, 200, created.text);
+    assert.equal((await distribute(created.id)).length, 1);
+
+    if (isOld) {
+      // O envio aconteceu antes da migração do bloco.
+      const moved = db(
+        `update "DocumentAuditLog" set "createdAt" = (select "finished_at" from "_prisma_migrations" where "migration_name" = '20261117100000_revalle_annotation_box' and "finished_at" is not null order by "finished_at" limit 1) - interval '1 day' where "envelopeId" = '${created.id}' and type = 'DOCUMENT_SENT'`,
+      );
+
+      assert.match(moved, /^UPDATE [1-9]/, 'o envio não tem DOCUMENT_SENT');
+    }
+
+    // Como um envio que nunca teve a linha da nota.
+    db(`delete from "RevalleInvoiceFile" where "envelopeId" = '${created.id}'`);
+    db(`delete from "RevalleInvoiceClassification" where "envelopeId" = '${created.id}'`);
+
+    const marked = await trpcAs(userCookie, 'mutation', 'revalle.invoice.markAsInvoice', { envelopeId: created.id });
+
+    assert.equal(marked.status, 200, marked.text);
+    assert.equal(autoAnnotation(created.id), isOld ? 't' : 'f', label);
+  }
 });
 
 sessionTest('envio de antes da atualização: texto automático acima da assinatura', async () => {
@@ -668,13 +770,13 @@ sessionTest('bloco: só no rascunho, só do envio, só de quem edita', async () 
   );
 
   assert.equal(clamped.status, 200, clamped.text);
-  assert.deepEqual(data(clamped), { page: 1, positionX: 70, positionY: 97, width: 30, height: 3 });
+  assert.deepEqual(data(clamped), { page: 1, positionX: 70, positionY: 94, width: 30, height: 6 });
 
   const found = await boxRoute(userCookie, 'query', 'find', { envelopeId: draft.id }, headers);
 
   assert.equal(found.status, 200, found.text);
   assert.deepEqual(data(found).boxes, [
-    { envelopeItemId: draft.item, page: 1, positionX: 70, positionY: 97, width: 30, height: 3 },
+    { envelopeItemId: draft.item, page: 1, positionX: 70, positionY: 94, width: 30, height: 6 },
   ]);
 
   // O arquivo de outro envelope: 404, e nada gravado.
@@ -702,7 +804,7 @@ sessionTest('bloco: só no rascunho, só do envio, só de quem edita', async () 
     assert.equal(res.status, 404, `${name}: ${res.text}`);
   }
 
-  assert.equal(boxRow(draft.item), rectRow({ page: 1, positionX: 70, positionY: 97, width: 30, height: 3 }));
+  assert.equal(boxRow(draft.item), rectRow({ page: 1, positionX: 70, positionY: 94, width: 30, height: 6 }));
 
   // Tirar o bloco.
   const removed = await boxRoute(
