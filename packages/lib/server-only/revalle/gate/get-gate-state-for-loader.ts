@@ -1,6 +1,7 @@
 import { prisma } from '@documenso/prisma';
 import { DocumentStatus, EnvelopeType, SigningStatus } from '@prisma/client';
 
+import { greetingName } from '../../../revalle/recipient-name';
 import type { RequestMetadata } from '../../../universal/extract-request-metadata';
 import { getRevalleGateState } from './get-gate-state';
 import { isSupersededPendingVersion } from './superseded-version';
@@ -25,14 +26,14 @@ export const getRevalleGateLoaderPayload = async (
   // com a versão escondida das listas (excluída) e antes de qualquer dado do documento.
   const superseded = await prisma.recipient.findFirst({
     where: { token, envelope: { type: EnvelopeType.DOCUMENT } },
-    select: { id: true, name: true, envelope: { select: { user: { select: { name: true } } } } },
+    select: { id: true, name: true, email: true, envelope: { select: { user: { select: { name: true } } } } },
   });
 
   if (superseded && (await isSupersededPendingVersion({ recipientId: superseded.id }))) {
     return {
       revalleGate: { status: 'SUPERSEDED' },
       token,
-      recipientName: superseded.name,
+      recipientName: greetingName(superseded.name, superseded.email),
       senderName: superseded.envelope.user.name,
     };
   }
@@ -67,7 +68,8 @@ export const getRevalleGateLoaderPayload = async (
   return {
     revalleGate: state,
     token,
-    recipientName: recipient.name,
+    // Sem nome ainda (só o e-mail no envio): "Olá, e-mail", nunca "Olá, ".
+    recipientName: greetingName(recipient.name, recipient.email),
     senderName: recipient.envelope.user.name,
   };
 };

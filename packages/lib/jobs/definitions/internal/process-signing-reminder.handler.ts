@@ -15,6 +15,7 @@ import { createElement } from 'react';
 import { getI18nInstance } from '../../../client-only/providers/i18n-server';
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../../constants/app';
 import { RECIPIENT_ROLES_DESCRIPTION } from '../../../constants/recipient-roles';
+import { greetingName } from '../../../revalle/recipient-name'; // REVALLE:
 import { buildEnvelopeEmailHeaders } from '../../../server-only/email/build-envelope-email-headers';
 import { getEmailContext } from '../../../server-only/email/get-email-context';
 import { assertOrganisationRatesAndLimits } from '../../../server-only/rate-limit/assert-organisation-rates-and-limits';
@@ -141,7 +142,7 @@ export const run = async ({ payload, io }: { payload: TProcessSigningReminderJob
   }
 
   const customEmailTemplate = {
-    'signer.name': recipient.name,
+    'signer.name': greetingName(recipient.name, recipient.email), // REVALLE: sem nome ainda, o e-mail
     'signer.email': recipient.email,
     'document.name': envelope.title,
   };
@@ -195,7 +196,7 @@ export const run = async ({ payload, io }: { payload: TProcessSigningReminderJob
       });
 
     const template = createElement(DocumentReminderEmailTemplate, {
-      recipientName: recipient.name,
+      recipientName: greetingName(recipient.name, recipient.email), // REVALLE: nunca "Olá, ,"
       documentName: envelope.title,
       assetBaseUrl,
       signDocumentLink,

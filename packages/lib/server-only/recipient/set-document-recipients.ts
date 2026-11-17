@@ -12,6 +12,7 @@ import { isDeepEqual } from 'remeda';
 
 import { AppError, AppErrorCode } from '../../errors/app-error';
 import { jobs } from '../../jobs/client';
+import { nameFromAccount } from '../../revalle/recipient-name'; // REVALLE:
 import { extractDerivedDocumentEmailSettings } from '../../types/document-email';
 import { type EnvelopeIdOptions, mapSecondaryIdToDocumentId } from '../../utils/envelope';
 import { canRecipientBeModified, isRecipientEmailValidForSending } from '../../utils/recipients';
@@ -20,6 +21,7 @@ import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { hasRevalleEmailChanged } from '../revalle/email-change'; // REVALLE:
 import { assertSentInvoiceRecipientEmails } from '../revalle/invoice/external-recipients'; // REVALLE:
+import { findAccountNamesFor } from '../revalle/recipients/fill-recipient-names'; // REVALLE:
 import { assertCompatibleRecipientGrouping } from '../signature-level/assert-compatible-recipient-grouping';
 import { assertCompatibleRecipientRole } from '../signature-level/assert-compatible-recipient-role';
 import { resolveReplacedRecipientSigningOrders } from './assign-omitted-recipient-signing-orders';
@@ -151,6 +153,9 @@ export const setDocumentRecipients = async ({
     };
   });
 
+  // REVALLE: destinatário sem nome cujo e-mail tem conta recebe o nome da conta (nome existente nunca muda).
+  const revalleAccountNames = await findAccountNamesFor(linkedRecipients);
+
   const persistedRecipients = await prisma.$transaction(async (tx) => {
     await assertEnvelopeMutable(envelope, tx);
 
@@ -178,7 +183,7 @@ export const setDocumentRecipients = async ({
             envelopeId: envelope.id,
           },
           update: {
-            name: recipient.name,
+            name: nameFromAccount(recipient.name, recipient.email, revalleAccountNames), // REVALLE:
             email: recipient.email,
             // REVALLE: e-mail trocado ganha link novo; o link antigo (já enviado ao e-mail anterior) deixa de abrir.
             ...(recipient._persisted && hasRevalleEmailChanged(recipient._persisted.email, recipient.email)
@@ -192,7 +197,7 @@ export const setDocumentRecipients = async ({
             authOptions,
           },
           create: {
-            name: recipient.name,
+            name: nameFromAccount(recipient.name, recipient.email, revalleAccountNames), // REVALLE:
             email: recipient.email,
             role: recipient.role,
             signingOrder: recipient.signingOrder,

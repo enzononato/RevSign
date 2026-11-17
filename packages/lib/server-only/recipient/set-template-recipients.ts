@@ -7,11 +7,13 @@ import type { Recipient } from '@prisma/client';
 import { EnvelopeType, RecipientRole } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../errors/app-error';
+import { nameFromAccount } from '../../revalle/recipient-name'; // REVALLE:
 import { type TRecipientActionAuthTypes, ZRecipientAuthOptionsSchema } from '../../types/document-auth';
 import { nanoid } from '../../universal/id';
 import { createRecipientAuthOptions } from '../../utils/document-auth';
 import { type EnvelopeIdOptions, mapSecondaryIdToTemplateId } from '../../utils/envelope';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
+import { findAccountNamesFor } from '../revalle/recipients/fill-recipient-names'; // REVALLE:
 import { assertCompatibleRecipientGrouping } from '../signature-level/assert-compatible-recipient-grouping';
 import { assertCompatibleRecipientRole } from '../signature-level/assert-compatible-recipient-role';
 import { resolveReplacedRecipientSigningOrders } from './assign-omitted-recipient-signing-orders';
@@ -132,6 +134,9 @@ export const setTemplateRecipients = async ({ userId, teamId, id, recipients }: 
     };
   });
 
+  // REVALLE: destinatário sem nome cujo e-mail tem conta recebe o nome da conta (nome existente nunca muda).
+  const revalleAccountNames = await findAccountNamesFor(linkedRecipients);
+
   const persistedRecipients = await prisma.$transaction(async (tx) => {
     return await Promise.all(
       linkedRecipients.map(async (recipient) => {
@@ -150,7 +155,7 @@ export const setTemplateRecipients = async ({ userId, teamId, id, recipients }: 
             envelopeId: envelope.id,
           },
           update: {
-            name: recipient.name,
+            name: nameFromAccount(recipient.name, recipient.email, revalleAccountNames), // REVALLE:
             email: recipient.email,
             role: recipient.role,
             signingOrder: recipient.signingOrder,
@@ -158,7 +163,7 @@ export const setTemplateRecipients = async ({ userId, teamId, id, recipients }: 
             authOptions,
           },
           create: {
-            name: recipient.name,
+            name: nameFromAccount(recipient.name, recipient.email, revalleAccountNames), // REVALLE:
             email: recipient.email,
             role: recipient.role,
             signingOrder: recipient.signingOrder,

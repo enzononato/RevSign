@@ -56,6 +56,7 @@ import { assertOrganisationRatesAndLimits } from '../rate-limit/assert-organisat
 import { assignOmittedRecipientSigningOrders } from '../recipient/assign-omitted-recipient-signing-orders';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { copyInvoiceAnnotationBoxes } from '../revalle/invoice/annotation-box'; // REVALLE:
+import { fillRecipientNamesFromAccounts } from '../revalle/recipients/fill-recipient-names'; // REVALLE:
 import { assertCompatibleRecipientGrouping } from '../signature-level/assert-compatible-recipient-grouping';
 import { assertCompatibleRecipientRole } from '../signature-level/assert-compatible-recipient-role';
 import { resolveSignatureLevel } from '../signature-level/resolve-signature-level';
@@ -812,6 +813,13 @@ export const createDocumentFromTemplate = async ({
       await tx.envelopeAttachment.createMany({
         data: attachmentsToCreate,
       });
+    }
+
+    // REVALLE: destinatário sem nome cujo e-mail tem conta recebe o nome da conta (também no `envelope` devolvido).
+    const revalleFilledNames = await fillRecipientNamesFromAccounts(envelope.id, tx);
+
+    for (const recipient of envelope.recipients) {
+      recipient.name = revalleFilledNames.get(recipient.id) ?? recipient.name;
     }
 
     const createdEnvelope = await tx.envelope.findFirst({

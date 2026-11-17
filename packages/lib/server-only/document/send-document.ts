@@ -55,6 +55,7 @@ import { holdSealForFinance } from '../revalle/finance/seal-hold'; // REVALLE:
 import { assertInvoiceChoiceBeforeSend } from '../revalle/invoice/choice'; // REVALLE:
 import { assertSentInvoiceRecipientEmails } from '../revalle/invoice/external-recipients'; // REVALLE:
 import { assertNotPatrimonioTermo } from '../revalle/patrimonio/guard'; // REVALLE:
+import { fillRecipientNamesFromAccounts } from '../revalle/recipients/fill-recipient-names'; // REVALLE:
 import { assertSignaturesInEveryItem } from '../revalle/signature-only'; // REVALLE:
 import { assertUserNotDisabledById } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
@@ -156,6 +157,14 @@ export const sendDocument = async ({
 
   if (isDocumentCompleted(envelope.status)) {
     throw new Error('Can not send completed document');
+  }
+
+  // REVALLE: rede de segurança para caminhos que gravam destinatários sem passar pelo preenchimento (duplicar, modelo
+  // direto): destinatário sem nome cujo e-mail tem conta recebe o nome da conta antes do convite.
+  const revalleFilledNames = await fillRecipientNamesFromAccounts(envelope.id);
+
+  for (const recipient of envelope.recipients) {
+    recipient.name = revalleFilledNames.get(recipient.id) ?? recipient.name;
   }
 
   // REVALLE: no primeiro envio, cada SIGNER precisa de assinatura em CADA documento do envelope (mensagem em pt-BR

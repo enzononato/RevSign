@@ -11,6 +11,7 @@ import { env } from '../../../utils/env';
 import { logger } from '../../../utils/logger';
 import type { Colaborador } from '../colaboradores/repository';
 import { getColaboradoresRepository } from '../colaboradores/repository';
+import { applyRevalleHrName, applyRevalleHrNameByCpf } from '../recipients/apply-hr-name';
 import { getRevalleIdentityPolicy } from './identity-policy';
 import { isSupersededPendingVersion } from './superseded-version';
 import { REVALLE_MAX_ATTEMPTS, type RevalleGateRecipient, type RevalleGateState } from './types';
@@ -76,10 +77,12 @@ export const previewOf = (colaborador: Colaborador): RevalleGateState => ({
   },
 });
 
+// `hrName`: o nome do RH, quando a base já foi consultada (e-mail na base); sem ele, o nome é buscado pelo CPF do vínculo.
 const markLinked = async (
   recipient: RevalleGateRecipient,
   cpf: string,
   requestMetadata: RequestMetadata | undefined,
+  hrName?: string | null,
 ) => {
   const updated = await prisma.revalleRecipientGate.updateMany({
     where: {
@@ -109,6 +112,13 @@ const markLinked = async (
         requestMetadata,
       }),
     });
+  }
+
+  // Identidade conferida (vínculo ou e-mail na base): o nome passa a ser o do RH.
+  if (hrName === undefined) {
+    await applyRevalleHrNameByCpf({ recipientId: recipient.id, cpf, requestMetadata });
+  } else {
+    await applyRevalleHrName({ recipientId: recipient.id, hrName, requestMetadata });
   }
 };
 
@@ -212,7 +222,7 @@ export const getRevalleGateState = async (
     const byEmail = isAlwaysCpf ? null : await repository.findByEmail(email);
 
     if (byEmail) {
-      await markLinked(recipient, byEmail.cpf, requestMetadata);
+      await markLinked(recipient, byEmail.cpf, requestMetadata, byEmail.nome);
 
       return { status: 'PASSED' };
     }

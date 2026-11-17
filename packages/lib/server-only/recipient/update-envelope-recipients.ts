@@ -8,6 +8,7 @@ import { prisma } from '@documenso/prisma';
 import { EnvelopeType, RecipientRole, SendStatus, SigningStatus } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../errors/app-error';
+import { nameFromAccount } from '../../revalle/recipient-name'; // REVALLE:
 import { extractLegacyIds, nanoid } from '../../universal/id'; // REVALLE: nanoid
 import type { EnvelopeIdOptions } from '../../utils/envelope';
 import { mapFieldToLegacyField } from '../../utils/fields';
@@ -17,6 +18,7 @@ import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { hasRevalleEmailChanged } from '../revalle/email-change'; // REVALLE:
 import { assertSentInvoiceRecipientEmails } from '../revalle/invoice/external-recipients'; // REVALLE:
+import { findAccountNamesFor } from '../revalle/recipients/fill-recipient-names'; // REVALLE:
 import { assertCompatibleRecipientGrouping } from '../signature-level/assert-compatible-recipient-grouping';
 import { assertCompatibleRecipientRole } from '../signature-level/assert-compatible-recipient-role';
 
@@ -151,6 +153,11 @@ export const updateEnvelopeRecipients = async ({
     };
   });
 
+  // REVALLE: destinatário que fica sem nome e cujo e-mail tem conta recebe o nome da conta (nome existente nunca muda).
+  const revalleAccountNames = await findAccountNamesFor(
+    recipientsToUpdate.map(({ originalRecipient, updateData }) => ({ ...originalRecipient, ...updateData })),
+  );
+
   const updatedRecipients = await prisma.$transaction(async (tx) => {
     await assertEnvelopeMutable(envelope, tx);
 
@@ -176,7 +183,7 @@ export const updateEnvelopeRecipients = async ({
             envelopeId: envelope.id,
           },
           data: {
-            name: mergedRecipient.name,
+            name: nameFromAccount(mergedRecipient.name, mergedRecipient.email, revalleAccountNames), // REVALLE:
             email: mergedRecipient.email,
             // REVALLE: e-mail trocado ganha link novo; o link antigo (já enviado ao e-mail anterior) deixa de abrir.
             ...(hasRevalleEmailChanged(originalRecipient.email, mergedRecipient.email) ? { token: nanoid() } : {}),

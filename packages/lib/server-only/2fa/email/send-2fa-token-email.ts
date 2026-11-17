@@ -8,6 +8,7 @@ import { createElement } from 'react';
 import { getI18nInstance } from '../../../client-only/providers/i18n-server';
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../../constants/app';
 import { AppError, AppErrorCode } from '../../../errors/app-error';
+import { greetingName } from '../../../revalle/recipient-name'; // REVALLE:
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { RequestMetadata } from '../../../universal/extract-request-metadata'; // REVALLE:
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
@@ -95,7 +96,7 @@ export const send2FATokenEmail = async ({ token, envelopeId, requestMetadata }: 
 
   const template = createElement(AccessAuth2FAEmailTemplate, {
     documentTitle: envelope.title,
-    userName: recipient.name,
+    userName: greetingName(recipient.name, recipient.email), // REVALLE: sem nome ainda, o e-mail (nunca "Olá, .")
     userEmail: recipient.email,
     code: twoFactorTokenToken,
     expiresInMinutes: TWO_FACTOR_EMAIL_EXPIRATION_MINUTES,

@@ -8,12 +8,14 @@ import { prisma } from '@documenso/prisma';
 import { EnvelopeType, RecipientRole, SendStatus, SigningStatus } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../errors/app-error';
+import { nameFromAccount } from '../../revalle/recipient-name'; // REVALLE:
 import type { EnvelopeIdOptions } from '../../utils/envelope';
 import { mapRecipientToLegacyRecipient } from '../../utils/recipients';
 import { assertEnvelopeMutable } from '../envelope/assert-envelope-mutable';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
 import { assertSentInvoiceRecipientEmails } from '../revalle/invoice/external-recipients'; // REVALLE:
+import { findAccountNamesFor } from '../revalle/recipients/fill-recipient-names'; // REVALLE:
 import { assertCompatibleRecipientGrouping } from '../signature-level/assert-compatible-recipient-grouping';
 import { assertCompatibleRecipientRole } from '../signature-level/assert-compatible-recipient-role';
 import { assignOmittedRecipientSigningOrders } from './assign-omitted-recipient-signing-orders';
@@ -103,6 +105,9 @@ export const createEnvelopeRecipients = async ({
     });
   }
 
+  // REVALLE: destinatário sem nome cujo e-mail tem conta recebe o nome da conta.
+  const revalleAccountNames = await findAccountNamesFor(recipientsToCreate);
+
   const createdRecipients = await prisma.$transaction(async (tx) => {
     // Lock the envelope so concurrent additions allocate distinct signing orders.
     await tx.$queryRaw`SELECT "id" FROM "Envelope" WHERE "id" = ${envelope.id} FOR UPDATE`;
@@ -139,7 +144,7 @@ export const createEnvelopeRecipients = async ({
         const createdRecipient = await tx.recipient.create({
           data: {
             envelopeId: envelope.id,
-            name: recipient.name,
+            name: nameFromAccount(recipient.name, recipient.email, revalleAccountNames), // REVALLE:
             email: recipient.email,
             role: recipient.role,
             signingOrder: recipient.signingOrder,

@@ -7,6 +7,7 @@ import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { RequestMetadata } from '../../../universal/extract-request-metadata';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { getColaboradoresRepository } from '../colaboradores/repository';
+import { applyRevalleHrName, applyRevalleHrNameByCpf } from '../recipients/apply-hr-name';
 import { ensureRevalleGate, getRevalleGateState, logRevalleBaseUnavailable } from './get-gate-state';
 import { getRevalleIdentityPolicy } from './identity-policy';
 import { lockRevalleGate } from './lock-gate';
@@ -62,14 +63,14 @@ export const confirmRevalleIdentity = async ({
       return await getRevalleGateState(recipient, requestMetadata);
     }
 
-    await prisma.$transaction(async (tx) => {
+    const alwaysCpfConfirmed = await prisma.$transaction(async (tx) => {
       const confirmed = await tx.revalleRecipientGate.updateMany({
         where: { recipientId, identityStatus: 'VERIFIED', lockedAt: null, pendingCpf: cpf },
         data: { identityStatus: 'CONFIRMED', cpf, pendingCpf: null, identityConfirmedAt: new Date() },
       });
 
       if (confirmed.count === 0) {
-        return;
+        return false;
       }
 
       await tx.documentAuditLog.create({
@@ -81,7 +82,14 @@ export const confirmRevalleIdentity = async ({
           requestMetadata,
         }),
       });
+
+      return true;
     });
+
+    // Identidade conferida: o nome passa a ser o do RH (aqui a base ainda não foi consultada na confirmação).
+    if (alwaysCpfConfirmed) {
+      await applyRevalleHrNameByCpf({ recipientId, cpf, requestMetadata });
+    }
 
     return await getRevalleGateState(recipient, requestMetadata);
   }
@@ -95,14 +103,20 @@ export const confirmRevalleIdentity = async ({
   }
 
   let baseEmail: string | null;
+  let hrName: string | null;
 
   try {
-    baseEmail = (await repository.findByCpf(cpf))?.email ?? null;
+    const colaborador = await repository.findByCpf(cpf);
+
+    baseEmail = colaborador?.email ?? null;
+    hrName = colaborador?.nome ?? null;
   } catch (error) {
     logRevalleBaseUnavailable(error);
 
     return { status: 'UNAVAILABLE' };
   }
+
+  let committed = false;
 
   const commit = async () => {
     if (baseEmail && normalizeEmail(baseEmail) !== email) {
@@ -139,6 +153,8 @@ export const confirmRevalleIdentity = async ({
         }),
       });
     });
+
+    committed = true;
   };
 
   const isUniqueViolation = (error: unknown) =>
@@ -165,6 +181,11 @@ export const confirmRevalleIdentity = async ({
     if (!(error instanceof NotVerifiedError)) {
       throw error;
     }
+  }
+
+  // Identidade conferida: o nome passa a ser o do RH.
+  if (committed) {
+    await applyRevalleHrName({ recipientId, hrName, requestMetadata });
   }
 
   return await getRevalleGateState(recipient, requestMetadata);

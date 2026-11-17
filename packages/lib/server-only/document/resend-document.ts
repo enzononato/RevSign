@@ -21,6 +21,7 @@ import { createElement } from 'react';
 
 import { getI18nInstance } from '../../client-only/providers/i18n-server';
 import { NEXT_PUBLIC_WEBAPP_URL } from '../../constants/app';
+import { greetingName } from '../../revalle/recipient-name'; // REVALLE:
 import { extractDerivedDocumentEmailSettings } from '../../types/document-email';
 import { mapEnvelopeToWebhookDocumentPayload, ZWebhookDocumentSchema } from '../../types/webhook-payload';
 import { isDocumentCompleted } from '../../utils/document';
@@ -266,7 +267,7 @@ export const resendDocument = async ({
       }
 
       const customEmailTemplate = {
-        'signer.name': name,
+        'signer.name': greetingName(name, email), // REVALLE: sem nome ainda, o e-mail
         'signer.email': email,
         'document.name': envelope.title,
       };

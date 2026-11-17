@@ -80,6 +80,7 @@ export const ZDocumentAuditLogTypeSchema = z.enum([
   'REVALLE_COST_CENTER_VALIDATED', // REVALLE: a Contabilidade validou o centro de custo (fora do PDF selado)
   'REVALLE_COST_CENTER_CHANGED', // REVALLE: a Contabilidade corrigiu o centro: versão substituída e nova versão
   'REVALLE_SEND_RECEIPT', // REVALLE: comprovante de envio do e-mail com o link de assinatura (um por e-mail entregue ao servidor)
+  'REVALLE_RECIPIENT_NAME_FROM_HR', // REVALLE: nome do destinatário trocado pelo nome do RH no portão (sem CPF)
 ]);
 
 export const ZDocumentAuditLogEmailTypeSchema = z.enum([
@@ -1009,6 +1010,13 @@ export const ZDocumentAuditLogEventRevalleSendReceiptSchema = z.object({
   data: ZRevalleSendReceiptDataSchema,
 });
 
+// REVALLE: portão conferiu a identidade e o nome do destinatário passou a ser o do RH. `from` é null quando não havia
+// nome. Nunca CPF nem data de nascimento.
+export const ZDocumentAuditLogEventRevalleRecipientNameFromHrSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_RECIPIENT_NAME_FROM_HR),
+  data: z.object({ recipientId: z.number(), from: z.string().nullable(), to: z.string() }),
+});
+
 export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
   z.union([
     ZDocumentAuditLogEventEnvelopeItemCreatedSchema,
@@ -1068,6 +1076,7 @@ export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
     ZDocumentAuditLogEventRevalleCostCenterValidatedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleCostCenterChangedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleSendReceiptSchema, // REVALLE:
+    ZDocumentAuditLogEventRevalleRecipientNameFromHrSchema, // REVALLE:
   ]),
 );
 

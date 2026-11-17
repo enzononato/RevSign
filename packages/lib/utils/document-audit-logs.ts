@@ -819,6 +819,15 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
 
       return { anonymous: text, you: text, user: text };
     })
+    // REVALLE: nome do destinatário pela base do RH (portão).
+    .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_RECIPIENT_NAME_FROM_HR }, ({ data }) => {
+      const { from, to } = data;
+      const text = from
+        ? msg`Nome do destinatário atualizado pela base do RH: ${from} → ${to}`
+        : msg`Nome do destinatário definido pela base do RH: ${to}`;
+
+      return { anonymous: text, you: text, user: text };
+    })
     .exhaustive();
 
   let selectedDescription = description.anonymous;
