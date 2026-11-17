@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { SUBSCRIPTION_CLAIM_FEATURE_FLAGS } from '../../types/subscription';
-import { mergeRevalleClaimFlags } from './claim-defaults';
+import { mergeRevalleClaimFlags, revalleEnvelopeItemCount } from './claim-defaults';
 
 describe('mergeRevalleClaimFlags', () => {
   it('turns on the community branding/unlimited flags and keeps the rest', () => {
@@ -25,5 +25,12 @@ describe('mergeRevalleClaimFlags', () => {
     const once = mergeRevalleClaimFlags({ cfr21: false });
 
     expect(mergeRevalleClaimFlags(once)).toEqual(once);
+  });
+});
+
+describe('revalleEnvelopeItemCount', () => {
+  it('sobe o limite de arquivos por envio para 10 e mantém um limite maior', () => {
+    expect(revalleEnvelopeItemCount(5)).toBe(10);
+    expect(revalleEnvelopeItemCount(30)).toBe(30);
   });
 });

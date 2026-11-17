@@ -1,7 +1,7 @@
 import { prisma } from '@documenso/prisma';
 
 import { env } from '../../utils/env';
-import { mergeRevalleClaimFlags, REVALLE_CLAIM_LIMITS } from './claim-defaults';
+import { mergeRevalleClaimFlags, REVALLE_CLAIM_LIMITS, revalleEnvelopeItemCount } from './claim-defaults';
 import { checkRevalleGeoIpDatabase } from './geoip';
 import { backfillLegacyInvoiceFiles } from './invoice/invoice-files';
 
@@ -22,6 +22,7 @@ const applyFreePlanDefaults = async () => {
         where: { id: 'free' },
         data: {
           ...REVALLE_CLAIM_LIMITS,
+          envelopeItemCount: revalleEnvelopeItemCount(subscriptionClaim.envelopeItemCount),
           flags: mergeRevalleClaimFlags(toFlagsRecord(subscriptionClaim.flags)),
         },
       });
@@ -36,6 +37,7 @@ const applyFreePlanDefaults = async () => {
         where: { id: organisationClaim.id },
         data: {
           ...REVALLE_CLAIM_LIMITS,
+          envelopeItemCount: revalleEnvelopeItemCount(organisationClaim.envelopeItemCount),
           flags: mergeRevalleClaimFlags(toFlagsRecord(organisationClaim.flags)),
         },
       });
