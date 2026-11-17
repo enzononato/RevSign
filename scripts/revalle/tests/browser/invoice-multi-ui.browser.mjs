@@ -67,6 +67,29 @@ const chooseCenter = async (page, block) => {
 const normalized = async (locator) => (await locator.innerText()).replace(/\s+/g, ' ').trim();
 
 if (payload.case === 'blocks') {
+  // Pedido de 17/11/2026: com vários arquivos, todos ficam à vista na barra de cima de "Adicionar campos" e cada um abre
+  // ao ser clicado (antes os que não cabiam ficavam fora da tela, sem barra de rolagem).
+  await section('adicionar campos: todos os arquivos à vista e clicáveis', async () => {
+    const { context, page } = await openAs(ownerCookie, { width: 1024, height: 800 });
+
+    await page.goto(`${baseUrl}/t/${teamUrl}/documents/${draftId}/edit?step=addFields`, { waitUntil: 'networkidle' });
+
+    for (const title of Object.keys(items)) {
+      const tab = page.locator('button', { hasText: title }).filter({ visible: true }).first();
+      const box = await tab.boundingBox();
+
+      report(box !== null && box.x >= 0 && box.x + box.width <= 1024, `o arquivo ${title} cabe na tela`);
+      await tab.click();
+      report(
+        (await tab.getAttribute('class'))?.includes('border-primary/25') === true,
+        `clicar em ${title} abre o arquivo`,
+      );
+    }
+
+    await shot(page, 'f9-adicionar-campos-arquivos');
+    await context.close();
+  });
+
   await section('diálogo com uma nota por bloco e o aviso do boleto', async () => {
     const { context, page } = await openAs(ownerCookie, DESKTOP);
     const dialog = await openSendDialog(page);

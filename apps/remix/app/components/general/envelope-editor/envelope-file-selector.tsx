@@ -66,7 +66,9 @@ export const EnvelopeRendererFileSelector = ({
   const { envelopeItems, currentEnvelopeItem, setCurrentEnvelopeItem } = useCurrentEnvelopeRender();
 
   return (
-    <div className={cn('scrollbar-hidden flex h-fit flex-shrink-0 space-x-2 overflow-x-auto p-4', className)}>
+    // REVALLE: os arquivos quebram linha em vez de rolar para o lado com a barra escondida (com mouse comum, os que não
+    // cabiam ficavam sem como clicar).
+    <div className={cn('flex h-fit flex-shrink-0 flex-wrap gap-2 p-4', className)}>
       {envelopeItems.map((doc, i) => (
         <EnvelopeItemSelector
           key={doc.id}

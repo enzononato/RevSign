@@ -275,8 +275,9 @@ export const DocumentSigningPageViewV2 = () => {
         <div id={DOCUMENT_ANCHOR_ID} className="embed--DocumentContainer min-w-0 flex-1 scroll-mt-4 lg:scroll-mt-6">
           <div className="flex flex-col">
             {/* Horizontal envelope item selector */}
+            {/* REVALLE: os arquivos quebram linha (todos à vista e clicáveis), em vez de rolar para o lado. */}
             {envelopeItems.length > 1 && (
-              <div className="flex h-fit space-x-2 overflow-x-auto p-2 pt-4 sm:p-4 lg:px-0 lg:pt-0">
+              <div className="flex h-fit flex-wrap gap-2 p-2 pt-4 sm:p-4 lg:px-0 lg:pt-0">
                 {envelopeItems.map((doc, i) => (
                   <EnvelopeItemSelector
                     key={doc.id}
