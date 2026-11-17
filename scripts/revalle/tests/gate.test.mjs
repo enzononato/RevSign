@@ -481,7 +481,13 @@ test('audit: eventos REVALLE_* têm IP e nenhum dado traz CPF completo nem data 
   // pode voltar entre um evento e outro.
   const types = rows.map((row) => row.split('|')[0]);
 
-  assert.deepEqual(types, ['REVALLE_TERM_ACCEPTED', 'REVALLE_IDENTITY_FAILED', 'REVALLE_IDENTITY_CONFIRMED']);
+  // Desde 17/11/2026 o portão também troca o nome do destinatário pelo da base do RH (evento próprio, sem CPF).
+  assert.deepEqual(types, [
+    'REVALLE_TERM_ACCEPTED',
+    'REVALLE_IDENTITY_FAILED',
+    'REVALLE_IDENTITY_CONFIRMED',
+    'REVALLE_RECIPIENT_NAME_FROM_HR',
+  ]);
 
   for (const row of rows) {
     assert.ok(row.split('|')[1], `sem IP: ${row}`);
