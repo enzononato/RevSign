@@ -7,7 +7,7 @@ import type { Recipient } from '@prisma/client';
 import { EnvelopeType, RecipientRole } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../errors/app-error';
-import { nameFromAccount } from '../../revalle/recipient-name'; // REVALLE:
+import { keepPersistedName, nameFromAccount } from '../../revalle/recipient-name'; // REVALLE:
 import { type TRecipientActionAuthTypes, ZRecipientAuthOptionsSchema } from '../../types/document-auth';
 import { nanoid } from '../../universal/id';
 import { createRecipientAuthOptions } from '../../utils/document-auth';
@@ -88,6 +88,11 @@ export const setTemplateRecipients = async ({ userId, teamId, id, recipients }: 
       return {
         ...recipient,
         email: recipient.email.toLowerCase(),
+        // REVALLE: nome vazio para o mesmo e-mail não apaga o nome gravado (o editor não tem mais o campo Nome).
+        name: keepPersistedName(
+          recipient,
+          existingRecipients.find((existing) => existing.id === recipient.id),
+        ),
       };
     }),
     existingRecipients,

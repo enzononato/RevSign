@@ -8,7 +8,7 @@ import { prisma } from '@documenso/prisma';
 import { EnvelopeType, RecipientRole, SendStatus, SigningStatus } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../errors/app-error';
-import { nameFromAccount } from '../../revalle/recipient-name'; // REVALLE:
+import { keepPersistedName, nameFromAccount } from '../../revalle/recipient-name'; // REVALLE:
 import { extractLegacyIds, nanoid } from '../../universal/id'; // REVALLE: nanoid
 import type { EnvelopeIdOptions } from '../../utils/envelope';
 import { mapFieldToLegacyField } from '../../utils/fields';
@@ -149,7 +149,17 @@ export const updateEnvelopeRecipients = async ({
 
     return {
       originalRecipient,
-      updateData: recipient,
+      // REVALLE: nome vazio para o mesmo e-mail não apaga o nome gravado (o editor não tem mais o campo Nome).
+      updateData:
+        recipient.name === undefined
+          ? recipient
+          : {
+              ...recipient,
+              name: keepPersistedName(
+                { name: recipient.name, email: recipient.email ?? originalRecipient.email },
+                originalRecipient,
+              ),
+            },
     };
   });
 

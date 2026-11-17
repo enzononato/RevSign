@@ -56,6 +56,29 @@ const useRevalleRecipientHint = (email: string): 'UNLINKED' | 'EXTERNAL' | null 
   return eligible && data?.[0]?.isLinked === false ? 'UNLINKED' : null;
 };
 
+// REVALLE: nome da conta do e-mail digitado ("Conta: {nome}"). O campo Nome não aparece: o nome vem da conta ao gravar
+// e da base do RH quando a pessoa confirma o CPF.
+const useRevalleAccountName = (email: string): string | null => {
+  const [debounced, setDebounced] = useState('');
+
+  useEffect(() => {
+    const normalized = email.trim().toLowerCase();
+    const timer = setTimeout(() => setDebounced(normalized), 400);
+
+    return () => clearTimeout(timer);
+  }, [email]);
+
+  const isCurrent = debounced === email.trim().toLowerCase();
+  const isComplete = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(debounced) && !isTemplateDraftEmailExempt(debounced);
+
+  const { data } = trpc.revalle.recipients.accountName.useQuery(
+    { email: debounced },
+    { enabled: isComplete, retry: false, staleTime: 60_000 },
+  );
+
+  return isCurrent && isComplete ? (data?.name ?? null) : null;
+};
+
 type TEditorSigner = TEditorRecipientsFormSchema['signers'][number];
 
 export type RecipientRowProps = {
@@ -73,6 +96,17 @@ export type RecipientRowProps = {
   onRemove: (signerIndex: number) => void;
   onAutoCompleteSelect: (signerIndex: number, suggestion: RecipientAutoCompleteOption) => void;
   onSearchQueryChange: (query: string) => void;
+};
+
+// REVALLE: "Conta: {nome}" ao lado do e-mail, em cinza.
+const RevalleAccountHint = ({ name }: { name: string }) => {
+  const { t } = useLingui();
+
+  return (
+    <p className="text-muted-foreground text-xs" data-testid="revalle-account-hint">
+      {t`Conta: ${name}`}
+    </p>
+  );
 };
 
 const RecipientRowInner = ({
@@ -110,6 +144,7 @@ const RecipientRowInner = ({
   const rowErrors = form.formState.errors.signers?.[signerIndex];
 
   const revalleHint = useRevalleRecipientHint(signer.email); // REVALLE:
+  const revalleAccountName = useRevalleAccountName(signer.email); // REVALLE:
 
   return (
     <fieldset data-native-id={signer.id} disabled={isSubmitting || !canBeModified} className="py-1">
@@ -154,6 +189,13 @@ const RecipientRowInner = ({
                   onSelect={(suggestion) => onAutoCompleteSelect(signerIndex, suggestion)}
                   onSearchQueryChange={(query) => {
                     field.onChange(query);
+
+                    // REVALLE: o nome (sem campo na tela) era do e-mail anterior; vazio, o servidor põe o da conta do
+                    // e-mail novo, e o portão, o do RH.
+                    if (form.getValues(`signers.${signerIndex}.name`)) {
+                      form.setValue(`signers.${signerIndex}.name`, '', { shouldDirty: true });
+                    }
+
                     onSearchQueryChange(query);
                   }}
                   loading={isLoadingSuggestions}
@@ -163,6 +205,8 @@ const RecipientRowInner = ({
               </FormControl>
 
               {/* REVALLE: */}
+              {revalleAccountName && !rowErrors?.email && <RevalleAccountHint name={revalleAccountName} />}
+
               {revalleHint === 'UNLINKED' && !rowErrors?.email && (
                 <p className="text-muted-foreground text-xs" data-testid="revalle-unlinked-hint">
                   Na primeira assinatura, esta pessoa vai confirmar CPF e data de nascimento.
@@ -180,37 +224,7 @@ const RecipientRowInner = ({
           )}
         />
 
-        <FormField
-          control={form.control}
-          name={`signers.${signerIndex}.name`}
-          render={({ field }) => (
-            <FormItem
-              className={cn('w-full', {
-                'mb-6': rowErrors && !rowErrors.name,
-              })}
-            >
-              <FormControl>
-                <RecipientAutoCompleteInput
-                  type="text"
-                  aria-label={t`Name`}
-                  placeholder={t`Recipient ${signerIndex + 1}`}
-                  {...field}
-                  disabled={isFieldDisabled || isDirectRecipient}
-                  options={recipientSuggestions}
-                  onSelect={(suggestion) => onAutoCompleteSelect(signerIndex, suggestion)}
-                  onSearchQueryChange={(query) => {
-                    field.onChange(query);
-                    onSearchQueryChange(query);
-                  }}
-                  loading={isLoadingSuggestions}
-                  maxLength={255}
-                />
-              </FormControl>
-
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {/* REVALLE: sem o campo Nome (17/11/2026). O nome vem da conta ao gravar e da base do RH no portão. */}
 
         <FormField
           control={form.control}

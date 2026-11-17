@@ -27,6 +27,21 @@ export const nameFromAccount = (
   return (email ? accountNames.get(accountNameKey(email)) : undefined) ?? '';
 };
 
+/**
+ * Nome vazio para o mesmo e-mail é "não informado" (o editor não tem mais o campo): fica o nome já gravado, que pode ser
+ * o do RH. Com o e-mail trocado, o nome vazio continua vazio (e recebe o da conta nova ao gravar).
+ */
+export const keepPersistedName = <T extends string | null | undefined>(
+  incoming: { name?: T; email?: string | null },
+  persisted: { name: string; email: string } | null | undefined,
+): T | string => {
+  if (!isBlankName(incoming.name) || !persisted || isBlankName(persisted.name) || !incoming.email) {
+    return incoming.name as T;
+  }
+
+  return accountNameKey(incoming.email) === accountNameKey(persisted.email) ? persisted.name : (incoming.name as T);
+};
+
 /** Mapa e-mail → nome das contas, só com nomes não vazios. */
 export const toAccountNameMap = (users: ReadonlyArray<{ email: string; name: string | null }>) => {
   const names = new Map<string, string>();

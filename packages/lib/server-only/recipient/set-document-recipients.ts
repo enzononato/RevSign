@@ -12,7 +12,7 @@ import { isDeepEqual } from 'remeda';
 
 import { AppError, AppErrorCode } from '../../errors/app-error';
 import { jobs } from '../../jobs/client';
-import { nameFromAccount } from '../../revalle/recipient-name'; // REVALLE:
+import { keepPersistedName, nameFromAccount } from '../../revalle/recipient-name'; // REVALLE:
 import { extractDerivedDocumentEmailSettings } from '../../types/document-email';
 import { type EnvelopeIdOptions, mapSecondaryIdToDocumentId } from '../../utils/envelope';
 import { canRecipientBeModified, isRecipientEmailValidForSending } from '../../utils/recipients';
@@ -117,6 +117,11 @@ export const setDocumentRecipients = async ({
     recipients: recipients.map((recipient) => ({
       ...recipient,
       email: recipient.email.toLowerCase(),
+      // REVALLE: nome vazio para o mesmo e-mail não apaga o nome gravado (o editor não tem mais o campo Nome).
+      name: keepPersistedName(
+        recipient,
+        existingRecipients.find((existing) => existing.id === recipient.id),
+      ),
     })),
     existingRecipients,
   });

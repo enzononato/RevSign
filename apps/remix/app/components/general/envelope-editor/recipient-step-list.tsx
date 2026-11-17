@@ -192,7 +192,8 @@ export const RecipientStepList = ({ showAdvancedSettings }: RecipientStepListPro
         shouldValidate: true,
         shouldDirty: true,
       });
-      form.setValue(`signers.${signerIndex}.name`, suggestion.name || '', {
+      // REVALLE: sem o campo Nome, o nome não vem da sugestão: vazio, o servidor põe o da conta, e o portão, o do RH.
+      form.setValue(`signers.${signerIndex}.name`, '', {
         shouldValidate: true,
         shouldDirty: true,
       });

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { greetingName, hrNameChange, isBlankName, nameFromAccount, toAccountNameMap } from './recipient-name';
+import {
+  greetingName,
+  hrNameChange,
+  isBlankName,
+  keepPersistedName,
+  nameFromAccount,
+  toAccountNameMap,
+} from './recipient-name';
 
 describe('toAccountNameMap', () => {
   it('ignora conta sem nome ou com nome em branco e normaliza o e-mail', () => {
@@ -67,5 +74,24 @@ describe('greetingName', () => {
     expect(isBlankName(null)).toBe(true);
     expect(isBlankName(' ')).toBe(true);
     expect(isBlankName('Ana')).toBe(false);
+  });
+});
+
+describe('keepPersistedName', () => {
+  const persisted = { name: 'Maria Teste da Silva', email: 'maria@gmail.com' };
+
+  it('nome vazio para o mesmo e-mail fica o gravado', () => {
+    expect(keepPersistedName({ name: '', email: 'MARIA@gmail.com' }, persisted)).toBe('Maria Teste da Silva');
+    expect(keepPersistedName({ name: '  ', email: 'maria@gmail.com' }, persisted)).toBe('Maria Teste da Silva');
+  });
+
+  it('e-mail trocado: o nome vazio continua vazio', () => {
+    expect(keepPersistedName({ name: '', email: 'outra@gmail.com' }, persisted)).toBe('');
+  });
+
+  it('nome informado ou destinatário novo: o informado', () => {
+    expect(keepPersistedName({ name: 'Outro', email: 'maria@gmail.com' }, persisted)).toBe('Outro');
+    expect(keepPersistedName({ name: '', email: 'maria@gmail.com' }, undefined)).toBe('');
+    expect(keepPersistedName({ name: '', email: 'maria@gmail.com' }, { name: '', email: 'maria@gmail.com' })).toBe('');
   });
 });
