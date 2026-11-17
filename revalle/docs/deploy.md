@@ -554,6 +554,53 @@ Sem migração e sem variável obrigatória.
 2. **Comprovante de envio.** Cada e-mail com o link de assinatura grava um comprovante no histórico; o PDF sai pelo
    botão "Baixar comprovante" na página do documento. Envios feitos antes da atualização não têm comprovante.
 
+## Antes de atualizar (Fase 9)
+
+Vale para quem atualiza uma instalação que já está em uso. A Fase 9 deixa um envio ter **várias notas fiscais e
+boletos** (`notas-fiscais.md`, seção 10). Envios de uma nota continuam iguais.
+
+1. **Backup antes** (seção "Backup antes de atualizar").
+2. **Migração.** `20261116100000_revalle_invoice_files` roda sozinha na subida e só ACRESCENTA: a tabela por arquivo
+   (`RevalleInvoiceFile`, uma linha por arquivo do envio, com a conta, o centro, a aprovação e a validação de cada
+   nota), o cache do boleto (`RevalleBoletoCache`) e três colunas nulas (`RevalleInvoiceClassification.supersededEnvelopeItemId`,
+   `RevalleRecipientGate.invoiceShown`, `RevalleSignatureProof.invoiceDocuments`). Ela cria a linha de cada NF que já
+   existe, copiada da classificação, sem apagar nada. Envio de NF com dois ou mais arquivos é refeito pelo app na subida
+   (e na primeira leitura, se escapar), com a nota no primeiro arquivo que o texto reconhece como NF; o log diz
+   `[RevSign] notas sem linha por arquivo: N` (só o número). Na subida, o limite de arquivos por envio passa a ser pelo
+   menos **10** (era 5); um limite maior posto pelo admin fica.
+3. **Conferência depois da subida**, no console do `revsign-db` (só leitura):
+   ```sql
+   SELECT count(*) FROM "RevalleInvoiceClassification" c WHERE c."isInvoice" = 'YES' AND NOT EXISTS (SELECT 1 FROM "RevalleInvoiceFile" f WHERE f."envelopeId" = c."envelopeId" AND f.kind = 'NF');
+   ```
+   Tem de dar `0`. Desde esta versão, a lista **Notas fiscais**, a planilha, as filas e os contadores contam **notas**
+   (as linhas por arquivo): um envio de NF sem linha some da lista até ser refeito. Se não der zero, veja quais são:
+   ```sql
+   select e.status, c."previousEnvelopeId" is not null as nv, count(*) from "RevalleInvoiceClassification" c join "Envelope" e on e.id=c."envelopeId" where c."isInvoice"='YES' and not exists (select 1 from "RevalleInvoiceFile" f where f."envelopeId"=c."envelopeId" and f.kind='NF') group by 1,2;
+   ```
+   As linhas com `status` diferente de `DRAFT`, ou com `nv` = `t`, precisam dar zero. Rascunhos comuns (`DRAFT` com
+   `nv` = `f`) podem aparecer: eles se refazem quando o remetente abre o envio. Se sobrar alguma: reinicie o app (o
+   refazer roda de novo na subida) ou abra a página da nota (`/notas-fiscais/<id>`). Se o número não baixar, procure no
+   log `revalle.invoice.legacy-files.failed` (só o id e o tipo do erro) e chame o suporte. (Antes da atualização a
+   tabela `RevalleInvoiceFile` não existe: a consulta dá erro de tabela inexistente, e não há nada a fazer.)
+4. **Custo da IA.** Uma chamada por nota e uma por boleto (cerca de US$ 0,004 cada). Limites novos: 6 por arquivo, 120
+   por usuário por hora e 1.440 em 24 horas, até 20 arquivos lidos por envio (`notas-fiscais.md`, seção 6, com a
+   variável `NEXT_PRIVATE_REVALLE_RATE_LIMITS`).
+5. **Política de privacidade.** O texto de `/privacidade` agora fala dos boletos (a IA lê deles o beneficiário, o CNPJ,
+   o valor, o vencimento e a linha digitável; boleto sem nota não vai para a IA), com a data 16/11/2026. A **versão do
+   termo continua `1`**: ninguém precisa aceitar de novo. O jurídico ainda precisa validar a página.
+6. **Avise o Financeiro e a Contabilidade.** A lista tem **uma linha por nota**, e o contador do menu conta notas; o
+   Financeiro **aprova cada nota** (o envio só conclui com todas aprovadas) e a Contabilidade valida cada uma; trocar a
+   conta ou corrigir o centro de uma nota cria a nova versão e **todas as notas voltam a aguardar o Financeiro**. O
+   boleto é conferido com as notas e os avisos (valor, beneficiário, vencido) não travam nada.
+7. **Voltar à imagem anterior.** Envios de uma nota continuam funcionando na imagem antiga (a linha do envio continua
+   com a conta, o centro e a aprovação da nota única). Envios com várias notas feitos depois da atualização ficam
+   incompletos na imagem antiga (sem a conta e o centro de cada nota): para voltar com eles, restaure o backup.
+8. **Conferência de primeiro uso.** Envie um teste com dois DANFEs e um boleto pela tela: o diálogo deve mostrar um bloco
+   por arquivo ("Nota 1 de 2 · …", "Boleto · …") e, no boleto, "Lido: …". Se a leitura falhar, procure no log do app a
+   linha `revalle.invoice.suggestion` com `kind` (`NF` ou `BOLETO`) e `providerStatusCode`: `400` no boleto indica que o
+   Gemini **recusou o formato** pedido para o boleto; os outros códigos são cota, chave e modelo, como antes. Esse formato
+   só se confirma com o Gemini de verdade: os testes usam um servidor falso.
+
 ## Atualizar a versão depois
 
 0. Antes de trocar a versão, confirme que as DUAS imagens existem para a tag nova: `ghcr.io/enzononato/revsign:<tag>` e `ghcr.io/enzononato/revsign-backup:<tag>` (GitHub → Packages; os dois jobs de publicação são independentes e um pode falhar sozinho).

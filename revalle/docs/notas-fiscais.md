@@ -1,4 +1,4 @@
-# RevSign — notas fiscais, conta contábil e centro de custo (Fases 5 a 8)
+# RevSign — notas fiscais, conta contábil e centro de custo (Fases 5 a 9)
 
 Guia para o Enzo e para a TI. Explica como configurar a sugestão de conta contábil, o que o remetente vê, a página
 **Notas fiscais**, a planilha exportada e o trabalho do **Financeiro** (seção 9).
@@ -24,6 +24,8 @@ para a contabilidade nem para o Financeiro: tudo o que precisa de ação fica na
   "Centro de custo: 101 – Puxada" no topo. O certificado e o `/verificar` só informam o centro: não dizem que a
   Contabilidade validou. Ver `prova.md`.
 - Sem a chave do Gemini, tudo funciona do mesmo jeito, só que sem sugestão: o remetente escolhe na lista.
+- Desde a Fase 9, um envio pode ter **várias notas fiscais e boletos**: cada nota tem a sua conta, o seu centro, a sua
+  aprovação do Financeiro e a sua linha na lista, e o boleto é conferido com as notas (seção 10).
 
 ## 1. Importar a lista de contas
 
@@ -144,6 +146,24 @@ o mesmo PDF for enviado de novo, a sugestão vem do cache, sem nova chamada. Por
 7. No menu, **Notas fiscais** lista as NFs que ele enviou ou que chegaram para ele assinar (inclusive as versões
    substituídas).
 
+**Várias notas e boletos no mesmo envio (Fase 9).** Com duas ou mais notas, ou com um boleto ou um arquivo sem texto
+junto da nota, o diálogo de envio mostra um bloco por arquivo, na ordem dos arquivos:
+
+- **nota:** "Nota 2 de 3 · nf-b.pdf", com a sugestão, "Lido pela IA", **Sugerir de novo**, a conta e o centro de custo
+  daquela nota, e o botão **Não é nota fiscal** (o arquivo vira documento comum). Se a nota parece já ter sido enviada,
+  o aviso dela tem a própria caixa "Sei disso e quero enviar mesmo assim". Se é a mesma de outra nota do envio: "Esta
+  nota parece ser a mesma da nota 1 deste envio." (só aviso);
+- **boleto:** "Boleto · boleto.pdf", com "Lido: Fornecedor · R$ 1.500,00 · vence 01/12/2026" e, em âmbar, os avisos da
+  conferência com as notas (seção 10). Os avisos não impedem o envio;
+- **sem texto (escaneado):** "Este arquivo é:" com **Nota fiscal**, **Boleto** e **Outro documento**;
+- **documento comum** (contrato): uma linha "contrato.pdf · documento comum", com o mesmo seletor para corrigir o tipo.
+
+**Enviar** só libera com a conta e o centro em todas as notas e com o tipo de todo arquivo sem texto respondido (a recusa
+do servidor diz em qual falta: "Falta em: nf-c.pdf."). Trocar ou remover qualquer arquivo do rascunho apaga a escolha de
+todas as notas, como antes (a sugestão de cada arquivo volta do cache, sem nova chamada). Com uma nota só (e um contrato
+ao lado), o bloco continua o de sempre. Depois do envio, o cartão **Notas fiscais** da página do documento mostra a
+conta, o centro e a situação no Financeiro de cada nota.
+
 **NF enviada pela API ou por modelo:** o documento é criado, mas o envio é recusado (`INVOICE_ACCOUNT_REQUIRED`) até a
 conta e o centro de custo serem escolhidos na tela. O documento fica como rascunho: abra-o no site, escolha a conta e o
 centro e envie. Documento na versão antiga
@@ -242,8 +262,8 @@ mesmo arquivo**, não pela chave. Uma nova versão leva as chaves da anterior.
 **O que o alerta não pega.**
 - Uma NFS-e (nota de serviço) com **arquivo diferente** não é achada: ela não tem chave de 44 números, e o número lido
   pela IA não é confiável o bastante para acusar.
-- Uma nota **sem chave** (por exemplo, uma NFS-e) reenviada **com um anexo a mais** não é achada: o arquivo comparado é o
-  **conjunto** de arquivos do documento, e um anexo a mais muda o conjunto.
+- Uma nota **sem chave** (por exemplo, uma NFS-e) com **arquivo diferente** continua não sendo achada. Desde a Fase 9 o
+  arquivo comparado é o **da nota**, não o conjunto do envio: a mesma NFS-e reenviada com um anexo a mais **é** achada.
 - Uma nota que **cita** a chave de outra (uma devolução que traz a chave da nota original, um CT-e que lista as NF-e
   transportadas) normalmente **não acusa a original, nem é acusada por ela**: a chave citada não entra. O limite está nos
   layouts fora do comum: um que imprime uma chave citada **antes** da própria pode tanto **não achar** uma duplicada quanto
@@ -272,10 +292,16 @@ mesmo arquivo**, não pela chave. Uma nova versão leva as chaves da anterior.
   Financeiro e a Contabilidade decidem olhando o alerta.
 - Os dados do alerta (chaves, nomes e datas) **não vão para o log**.
 
+**Por nota (Fase 9).** Num envio com várias notas, o alerta é de cada nota: compara as chaves e o arquivo **daquela
+nota** com as notas de outros envios. O diálogo, o cartão, a página da NF (na seção da nota), a lista e a planilha
+(`possivel_duplicada`) marcam só a nota repetida. **A mesma nota duas vezes no mesmo envio** (mesmo arquivo ou chave em
+comum) mostra no diálogo "Esta nota parece ser a mesma da nota 1 deste envio." Não trava o envio e não conta como
+duplicada de outro envio.
+
 ### A conta e o centro de custo no PDF final
 
 No PDF final da nota (depois que todos assinam e o Financeiro aprova), a selagem escreve, **em azul**, logo acima do
-carimbo da primeira assinatura:
+carimbo da primeira assinatura **de cada nota**:
 
 ```
 Conta: 342401 - Manutenção Predial
@@ -290,10 +316,13 @@ CC: 201 - Armazém
 - **Linhas que faltam:** a nota sem centro sai só com a linha da conta; a nota sem conta aprovada (de antes da Fase 6, ou
   marcada como nota depois do envio) sai só com a do centro; sem nenhum dos dois, nada. Documento comum e nota recusada
   não levam o texto.
-- **Primeira assinatura** é o primeiro campo de assinatura na ordem: arquivo do envelope, página, de cima para baixo, da
-  esquerda para a direita (não é a ordem dos destinatários). O texto aparece uma vez só, mesmo com vários signatários.
-  Se o campo estiver no alto da página e não houver espaço acima, o texto vai logo abaixo do campo; se também não houver
-  abaixo, vai acima, encostado na margem de 18 pt. Sem nenhum campo de assinatura, vai no alto da primeira página.
+- **Várias notas no mesmo envio (Fase 9):** cada arquivo de nota recebe o texto com a conta aprovada **dessa nota** e o
+  centro dela. Boleto, contrato e outros arquivos não recebem nada.
+- **Primeira assinatura** é a primeira de cada arquivo de nota: página, de cima para baixo, da esquerda para a direita
+  (não é a ordem dos destinatários). Cada nota recebe o texto dela, uma vez só, mesmo com vários signatários, e a
+  primeira assinatura de outro arquivo (um contrato, por exemplo) não muda onde o texto da nota entra. Se o campo estiver
+  no alto da página e não houver espaço acima, o texto vai logo abaixo do campo; se também não houver abaixo, vai acima,
+  encostado na margem de 18 pt. Nota sem campo de assinatura leva o texto no alto da primeira página dela.
 - **Nunca sai da página:** um nome longo quebra em mais de uma linha dentro da margem de 18 pt, e o texto recua para a
   esquerda se o campo estiver muito à direita. Não há fundo branco: o texto pode ficar sobre o que está impresso, e
   não o apaga. Vale em página com rotação e nos documentos das duas versões do editor.
@@ -303,8 +332,6 @@ CC: 201 - Armazém
 - **Se o texto não puder ser escrito** (por exemplo, a fonte não carregou), a nota é selada normalmente, sem ele, e o
   motivo vai para o log do servidor (`revalle invoice annotation`), sem dados da nota. Nesse caso, resselar o documento
   depois que o problema passar escreve o texto.
-- **Limite conhecido:** num envelope com mais de um arquivo, vale o primeiro campo de assinatura, que pode estar em outro
-  arquivo que não a nota.
 
 ## 5. Página "Notas fiscais" e planilha
 
@@ -327,6 +354,13 @@ contabilidade pode já ter lançado a nota). Na tela ela aparece com a marca **e
 coluna `status` diz `excluído pelo remetente`.
 
 A lista vem da mais recente para a mais antiga pela **data de envio**.
+
+**Várias notas no mesmo envio (Fase 9).** A lista tem **uma linha por nota**: um envio com 3 notas aparece 3 vezes, com a
+conta, o centro, a situação no Financeiro e a validação de cada nota, e uma linha menor "Nota 2 de 3 · nf-b.pdf". O
+título abre a página da NF já na seção daquela nota. Dentro do envio, as notas seguem a ordem dos arquivos. O filtro de
+conta e as filas valem por nota (uma nota já aprovada sai de **Aguardando o Financeiro** mesmo que as outras ainda
+esperem). Os **contadores do menu contam notas**. Na lista de **Documentos**, um envio com várias notas mostra só a
+etiqueta "3 notas fiscais". Envios de uma nota ficam exatamente como antes.
 
 Colunas: título, remetente, data de envio, status, conta (número · nome; um traço quando a NF não tem conta, como a de
 antes da Fase 6), **Centro de custo** ("101 – Puxada"; um traço quando a NF ainda não tem centro), "Sugestão aceita?"
@@ -397,6 +431,10 @@ As colunas `financeiro` e `aprovado_por` (Fase 6), as quatro do centro de custo 
 último, `chave_acesso` e `possivel_duplicada` (Fase 8) ficam **no fim**, nesta ordem: as planilhas que já leem as colunas
 anteriores continuam funcionando.
 
+**Uma linha por nota (Fase 9).** O cabeçalho não muda. Num envio com várias notas, cada nota tem a sua linha, com `id` e
+`link` do envio, e o `titulo` ganha a posição: `Compra de peças · nota 2 de 3`. Com uma nota, o título é o de sempre. O
+limite de 10.000 conta linhas de nota. Boletos e outros arquivos não têm linha.
+
 **Para a contabilidade: não lance as linhas com `financeiro` = `Substituída`.** Elas são versões que o Financeiro
 substituiu ao trocar a conta ou que a Contabilidade substituiu ao corrigir o centro de custo (a mesma nota aparece de
 novo na linha da nova versão, com a conta ou o centro certo). Uma versão substituída pode aparecer como `Concluído`
@@ -414,48 +452,52 @@ agora há texto lido de um documento qualquer na planilha.
 ## 6. Limites
 
 - Só documento detectado (ou confirmado pelo remetente) como NF vai para a IA. Num documento com vários arquivos, só os
-  arquivos que são NF vão; um contrato junto fica de fora.
+  arquivos que são NF vão (e, desde a Fase 9, os boletos que vêm com elas); um contrato junto fica de fora.
 - Até 20.000 caracteres de texto por arquivo; PDF escaneado vai cortado nas 5 primeiras páginas (como imagem).
 - A IA tem 20 segundos para responder. Se demorar, errar o formato ou sugerir uma conta que não existe (ou está
   inativa), fica "sem sugestão" e o remetente escolhe na lista. Nada trava. Um dado da nota (fornecedor, número, valor
   ou chave) em formato errado só fica vazio: não custa a sugestão da conta.
-- Fase 9: a IA lê **cada nota** do envio numa chamada só dela (o texto daquele arquivo, ou o PDF dele se for
-  escaneado). No máximo 6 chamadas à IA por **nota** (a automática + 5 "Sugerir de novo" ou "Sim"/"Não"), 120 por usuário
-  por hora e 1.440 por usuário em 24 horas (o mesmo teto diário de antes). Num envio, no máximo 20 notas são lidas pela
-  IA (pela ordem dos arquivos); as seguintes ficam "sem sugestão" e o remetente escolhe a conta na lista. O mesmo arquivo
-  em outro envio não chama a IA de novo (a sugestão é guardada por arquivo).
+- Fase 9: a IA lê **cada arquivo** de nota ou de boleto numa chamada só dele (o texto daquele arquivo, ou o PDF dele se
+  for escaneado). Limites:
+  - **6 chamadas por arquivo** (a automática + 5 "Sugerir de novo" ou "Sim"/"Não");
+  - **120 por usuário por hora** e **1.440 por usuário em 24 horas** (o mesmo teto diário de antes, 60 × 24);
+  - **20 arquivos por envio** (notas e boletos, pela ordem dos arquivos); os seguintes ficam "sem sugestão" e o remetente
+    escolhe a conta na lista.
 
-### Várias notas no mesmo envio (em construção, Fase 9)
-
-Um envio pode ter várias notas fiscais (e outros arquivos, como um contrato). Cada arquivo é classificado pelo texto:
-nota fiscal, outro, ou "sem texto" (escaneado: o remetente diz o que é). Cada nota tem a sua leitura da IA, a sua conta e
-o seu centro de custo, e o envio só sai com conta e centro em **todas** as notas (a recusa diz em qual falta: "Falta em:
-nf-c.pdf."). Trocar ou remover qualquer arquivo do rascunho apaga a escolha de todas as notas, como antes. Pela API, as
-rotas da nota ganharam o arquivo da nota (`envelopeItemId`); sem ele, valem para o envio de uma nota só e, com duas ou
-mais, respondem `400 INVOICE_FILE_REQUIRED`. Envios de uma nota continuam exatamente como antes. A tela, o Financeiro, a
-Contabilidade, a lista, a prova e o PDF por nota chegam nas próximas etapas da Fase 9.
+  Os dois limites por usuário mudam pela variável `NEXT_PRIVATE_REVALLE_RATE_LIMITS`, com as ações
+  `revalle.invoice-suggest` (por hora) e `revalle.invoice-suggest-daily` (24 h), no mesmo formato dos outros limites
+  (`verificacao.md`). O mesmo arquivo em outro envio não chama a IA de novo (a leitura é guardada por arquivo).
+- Até **10 arquivos por envio** (o plano do Documenso deixava 5). Um limite maior posto pelo admin continua valendo.
 
 ## 7. Privacidade
 
-- A política de privacidade (`/privacidade`, versão 1, de 05/11/2026) diz: "As notas fiscais enviadas para assinatura
-  são analisadas por um serviço de inteligência artificial (Google Gemini) para sugerir a conta contábil e para ler da
-  nota o fornecedor, o número, o valor e a chave de acesso."
-- E também: "No texto da nota, números de CPF são mascarados antes do envio; uma nota digitalizada (imagem) é enviada
-  como está. Nunca enviamos a data de nascimento nem os dados da verificação de quem assina."
-- Na prática: no texto, `123.456.789-09`, `123456789-09` e 11 dígitos logo depois de "CPF", "CPF nº" ou "CPF/CNPJ"
-  viram `***.***.***-**`; CNPJ (14 dígitos) e a chave de acesso (44) ficam. Uma NF escaneada (foto ou digitalização)
-  vai como imagem, e o CPF que estiver nela vai junto: não há texto para mascarar.
-- O log do servidor registra só o modelo, os tokens, a duração, o resultado e, quando o Google recusa, o código HTTP
-  (ex.: 429 = cota, 403 = chave, 404 = modelo retirado); nunca o texto da NF nem a resposta do Google. Os dados lidos da
-  nota (fornecedor, número, valor, chave) também não vão para o log.
+- A política de privacidade (`/privacidade`, versão 1, de 16/11/2026) diz: "As notas fiscais enviadas para assinatura,
+  e os boletos que vierem junto com elas, são analisados por um serviço de inteligência artificial (Google Gemini) para
+  sugerir a conta contábil, ler da nota o fornecedor, o número, o valor e a chave de acesso, e ler do boleto o
+  beneficiário, o CNPJ, o valor, o vencimento e a linha digitável."
+- E também: "Vai para essa análise apenas o conteúdo da nota fiscal e do boleto que veio com ela (um boleto enviado sem
+  nota não é analisado). No texto da nota, números de CPF são mascarados antes do envio; uma nota digitalizada (imagem)
+  é enviada como está. Nunca enviamos a data de nascimento nem os dados da verificação de quem assina."
+- Na prática: no texto (da nota e do boleto), `123.456.789-09`, `123456789-09` e 11 dígitos logo depois de "CPF",
+  "CPF nº" ou "CPF/CNPJ" viram `***.***.***-**`; CNPJ (14 dígitos), a chave de acesso (44) e a linha digitável ficam. Um
+  arquivo escaneado (foto ou digitalização) vai como imagem, e o CPF que estiver nele vai junto: não há texto para
+  mascarar. Contrato e outros arquivos não vão para a IA.
+- O log do servidor registra só o modelo, os tokens, a duração, o resultado, o tipo da leitura (`kind`: nota ou boleto)
+  e, quando o Google recusa, o código HTTP (ex.: 429 = cota, 403 = chave, 404 = modelo retirado); nunca o texto da NF ou
+  do boleto nem a resposta do Google. Os dados lidos (fornecedor, número, valor, chave, beneficiário, CNPJ, vencimento,
+  linha digitável) também não vão para o log.
 - A frase de antes ("…apenas para sugerir a conta contábil") ficou curta quando a IA passou a ler também o fornecedor, o
-  número, o valor e a chave. O texto foi corrigido e a data do cabeçalho passou para 05/11/2026; a **versão do termo
-  continua a mesma** (`1`): quem já aceitou não precisa aceitar de novo. O jurídico ainda precisa validar a página.
+  número, o valor e a chave. O texto foi corrigido (05/11/2026) e ganhou os boletos na Fase 9 (16/11/2026); a **versão
+  do termo continua a mesma** (`1`): quem já aceitou não precisa aceitar de novo. O jurídico ainda precisa validar a
+  página.
 - **Cache das sugestões:** a tabela `RevalleInvoiceSuggestionCache` guarda, por SHA-256 do arquivo, a conta sugerida,
   a confiança, o modelo, o motivo escrito pela IA (que pode citar o nome do fornecedor ou do tomador) e, desde a Fase 8,
   o fornecedor (com o CPF escondido), o número, o valor e a chave de acesso lidos da nota. Não tem prazo
   e não é apagada quando o documento é excluído. Para limpar (as NFs seguintes voltam a chamar a IA):
   `delete from "RevalleInvoiceSuggestionCache";` no banco.
+- **Cache dos boletos (Fase 9):** a tabela `RevalleBoletoCache` guarda, por SHA-256 do arquivo, o que a IA leu do boleto
+  (beneficiário, CNPJ, valor, vencimento e linha digitável) e o modelo. Mesmas regras: sem prazo, não é apagada com o
+  documento; para limpar, `delete from "RevalleBoletoCache";`.
 - A chave fica só no servidor (EasyPanel).
 
 ## 8. Problemas comuns
@@ -557,6 +599,7 @@ que ninguém validou).
 |---|---|---|---|---|
 | Financeiro trocou a conta | a nova | aprovada por quem trocou | o mesmo | a mesma da anterior |
 | Contabilidade corrigiu o centro | a mesma | a mesma da anterior, com os nomes (NF `LEGACY`: aguardando aprovação) | o novo | validado por quem corrigiu |
+| Envio com 2+ notas (conta ou centro de uma nota) | a nova só na nota que mudou | **todas as notas aguardam o Financeiro** | o novo só na nota corrigida | as mesmas; a nota corrigida, validada por quem corrigiu |
 
 Financeiro e Contabilidade agindo ao mesmo tempo: um vence, nunca há duas novas versões, e o outro recebe "A situação
 desta nota mudou. Atualize a página e tente de novo." (ou "Esta versão da nota fiscal já foi substituída", se a nova versão
@@ -584,6 +627,17 @@ Botão **Aprovar conta** (pede confirmação). A NF fica aprovada e:
 
 Quem é do Financeiro pode aprovar uma NF que ele mesmo enviou ou assina; o log de auditoria e o certificado registram
 quem aprovou.
+
+**Envio com várias notas (Fase 9).** A página da NF mostra uma seção por nota ("Nota 2 de 3 · nf-b.pdf"; a lista leva
+até ela por `#nota-…`), com a conta, o centro, o que a IA leu, as duplicadas daquela nota e os cartões do Financeiro e
+da Contabilidade dela. O Financeiro aprova nota a nota; o envio só é concluído (e selado) quando a última nota for
+aprovada e todos tiverem assinado. Aprovar de novo a mesma nota não faz nada. A Contabilidade valida e corrige o centro
+nota a nota; nota sem validação não segura a conclusão. Trocar a conta ou corrigir o centro de UMA nota cria a nova
+versão do envio inteiro (todos assinam de novo) e **todas as notas voltam a aguardar o Financeiro** (seção 10). O aviso
+diz a nota ("A conta contábil da nota fiscal {título} (nota 2 de 3: nf-b.pdf) foi alterada pelo Financeiro de … para
+….", "O centro de custo da nota 3 de 3 (nf-c.pdf) foi corrigido de … para …."). O cartão "Boletos do envio" mostra o
+que foi lido de cada boleto e os avisos da conferência (Financeiro, Contabilidade, admin e dono; quem só assina não vê
+os avisos).
 
 **NF marcada depois do envio, ainda sem conta.** O cartão mostra a lista de contas e o botão **Definir e aprovar**
 (pede confirmação): a conta escolhida fica aprovada na hora, sem nova versão e sem ninguém assinar de novo (ninguém viu
@@ -646,3 +700,71 @@ resselar. A coluna **Parado há** fica vazia para elas.
 Resselar (no painel do admin) uma NF **já concluída** que ainda espera a aprovação (marcada como NF depois da conclusão)
 refaz o PDF selado normalmente; a aprovação continua pendente. Uma NF ainda pendente que espera a aprovação não é selada pela reselagem: quem a libera é a aprovação.
 
+
+## 10. Várias notas e boletos no mesmo envio (Fase 9)
+
+Um envio pode ter várias notas fiscais, boletos e outros arquivos (um contrato, um relatório), até 10 arquivos (seção 6).
+Cada nota é tratada como uma nota; envios de uma nota só continuam **exatamente como antes**.
+
+**O que cada arquivo é.** O RevSign lê o texto de cada arquivo (sem IA) e o classifica:
+
+- **nota fiscal** (NF-e, NFS-e, CT-e e similares), pelos mesmos sinais de sempre (DANFE, chave de acesso, NFS-e etc.);
+- **boleto**, por uma linha digitável válida (os 47 números, com os dígitos conferidos) ou por pelo menos três marcas de
+  boleto, uma delas exclusiva de boleto ("linha digitável", "ficha de compensação", "recibo do pagador/sacado", "nosso
+  número"). Um contrato que só fala de vencimento, beneficiário e local de pagamento **não** é boleto;
+- **outro** (documento comum): não vai para a IA, não tem conta nem linha na lista;
+- **sem texto** (escaneado): o remetente responde "Este arquivo é:" **Nota fiscal**, **Boleto** ou **Outro documento**
+  (seção 4). O remetente também corrige o tipo de qualquer arquivo pelo mesmo seletor, e **Não é nota fiscal** num bloco
+  de nota faz dele documento comum. "É nota fiscal" num boleto não o transforma em nota.
+
+**Uma chamada à IA por arquivo.** Cada nota vai sozinha para a IA (só o texto dela), com a sugestão de conta e os dados
+lidos daquela nota; cada boleto também, para ler o beneficiário e o CNPJ. Custo: cerca de US$ 0,004 por nota e por
+boleto. Os limites estão na seção 6.
+
+**Cada nota é uma nota.** Conta e centro de custo (seção 4), aprovação do Financeiro e validação da Contabilidade
+(seção 9), linha na lista e na planilha (seção 5), alerta de duplicada ("Alerta de nota duplicada"), texto azul no PDF
+final ("A conta e o centro de custo no PDF final") e, na prova, no certificado e no `/verificar`, uma linha ou um quadro
+por nota (`prova.md`). O envio só sai com conta e centro em todas as notas e só conclui quando todas forem aprovadas.
+
+### Boleto junto com as notas
+
+- **Só é lido quando o envio tem pelo menos uma nota.** Um boleto sozinho segue como documento comum, sem IA e sem custo.
+- **O que é lido:** o valor e o vencimento saem primeiro da linha digitável, no próprio RevSign, sem IA (quando a linha
+  existe, ela vale mais que a IA); a IA completa o beneficiário e o CNPJ. O CNPJ do emitente de cada nota sai da chave de
+  acesso dela. A leitura é guardada por arquivo (`RevalleBoletoCache`): o mesmo boleto em outro envio não chama a IA.
+- **A conferência com as notas é só aviso** (como a nota duplicada): nunca trava o envio, a aprovação nem a conclusão.
+  Os três avisos:
+  - "O valor do boleto (R$ 1.499,00) não bate com nenhuma nota do envio." O valor bate quando o boleto é igual ao de
+    alguma nota ou à soma das notas, ou quando a soma dos boletos do envio (parcelas) é igual a uma nota ou à soma;
+  - "O beneficiário do boleto é diferente do emitente das notas." Compara a raiz do CNPJ (os 8 primeiros números, a
+    filial é a mesma empresa) quando os dois lados têm CNPJ; senão, o nome (um contém o outro). Sem dado dos dois lados,
+    não avisa;
+  - "Boleto vencido em 01/11/2026." (vencimento antes de hoje, no horário de Brasília).
+- **Onde aparece:** no diálogo de envio (seção 4) e, depois do envio, no cartão "Boletos do envio" da página da NF
+  (seção 9).
+- **Limite: um PDF com o DANFE e o boleto juntos é nota.** É comum o fornecedor mandar assim: o arquivo vai para a IA
+  como nota (uma chamada) e o boleto dentro dele **não** é lido nem conferido. Para conferir o boleto, envie-o como um
+  arquivo separado.
+
+### Nova versão com várias notas
+
+Trocar a conta (Financeiro) ou corrigir o centro (Contabilidade) de **uma** nota cria a nova versão do **envio inteiro**,
+que todos assinam de novo, e **todas as notas voltam a aguardar o Financeiro**, inclusive a que mudou. As contas, os
+centros e as validações das outras notas ficam; só a aprovação reabre ("Quem mudou o quê", seção 9). Decisão do Enzo
+(16/11/2026). Com **uma nota só**, vale a regra de antes: a troca de conta sai aprovada por quem trocou e a correção do
+centro mantém a aprovação.
+
+### Pela API
+
+- As rotas da nota recebem o arquivo da nota, `envelopeItemId` (opcional): `revalle.invoice.{setChoice,setCostCenter,
+  resuggest,markAsInvoice}`, `revalle.finance.{approve,changeAccount,get}` e `revalle.accounting.{validate,defineCostCenter,
+  changeCostCenter,get}`. Sem ele, valem quando o envio tem uma nota só; com duas ou mais notas, respondem
+  `400 INVOICE_FILE_REQUIRED`. Um arquivo que não é nota do envio (um boleto, ou arquivo de outro envio) dá **404**.
+- Rota nova `revalle.invoice.setFileKind({ envelopeId, envelopeItemId, kind })`, com `kind` `NF`, `BOLETO` ou `OTHER`:
+  o tipo do arquivo dito pelo remetente.
+- As respostas só ganham campos: `documents` (um por arquivo, com `kind`, `position` "nota 2 de 3", a sugestão, os
+  dados lidos, a conta, o centro, a situação no Financeiro, `boleto` com os dados e os avisos, duplicadas) e, na lista,
+  `envelopeItemId`, `position` e `documentTitle`. Com uma nota, os campos de cima são os de hoje; com duas ou mais, os
+  de cima que são de uma nota (conta, sugestão, dados lidos) vêm vazios.
+- Envios de nota de antes da Fase 9 com vários arquivos são refeitos sozinhos (na subida do app e na primeira leitura),
+  com a nota no primeiro arquivo que o texto reconhece como NF (`deploy.md`, "Antes de atualizar (Fase 9)").
