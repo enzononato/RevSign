@@ -92,10 +92,14 @@ export const ZInvoiceDocumentStateSchema = z.object({
   suggestion: ZInvoiceSuggestionSchema,
   failureReason: ZInvoiceFailureReasonSchema,
   invoiceData: ZInvoiceDataSummarySchema.nullable(),
+  /** Só NF: as NFs vivas de outros envios com uma chave em comum ou o mesmo arquivo desta nota. */
   duplicates: z.array(ZInvoiceDuplicateSummarySchema),
+  /** Só NF: a mesma nota já está antes neste envio (a posição da primeira). */
   duplicateInEnvelope: z.object({ index: z.number() }).nullable(),
   choice: ZInvoiceChoiceSchema,
   costCenter: ZInvoiceCostCenterSchema,
+  /** Só NF: a situação desta nota no Financeiro (nulo nos outros tipos). */
+  financeStatus: z.enum(['PENDING_APPROVAL', 'APPROVED', 'SUPERSEDED', 'LEGACY']).nullable(),
   /** Só BOLETO (nulo nos outros tipos). */
   boleto: ZInvoiceBoletoStateSchema.nullable(),
 });

@@ -10,8 +10,15 @@ export const ZFindInvoicesRequestSchema = ZInvoiceFiltersSchema.extend({
   perPage: z.number().int().min(1).max(100).default(20),
 });
 
+/** Fase 9: uma linha por nota. `id`, `title`, `link`, `recipients` e `version` são do envio; o resto, da nota. */
 export const ZInvoiceListRowSchema = z.object({
   id: z.string(),
+  /** Fase 9: o arquivo da nota (a página da NF tem a âncora `#nota-{envelopeItemId}`). */
+  envelopeItemId: z.string(),
+  /** Fase 9: o nome do arquivo da nota. */
+  documentTitle: z.string(),
+  /** Fase 9: a posição da nota entre as notas do envio (1 de 1 no envio de uma nota). */
+  position: z.object({ index: z.number(), total: z.number() }),
   title: z.string(),
   senderName: z.string(),
   senderEmail: z.string(),
@@ -25,7 +32,7 @@ export const ZInvoiceListRowSchema = z.object({
   suggestion: z.object({ code: z.string(), confidence: z.string() }).nullable(),
   /** Fase 8: lido pela IA; nulo quando os três estão vazios. */
   invoiceData: ZInvoiceDataSummarySchema.nullable(),
-  /** Fase 8: outra NF viva tem uma chave em comum ou o mesmo arquivo. `false` para quem não é do Financeiro, da Contabilidade nem admin. */
+  /** Fase 8: outra NF viva (Fase 9: de outro envio) tem uma chave em comum ou o mesmo arquivo desta nota. `false` para quem não é do Financeiro, da Contabilidade nem admin. */
   isPossibleDuplicate: z.boolean(),
   acceptedSuggestion: z.boolean().nullable(),
   financeStatus: z.enum(FINANCE_STATUSES).nullable(),

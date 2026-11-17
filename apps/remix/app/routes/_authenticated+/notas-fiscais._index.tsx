@@ -241,7 +241,7 @@ export default function InvoicesPage() {
 
           <div className="mt-3 flex flex-col gap-2.5" data-testid="invoice-list">
             {data?.data.map((row) => (
-              <InvoiceRowCard key={row.id} row={row} viewer={viewer} />
+              <InvoiceRowCard key={row.envelopeItemId} row={row} viewer={viewer} />
             ))}
 
             {data && data.data.length === 0 && (

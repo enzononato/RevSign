@@ -13,20 +13,19 @@ import {
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { normalizeEmail } from '../../../revalle/email-domain';
 import { isNewVersionDraftRow } from '../../../revalle/finance/finance-status';
-import { type BoletoData, readStoredBoletoData } from '../../../revalle/invoice/boleto';
-import {
-  type BoletoWarning,
-  boletoWarningMessage,
-  checkBoleto,
-  issuerCnpjFromAccessKey,
-} from '../../../revalle/invoice/boleto-match';
+import type { BoletoData } from '../../../revalle/invoice/boleto';
+import type { BoletoWarning } from '../../../revalle/invoice/boleto-match';
 import { costCenterLabel } from '../../../revalle/invoice/cost-centers';
 import { type InvoiceDataSummary, toInvoiceDataSummary } from '../../../revalle/invoice/invoice-data';
 import { fileFinanceStatus, type InvoicePosition, invoicePositions } from '../../../revalle/invoice/invoice-files';
-import { brasiliaToday } from '../../../revalle/invoice/invoice-filters';
 import { isAdmin as isAdminUser } from '../../../utils/is-admin';
 import { isAccountingMember } from '../accounting/members';
-import { findInvoiceDuplicatesOrEmpty } from '../invoice/duplicates';
+import { boletoStates } from '../invoice/classify';
+import {
+  findEnvelopeNoteDuplicatesOrEmpty,
+  findInvoiceDuplicatesOrEmpty,
+  type InvoiceDuplicate,
+} from '../invoice/duplicates';
 import { type LoadedInvoiceFile, loadInvoiceFiles } from '../invoice/invoice-files';
 import { refreshLegacyInvoiceFiles } from './card';
 import { isFinanceMember } from './members';
@@ -279,55 +278,46 @@ export const getInvoiceView = async ({
 
   // Quem decide sobre a nota abre as outras; o dono (que pode não ter acesso a elas) só fica sabendo que existem.
   const canOpenOthers = viewer.isAdmin || viewer.isFinance || viewer.isAccounting;
-  const duplicates =
-    canOpenOthers || viewer.isOwner
-      ? (
-          await findInvoiceDuplicatesOrEmpty({
-            envelopeId: envelope.id,
-            accessKeys: invoice.accessKeys,
-            fileSha256: invoice.fileSha256,
-            financeStatus: invoice.financeStatus,
-          })
-        ).map(({ envelopeId, title, sentAt, senderName, status }) => ({
-          id: canOpenOthers ? envelopeId : null,
-          title: canOpenOthers ? title : null,
-          sentAt,
-          senderName,
-          status,
-        }))
-      : [];
-
-  // Fase 9: as notas e os boletos (linhas de arquivo; um envio de antes da Fase 9 é refeito na primeira leitura).
-  await refreshLegacyInvoiceFiles(envelope.id);
-
-  const files = await loadInvoiceFiles(envelope.id);
-  const nfs = files.filter((file) => file.kind === RevalleInvoiceFileKind.NF);
   const showDuplicates = canOpenOthers || viewer.isOwner;
-  const toViewDuplicate = ({ envelopeId, title, sentAt, senderName, status }: InvoiceDuplicateRow) => ({
+  const toViewDuplicate = ({ envelopeId, title, sentAt, senderName, status }: InvoiceDuplicate) => ({
     id: canOpenOthers ? envelopeId : null,
     title: canOpenOthers ? title : null,
     sentAt,
     senderName,
     status,
   });
+
+  // Fase 9: as notas e os boletos (linhas de arquivo; um envio de antes da Fase 9 é refeito na primeira leitura).
+  await refreshLegacyInvoiceFiles(envelope.id);
+
+  const files = await loadInvoiceFiles(envelope.id);
+  const nfs = files.filter((file) => file.kind === RevalleInvoiceFileKind.NF);
+
+  // As duplicadas de cada nota (pela chave e pelo arquivo dela) e, em cima, a união (com uma nota, as dela). Sem linhas de
+  // arquivo (o envio antigo que não se refez), a busca de sempre, pela linha do envio.
+  const noteDuplicates: { byFile: Map<string, InvoiceDuplicate[]>; union: InvoiceDuplicate[] } = !showDuplicates
+    ? { byFile: new Map(), union: [] }
+    : nfs.length > 0
+      ? await findEnvelopeNoteDuplicatesOrEmpty({
+          envelopeId: envelope.id,
+          files: nfs,
+          financeStatus: invoice.financeStatus,
+        })
+      : {
+          byFile: new Map(),
+          union: await findInvoiceDuplicatesOrEmpty({
+            envelopeId: envelope.id,
+            accessKeys: invoice.accessKeys,
+            fileSha256: invoice.fileSha256,
+            financeStatus: invoice.financeStatus,
+          }),
+        };
+  const duplicates = noteDuplicates.union.map(toViewDuplicate);
   const documents = await toViewDocuments({
     nfs,
     positions: invoicePositions(files),
     envelopeFinanceStatus: invoice.financeStatus,
-    // Com uma nota, as duplicadas de sempre; com várias, as de cada nota (pela chave e pelo arquivo dela).
-    duplicatesOf: async (file) =>
-      !showDuplicates
-        ? []
-        : nfs.length === 1
-          ? duplicates
-          : (
-              await findInvoiceDuplicatesOrEmpty({
-                envelopeId: envelope.id,
-                accessKeys: file.accessKeys,
-                fileSha256: file.fileSha256,
-                financeStatus: invoice.financeStatus,
-              })
-            ).map(toViewDuplicate),
+    duplicatesOf: (file) => (noteDuplicates.byFile.get(file.id) ?? []).map(toViewDuplicate),
   });
   const boletos = toViewBoletos(files, { showWarnings: canOpenOthers || viewer.isOwner });
 
@@ -367,8 +357,6 @@ export const getInvoiceView = async ({
   };
 };
 
-type InvoiceDuplicateRow = Awaited<ReturnType<typeof findInvoiceDuplicatesOrEmpty>>[number];
-
 /** Fase 9: uma entrada por nota, na ordem dos arquivos. */
 const toViewDocuments = async ({
   nfs,
@@ -379,7 +367,7 @@ const toViewDocuments = async ({
   nfs: LoadedInvoiceFile[];
   positions: Map<string, InvoicePosition>;
   envelopeFinanceStatus: RevalleFinanceStatus | null;
-  duplicatesOf: (file: LoadedInvoiceFile) => Promise<InvoiceViewDuplicate[]>;
+  duplicatesOf: (file: LoadedInvoiceFile) => InvoiceViewDuplicate[];
 }): Promise<InvoiceViewDocument[]> => {
   const codes = [...new Set(nfs.map((file) => file.choiceCode).filter((code): code is string => Boolean(code)))];
   const names = new Map(
@@ -393,60 +381,41 @@ const toViewDocuments = async ({
       : [],
   );
 
-  return await Promise.all(
-    nfs.map(async (file) => ({
-      envelopeItemId: file.envelopeItemId,
-      title: file.title,
-      position: positions.get(file.id) ?? { index: 1, total: nfs.length },
-      account: file.choiceCode ? { code: file.choiceCode, name: names.get(file.choiceCode) ?? null } : null,
-      costCenterLabel: file.costCenterCode ? costCenterLabel(file.costCenterCode) : null,
-      financeStatus: fileFinanceStatus(envelopeFinanceStatus, file.approvedAt),
-      invoiceData: toInvoiceDataSummary(file),
-      duplicates: await duplicatesOf(file),
-    })),
-  );
+  return nfs.map((file) => ({
+    envelopeItemId: file.envelopeItemId,
+    title: file.title,
+    position: positions.get(file.id) ?? { index: 1, total: nfs.length },
+    account: file.choiceCode ? { code: file.choiceCode, name: names.get(file.choiceCode) ?? null } : null,
+    costCenterLabel: file.costCenterCode ? costCenterLabel(file.costCenterCode) : null,
+    financeStatus: fileFinanceStatus(envelopeFinanceStatus, file.approvedAt),
+    invoiceData: toInvoiceDataSummary(file),
+    duplicates: duplicatesOf(file),
+  }));
 };
 
 /**
- * Fase 9: os boletos do envio conferidos com as notas (a mesma conta do diálogo de envio): o CNPJ do emitente sai da
- * primeira chave de cada nota; o valor de cada boleto soma com o dos outros (parcelas); vencido em relação a hoje em
- * Brasília. Sem nota no envio, sem conferência.
+ * Fase 9: os boletos do envio conferidos com as notas, a mesma conta do diálogo de envio (`boletoStates`). Quem só assina
+ * recebe a lista sem os avisos.
  */
 const toViewBoletos = (
   files: LoadedInvoiceFile[],
   { showWarnings }: { showWarnings: boolean },
 ): InvoiceViewBoleto[] => {
-  const nfs = files.filter((file) => file.kind === RevalleInvoiceFileKind.NF);
-  const boletos = files
-    .filter((file) => file.kind === RevalleInvoiceFileKind.BOLETO)
-    .map((file) => ({ file, data: readStoredBoletoData(file.boletoData) }));
-  const invoices = nfs.map((file) => ({
-    totalAmountCents: file.totalAmountCents,
-    issuerCnpj: file.accessKeys[0] ? issuerCnpjFromAccessKey(file.accessKeys[0]) : null,
-    supplierName: file.supplierName,
-  }));
-  const today = brasiliaToday();
+  const states = boletoStates(files);
 
-  return boletos.map(({ file, data }) => {
-    const warnings =
-      showWarnings && data && nfs.length > 0
-        ? checkBoleto({
-            boleto: data,
-            otherBoletoAmounts: boletos
-              .filter((other) => other.file.id !== file.id)
-              .map((other) => other.data?.amountCents ?? null)
-              .filter((amount): amount is number => amount !== null),
-            invoices,
-            today,
-          })
-        : [];
+  return files.flatMap((file) => {
+    const state = states.get(file.id);
 
-    return {
-      envelopeItemId: file.envelopeItemId,
-      title: file.title,
-      data,
-      warnings: warnings.map((warning) => ({ ...warning, message: boletoWarningMessage(warning) })),
-    };
+    return state
+      ? [
+          {
+            envelopeItemId: file.envelopeItemId,
+            title: file.title,
+            data: state.data,
+            warnings: showWarnings ? state.warnings : [],
+          },
+        ]
+      : [];
   });
 };
 

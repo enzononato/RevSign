@@ -27,16 +27,18 @@ import {
 import {
   aggregateIsInvoice,
   classifyFileKind,
+  fileFinanceStatus,
   type InvoiceFileKind,
   type InvoicePosition,
   invoicePositions,
+  sameEnvelopeDuplicateIndex,
 } from '../../../revalle/invoice/invoice-files';
 import { brasiliaToday } from '../../../revalle/invoice/invoice-filters';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { findNewVersionKind, findVisibleSuccessor } from '../finance/successor';
 import type { InvoiceDuplicate } from './duplicates';
-import { findInvoiceDuplicatesOrEmpty } from './duplicates';
+import { findEnvelopeNoteDuplicatesOrEmpty, findInvoiceDuplicatesOrEmpty } from './duplicates';
 import type { InvoiceEnvelopeFile, InvoiceFileContent } from './envelope-files';
 import { filesKey, loadEnvelopeFile, loadEnvelopeFiles, readFilesContent } from './envelope-files';
 import type { LoadedInvoiceFile } from './invoice-files';
@@ -113,10 +115,12 @@ export type InvoiceDocumentState = {
   suggestion: InvoiceState['suggestion'];
   failureReason: InvoiceFailureReason | null;
   invoiceData: InvoiceDataSummary | null;
-  /** Vazio até a Task 4 (duplicada por nota). */
+  /** Só NF: as NFs vivas de OUTROS envios com uma chave em comum ou o mesmo arquivo desta nota (vazio nos outros tipos). */
   duplicates: InvoiceState['duplicates'];
-  /** Nulo até a Task 4 (a mesma nota duas vezes no envio). */
+  /** Só NF: a mesma nota já está antes neste envio (mesmo arquivo ou chave em comum): a posição da primeira. */
   duplicateInEnvelope: { index: number } | null;
+  /** Só NF: a situação desta nota no Financeiro (`fileFinanceStatus`); nulo nos outros tipos. */
+  financeStatus: InvoiceState['financeStatus'];
   choice: InvoiceState['choice'];
   costCenter: InvoiceState['costCenter'];
   /** Só BOLETO: a leitura do boleto e a conferência com as notas do envio (nulo nos outros tipos). */
@@ -276,7 +280,7 @@ export const toInvoiceStateBase = async (row: RevalleInvoiceClassification): Pro
  * Os boletos do envio conferidos com as notas: o CNPJ do emitente sai da primeira chave de cada nota; o valor de cada
  * boleto soma com o dos outros (parcelas). `today` em Brasília, na hora da leitura (nada é gravado sobre o vencimento).
  */
-const boletoStates = (files: LoadedInvoiceFile[]): Map<string, InvoiceBoletoState> => {
+export const boletoStates = (files: LoadedInvoiceFile[]): Map<string, InvoiceBoletoState> => {
   const nfs = files.filter((file) => file.kind === RevalleInvoiceFileKind.NF);
   const boletos = files
     .filter((file) => file.kind === RevalleInvoiceFileKind.BOLETO)
@@ -315,42 +319,82 @@ const boletoStates = (files: LoadedInvoiceFile[]): Map<string, InvoiceBoletoStat
   );
 };
 
-/** Fase 9: os arquivos do envio no estado, na ordem dos arquivos. */
-export const toInvoiceDocuments = async (files: LoadedInvoiceFile[]): Promise<InvoiceDocumentState[]> => {
+type DuplicateSummary = InvoiceState['duplicates'][number];
+
+const toDuplicateSummary = ({ sentAt, senderName, status }: InvoiceDuplicate): DuplicateSummary => ({
+  sentAt,
+  senderName,
+  status,
+});
+
+/**
+ * Fase 9: os arquivos do envio no estado, na ordem dos arquivos. `financeStatus` é o do envio (a situação de cada nota sai
+ * dele e da aprovação dela); `duplicates`, as duplicadas de cada nota (chave = id da linha do arquivo).
+ */
+export const toInvoiceDocuments = async (
+  files: LoadedInvoiceFile[],
+  {
+    financeStatus = null,
+    duplicates = new Map(),
+  }: { financeStatus?: RevalleFinanceStatus | null; duplicates?: Map<string, DuplicateSummary[]> } = {},
+): Promise<InvoiceDocumentState[]> => {
   const accounts = await loadAccounts(files);
   const positions = invoicePositions(files);
   const boletos = boletoStates(files);
 
-  return files.map((file) => ({
-    envelopeItemId: file.envelopeItemId,
-    title: file.title,
-    order: file.order,
-    kind: file.kind,
-    detectedBy: file.detectedBy,
-    position: positions.get(file.id) ?? null,
-    ...noteState(file, accounts),
-    duplicates: [],
-    duplicateInEnvelope: null,
-    boleto: boletos.get(file.id) ?? null,
-  }));
+  return files.map((file) => {
+    const isNf = file.kind === RevalleInvoiceFileKind.NF;
+    const sameIndex = isNf ? sameEnvelopeDuplicateIndex(files, file.id) : null;
+
+    return {
+      envelopeItemId: file.envelopeItemId,
+      title: file.title,
+      order: file.order,
+      kind: file.kind,
+      detectedBy: file.detectedBy,
+      position: positions.get(file.id) ?? null,
+      ...noteState(file, accounts),
+      duplicates: isNf ? (duplicates.get(file.id) ?? []) : [],
+      duplicateInEnvelope: sameIndex === null ? null : { index: sameIndex },
+      financeStatus: isNf ? fileFinanceStatus(financeStatus, file.approvedAt) : null,
+      boleto: boletos.get(file.id) ?? null,
+    };
+  });
 };
 
 /**
- * Monta o estado da tela, com o aviso de nota duplicada. Se a busca de duplicadas falhar, o estado sai sem o aviso (a falha
- * é registrada, sem dados): o alerta não pode derrubar a tela nem o que ela faz.
+ * Monta o estado da tela, com o aviso de nota duplicada: o de cada nota (pelas chaves e pelo arquivo dela) e, em cima, a
+ * união (com uma nota, a dela). Envio de antes da Fase 9 ainda sem linhas: a busca de sempre, pela linha do envio. Se a
+ * busca falhar, o estado sai sem o aviso (a falha é registrada, sem dados): o alerta não pode derrubar a tela nem o que
+ * ela faz.
  */
-export const toInvoiceState = async (row: RevalleInvoiceClassification): Promise<InvoiceState> => ({
-  ...(await toInvoiceStateBase(row)),
-  duplicates:
-    row.isInvoice === RevalleInvoiceStatus.YES
-      ? (await findInvoiceDuplicatesOrEmpty(row)).map(({ sentAt, senderName, status }) => ({
-          sentAt,
-          senderName,
-          status,
-        }))
-      : [],
-  documents: await toInvoiceDocuments(await loadInvoiceFiles(row.envelopeId)),
-});
+export const toInvoiceState = async (row: RevalleInvoiceClassification): Promise<InvoiceState> => {
+  const files = await loadInvoiceFiles(row.envelopeId);
+  const nfs = files.filter((file) => file.kind === RevalleInvoiceFileKind.NF);
+  const isInvoice = row.isInvoice === RevalleInvoiceStatus.YES;
+
+  let union: DuplicateSummary[] = [];
+  let byFile = new Map<string, DuplicateSummary[]>();
+
+  if (isInvoice && nfs.length > 0) {
+    const found = await findEnvelopeNoteDuplicatesOrEmpty({
+      envelopeId: row.envelopeId,
+      files: nfs,
+      financeStatus: row.financeStatus,
+    });
+
+    union = found.union.map(toDuplicateSummary);
+    byFile = new Map([...found.byFile].map(([id, list]) => [id, list.map(toDuplicateSummary)]));
+  } else if (isInvoice) {
+    union = (await findInvoiceDuplicatesOrEmpty(row)).map(toDuplicateSummary);
+  }
+
+  return {
+    ...(await toInvoiceStateBase(row)),
+    duplicates: union,
+    documents: await toInvoiceDocuments(files, { financeStatus: row.financeStatus, duplicates: byFile }),
+  };
+};
 
 /**
  * PENDING esquecido (job perdido) vira FAILED/TIMEOUT, para a tela não ficar presa em "Buscando sugestão…". Por arquivo;

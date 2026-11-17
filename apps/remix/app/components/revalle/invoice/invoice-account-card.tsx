@@ -5,6 +5,7 @@ import { invoiceViewPath } from '@documenso/lib/revalle/finance/finance-status';
 import { costCenterLabel } from '@documenso/lib/revalle/invoice/cost-centers';
 import { isAdmin } from '@documenso/lib/utils/is-admin';
 import { trpc } from '@documenso/trpc/react';
+import type { TInvoiceState } from '@documenso/trpc/server/revalle-router/invoice/invoice-state.types';
 import { Button } from '@documenso/ui/primitives/button';
 import { useToast } from '@documenso/ui/primitives/use-toast';
 import { Trans, useLingui } from '@lingui/react/macro';
@@ -167,20 +168,22 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
   // Aguardando só aparece com alguma conta escolhida (com várias notas, em alguma delas).
   const hasChoice = isPerFile ? invoiceDocuments.some((doc) => doc.choice !== null) : Boolean(state.choice);
 
-  const financeRow = ((state.financeStatus === 'PENDING_APPROVAL' && hasChoice) ||
-    state.financeStatus === 'APPROVED') && (
-    <InvoiceRow label={<Trans>Financeiro</Trans>} stacked>
-      {state.financeStatus === 'APPROVED' ? (
-        <InvoiceStatePill tone="success">
-          <Trans>Aprovada pelo Financeiro</Trans>
-        </InvoiceStatePill>
-      ) : (
-        <InvoiceStatePill tone="warning">
-          <Trans>Aguardando aprovação do Financeiro</Trans>
-        </InvoiceStatePill>
-      )}
-    </InvoiceRow>
-  );
+  // Fase 9: com várias notas, cada uma mostra a situação dela (a nota já aprovada fica aprovada enquanto o envio aguarda).
+  const financeRowOf = (financeStatus: TInvoiceState['financeStatus'], withChoice: boolean) =>
+    ((financeStatus === 'PENDING_APPROVAL' && withChoice) || financeStatus === 'APPROVED') && (
+      <InvoiceRow label={<Trans>Financeiro</Trans>} stacked>
+        {financeStatus === 'APPROVED' ? (
+          <InvoiceStatePill tone="success">
+            <Trans>Aprovada pelo Financeiro</Trans>
+          </InvoiceStatePill>
+        ) : (
+          <InvoiceStatePill tone="warning">
+            <Trans>Aguardando aprovação do Financeiro</Trans>
+          </InvoiceStatePill>
+        )}
+      </InvoiceRow>
+    );
+  const financeRow = financeRowOf(state.financeStatus, hasChoice);
 
   const supersededNotice = isSuperseded && (
     <>
@@ -203,13 +206,10 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
     </>
   );
 
-  // Fase 9: duas ou mais notas no envio, um resumo por nota. A situação no Financeiro é a do envio (com a última nota
-  // aprovada, o envio todo fica aprovado).
+  // Fase 9: duas ou mais notas no envio, um resumo por nota, cada uma com a situação dela no Financeiro.
   if (isPerFile) {
     return (
       <InvoiceCard title={<Trans>Notas fiscais</Trans>} testId="invoice-account-card">
-        {financeRow && <InvoiceRows>{financeRow}</InvoiceRows>}
-
         {/* Enquanto nenhuma nota traz o aviso dela, o do envio (a união das notas) aparece uma vez, só informação. */}
         {invoiceDocuments.every((doc) => doc.duplicates.length === 0) && (
           <InvoiceDuplicateNotice duplicates={state.duplicates} />
@@ -240,6 +240,8 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
                   <InvoiceCode {...splitCodeLabel(costCenterLabel(doc.costCenter.code))} />
                 </InvoiceRow>
               )}
+
+              {financeRowOf(doc.financeStatus, doc.choice !== null)}
             </InvoiceRows>
 
             {/* Depois do envio o aviso é só informação, sem a confirmação do diálogo de envio. */}

@@ -6,6 +6,7 @@ import {
   type ReadStatus,
   RecipientRole,
   RevalleFinanceStatus,
+  RevalleInvoiceFileKind,
   RevalleInvoiceStatus,
   RevalleSuggestionStatus,
   type SendStatus,
@@ -24,6 +25,12 @@ import { costCenterLabel, costCenterName } from '../../../revalle/invoice/cost-c
 import { buildInvoiceExportCsv, type InvoiceExportRow } from '../../../revalle/invoice/export-csv';
 import { type InvoiceDataSummary, toInvoiceDataSummary } from '../../../revalle/invoice/invoice-data';
 import {
+  fileFinanceStatus,
+  type InvoicePosition,
+  invoicePositions,
+  invoiceRowTitle,
+} from '../../../revalle/invoice/invoice-files';
+import {
   INVOICE_DELETED_LABEL,
   INVOICE_LIST_STATUSES,
   INVOICE_STATUS_LABELS,
@@ -35,7 +42,7 @@ import {
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import { isAccountingMember } from '../accounting/members';
 import { isFinanceMember } from '../finance/members';
-import { findDuplicateEnvelopeIdsOrEmpty, sentAtOf } from './duplicates';
+import { findDuplicateFileIdsOrEmpty, sentAtOf } from './duplicates';
 
 export type InvoiceViewer = { userId: number; isAdmin: boolean };
 
@@ -52,8 +59,19 @@ export type InvoiceListRecipient = {
 /** Quem vê a lista, com as marcas do Financeiro e da Contabilidade lidas do banco uma vez por pedido. */
 type ResolvedViewer = InvoiceViewer & { isFinance: boolean; isAccounting: boolean };
 
+/**
+ * Fase 9: uma linha por NOTA (linha de arquivo NF). O que é da nota: conta, sugestão, dados lidos, duplicada, quem aprovou,
+ * centro e validação, e a situação no Financeiro (`fileFinanceStatus`). O que é do envio: `id`, `title`, `link`,
+ * `recipients`, `version`, datas e remetente. Com uma nota, a linha é a de sempre (`position` 1 de 1).
+ */
 export type InvoiceListRow = {
   id: string;
+  /** Fase 9: o arquivo da nota (a página da NF tem a âncora `#nota-{envelopeItemId}`). */
+  envelopeItemId: string;
+  /** Fase 9: o nome do arquivo da nota. */
+  documentTitle: string;
+  /** Fase 9: a posição da nota entre as notas do envio. */
+  position: InvoicePosition;
   title: string;
   senderName: string;
   senderEmail: string;
@@ -132,58 +150,76 @@ const awaitingApprovalWhere = {
   deletedAt: null,
 } satisfies Prisma.EnvelopeWhereInput;
 
-/**
- * "Aguardando o Financeiro": a conta ainda não foi aprovada, ou a nova versão ficou em rascunho e espera o "Enviar de
- * novo". A fila do Financeiro e o contador do menu leem este filtro. A NF excluída pelo remetente não espera ninguém
- * (`approve` responde 404 nela), nem para o admin que também é do Financeiro.
- */
-export const financePendingWhere = {
-  deletedAt: null,
-  OR: [awaitingApprovalWhere, newVersionDraftWhere],
-} satisfies Prisma.EnvelopeWhereInput;
+/** Linha de arquivo que é nota fiscal (a lista, as filas e os contadores contam notas). */
+const nfFile = { kind: RevalleInvoiceFileKind.NF } satisfies Prisma.RevalleInvoiceFileWhereInput;
+
+/** A nota ainda sem a aprovação dela, num envio enviado (ou concluído) que aguarda o Financeiro. */
+const awaitingApprovalFileWhere = {
+  approvedAt: null,
+  envelope: awaitingApprovalWhere,
+} satisfies Prisma.RevalleInvoiceFileWhereInput;
 
 /**
- * "Aguardando a Contabilidade": NF ainda válida (não substituída), enviada ou concluída, sem recusa, não excluída e sem a
- * validação do centro, ou a nova versão que ficou em rascunho (a Contabilidade também a envia de novo, mesmo já validada
- * pela correção). NF sem centro de custo também espera (a Contabilidade define o primeiro centro). A fila da
- * Contabilidade, o contador do menu e o aviso do admin leem este filtro.
+ * "Aguardando o Financeiro", por nota: a aprovação da nota ainda não foi dada num envio que aguarda, ou a nova versão
+ * ficou em rascunho e espera o "Enviar de novo" (todas as notas dela). A fila do Financeiro e o contador do menu leem este
+ * filtro. A NF excluída pelo remetente não espera ninguém (`approve` responde 404 nela), nem para o admin que também é do
+ * Financeiro.
  */
-export const accountingPendingWhere = {
-  deletedAt: null,
+export const financePendingFileWhere = {
+  ...nfFile,
+  envelope: { deletedAt: null },
+  OR: [awaitingApprovalFileWhere, { envelope: newVersionDraftWhere }],
+} satisfies Prisma.RevalleInvoiceFileWhereInput;
+
+/**
+ * "Aguardando a Contabilidade", por nota: a nota sem a validação do centro, num envio ainda válido (não substituído),
+ * enviado ou concluído, sem recusa e não excluído, ou a nova versão que ficou em rascunho (a Contabilidade também a envia
+ * de novo, mesmo já validada pela correção). Nota sem centro de custo também espera (a Contabilidade define o primeiro
+ * centro). A fila da Contabilidade, o contador do menu e o aviso do admin leem este filtro.
+ */
+export const accountingPendingFileWhere = {
+  ...nfFile,
+  envelope: { deletedAt: null },
   OR: [
     {
-      revalleInvoice: {
-        costCenterValidatedAt: null,
-        OR: [{ financeStatus: null }, { financeStatus: { not: RevalleFinanceStatus.SUPERSEDED } }],
+      costCenterValidatedAt: null,
+      envelope: {
+        revalleInvoice: { OR: [{ financeStatus: null }, { financeStatus: { not: RevalleFinanceStatus.SUPERSEDED } }] },
+        status: { in: APPROVABLE_STATUSES },
+        recipients: { none: { signingStatus: SigningStatus.REJECTED } },
       },
-      status: { in: APPROVABLE_STATUSES },
-      recipients: { none: { signingStatus: SigningStatus.REJECTED } },
     },
-    newVersionDraftWhere,
+    { envelope: newVersionDraftWhere },
   ],
-} satisfies Prisma.EnvelopeWhereInput;
+} satisfies Prisma.RevalleInvoiceFileWhereInput;
 
-const accountingFilterWhere = (filter: AccountingFilter | undefined): Prisma.EnvelopeWhereInput | null => {
+const accountingFilterWhere = (filter: AccountingFilter | undefined): Prisma.RevalleInvoiceFileWhereInput | null => {
   switch (filter) {
     case 'pendentes':
-      return accountingPendingWhere;
+      return accountingPendingFileWhere;
     case 'validadas':
-      return { revalleInvoice: { costCenterValidatedAt: { not: null } } };
+      return { costCenterValidatedAt: { not: null } };
     default:
       return null;
   }
 };
 
-const financeFilterWhere = (filter: FinanceFilter | undefined): Prisma.EnvelopeWhereInput | null => {
-  const stateIs = (financeStatus: RevalleFinanceStatus) => ({ revalleInvoice: { financeStatus } });
+/** Por nota: a situação de cada nota é a do envio, salvo a nota já aprovada num envio que aguarda (`fileFinanceStatus`). */
+const financeFilterWhere = (filter: FinanceFilter | undefined): Prisma.RevalleInvoiceFileWhereInput | null => {
+  const stateIs = (financeStatus: RevalleFinanceStatus) => ({ envelope: { revalleInvoice: { financeStatus } } });
 
   switch (filter) {
     case 'pendentes':
-      return financePendingWhere;
+      return financePendingFileWhere;
     case 'aguardando-aprovacao':
-      return awaitingApprovalWhere;
+      return awaitingApprovalFileWhere;
     case 'aprovadas':
-      return stateIs(RevalleFinanceStatus.APPROVED);
+      return {
+        OR: [
+          stateIs(RevalleFinanceStatus.APPROVED),
+          { approvedAt: { not: null }, ...stateIs(RevalleFinanceStatus.PENDING_APPROVAL) },
+        ],
+      };
     case 'substituidas':
       return stateIs(RevalleFinanceStatus.SUPERSEDED);
     case 'antigas':
@@ -205,8 +241,11 @@ const financeFilterWhere = (filter: FinanceFilter | undefined): Prisma.EnvelopeW
  *   (quem assina ainda não recebeu nada); o rascunho comum nunca aparece;
  * - a versão pendente substituída (escondida pelo upstream), para o dono, os destinatários, o Financeiro e a
  *   Contabilidade.
+ *
+ * Fase 9: o filtro é das NOTAS (linhas de arquivo NF): a visibilidade, a situação do envio e o período ficam em
+ * `envelope`; a conta, as filas do Financeiro e da Contabilidade e a validação, na nota.
  */
-const buildInvoiceWhere = async ({
+const buildInvoiceFileWhere = async ({
   userId,
   isAdmin,
   isFinance,
@@ -243,18 +282,6 @@ const buildInvoiceWhere = async ({
         },
   );
 
-  const financeCondition = financeFilterWhere(filters.finance);
-
-  if (financeCondition) {
-    conditions.push(financeCondition);
-  }
-
-  const accountingCondition = accountingFilterWhere(filters.accounting);
-
-  if (accountingCondition) {
-    conditions.push(accountingCondition);
-  }
-
   const range = invoiceDayRange(filters);
 
   // Data de envio = evento DOCUMENT_SENT. Documento concluído direto no envio (ninguém para assinar) não tem o evento:
@@ -268,17 +295,24 @@ const buildInvoiceWhere = async ({
     });
   }
 
+  const fileConditions = [financeFilterWhere(filters.finance), accountingFilterWhere(filters.accounting)].filter(
+    (condition): condition is Prisma.RevalleInvoiceFileWhereInput => condition !== null,
+  );
+
   return {
-    type: EnvelopeType.DOCUMENT,
-    revalleInvoice: {
-      isInvoice: RevalleInvoiceStatus.YES,
-      ...(filters.accountCode ? { choiceCode: filters.accountCode } : {}),
+    ...nfFile,
+    ...(filters.accountCode ? { choiceCode: filters.accountCode } : {}),
+    envelope: {
+      type: EnvelopeType.DOCUMENT,
+      revalleInvoice: { isInvoice: RevalleInvoiceStatus.YES },
+      AND: conditions,
     },
-    AND: conditions,
-  } satisfies Prisma.EnvelopeWhereInput;
+    AND: fileConditions,
+  } satisfies Prisma.RevalleInvoiceFileWhereInput;
 };
 
-const select = {
+/** O que é do envio, para as linhas das notas dele. */
+const envelopeSelect = {
   id: true,
   title: true,
   status: true,
@@ -295,34 +329,45 @@ const select = {
     orderBy: [{ signingOrder: { sort: 'asc', nulls: 'last' } }, { id: 'asc' }],
     select: { name: true, email: true, signingStatus: true, role: true, sendStatus: true, readStatus: true }, // REVALLE: estágio no tooltip
   },
-  revalleInvoice: {
-    select: {
-      choiceCode: true,
-      acceptedSuggestion: true,
-      suggestionStatus: true,
-      suggestion: true,
-      supplierName: true,
-      invoiceNumber: true,
-      totalAmountCents: true,
-      accessKeys: true,
-      fileSha256: true,
-      financeStatus: true,
-      approvedById: true,
-      version: true,
-      costCenterCode: true,
-      costCenterValidatedAt: true,
-      costCenterValidatedById: true,
-      costCenterValidatedByName: true,
-    },
+  revalleInvoice: { select: { financeStatus: true, version: true } },
+  // Fase 9: as notas do envio, para a posição de cada uma (1 de 3...).
+  revalleInvoiceFiles: {
+    where: nfFile,
+    select: { id: true, kind: true, envelopeItem: { select: { order: true } } },
   },
 } satisfies Prisma.EnvelopeSelect;
 
-type SelectedEnvelope = Prisma.EnvelopeGetPayload<{ select: typeof select }>;
+/** O que é da nota. */
+const fileSelect = {
+  id: true,
+  envelopeId: true,
+  envelopeItemId: true,
+  envelopeItem: { select: { title: true } },
+  choiceCode: true,
+  acceptedSuggestion: true,
+  suggestionStatus: true,
+  suggestion: true,
+  supplierName: true,
+  invoiceNumber: true,
+  totalAmountCents: true,
+  accessKeys: true,
+  fileSha256: true,
+  approvedAt: true,
+  approvedById: true,
+  costCenterCode: true,
+  costCenterValidatedAt: true,
+  costCenterValidatedById: true,
+  costCenterValidatedByName: true,
+} satisfies Prisma.RevalleInvoiceFileSelect;
 
-const readSuggestion = (invoice: SelectedEnvelope['revalleInvoice']) => {
-  const stored = invoice?.suggestion;
+type SelectedEnvelope = Prisma.EnvelopeGetPayload<{ select: typeof envelopeSelect }>;
+type SelectedFile = Prisma.RevalleInvoiceFileGetPayload<{ select: typeof fileSelect }>;
+type SelectedNote = { file: SelectedFile; envelope: SelectedEnvelope };
 
-  if (invoice?.suggestionStatus !== RevalleSuggestionStatus.DONE || !stored || typeof stored !== 'object') {
+const readSuggestion = (file: SelectedFile) => {
+  const stored = file.suggestion;
+
+  if (file.suggestionStatus !== RevalleSuggestionStatus.DONE || !stored || typeof stored !== 'object') {
     return null;
   }
 
@@ -334,16 +379,19 @@ const readSuggestion = (invoice: SelectedEnvelope['revalleInvoice']) => {
 /** A linha da lista com as chaves de acesso, que só a planilha usa (a lista não as mostra). */
 type InvoiceRowWithKeys = InvoiceListRow & { accessKeys: string[] };
 
-const toRows = async (envelopes: SelectedEnvelope[], viewer: ResolvedViewer): Promise<InvoiceRowWithKeys[]> => {
-  const codes = [
-    ...new Set(envelopes.flatMap((e) => (e.revalleInvoice?.choiceCode ? [e.revalleInvoice.choiceCode] : []))),
-  ];
+const positionsOf = (envelope: SelectedEnvelope) =>
+  invoicePositions(
+    envelope.revalleInvoiceFiles.map((file) => ({ id: file.id, kind: file.kind, order: file.envelopeItem.order })),
+  );
+
+const toRows = async (notes: SelectedNote[], viewer: ResolvedViewer): Promise<InvoiceRowWithKeys[]> => {
+  const codes = [...new Set(notes.flatMap(({ file }) => (file.choiceCode ? [file.choiceCode] : [])))];
   // Quem aprovou e, desde a Fase 7, quem validou o centro (o nome congelado vale; o atual só quando ele ficou vazio).
   const approverIds = [
     ...new Set(
-      envelopes.flatMap((e) => [
-        ...(e.revalleInvoice?.approvedById ? [e.revalleInvoice.approvedById] : []),
-        ...(e.revalleInvoice?.costCenterValidatedById ? [e.revalleInvoice.costCenterValidatedById] : []),
+      notes.flatMap(({ file }) => [
+        ...(file.approvedById ? [file.approvedById] : []),
+        ...(file.costCenterValidatedById ? [file.costCenterValidatedById] : []),
       ]),
     ),
   ];
@@ -372,33 +420,35 @@ const toRows = async (envelopes: SelectedEnvelope[], viewer: ResolvedViewer): Pr
       : [],
   );
 
-  // Fase 8: a marca "Possível duplicada" é de quem decide sobre a nota; para os outros nem se consulta.
+  // Fase 8: a marca "Possível duplicada" é de quem decide sobre a nota; para os outros nem se consulta. Fase 9: por nota.
   const duplicateIds =
     viewer.isFinance || viewer.isAccounting || viewer.isAdmin
-      ? await findDuplicateEnvelopeIdsOrEmpty(
-          envelopes.flatMap((envelope) =>
-            envelope.revalleInvoice
-              ? [
-                  {
-                    envelopeId: envelope.id,
-                    accessKeys: envelope.revalleInvoice.accessKeys,
-                    fileSha256: envelope.revalleInvoice.fileSha256,
-                  },
-                ]
-              : [],
-          ),
+      ? await findDuplicateFileIdsOrEmpty(
+          notes.map(({ file }) => ({
+            id: file.id,
+            envelopeId: file.envelopeId,
+            accessKeys: file.accessKeys,
+            fileSha256: file.fileSha256,
+          })),
         )
       : new Set<string>();
 
-  return envelopes.map((envelope) => {
-    const invoice = envelope.revalleInvoice;
-    const code = invoice?.choiceCode ?? null;
+  const positions = new Map<string, Map<string, InvoicePosition>>();
+
+  return notes.map(({ file, envelope }) => {
+    const code = file.choiceCode;
     const account = code ? accounts.get(code) : undefined;
-    const financeStatus = invoice?.financeStatus ?? null;
+    const envelopeFinanceStatus = envelope.revalleInvoice?.financeStatus ?? null;
     const isDraft = envelope.status === DocumentStatus.DRAFT;
 
+    if (!positions.has(envelope.id)) {
+      positions.set(envelope.id, positionsOf(envelope));
+    }
+
+    const position = positions.get(envelope.id)?.get(file.id) ?? { index: 1, total: 1 };
+
     const hiddenSuperseded =
-      financeStatus === RevalleFinanceStatus.SUPERSEDED && envelope.status !== DocumentStatus.COMPLETED;
+      envelopeFinanceStatus === RevalleFinanceStatus.SUPERSEDED && envelope.status !== DocumentStatus.COMPLETED;
     const deleted = envelope.deletedAt !== null && !hiddenSuperseded;
 
     // Financeiro e Contabilidade: sempre a página da NF (é lá que ficam as ações deles). Dono: a página do documento no
@@ -414,6 +464,9 @@ const toRows = async (envelopes: SelectedEnvelope[], viewer: ResolvedViewer): Pr
 
     return {
       id: envelope.id,
+      envelopeItemId: file.envelopeItemId,
+      documentTitle: file.envelopeItem.title,
+      position,
       title: envelope.title,
       senderName: envelope.user.name?.trim() || envelope.user.email,
       senderEmail: envelope.user.email,
@@ -423,20 +476,20 @@ const toRows = async (envelopes: SelectedEnvelope[], viewer: ResolvedViewer): Pr
       deleted,
       account: code ? { code, name: account?.name ?? null } : null,
       accountKind: account?.kind ?? null,
-      suggestion: readSuggestion(invoice),
-      invoiceData: invoice ? toInvoiceDataSummary(invoice) : null,
-      isPossibleDuplicate: duplicateIds.has(envelope.id),
-      accessKeys: invoice?.accessKeys ?? [],
-      acceptedSuggestion: invoice?.acceptedSuggestion ?? null,
-      financeStatus,
-      version: invoice?.version ?? 1,
-      approvedBy: invoice?.approvedById ? (approvers.get(invoice.approvedById) ?? null) : null,
-      costCenterCode: invoice?.costCenterCode ?? null,
-      costCenterLabel: invoice?.costCenterCode ? costCenterLabel(invoice.costCenterCode) : null,
-      costCenterValidatedAt: invoice?.costCenterValidatedAt ?? null,
-      costCenterValidatedBy: invoice?.costCenterValidatedAt
-        ? (invoice.costCenterValidatedByName ??
-          (invoice.costCenterValidatedById ? (approvers.get(invoice.costCenterValidatedById) ?? null) : null))
+      suggestion: readSuggestion(file),
+      invoiceData: toInvoiceDataSummary(file),
+      isPossibleDuplicate: duplicateIds.has(file.id),
+      accessKeys: file.accessKeys,
+      acceptedSuggestion: file.acceptedSuggestion,
+      financeStatus: fileFinanceStatus(envelopeFinanceStatus, file.approvedAt),
+      version: envelope.revalleInvoice?.version ?? 1,
+      approvedBy: file.approvedById ? (approvers.get(file.approvedById) ?? null) : null,
+      costCenterCode: file.costCenterCode,
+      costCenterLabel: file.costCenterCode ? costCenterLabel(file.costCenterCode) : null,
+      costCenterValidatedAt: file.costCenterValidatedAt,
+      costCenterValidatedBy: file.costCenterValidatedAt
+        ? (file.costCenterValidatedByName ??
+          (file.costCenterValidatedById ? (approvers.get(file.costCenterValidatedById) ?? null) : null))
         : null,
       link,
       recipients: envelope.recipients, // REVALLE (redesign v3)
@@ -445,37 +498,68 @@ const toRows = async (envelopes: SelectedEnvelope[], viewer: ResolvedViewer): Pr
 };
 
 /**
- * Ids na ordem da coluna "Enviado em" (mais recente primeiro; empate pelo id). O Prisma não ordena pelo primeiro evento
- * DOCUMENT_SENT, então a ordem é feita aqui sobre os ids e datas (a planilha já é limitada a 10.000 linhas).
+ * Fase 9: os ids das notas que passam no filtro, na ordem da coluna "Enviado em" (mais recente primeiro; empate pelo id do
+ * envio) e, dentro do envio, na ordem dos arquivos. A ordem, o corte da página e a contagem ficam no banco: aqui só
+ * passam os ids (o Prisma não ordena pelo primeiro evento DOCUMENT_SENT). Data de envio = o primeiro DOCUMENT_SENT; sem
+ * ele (concluído direto no envio, ou o rascunho com o Financeiro), a criação, a mesma que a tela mostra.
  *
- * Limite conhecido (aceito para o volume da Revalle): cada página carrega TODOS os ids que passam no filtro, com o
- * primeiro DOCUMENT_SENT de cada, e o filtro de período (`auditLogs.some`) não tem índice em `DocumentAuditLog`.
- * Planejado (Fase 5.1): gravar `sentAt` na linha da classificação no envio, indexar `(isInvoice, sentAt)` e
- * ordenar/paginar no SQL.
+ * Limite conhecido (aceito para o volume da Revalle): o filtro de período (`auditLogs.some`) não tem índice em
+ * `DocumentAuditLog` por tipo e data. Planejado (Fase 5.1): gravar `sentAt` na linha do envio e indexar.
  */
-const findOrderedIds = async (where: Prisma.EnvelopeWhereInput) => {
-  const envelopes = await prisma.envelope.findMany({
-    where,
-    select: { id: true, createdAt: true, auditLogs: select.auditLogs },
-  });
+const findOrderedFileIds = async (
+  where: Prisma.RevalleInvoiceFileWhereInput,
+  page?: { skip: number; take: number },
+): Promise<{ ids: string[]; count: number }> => {
+  const matching = (await prisma.revalleInvoiceFile.findMany({ where, select: { id: true } })).map((row) => row.id);
 
-  return envelopes
-    .map((envelope) => ({ id: envelope.id, sentAt: sentAtOf(envelope).getTime() }))
-    .sort((a, b) => b.sentAt - a.sentAt || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
-    .map((envelope) => envelope.id);
+  if (matching.length === 0) {
+    return { ids: [], count: 0 };
+  }
+
+  const slice = page ? Prisma.sql`LIMIT ${page.take} OFFSET ${page.skip}` : Prisma.empty;
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT f.id
+    FROM "RevalleInvoiceFile" f
+    JOIN "Envelope" e ON e.id = f."envelopeId"
+    JOIN "EnvelopeItem" i ON i.id = f."envelopeItemId"
+    WHERE f.id = ANY(${matching})
+    ORDER BY
+      COALESCE(
+        (SELECT MIN(l."createdAt") FROM "DocumentAuditLog" l WHERE l."envelopeId" = e.id AND l.type = ${SENT}),
+        e."createdAt"
+      ) DESC,
+      e.id COLLATE "C" DESC,
+      i."order" ASC,
+      f.id COLLATE "C" ASC
+    ${slice}`;
+
+  return { ids: rows.map((row) => row.id), count: matching.length };
 };
 
-const findRowsInOrder = async (ids: string[], viewer: ResolvedViewer) => {
-  if (ids.length === 0) {
+const findRowsInOrder = async (fileIds: string[], viewer: ResolvedViewer) => {
+  if (fileIds.length === 0) {
     return [];
   }
 
-  const envelopes = await prisma.envelope.findMany({ where: { id: { in: ids } }, select });
-  const position = new Map(ids.map((id, index) => [id, index]));
+  const files = await prisma.revalleInvoiceFile.findMany({ where: { id: { in: fileIds } }, select: fileSelect });
+  const envelopeIds = [...new Set(files.map((file) => file.envelopeId))];
+  const envelopes = new Map(
+    (await prisma.envelope.findMany({ where: { id: { in: envelopeIds } }, select: envelopeSelect })).map((envelope) => [
+      envelope.id,
+      envelope,
+    ]),
+  );
+  const order = new Map(fileIds.map((id, index) => [id, index]));
 
-  envelopes.sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0));
+  const notes = files
+    .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
+    .flatMap((file) => {
+      const envelope = envelopes.get(file.envelopeId);
 
-  return await toRows(envelopes, viewer);
+      return envelope ? [{ file, envelope }] : [];
+    });
+
+  return await toRows(notes, viewer);
 };
 
 /** A lista não leva as chaves de acesso. */
@@ -487,13 +571,16 @@ const resolveViewer = async ({ userId, isAdmin }: InvoiceViewer): Promise<Resolv
   return { userId, isAdmin, isFinance, isAccounting };
 };
 
+/** Fase 9: uma linha por nota; a página e a contagem são de notas. */
 export const findInvoices = async ({ userId, isAdmin, filters, page = 1, perPage = 20 }: FindInvoicesOptions) => {
   const viewer = await resolveViewer({ userId, isAdmin });
-  const ids = await findOrderedIds(await buildInvoiceWhere({ ...viewer, filters }));
-  const count = ids.length;
+  const { ids, count } = await findOrderedFileIds(await buildInvoiceFileWhere({ ...viewer, filters }), {
+    skip: (page - 1) * perPage,
+    take: perPage,
+  });
 
   return {
-    data: (await findRowsInOrder(ids.slice((page - 1) * perPage, page * perPage), viewer)).map(withoutKeys),
+    data: (await findRowsInOrder(ids, viewer)).map(withoutKeys),
     count,
     currentPage: page,
     perPage,
@@ -501,47 +588,52 @@ export const findInvoices = async ({ userId, isAdmin, filters, page = 1, perPage
   };
 };
 
-/** Planilha com os mesmos filtros e a mesma visibilidade da página. Acima do limite, nada é montado. */
+/**
+ * Planilha com os mesmos filtros e a mesma visibilidade da página, uma linha por nota (o cabeçalho não muda: com 2+ notas
+ * o `titulo` ganha "· nota 2 de 3"; `id` e `link` são do envio). Acima do limite (10.000 notas), nada é montado.
+ */
 export const exportInvoicesCsv = async ({
   userId,
   isAdmin,
   filters,
 }: InvoiceViewer & { filters: TInvoiceFilters }): Promise<{ tooMany: true } | { tooMany: false; csv: string }> => {
   const viewer = await resolveViewer({ userId, isAdmin });
-  const where = await buildInvoiceWhere({ ...viewer, filters });
+  const where = await buildInvoiceFileWhere({ ...viewer, filters });
 
-  if (isOverInvoiceExportLimit(await prisma.envelope.count({ where }))) {
+  if (isOverInvoiceExportLimit(await prisma.revalleInvoiceFile.count({ where }))) {
     return { tooMany: true };
   }
 
   const baseUrl = NEXT_PUBLIC_WEBAPP_URL().replace(/\/$/, '');
 
-  const rows: InvoiceExportRow[] = (await findRowsInOrder(await findOrderedIds(where), viewer)).map((row) => ({
-    id: row.id,
-    title: row.title,
-    senderName: row.senderName,
-    sentAt: row.sentAt,
-    completedAt: row.completedAt,
-    status: row.deleted ? INVOICE_DELETED_LABEL : INVOICE_STATUS_LABELS[row.status],
-    choice: row.account?.code ?? null,
-    accountName: row.account?.name ?? null,
-    accountKind: row.accountKind,
-    suggestedCode: row.suggestion?.code ?? null,
-    confidence: row.suggestion?.confidence ?? null,
-    acceptedSuggestion: row.acceptedSuggestion,
-    link: row.link ? `${baseUrl}${row.link}` : '',
-    financeStatus: financeStatusLabel(row.financeStatus, row.status),
-    approvedBy: row.approvedBy,
-    costCenterCode: row.costCenterCode,
-    costCenterName: row.costCenterCode ? costCenterName(row.costCenterCode) : null,
-    accountingStatus: accountingStatusLabel(row),
-    validatedBy: row.costCenterValidatedBy,
-    supplierName: row.invoiceData?.supplierName ?? null,
-    invoiceNumber: row.invoiceData?.invoiceNumber ?? null,
-    totalAmountCents: row.invoiceData?.totalAmountCents ?? null,
-    accessKeys: row.accessKeys,
-    isPossibleDuplicate: row.isPossibleDuplicate,
-  }));
+  const rows: InvoiceExportRow[] = (await findRowsInOrder((await findOrderedFileIds(where)).ids, viewer)).map(
+    (row) => ({
+      id: row.id,
+      title: invoiceRowTitle(row.title, row.position),
+      senderName: row.senderName,
+      sentAt: row.sentAt,
+      completedAt: row.completedAt,
+      status: row.deleted ? INVOICE_DELETED_LABEL : INVOICE_STATUS_LABELS[row.status],
+      choice: row.account?.code ?? null,
+      accountName: row.account?.name ?? null,
+      accountKind: row.accountKind,
+      suggestedCode: row.suggestion?.code ?? null,
+      confidence: row.suggestion?.confidence ?? null,
+      acceptedSuggestion: row.acceptedSuggestion,
+      link: row.link ? `${baseUrl}${row.link}` : '',
+      financeStatus: financeStatusLabel(row.financeStatus, row.status),
+      approvedBy: row.approvedBy,
+      costCenterCode: row.costCenterCode,
+      costCenterName: row.costCenterCode ? costCenterName(row.costCenterCode) : null,
+      accountingStatus: accountingStatusLabel(row),
+      validatedBy: row.costCenterValidatedBy,
+      supplierName: row.invoiceData?.supplierName ?? null,
+      invoiceNumber: row.invoiceData?.invoiceNumber ?? null,
+      totalAmountCents: row.invoiceData?.totalAmountCents ?? null,
+      accessKeys: row.accessKeys,
+      isPossibleDuplicate: row.isPossibleDuplicate,
+    }),
+  );
 
   return { tooMany: false, csv: buildInvoiceExportCsv(rows) };
 };

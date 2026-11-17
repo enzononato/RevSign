@@ -9,6 +9,8 @@ import {
   formatInvoicePosition,
   invoiceMirrorColumns,
   invoicePositions,
+  invoiceRowTitle,
+  sameEnvelopeDuplicateIndex,
 } from './invoice-files';
 
 const K1 = '29241012345678000195550010000123451123456784';
@@ -214,5 +216,56 @@ describe('classifyFileKind', () => {
     expect(classifyFileKind({ detection: { status: 'UNKNOWN', signals: [] }, boleto: none, isSparse: true })).toBe(
       'UNKNOWN',
     );
+  });
+});
+
+describe('invoiceRowTitle', () => {
+  it('com uma nota, o título do envio; com várias, a posição', () => {
+    expect(invoiceRowTitle('Compra', { index: 2, total: 3 })).toBe('Compra · nota 2 de 3');
+    expect(invoiceRowTitle('Compra', { index: 1, total: 1 })).toBe('Compra');
+  });
+});
+
+describe('sameEnvelopeDuplicateIndex', () => {
+  const file = (id: string, overrides: Partial<Parameters<typeof sameEnvelopeDuplicateIndex>[0][number]> = {}) => ({
+    id,
+    kind: 'NF' as const,
+    fileSha256: `sha-${id}`,
+    accessKeys: [] as string[],
+    ...overrides,
+  });
+
+  it('o mesmo arquivo: a segunda aponta para a primeira; a primeira, para ninguém', () => {
+    const files = [file('a', { fileSha256: 'X' }), file('b', { fileSha256: 'X' })];
+
+    expect(sameEnvelopeDuplicateIndex(files, 'b')).toBe(1);
+    expect(sameEnvelopeDuplicateIndex(files, 'a')).toBeNull();
+  });
+
+  it('uma chave em comum com arquivo diferente também conta', () => {
+    const files = [file('a', { accessKeys: [K1] }), file('b', { accessKeys: [K2, K1] })];
+
+    expect(sameEnvelopeDuplicateIndex(files, 'b')).toBe(1);
+  });
+
+  it('a posição é entre as notas (o boleto e o outro arquivo não contam)', () => {
+    const files = [
+      file('contrato', { kind: 'OTHER', fileSha256: 'Y' }),
+      file('a', { fileSha256: 'X' }),
+      file('c', { fileSha256: 'Z' }),
+      file('b', { fileSha256: 'Z' }),
+    ];
+
+    expect(sameEnvelopeDuplicateIndex(files, 'b')).toBe(2);
+  });
+
+  it('boleto, arquivo que não está no envio e nulos nunca casam', () => {
+    expect(
+      sameEnvelopeDuplicateIndex([file('a', { fileSha256: 'X' }), file('b', { kind: 'BOLETO', fileSha256: 'X' })], 'b'),
+    ).toBeNull();
+    expect(sameEnvelopeDuplicateIndex([file('a')], 'zzz')).toBeNull();
+    expect(
+      sameEnvelopeDuplicateIndex([file('a', { fileSha256: null }), file('b', { fileSha256: null })], 'b'),
+    ).toBeNull();
   });
 });

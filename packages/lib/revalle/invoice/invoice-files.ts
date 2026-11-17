@@ -82,6 +82,40 @@ export const invoicePositions = (
 export const formatInvoicePosition = (position: InvoicePosition): string =>
   `nota ${position.index} de ${position.total}`;
 
+/** Título da linha da planilha: com uma nota, o do envio (como antes); com várias, `Compra · nota 2 de 3`. */
+export const invoiceRowTitle = (title: string, position: InvoicePosition): string =>
+  position.total > 1 ? `${title} · ${formatInvoicePosition(position)}` : title;
+
+/**
+ * A mesma nota duas vezes no envio: a posição (1, 2...) da NF anterior com o mesmo arquivo (SHA-256) ou uma chave de
+ * acesso em comum. `files` na ordem dos arquivos. Nulo para a primeira de cada par, para quem não é NF e sem dado (nulo
+ * não casa).
+ */
+export const sameEnvelopeDuplicateIndex = (
+  files: Array<{ id: string; kind: InvoiceFileKind; fileSha256: string | null; accessKeys: string[] }>,
+  fileId: string,
+): number | null => {
+  const nfs = files.filter((file) => file.kind === 'NF');
+  const at = nfs.findIndex((file) => file.id === fileId);
+
+  if (at < 0) {
+    return null;
+  }
+
+  const self = nfs[at];
+
+  for (let index = 0; index < at; index += 1) {
+    const other = nfs[index];
+    const sameFile = self.fileSha256 !== null && self.fileSha256 === other.fileSha256;
+
+    if (sameFile || self.accessKeys.some((key) => other.accessKeys.includes(key))) {
+      return index + 1;
+    }
+  }
+
+  return null;
+};
+
 /**
  * Situação de uma nota no Financeiro. A do envio vale para todas, salvo enquanto o envio aguarda: a nota que já tem a
  * aprovação dela está aprovada. `APPROVED` sem `approvedAt` (a reserva solta da nova versão) continua aprovada.

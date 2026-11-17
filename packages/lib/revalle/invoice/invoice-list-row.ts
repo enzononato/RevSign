@@ -1,6 +1,7 @@
 /**
  * Redesign v3: o que cada cartão da lista "Notas fiscais" mostra (título, ação e encaixes de quem assina). Só lê a linha
- * que `findInvoices` devolve; quem decide permissão continua sendo o servidor e a página da NF.
+ * que `findInvoices` devolve; quem decide permissão continua sendo o servidor e a página da NF. Fase 9: a linha é de uma
+ * nota (`financeStatus` e `costCenterValidatedAt` da nota; `status`, `deleted` e `recipients` do envio).
  */
 
 export type InvoiceListRowSigner = {
@@ -36,12 +37,12 @@ const SENT_STATUSES: InvoiceListRowState['status'][] = ['PENDING', 'COMPLETED'];
 const isNewVersionDraft = (row: InvoiceListRowState) =>
   row.status === 'DRAFT' && (row.financeStatus === 'APPROVED' || row.financeStatus === 'PENDING_APPROVAL');
 
-/** Espelha `financePendingWhere`. */
+/** Espelha `financePendingFileWhere` (por nota). */
 export const isAwaitingFinance = (row: InvoiceListRowState) =>
   !row.deleted &&
   ((row.financeStatus === 'PENDING_APPROVAL' && SENT_STATUSES.includes(row.status)) || isNewVersionDraft(row));
 
-/** Espelha `accountingPendingWhere`. */
+/** Espelha `accountingPendingFileWhere` (por nota). */
 export const isAwaitingAccounting = (row: InvoiceListRowState) =>
   !row.deleted &&
   ((row.costCenterValidatedAt === null &&
@@ -63,8 +64,8 @@ export const signerFirstName = ({ name, email }: Pick<InvoiceListRowSigner, 'nam
 
 /**
  * A pílula do cartão: a ação de quem vê (Financeiro aprova a conta antes da Contabilidade validar o centro, quando a pessoa
- * tem os dois perfis) ou, sem ação, onde a nota está. A ordem das filas é a de `financePendingWhere` e
- * `accountingPendingWhere`: mudar uma exige mudar a outra.
+ * tem os dois perfis) ou, sem ação, onde a nota está. A ordem das filas é a de `financePendingFileWhere` e
+ * `accountingPendingFileWhere`: mudar uma exige mudar a outra.
  */
 export const invoiceRowAction = (row: InvoiceListRowState, viewer: InvoiceListViewer): InvoiceRowAction => {
   // A nova versão parada já tem conta e centro: o que falta, nas duas filas, é o "Enviar de novo" da página da NF.

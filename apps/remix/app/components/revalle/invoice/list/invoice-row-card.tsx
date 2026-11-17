@@ -42,6 +42,9 @@ export const InvoiceRowCard = ({ row, viewer }: InvoiceRowCardProps) => {
   const financeLabel = financeStatusLabel(row.financeStatus, row.status);
   const sender = row.senderName;
   const sentAtLabel = row.sentAt ? formatRevalleDateTime(row.sentAt) : null;
+  // Fase 9: com várias notas no envio, a linha é de uma nota: o link da página da NF desce até a seção dela.
+  const isMulti = row.position.total > 1;
+  const link = row.link && isMulti && row.link === invoiceViewPath(row.id) ? noteLink(row) : row.link;
 
   const slots: SignerSlot[] = row.recipients.map((recipient) => ({
     name: recipient.name.trim() || recipient.email,
@@ -58,9 +61,9 @@ export const InvoiceRowCard = ({ row, viewer }: InvoiceRowCardProps) => {
       <div className="flex @2xl:grid @2xl:grid-cols-[minmax(0,1fr)_132px_152px] flex-col @2xl:items-center @2xl:gap-[18px] gap-3">
         <div className="min-w-0">
           <h3 className="min-w-0 font-bold font-sans text-base leading-snug tracking-normal">
-            {row.link ? (
+            {link ? (
               <Link
-                to={row.link}
+                to={link}
                 className="block truncate rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 title={aiTitle ? t`Lidos pela IA, confira no PDF` : undefined}
               >
@@ -72,6 +75,8 @@ export const InvoiceRowCard = ({ row, viewer }: InvoiceRowCardProps) => {
               </span>
             )}
           </h3>
+
+          {isMulti && <NoteLine row={row} />}
 
           {/* REVALLE: as etiquetas quebram linha em vez de cortar o nome da conta (é o que o Financeiro aprova). */}
           <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
@@ -169,6 +174,23 @@ export const InvoiceRowCard = ({ row, viewer }: InvoiceRowCardProps) => {
   );
 };
 
+/** Fase 9: a página da NF na seção da nota (`#nota-{envelopeItemId}`). */
+const noteLink = (row: InvoiceRow) => `${invoiceViewPath(row.id)}#nota-${row.envelopeItemId}`;
+
+/** Fase 9: "Nota 2 de 3 · nf-b.pdf", só quando o envio tem mais de uma nota. */
+const NoteLine = ({ row }: { row: InvoiceRow }) => {
+  const { index, total } = row.position;
+  const title = row.documentTitle;
+
+  return (
+    <p className="mt-0.5 truncate text-[13px] text-muted-foreground" data-testid="invoice-row-note" title={title}>
+      <Trans>
+        Nota {index} de {total} · {title}
+      </Trans>
+    </p>
+  );
+};
+
 const Tag = ({ code, children }: { code?: string; children?: ReactNode }) => (
   <span className="inline-flex h-[26px] min-w-[5rem] max-w-[12rem] items-center gap-1.5 rounded-full bg-muted px-2.5 font-semibold text-[13px]">
     {code && <em className="shrink-0 font-display font-extrabold text-[12.5px] text-brand-text not-italic">{code}</em>}
@@ -225,7 +247,7 @@ const RowAction = ({ row, action }: { row: InvoiceRow; action: InvoiceRowAction 
   if (action.kind === 'approve' || action.kind === 'validate' || action.kind === 'resend') {
     return (
       <Button asChild className="w-full" data-testid="invoice-row-action">
-        <Link to={invoiceViewPath(row.id)}>
+        <Link to={row.position.total > 1 ? noteLink(row) : invoiceViewPath(row.id)}>
           {action.kind === 'approve' ? (
             <Trans>Aprovar conta</Trans>
           ) : action.kind === 'validate' ? (

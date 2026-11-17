@@ -11,6 +11,8 @@ export const ZInvoiceDocumentTagsResponseSchema = z.array(
     envelopeId: z.string(),
     account: z.object({ code: z.string(), name: z.string().nullable() }).nullable(),
     costCenterCode: z.string().nullable(),
+    /** Fase 9: quantas notas o envio tem; com 2+, a conta e o centro ficam nulos. */
+    invoiceCount: z.number(),
   }),
 );
 

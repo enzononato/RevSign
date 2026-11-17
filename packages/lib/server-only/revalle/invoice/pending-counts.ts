@@ -3,23 +3,22 @@ import { EnvelopeType, RevalleInvoiceStatus } from '@prisma/client';
 
 import { isAccountingMember } from '../accounting/members';
 import { isFinanceMember } from '../finance/members';
-import { accountingPendingWhere, financePendingWhere } from './find-invoices';
+import { accountingPendingFileWhere, financePendingFileWhere } from './find-invoices';
 
 // A contagem lê os mesmos filtros da fila da página (`financeiro=pendentes` e `contabilidade=pendentes`), para o número do
-// menu bater com o que a pessoa vê ao abrir "Notas fiscais". NF excluída pelo remetente não espera ninguém.
-const invoices = {
-  type: EnvelopeType.DOCUMENT,
-  deletedAt: null,
-  revalleInvoice: { isInvoice: RevalleInvoiceStatus.YES },
+// menu bater com o que a pessoa vê ao abrir "Notas fiscais". NF excluída pelo remetente não espera ninguém. Fase 9: conta
+// NOTAS (linhas de arquivo NF), como a lista: um envio de 3 notas aguardando conta 3.
+const invoiceFiles = {
+  envelope: { type: EnvelopeType.DOCUMENT, deletedAt: null, revalleInvoice: { isInvoice: RevalleInvoiceStatus.YES } },
 };
 
-/** NFs aguardando a aprovação do Financeiro (a conta ainda não foi aprovada). */
+/** Notas aguardando a aprovação do Financeiro. */
 export const countInvoicesPendingFinance = async (): Promise<number> =>
-  await prisma.envelope.count({ where: { AND: [invoices, financePendingWhere] } });
+  await prisma.revalleInvoiceFile.count({ where: { AND: [invoiceFiles, financePendingFileWhere] } });
 
-/** NFs aguardando a Contabilidade (centro sem validação). O aviso da tela Admin → Perfis usa o mesmo número. */
+/** Notas aguardando a Contabilidade (centro sem validação). O aviso da tela Admin → Perfis usa o mesmo número. */
 export const countInvoicesPendingAccounting = async (): Promise<number> =>
-  await prisma.envelope.count({ where: { AND: [invoices, accountingPendingWhere] } });
+  await prisma.revalleInvoiceFile.count({ where: { AND: [invoiceFiles, accountingPendingFileWhere] } });
 
 /**
  * Pendências de quem está logado, para o contador do menu. `null` = a pessoa não é desse perfil (o menu não mostra nada);

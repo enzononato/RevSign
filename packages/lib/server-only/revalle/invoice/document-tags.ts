@@ -1,5 +1,5 @@
 import { prisma } from '@documenso/prisma';
-import { RevalleInvoiceStatus } from '@prisma/client';
+import { RevalleInvoiceFileKind, RevalleInvoiceStatus } from '@prisma/client';
 
 import { getTeamById } from '../../team/get-team';
 
@@ -7,11 +7,14 @@ export type InvoiceDocumentTags = {
   envelopeId: string;
   account: { code: string; name: string | null } | null;
   costCenterCode: string | null;
+  /** Fase 9: quantas notas o envio tem. Com 2+, `account` e `costCenterCode` ficam nulos (a tela diz "3 notas fiscais"). */
+  invoiceCount: number;
 };
 
 /**
  * Conta e centro de custo das notas fiscais que aparecem na lista de Documentos de um time. Só leitura. Quem não é
- * do time recebe erro (getTeamById); envelopes de outro time ou que não são NF simplesmente não voltam.
+ * do time recebe erro (getTeamById); envelopes de outro time ou que não são NF simplesmente não voltam. Fase 9: o envio
+ * de várias notas volta com a contagem (cada nota tem a sua conta e o seu centro); o de uma nota, como antes.
  */
 export const findInvoiceDocumentTags = async ({
   userId,
@@ -28,15 +31,27 @@ export const findInvoiceDocumentTags = async ({
 
   await getTeamById({ userId, teamId });
 
-  const invoices = await prisma.revalleInvoiceClassification.findMany({
+  const rows = await prisma.revalleInvoiceClassification.findMany({
     where: {
       envelopeId: { in: envelopeIds },
       isInvoice: RevalleInvoiceStatus.YES,
       envelope: { teamId },
-      OR: [{ choiceCode: { not: null } }, { costCenterCode: { not: null } }],
     },
-    select: { envelopeId: true, choiceCode: true, costCenterCode: true, approvedAccountName: true },
+    select: {
+      envelopeId: true,
+      choiceCode: true,
+      costCenterCode: true,
+      approvedAccountName: true,
+      envelope: {
+        select: { _count: { select: { revalleInvoiceFiles: { where: { kind: RevalleInvoiceFileKind.NF } } } } },
+      },
+    },
   });
+
+  // Uma nota (ou o envio antigo ainda sem linhas de arquivo): a do espelho, só com conta ou centro, como antes.
+  const invoices = rows
+    .map(({ envelope, ...row }) => ({ ...row, invoiceCount: Math.max(1, envelope._count.revalleInvoiceFiles) }))
+    .filter((row) => row.invoiceCount > 1 || row.choiceCode !== null || row.costCenterCode !== null);
 
   const codes = [...new Set(invoices.flatMap((invoice) => (invoice.choiceCode ? [invoice.choiceCode] : [])))];
 
@@ -54,9 +69,11 @@ export const findInvoiceDocumentTags = async ({
 
   return invoices.map((invoice) => ({
     envelopeId: invoice.envelopeId,
-    account: invoice.choiceCode
-      ? { code: invoice.choiceCode, name: invoice.approvedAccountName ?? accounts.get(invoice.choiceCode) ?? null }
-      : null,
-    costCenterCode: invoice.costCenterCode,
+    account:
+      invoice.invoiceCount === 1 && invoice.choiceCode
+        ? { code: invoice.choiceCode, name: invoice.approvedAccountName ?? accounts.get(invoice.choiceCode) ?? null }
+        : null,
+    costCenterCode: invoice.invoiceCount === 1 ? invoice.costCenterCode : null,
+    invoiceCount: invoice.invoiceCount,
   }));
 };
