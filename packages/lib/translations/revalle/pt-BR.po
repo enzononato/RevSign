@@ -5361,3 +5361,9 @@ msgstr "Centro de custo escolhido: {to} (nota {0} de {1}: {2})"
 
 msgid "Centro de custo trocado: {from} → {to} (nota {0} de {1}: {2})"
 msgstr "Centro de custo trocado: {from} → {to} (nota {0} de {1}: {2})"
+
+# REVALLE: Fase 9, Task 7: tela de assinatura com várias notas no mesmo envio (msgid já em pt-BR).
+# Origem: apps/remix/app/components/revalle/invoice/signing-invoice-account.tsx (macro `t`, um só nó de texto).
+
+msgid "Este envio tem {count} notas fiscais. A conta e o centro de custo de cada uma aparecem no documento dela."
+msgstr "Este envio tem {count} notas fiscais. A conta e o centro de custo de cada uma aparecem no documento dela."
