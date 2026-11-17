@@ -83,3 +83,20 @@ export const InvoiceDuplicateNotice = ({ duplicates, acknowledgement }: InvoiceD
     </div>
   );
 };
+
+/**
+ * Fase 9: a mesma nota duas vezes no mesmo envio (mesmo arquivo ou chave em comum com uma nota anterior). Só aviso, no
+ * diálogo de envio: não trava o envio e não conta como duplicada de outro envio.
+ */
+export const InvoiceSameEnvelopeNotice = ({ index }: { index: number }) => (
+  // REVALLE v3: o mesmo âmbar do aviso de duplicada.
+  <p
+    className="flex items-start gap-2 rounded-[13px] bg-warning-bg p-3 font-medium text-sm text-warning-text"
+    data-testid="invoice-same-envelope-alert"
+  >
+    <TriangleAlertIcon className="mt-0.5 h-4 w-4 shrink-0" />
+    <span className="min-w-0 break-words">
+      <Trans>Esta nota parece ser a mesma da nota {index} deste envio.</Trans>
+    </span>
+  </p>
+);

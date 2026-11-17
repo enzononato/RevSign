@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { InvoiceReadyInput } from './invoice-ready';
-import { isInvoiceReady } from './invoice-ready';
+import type { InvoiceFilesReadyDocument, InvoiceFilesReadyInput, InvoiceReadyInput } from './invoice-ready';
+import { isInvoiceFilesReady, isInvoiceReady } from './invoice-ready';
 
 const account = { code: '2.1.03' };
 const costCenter = { code: '101' };
@@ -112,5 +112,87 @@ describe('o bloco da nota fiscal libera o envio', () => {
     expect(
       isInvoiceReady(ready({ state: { isInvoice: 'YES', choice: null, costCenter, duplicates: [] }, isError: true })),
     ).toBe(false);
+  });
+});
+
+describe('Fase 9: o diálogo com várias notas libera o envio', () => {
+  const nf = (
+    envelopeItemId: string,
+    overrides: Partial<InvoiceFilesReadyDocument> = {},
+  ): InvoiceFilesReadyDocument => ({
+    envelopeItemId,
+    kind: 'NF',
+    choice: account,
+    costCenter,
+    duplicates: [],
+    ...overrides,
+  });
+  const file = (envelopeItemId: string, kind: InvoiceFilesReadyDocument['kind']): InvoiceFilesReadyDocument => ({
+    envelopeItemId,
+    kind,
+    choice: null,
+    costCenter: null,
+    duplicates: [],
+  });
+  const filesReady = (
+    documents: InvoiceFilesReadyDocument[],
+    overrides: Partial<InvoiceFilesReadyInput> = {},
+  ): InvoiceFilesReadyInput => ({
+    isClassified: true,
+    isError: false,
+    isHeld: false,
+    hasNoAccounts: false,
+    acknowledgedDuplicateIds: new Set(),
+    state: { isInvoice: 'YES', documents },
+    ...overrides,
+  });
+
+  it('2 notas, a 2ª sem centro, não libera; as duas completas, libera', () => {
+    expect(isInvoiceFilesReady(filesReady([nf('a'), nf('b', { costCenter: null })]))).toBe(false);
+    expect(isInvoiceFilesReady(filesReady([nf('a'), nf('b', { choice: null })]))).toBe(false);
+    expect(isInvoiceFilesReady(filesReady([nf('a'), nf('b')]))).toBe(true);
+  });
+
+  it('um arquivo sem texto (UNKNOWN) trava até a pessoa dizer o tipo', () => {
+    expect(isInvoiceFilesReady(filesReady([nf('a'), nf('b'), file('s', 'UNKNOWN')]))).toBe(false);
+    expect(isInvoiceFilesReady(filesReady([nf('a'), nf('b'), file('s', 'OTHER')]))).toBe(true);
+  });
+
+  it('nota com duplicada só libera com o aviso DELA marcado', () => {
+    const documents = [nf('a'), nf('b', { duplicates: [duplicate] })];
+
+    expect(isInvoiceFilesReady(filesReady(documents))).toBe(false);
+    expect(isInvoiceFilesReady(filesReady(documents, { acknowledgedDuplicateIds: new Set(['a']) }))).toBe(false);
+    expect(isInvoiceFilesReady(filesReady(documents, { acknowledgedDuplicateIds: new Set(['b']) }))).toBe(true);
+    expect(
+      isInvoiceFilesReady(
+        filesReady([nf('a'), nf('b', { duplicates: [duplicate], costCenter: null })], {
+          acknowledgedDuplicateIds: new Set(['b']),
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it('um boleto (com ou sem aviso) não muda o resultado', () => {
+    expect(isInvoiceFilesReady(filesReady([nf('a'), nf('b'), file('boleto', 'BOLETO')]))).toBe(true);
+    expect(isInvoiceFilesReady(filesReady([nf('a'), nf('b', { costCenter: null }), file('boleto', 'BOLETO')]))).toBe(
+      false,
+    );
+    expect(isInvoiceFilesReady(filesReady([nf('a'), file('boleto', 'BOLETO')]))).toBe(true);
+  });
+
+  it('sem estado: antes da classificação não libera; erro na consulta libera (como hoje)', () => {
+    expect(isInvoiceFilesReady(filesReady([nf('a')], { state: undefined }))).toBe(false);
+    expect(isInvoiceFilesReady(filesReady([nf('a')], { state: undefined, isError: true }))).toBe(true);
+    expect(isInvoiceFilesReady(filesReady([nf('a'), nf('b')], { isClassified: false }))).toBe(false);
+  });
+
+  it('lista de contas vazia ou nova versão com o Financeiro bloqueiam; nova versão parada não exige conta nem centro', () => {
+    const documents = [nf('a', { costCenter: null }), nf('b', { choice: null, costCenter: null })];
+
+    expect(isInvoiceFilesReady(filesReady([nf('a'), nf('b')], { hasNoAccounts: true }))).toBe(false);
+    expect(isInvoiceFilesReady(filesReady([nf('a'), nf('b')], { isHeld: true }))).toBe(false);
+    expect(isInvoiceFilesReady(filesReady(documents))).toBe(false);
+    expect(isInvoiceFilesReady(filesReady(documents, { requiresChoice: false, requiresCostCenter: false }))).toBe(true);
   });
 });

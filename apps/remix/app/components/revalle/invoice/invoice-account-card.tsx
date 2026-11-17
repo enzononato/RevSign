@@ -14,6 +14,7 @@ import { Link } from 'react-router';
 import { AccountCombobox } from './account-combobox';
 import { CostCenterSelect } from './cost-center-select';
 import { InvoiceDuplicateNotice } from './invoice-duplicate-notice';
+import { InvoiceFileHeader } from './invoice-file-block';
 import { InvoiceCard, InvoiceCode, InvoiceRow, InvoiceRows, InvoiceStatePill, splitCodeLabel } from './invoice-ui';
 
 export type InvoiceAccountCardProps = {
@@ -33,6 +34,8 @@ export type InvoiceAccountCardProps = {
  * - Enviado que não é NF (NO, ou enviado antes desta versão): só um link discreto "É uma nota fiscal? Marcar como
  *   nota fiscal", para não pesar na página de todo contrato.
  * Marcar (sem IA) abre em seguida a escolha da conta, no cartão; a NF fica aguardando a aprovação do Financeiro.
+ * Fase 9: com duas ou mais notas, um resumo por nota (`Nota 2 de 3 · nf-b.pdf`, conta, centro, o aviso de duplicada
+ * dela) e a primeira escolha da conta e do centro de cada nota; a situação no Financeiro é a do envio.
  */
 export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
   const { user } = useSession();
@@ -129,11 +132,11 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
     );
   }
 
-  const onChoose = async (code: string) => {
+  const onChoose = async (code: string, envelopeItemId?: string) => {
     try {
       utils.revalle.invoice.get.setData(
         { envelopeId: envelope.id },
-        await setChoice({ envelopeId: envelope.id, choice: { code } }),
+        await setChoice({ envelopeId: envelope.id, envelopeItemId, choice: { code } }),
       );
       toast({ title: t`Conta contábil atualizada.`, duration: 5000 });
     } catch {
@@ -141,11 +144,11 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
     }
   };
 
-  const onChooseCostCenter = async (code: string) => {
+  const onChooseCostCenter = async (code: string, envelopeItemId?: string) => {
     try {
       utils.revalle.invoice.get.setData(
         { envelopeId: envelope.id },
-        await setCostCenter({ envelopeId: envelope.id, code }),
+        await setCostCenter({ envelopeId: envelope.id, envelopeItemId, code }),
       );
       toast({ title: t`Centro de custo atualizado.`, duration: 5000 });
     } catch {
@@ -155,8 +158,123 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
 
   const choiceCode = state.choice?.code;
   const choiceName = state.choice?.name ?? '';
+  const isSuperseded = state.financeStatus === 'SUPERSEDED';
   // A versão substituída não recebe conta nem centro: a nova versão é a que vale.
-  const canChooseCostCenter = !state.costCenter && state.financeStatus !== 'SUPERSEDED';
+  const canChooseCostCenter = !state.costCenter && !isSuperseded;
+
+  const invoiceDocuments = state.documents.filter((doc) => doc.kind === 'NF');
+  const isPerFile = invoiceDocuments.length > 1;
+  // Aguardando só aparece com alguma conta escolhida (com várias notas, em alguma delas).
+  const hasChoice = isPerFile ? invoiceDocuments.some((doc) => doc.choice !== null) : Boolean(state.choice);
+
+  const financeRow = ((state.financeStatus === 'PENDING_APPROVAL' && hasChoice) ||
+    state.financeStatus === 'APPROVED') && (
+    <InvoiceRow label={<Trans>Financeiro</Trans>} stacked>
+      {state.financeStatus === 'APPROVED' ? (
+        <InvoiceStatePill tone="success">
+          <Trans>Aprovada pelo Financeiro</Trans>
+        </InvoiceStatePill>
+      ) : (
+        <InvoiceStatePill tone="warning">
+          <Trans>Aguardando aprovação do Financeiro</Trans>
+        </InvoiceStatePill>
+      )}
+    </InvoiceRow>
+  );
+
+  const supersededNotice = isSuperseded && (
+    <>
+      <p className="text-muted-foreground" data-testid="invoice-account-superseded">
+        {state.supersedeKind === 'COST_CENTER' ? (
+          <Trans>
+            Substituída: a Contabilidade corrigiu o centro de custo e criou uma nova versão, que todos assinam de novo.
+          </Trans>
+        ) : (
+          <Trans>Substituída: o Financeiro trocou a conta e criou uma nova versão, que todos assinam de novo.</Trans>
+        )}
+      </p>
+      {state.supersededByEnvelopeId && (
+        <Button asChild variant="outline" className="w-full whitespace-normal">
+          <Link to={invoiceViewPath(state.supersededByEnvelopeId)}>
+            <Trans>Abrir a nova versão</Trans>
+          </Link>
+        </Button>
+      )}
+    </>
+  );
+
+  // Fase 9: duas ou mais notas no envio, um resumo por nota. A situação no Financeiro é a do envio (com a última nota
+  // aprovada, o envio todo fica aprovado).
+  if (isPerFile) {
+    return (
+      <InvoiceCard title={<Trans>Notas fiscais</Trans>} testId="invoice-account-card">
+        {financeRow && <InvoiceRows>{financeRow}</InvoiceRows>}
+
+        {invoiceDocuments.map((doc) => (
+          <div
+            key={doc.envelopeItemId}
+            className="flex min-w-0 flex-col gap-2 border-border border-t pt-3"
+            data-testid="invoice-card-file"
+            data-envelope-item-id={doc.envelopeItemId}
+          >
+            <InvoiceFileHeader document={doc} />
+
+            <InvoiceRows>
+              <InvoiceRow label={<Trans>Conta contábil</Trans>}>
+                {doc.choice ? (
+                  <InvoiceCode code={doc.choice.code} name={doc.choice.name ?? ''} />
+                ) : (
+                  <span className="font-normal text-muted-foreground">
+                    <Trans>Nenhuma conta escolhida.</Trans>
+                  </span>
+                )}
+              </InvoiceRow>
+
+              {doc.costCenter && (
+                <InvoiceRow label={<Trans>Centro de custo</Trans>}>
+                  <InvoiceCode {...splitCodeLabel(costCenterLabel(doc.costCenter.code))} />
+                </InvoiceRow>
+              )}
+            </InvoiceRows>
+
+            {/* Depois do envio o aviso é só informação, sem a confirmação do diálogo de envio. */}
+            <InvoiceDuplicateNotice duplicates={doc.duplicates} />
+
+            {!doc.choice && !isSuperseded && (
+              <>
+                <AccountCombobox
+                  accounts={accountsData?.accounts ?? []}
+                  value={null}
+                  disabled={isPending}
+                  onSelect={(code) => void onChoose(code, doc.envelopeItemId)}
+                />
+
+                <p className="text-warning-text">
+                  <Trans>Escolha a conta contábil. Depois, quem aprova ou troca é o Financeiro.</Trans>
+                </p>
+              </>
+            )}
+
+            {!doc.costCenter && !isSuperseded && (
+              <>
+                <CostCenterSelect
+                  value={null}
+                  disabled={isPending}
+                  onSelect={(code) => void onChooseCostCenter(code, doc.envelopeItemId)}
+                />
+
+                <p className="text-warning-text">
+                  <Trans>Escolha o centro de custo. Depois, quem corrige é a Contabilidade.</Trans>
+                </p>
+              </>
+            )}
+          </div>
+        ))}
+
+        {supersededNotice}
+      </InvoiceCard>
+    );
+  }
 
   // REVALLE v3: cartão macio no padrão "rótulo à esquerda, valor à direita", código em azul, situação em pílula.
   return (
@@ -178,49 +296,15 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
           </InvoiceRow>
         )}
 
-        {((state.financeStatus === 'PENDING_APPROVAL' && state.choice) || state.financeStatus === 'APPROVED') && (
-          <InvoiceRow label={<Trans>Financeiro</Trans>} stacked>
-            {state.financeStatus === 'APPROVED' ? (
-              <InvoiceStatePill tone="success">
-                <Trans>Aprovada pelo Financeiro</Trans>
-              </InvoiceStatePill>
-            ) : (
-              <InvoiceStatePill tone="warning">
-                <Trans>Aguardando aprovação do Financeiro</Trans>
-              </InvoiceStatePill>
-            )}
-          </InvoiceRow>
-        )}
+        {financeRow}
       </InvoiceRows>
 
       {/* REVALLE (Fase 8): depois do envio o aviso é só informação, sem a confirmação do diálogo de envio. */}
       <InvoiceDuplicateNotice duplicates={state.duplicates} />
 
-      {state.financeStatus === 'SUPERSEDED' && (
-        <>
-          <p className="text-muted-foreground" data-testid="invoice-account-superseded">
-            {state.supersedeKind === 'COST_CENTER' ? (
-              <Trans>
-                Substituída: a Contabilidade corrigiu o centro de custo e criou uma nova versão, que todos assinam de
-                novo.
-              </Trans>
-            ) : (
-              <Trans>
-                Substituída: o Financeiro trocou a conta e criou uma nova versão, que todos assinam de novo.
-              </Trans>
-            )}
-          </p>
-          {state.supersededByEnvelopeId && (
-            <Button asChild variant="outline" className="w-full whitespace-normal">
-              <Link to={invoiceViewPath(state.supersededByEnvelopeId)}>
-                <Trans>Abrir a nova versão</Trans>
-              </Link>
-            </Button>
-          )}
-        </>
-      )}
+      {supersededNotice}
 
-      {!state.choice && state.financeStatus !== 'SUPERSEDED' && (
+      {!state.choice && !isSuperseded && (
         <>
           <AccountCombobox
             accounts={accountsData?.accounts ?? []}

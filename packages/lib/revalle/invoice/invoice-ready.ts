@@ -63,3 +63,56 @@ export const isInvoiceReady = ({
 
   return (!requiresChoice || state.choice !== null) && (!requiresCostCenter || state.costCenter !== null);
 };
+
+/** Fase 9: o que `isInvoiceFilesReady` lê de cada arquivo do envio (`InvoiceState.documents`). */
+export type InvoiceFilesReadyDocument = {
+  envelopeItemId: string;
+  kind: 'NF' | 'BOLETO' | 'OTHER' | 'UNKNOWN';
+  choice: unknown;
+  costCenter: unknown;
+  duplicates: readonly unknown[];
+};
+
+export type InvoiceFilesReadyInput = Omit<InvoiceReadyInput, 'state' | 'duplicateAcknowledged'> & {
+  state: { isInvoice: 'YES' | 'NO' | 'UNKNOWN'; documents: readonly InvoiceFilesReadyDocument[] } | undefined;
+  /** `envelopeItemId` das notas cujo aviso de duplicada a pessoa marcou ("Sei disso e quero enviar mesmo assim"). */
+  acknowledgedDuplicateIds: ReadonlySet<string>;
+};
+
+/**
+ * Fase 9: o diálogo de envio com várias notas (ou com boleto, ou com arquivo sem texto) libera o botão de enviar? Cada
+ * NF só sai com a conta e o centro (como `isInvoiceReady`, por nota) e com o aviso de duplicada dela marcado; arquivo sem
+ * texto (UNKNOWN) só depois de a pessoa dizer o tipo. Aviso de boleto e "a mesma nota deste envio" não travam.
+ * `isInvoiceReady` continua para o envio de uma nota só (e o editor antigo).
+ */
+export const isInvoiceFilesReady = ({
+  isClassified,
+  isError,
+  isHeld,
+  hasNoAccounts,
+  requiresCostCenter = true,
+  requiresChoice = true,
+  acknowledgedDuplicateIds,
+  state,
+}: InvoiceFilesReadyInput) => {
+  if (!isClassified || isHeld || hasNoAccounts) {
+    return false;
+  }
+
+  if (isError && !state) {
+    return true;
+  }
+
+  if (!state || state.isInvoice === 'UNKNOWN' || state.documents.some((doc) => doc.kind === 'UNKNOWN')) {
+    return false;
+  }
+
+  return state.documents
+    .filter((doc) => doc.kind === 'NF')
+    .every(
+      (doc) =>
+        (doc.duplicates.length === 0 || acknowledgedDuplicateIds.has(doc.envelopeItemId)) &&
+        (!requiresChoice || doc.choice !== null) &&
+        (!requiresCostCenter || doc.costCenter !== null),
+    );
+};

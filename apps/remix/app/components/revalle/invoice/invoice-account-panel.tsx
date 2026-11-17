@@ -2,7 +2,7 @@ import { DO_NOT_INVALIDATE_QUERY_ON_MUTATION } from '@documenso/lib/constants/tr
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
 import { costCenterLabel } from '@documenso/lib/revalle/invoice/cost-centers';
 import { formatInvoiceDataLine } from '@documenso/lib/revalle/invoice/invoice-data';
-import { isInvoiceReady } from '@documenso/lib/revalle/invoice/invoice-ready';
+import { isInvoiceFilesReady, isInvoiceReady } from '@documenso/lib/revalle/invoice/invoice-ready';
 import { findExternalEmail, formatDomainList, getClientAllowedDomains } from '@documenso/lib/revalle/recipient-domains';
 import { trpc } from '@documenso/trpc/react';
 import type { TInvoiceState } from '@documenso/trpc/server/revalle-router/invoice/invoice-state.types';
@@ -11,11 +11,20 @@ import { Button } from '@documenso/ui/primitives/button';
 import { Spinner } from '@documenso/ui/primitives/spinner';
 import { useToast } from '@documenso/ui/primitives/use-toast';
 import { Trans, useLingui } from '@lingui/react/macro';
+import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
 import { AccountCombobox } from './account-combobox';
 import { CostCenterSelect } from './cost-center-select';
+import { InvoiceBoletoBlock } from './invoice-boleto-block';
 import { InvoiceDuplicateNotice } from './invoice-duplicate-notice';
+import {
+  InvoiceFileBlock,
+  InvoiceFileSummary,
+  InvoiceOtherFileRow,
+  InvoiceUnknownFileBlock,
+} from './invoice-file-block';
+import type { InvoiceFileKindChoice } from './invoice-file-kind-select';
 
 export type InvoiceAccountPanelProps = {
   envelopeId: string;
@@ -43,6 +52,37 @@ const POLL_LIMIT_MS = 30_000;
 // tela que desistiu consulta uma vez depois disso, para "Sugerir de novo" aparecer sem reabrir o diálogo.
 const STALE_REFETCH_MS = 61_000;
 
+const EMPTY_DOCUMENTS: TInvoiceState['documents'] = [];
+
+/** Alguma leitura da IA em andamento: a da nota única (os campos de cima) ou a de algum arquivo (nota ou boleto). */
+const isReadingState = (state: TInvoiceState | undefined) =>
+  state?.suggestionStatus === 'PENDING' || (state?.documents ?? []).some((doc) => doc.suggestionStatus === 'PENDING');
+
+/**
+ * Com uma nota só (e um boleto ao lado), o aviso de duplicada dos campos de cima é o dela: vale para o bloco da nota
+ * mesmo que o arquivo ainda não traga o seu.
+ */
+const withSingleInvoiceDuplicates = (state: TInvoiceState | undefined): TInvoiceState['documents'] => {
+  const documents = state?.documents ?? EMPTY_DOCUMENTS;
+  const invoices = documents.filter((doc) => doc.kind === 'NF');
+
+  if (!state || invoices.length !== 1 || invoices[0].duplicates.length > 0 || state.duplicates.length === 0) {
+    return documents;
+  }
+
+  return documents.map((doc) => (doc.kind === 'NF' ? { ...doc, duplicates: state.duplicates } : doc));
+};
+
+/**
+ * Fase 9: o diálogo mostra um bloco por arquivo quando o envio tem nota e não é o caso de sempre (exatamente uma nota,
+ * sem boleto e sem arquivo sem texto). Com uma nota só (e contratos ao lado), o bloco é o de antes, sem cabeçalho.
+ */
+const hasPerFileLayout = (documents: TInvoiceState['documents']) => {
+  const invoices = documents.filter((doc) => doc.kind === 'NF').length;
+
+  return invoices > 0 && (invoices > 1 || documents.some((doc) => doc.kind === 'BOLETO' || doc.kind === 'UNKNOWN'));
+};
+
 /**
  * Bloco "Nota fiscal · Conta contábil" do diálogo de envio, com o centro de custo logo abaixo da conta. Classifica ao
  * abrir, consulta a sugestão enquanto ela está em andamento e grava cada escolha no servidor na hora (o envio confere de
@@ -63,6 +103,8 @@ export const InvoiceAccountPanel = ({
   const [isChanging, setIsChanging] = useState(false);
   // Fase 8: "Sei disso e quero enviar mesmo assim", diante do aviso de nota duplicada.
   const [isDuplicateAcknowledged, setIsDuplicateAcknowledged] = useState(false);
+  // Fase 9: com várias notas, a confirmação é de cada nota (`envelopeItemId`).
+  const [acknowledgedDuplicateIds, setAcknowledgedDuplicateIds] = useState<ReadonlySet<string>>(() => new Set());
   const pendingSince = useRef<number | null>(null);
 
   const { mutateAsync: classify } = trpc.revalle.invoice.classify.useMutation();
@@ -71,6 +113,7 @@ export const InvoiceAccountPanel = ({
     trpc.revalle.invoice.setCostCenter.useMutation();
   const { mutateAsync: setInvoiceFlag, isPending: isSavingFlag } = trpc.revalle.invoice.setInvoiceFlag.useMutation();
   const { mutateAsync: resuggest, isPending: isResuggesting } = trpc.revalle.invoice.resuggest.useMutation();
+  const { mutateAsync: setFileKind, isPending: isSavingKind } = trpc.revalle.invoice.setFileKind.useMutation();
 
   const store = (state: TInvoiceState) => utils.revalle.invoice.get.setData({ envelopeId }, state);
 
@@ -91,12 +134,12 @@ export const InvoiceAccountPanel = ({
     {
       ...DO_NOT_INVALIDATE_QUERY_ON_MUTATION,
       enabled: isClassified,
-      refetchInterval: (query) =>
-        query.state.data?.suggestionStatus === 'PENDING' && !hasGivenUp ? POLL_INTERVAL_MS : false,
+      refetchInterval: (query) => (isReadingState(query.state.data) && !hasGivenUp ? POLL_INTERVAL_MS : false),
     },
   );
 
-  const isPending = state?.suggestionStatus === 'PENDING';
+  // Fase 9: a espera (e a desistência) vale para qualquer leitura do envio; com uma nota só, é a dela, como antes.
+  const isPending = isReadingState(state);
 
   useEffect(() => {
     if (!isPending) {
@@ -128,10 +171,29 @@ export const InvoiceAccountPanel = ({
   // O aviso pode aparecer depois do diálogo aberto (a chave que a IA leu numa NF escaneada chega com a sugestão).
   const duplicates = isInvoice ? (state?.duplicates ?? []) : [];
 
+  const documents = withSingleInvoiceDuplicates(state);
+  const isPerFile = hasPerFileLayout(documents);
+  // As notas com aviso de duplicada, numa chave estável: a confirmação de uma nota some quando o aviso dela some.
+  const duplicatedIdsKey = documents
+    .filter((doc) => doc.kind === 'NF' && doc.duplicates.length > 0)
+    .map((doc) => doc.envelopeItemId)
+    .join(',');
+
   // A confirmação vale para este documento e para este aviso: ao trocar de documento, ou quando o aviso some, zera.
   useEffect(() => {
     setIsDuplicateAcknowledged(false);
+    setAcknowledgedDuplicateIds(new Set());
   }, [envelopeId]);
+
+  useEffect(() => {
+    const duplicated = new Set(duplicatedIdsKey.split(',').filter(Boolean));
+
+    setAcknowledgedDuplicateIds((current) =>
+      [...current].every((id) => duplicated.has(id))
+        ? current
+        : new Set([...current].filter((id) => duplicated.has(id))),
+    );
+  }, [duplicatedIdsKey]);
 
   useEffect(() => {
     if (duplicates.length === 0) {
@@ -157,18 +219,19 @@ export const InvoiceAccountPanel = ({
   const hasNoAccounts = isInvoice && accountsData !== undefined && accountsData.accounts.length === 0;
   const allowedDomains = getClientAllowedDomains();
   const externalRecipientEmail = isInvoice ? findExternalEmail(recipientEmails, allowedDomains) : null;
+  const readyInput = {
+    isClassified,
+    isError,
+    isHeld,
+    hasNoAccounts,
+    requiresChoice: !isReleased,
+    requiresCostCenter: !isReleased,
+  };
   const isReady =
     !externalRecipientEmail &&
-    isInvoiceReady({
-      isClassified,
-      isError,
-      isHeld,
-      hasNoAccounts,
-      requiresChoice: !isReleased,
-      requiresCostCenter: !isReleased,
-      duplicateAcknowledged: isDuplicateAcknowledged,
-      state,
-    });
+    (isPerFile
+      ? isInvoiceFilesReady({ ...readyInput, acknowledgedDuplicateIds, state: state && { ...state, documents } })
+      : isInvoiceReady({ ...readyInput, duplicateAcknowledged: isDuplicateAcknowledged, state }));
 
   useEffect(() => {
     onReadyChange(isReady);
@@ -202,9 +265,9 @@ export const InvoiceAccountPanel = ({
     }
   };
 
-  const onResuggest = async () => {
+  const onResuggest = async (envelopeItemId?: string) => {
     try {
-      store(await resuggest({ envelopeId }));
+      store(await resuggest({ envelopeId, envelopeItemId }));
     } catch (err) {
       const error = AppError.parseError(err);
 
@@ -219,6 +282,48 @@ export const InvoiceAccountPanel = ({
     }
   };
 
+  // Fase 9: as gravações de uma nota (`envelopeItemId`) no diálogo com um bloco por arquivo.
+  const onChooseFile = async (envelopeItemId: string, code: string) => {
+    try {
+      store(await setChoice({ envelopeId, envelopeItemId, choice: { code } }));
+
+      return true;
+    } catch {
+      showError();
+
+      return false;
+    }
+  };
+
+  const onChooseFileCostCenter = async (envelopeItemId: string, code: string) => {
+    try {
+      store(await setCostCenter({ envelopeId, envelopeItemId, code }));
+    } catch {
+      showError();
+    }
+  };
+
+  const onFileKind = async (envelopeItemId: string, kind: InvoiceFileKindChoice) => {
+    try {
+      store(await setFileKind({ envelopeId, envelopeItemId, kind }));
+    } catch {
+      showError();
+    }
+  };
+
+  const onAcknowledgeFile = (envelopeItemId: string, checked: boolean) =>
+    setAcknowledgedDuplicateIds((current) => {
+      const next = new Set(current);
+
+      if (checked) {
+        next.add(envelopeItemId);
+      } else {
+        next.delete(envelopeItemId);
+      }
+
+      return next;
+    });
+
   if (!state) {
     if (isError) {
       return null;
@@ -232,7 +337,7 @@ export const InvoiceAccountPanel = ({
     );
   }
 
-  const isBusy = isSavingChoice || isSavingCostCenter || isSavingFlag || isResuggesting;
+  const isBusy = isSavingChoice || isSavingCostCenter || isSavingFlag || isResuggesting || isSavingKind;
   const domainList = formatDomainList(allowedDomains);
   // Mesmo texto da recusa do servidor (`formatInvoiceExternalRecipientMessage`).
   const externalNotice = externalRecipientEmail ? (
@@ -252,6 +357,120 @@ export const InvoiceAccountPanel = ({
       }
     />
   );
+
+  if (isPerFile) {
+    const acknowledgementOf = (envelopeItemId: string) =>
+      hasDuplicateAcknowledgement
+        ? {
+            checked: acknowledgedDuplicateIds.has(envelopeItemId),
+            onChange: (checked: boolean) => onAcknowledgeFile(envelopeItemId, checked),
+          }
+        : undefined;
+    const invoiceDocuments = documents.filter((doc) => doc.kind === 'NF');
+    const lockedNotice = isReleased ? (
+      state.financeStatus === 'APPROVED' ? (
+        <Trans>Conta aprovada pelo Financeiro. O envio anterior falhou: corrija o rascunho e envie.</Trans>
+      ) : (
+        <Trans>O envio anterior falhou: corrija o rascunho e envie.</Trans>
+      )
+    ) : isHeld ? (
+      <Trans>O Financeiro está enviando esta nova versão. Os convites saem em instantes.</Trans>
+    ) : null;
+
+    // Nova versão: a conta e o centro de cada nota ficam travados; só leitura, nota por nota.
+    if (lockedNotice) {
+      return (
+        <section className="mb-4 flex flex-col gap-2 rounded-[13px] border p-3" data-testid="invoice-account-panel">
+          <h3 className="font-medium text-sm">
+            <Trans>Notas fiscais · Conta contábil</Trans>
+          </h3>
+          {isReleased && externalNotice}
+          {invoiceDocuments.map((doc) => (
+            <InvoiceFileSummary key={doc.envelopeItemId} document={doc}>
+              {/* O rascunho parado sai por aqui: a duplicada de cada nota ainda pede a confirmação (como com uma nota). */}
+              {isReleased && (
+                <InvoiceDuplicateNotice
+                  duplicates={doc.duplicates}
+                  acknowledgement={acknowledgementOf(doc.envelopeItemId)}
+                />
+              )}
+            </InvoiceFileSummary>
+          ))}
+          <p className="text-muted-foreground text-sm">{lockedNotice}</p>
+        </section>
+      );
+    }
+
+    const blockOf = (doc: TInvoiceState['documents'][number]): ReactNode => {
+      const envelopeItemId = doc.envelopeItemId;
+
+      switch (doc.kind) {
+        case 'NF':
+          return (
+            <InvoiceFileBlock
+              key={envelopeItemId}
+              document={doc}
+              accounts={accountsData?.accounts ?? []}
+              hasNoAccounts={hasNoAccounts}
+              aiAvailable={state.aiAvailable}
+              hasGivenUp={hasGivenUp}
+              disabled={isBusy}
+              acknowledgement={acknowledgementOf(envelopeItemId)}
+              onChoose={async (code) => await onChooseFile(envelopeItemId, code)}
+              onChooseCostCenter={(code) => void onChooseFileCostCenter(envelopeItemId, code)}
+              onResuggest={() => void onResuggest(envelopeItemId)}
+              onNotInvoice={() => void onFileKind(envelopeItemId, 'OTHER')}
+            />
+          );
+        case 'BOLETO':
+          return (
+            <InvoiceBoletoBlock
+              key={envelopeItemId}
+              document={doc}
+              hasGivenUp={hasGivenUp}
+              disabled={isBusy}
+              onNotBoleto={() => void onFileKind(envelopeItemId, 'OTHER')}
+            />
+          );
+        case 'UNKNOWN':
+          return (
+            <InvoiceUnknownFileBlock
+              key={envelopeItemId}
+              document={doc}
+              disabled={isBusy}
+              onSelect={(kind) => void onFileKind(envelopeItemId, kind)}
+            />
+          );
+        default:
+          return (
+            <InvoiceOtherFileRow
+              key={envelopeItemId}
+              document={doc}
+              disabled={isBusy}
+              onSelect={(kind) => void onFileKind(envelopeItemId, kind)}
+            />
+          );
+      }
+    };
+
+    return (
+      <section className="mb-4 flex min-w-0 flex-col gap-3" data-testid="invoice-account-panel">
+        <h3 className="font-medium text-sm">
+          <Trans>Notas fiscais · Conta contábil</Trans>
+        </h3>
+
+        {externalNotice}
+
+        {hasNoAccounts && (
+          <p className="text-sm text-warning-text">
+            <Trans>Nenhuma conta contábil cadastrada. Fale com o administrador.</Trans>
+          </p>
+        )}
+
+        {documents.map(blockOf)}
+      </section>
+    );
+  }
 
   if (state.isInvoice === 'NO') {
     // Só quem marcou "Não é nota fiscal" vê o desfazer; documento comum não muda em nada.
