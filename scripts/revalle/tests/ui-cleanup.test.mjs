@@ -33,7 +33,8 @@ import {
 
 const MAILPIT = 'http://localhost:8025/api/v1';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-const PASSWORD = `Limpeza-${RUN}!`;
+// Com dígito garantido: o RUN pode sair só com letras, e o cadastro exige um número.
+const PASSWORD = `Limpeza-${RUN}-7!`;
 const origin = new URL(BASE_URL).origin;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const FORBIDDEN_MESSAGE = 'Só o administrador pode alterar isso.';

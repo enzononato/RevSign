@@ -748,7 +748,11 @@ test('certificado: cada linha da tabela §7.3 para cada signatário, com os valo
     }
 
     // Nome e e-mail (coluna 1; o e-mail quebra em linhas), IP e aparelho (coluna 2).
-    assert.ok(compact(row.identity).includes(compact(signer.name)), `nome de ${signer.key}`);
+    // Desde 17/11/2026 o nome do destinatário vira o da base do RH no portão: o certificado mostra o nome gravado.
+    const recipientName = db(`select name from "Recipient" where id = ${Number(signer.recipient.id)}`);
+
+    assert.ok(recipientName, `nome gravado de ${signer.key}`);
+    assert.ok(compact(row.identity).includes(compact(recipientName)), `nome de ${signer.key}`);
     assert.ok(compact(row.identity).includes(compact(signer.email)), `e-mail de ${signer.key}`);
     assert.equal(signature['Endereço IP'], signer.headers['X-Forwarded-For'], `IP de ${signer.key}`);
     assert.equal(signature.Dispositivo, signer.device, `aparelho de ${signer.key}`);

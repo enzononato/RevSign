@@ -202,9 +202,14 @@ test('a caixa de assinatura de quem assinou só com o carimbo diz "Assinado elet
 
 test('nenhum destinatário é cortado entre páginas: nome, CPF e código ficam na mesma página', () => {
   for (const signer of signers) {
-    const withName = pages.certificate.filter((page) => page.includes(signer.name));
+    // Desde 17/11/2026 o portão troca o nome digitado pelo da base do RH: o certificado mostra o nome gravado.
+    const name = db(
+      `select name from "Recipient" where lower(email) = '${signer.email.toLowerCase()}' order by id desc limit 1`,
+    );
+    const withName = pages.certificate.filter((page) => page.includes(name));
 
-    assert.equal(withName.length, 1, `${signer.name} deveria aparecer em uma única página`);
+    assert.ok(name, `nome gravado de ${signer.email}`);
+    assert.equal(withName.length, 1, `${name} deveria aparecer em uma única página`);
     assert.ok(withName[0].includes(maskCpf(signer.person.cpf)), `CPF de ${signer.name} em outra página`);
     assert.ok(withName[0].includes(signer.code), `código de ${signer.name} em outra página`);
   }
