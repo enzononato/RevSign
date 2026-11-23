@@ -24,6 +24,7 @@ import {
 import type { ParsedRow } from '../../../revalle/collaborator-rows';
 import { normalizeCpf } from '../../../revalle/cpf';
 import { normalizeEmail } from '../../../revalle/email-domain';
+import { FIELD_SIGNATURE_META_DEFAULT_VALUES } from '../../../types/field-meta';
 import type { ApiRequestMetadata } from '../../../universal/extract-request-metadata';
 import { getFileServerSide } from '../../../universal/upload/get-file.server';
 import { logger } from '../../../utils/logger';
@@ -297,7 +298,9 @@ export const createCollaboratorContract = async ({
             name: account?.name?.trim() ?? '',
             role: RecipientRole.SIGNER,
             signingOrder: 1,
-            fields: [{ type: FieldType.SIGNATURE, documentDataId, ...repRect }],
+            fields: [
+              { type: FieldType.SIGNATURE, fieldMeta: FIELD_SIGNATURE_META_DEFAULT_VALUES, documentDataId, ...repRect },
+            ],
           },
         ],
       },

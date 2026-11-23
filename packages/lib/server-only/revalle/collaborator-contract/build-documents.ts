@@ -10,6 +10,7 @@ import {
 import { REVALLE_COLLABORATOR_RECIPIENT_NAME } from '../../../revalle/collaborator-contract';
 import { clampSignatureRect, ZSignatureRectSchema } from '../../../revalle/collaborator-contract-rect';
 import { DEFAULT_DOCUMENT_EMAIL_SETTINGS } from '../../../types/document-email';
+import { FIELD_SIGNATURE_META_DEFAULT_VALUES } from '../../../types/field-meta';
 import type { ApiRequestMetadata } from '../../../universal/extract-request-metadata';
 import { putPdfFileServerSide } from '../../../universal/upload/put-file.server';
 import { logger } from '../../../utils/logger';
@@ -116,7 +117,14 @@ const prepareContractTemplate = async (contractId: string): Promise<PrepareOutco
               name: REVALLE_COLLABORATOR_RECIPIENT_NAME,
               role: RecipientRole.SIGNER,
               signingOrder: 1,
-              fields: [{ type: FieldType.SIGNATURE, documentDataId: documentData.id, ...rect }],
+              fields: [
+                {
+                  type: FieldType.SIGNATURE,
+                  fieldMeta: FIELD_SIGNATURE_META_DEFAULT_VALUES,
+                  documentDataId: documentData.id,
+                  ...rect,
+                },
+              ],
             },
           ],
         },
