@@ -1,4 +1,5 @@
 import { getSession } from '@documenso/auth/server/lib/utils/get-session';
+import { isCollaboratorContractTemplatePath } from '@documenso/lib/server-only/revalle/collaborator-contract/marker';
 import { isAdmin } from '@documenso/lib/utils/is-admin';
 import { redirect } from 'react-router';
 
@@ -30,4 +31,24 @@ export const redirectTeamPageUnlessAdmin = async ({ request, params }: TeamParam
   }
 
   return null;
+};
+
+/**
+ * v.21: `/templates/:id` e tudo abaixo (editor) continuam fora da tela, menos o modelo marcado como contrato para
+ * colaboradores, que só o administrador abre (editar a assinatura do colaborador, o envio pela planilha e o quadro).
+ */
+export const redirectTemplatePageUnlessCollaboratorContract = async ({
+  request,
+  params,
+}: {
+  request: Request;
+  params: { teamUrl?: string; id?: string };
+}) => {
+  const { user } = await getSession(request);
+
+  if (isAdmin(user) && params.id && (await isCollaboratorContractTemplatePath(params.id))) {
+    return null;
+  }
+
+  throw redirect(teamHome(params.teamUrl));
 };

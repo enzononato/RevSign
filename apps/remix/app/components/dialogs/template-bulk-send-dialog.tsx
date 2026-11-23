@@ -1,6 +1,7 @@
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
 import type { TBulkSendCsvError } from '@documenso/lib/server-only/template/validate-bulk-send-csv';
 import { trpc } from '@documenso/trpc/react';
+import { cn } from '@documenso/ui/lib/utils'; // REVALLE:
 import { Alert, AlertDescription } from '@documenso/ui/primitives/alert';
 import { Button } from '@documenso/ui/primitives/button';
 import { Checkbox } from '@documenso/ui/primitives/checkbox';
@@ -18,7 +19,7 @@ import { useToast } from '@documenso/ui/primitives/use-toast';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { msg } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
-import { Plural, Trans } from '@lingui/react/macro';
+import { Plural, Trans, useLingui as useLinguiMacro } from '@lingui/react/macro';
 import { File as FileIcon, Upload, X } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -41,10 +42,19 @@ export type TemplateBulkSendDialogProps = {
   recipients: Array<{ email: string; name?: string | null }>;
   trigger?: React.ReactNode;
   onSuccess?: () => void;
+  /** REVALLE: v.21, modelo marcado como contrato para colaboradores (até 3.000 linhas, e-mail obrigatório, fila). */
+  revalleCollaboratorContract?: boolean;
 };
 
-export const TemplateBulkSendDialog = ({ templateId, recipients, trigger, onSuccess }: TemplateBulkSendDialogProps) => {
+export const TemplateBulkSendDialog = ({
+  templateId,
+  recipients,
+  trigger,
+  onSuccess,
+  revalleCollaboratorContract = false, // REVALLE:
+}: TemplateBulkSendDialogProps) => {
   const { _ } = useLingui();
+  const { t } = useLinguiMacro(); // REVALLE:
   const { toast } = useToast();
 
   const team = useCurrentTeam();
@@ -109,6 +119,24 @@ export const TemplateBulkSendDialog = ({ templateId, recipients, trigger, onSucc
 
       if (!result.success) {
         setValidationError(result.error);
+
+        return;
+      }
+
+      // REVALLE: contrato para colaboradores: o resumo da planilha (sem repetidos) e a fila.
+      if ('revalleCollaboratorContract' in result) {
+        const { uniqueRows, duplicateRows } = result.revalleCollaboratorContract;
+
+        toast({
+          title: t`Planilha recebida`,
+          description: t`${uniqueRows} colaboradores entram na fila e recebem o documento em lotes ao longo do dia. Linhas repetidas puladas: ${duplicateRows}.`,
+          duration: 10000,
+        });
+
+        setOpen(false);
+        form.reset();
+
+        onSuccess?.();
 
         return;
       }
@@ -249,9 +277,17 @@ export const TemplateBulkSendDialog = ({ templateId, recipients, trigger, onSucc
                   {error && <p className="text-destructive text-sm">{error.message}</p>}
 
                   <p className="text-muted-foreground text-xs">
-                    <Trans>
-                      Maximum file size: 4MB. Maximum 100 rows per upload. Blank values will use template defaults.
-                    </Trans>
+                    {/* REVALLE: contrato para colaboradores: até 3.000 linhas, e-mail obrigatório, repetidos pulados. */}
+                    {revalleCollaboratorContract ? (
+                      <Trans>
+                        Tamanho máximo: 4 MB. Até 3.000 linhas por planilha. Cada linha precisa de um e-mail válido; o
+                        nome é opcional. Linhas repetidas pelo mesmo e-mail são puladas.
+                      </Trans>
+                    ) : (
+                      <Trans>
+                        Maximum file size: 4MB. Maximum 100 rows per upload. Blank values will use template defaults.
+                      </Trans>
+                    )}
                   </p>
                 </FormItem>
               )}
@@ -302,10 +338,15 @@ export const TemplateBulkSendDialog = ({ templateId, recipients, trigger, onSucc
                         <ul className="mt-1 list-inside list-disc">
                           {rowErrors.map((rowError, index) => (
                             <li key={index}>
-                              <Trans>
-                                Row {rowError.row}: <span className="font-mono">{rowError.column}</span> must be a valid
-                                email or empty
-                              </Trans>
+                              {/* REVALLE: no contrato para colaboradores o e-mail é obrigatório. */}
+                              {revalleCollaboratorContract ? (
+                                <Trans>Linha {rowError.row}: e-mail inválido ou vazio.</Trans>
+                              ) : (
+                                <Trans>
+                                  Row {rowError.row}: <span className="font-mono">{rowError.column}</span> must be a
+                                  valid email or empty
+                                </Trans>
+                              )}
                             </li>
                           ))}
                         </ul>
@@ -323,11 +364,18 @@ export const TemplateBulkSendDialog = ({ templateId, recipients, trigger, onSucc
               </Alert>
             )}
 
+            {/* REVALLE: contrato para colaboradores: sem "enviar na hora"; os documentos entram na fila. */}
+            {revalleCollaboratorContract && (
+              <p className="text-muted-foreground text-sm" data-testid="collaborator-contract-queue-notice">
+                <Trans>Os documentos entram numa fila e saem em lotes ao longo do dia.</Trans>
+              </p>
+            )}
+
             <FormField
               control={form.control}
               name="sendImmediately"
               render={({ field }) => (
-                <FormItem className="flex items-center space-x-2">
+                <FormItem className={cn('flex items-center space-x-2', revalleCollaboratorContract && 'hidden')}>
                   <FormControl>
                     <div className="flex items-center">
                       <Checkbox id="send-immediately" checked={field.value} onCheckedChange={field.onChange} />

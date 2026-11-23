@@ -34,6 +34,7 @@ import { EnvelopeGenericPageRenderer } from '~/components/general/envelope-edito
 import { GenericErrorLayout } from '~/components/general/generic-error-layout';
 import { EnvelopePdfViewer } from '~/components/general/pdf-viewer/envelope-pdf-viewer';
 import PDFViewerLazy from '~/components/general/pdf-viewer/pdf-viewer-lazy';
+import { CollaboratorContractButton } from '~/components/revalle/collaborator-contract/collaborator-contract-button'; // REVALLE:
 import { InvoiceAccountCard } from '~/components/revalle/invoice/invoice-account-card'; // REVALLE:
 import { useCurrentTeam } from '~/providers/team';
 
@@ -236,6 +237,9 @@ export default function DocumentPage({ params }: Route.ComponentProps) {
 
             {/* REVALLE: conta contábil da nota fiscal (dono e admin podem trocar depois do envio). */}
             <InvoiceAccountCard envelope={envelope} />
+
+            {/* REVALLE: v.21, "Usar como contrato para colaboradores" (só admin, documento concluído). */}
+            <CollaboratorContractButton envelope={envelope} />
 
             {/* Document information section. */}
             <DocumentPageViewInformation envelope={envelope} userId={user.id} />

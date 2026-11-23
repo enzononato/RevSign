@@ -10,6 +10,7 @@ import {
   type RevalleSealedVersion,
 } from '@documenso/lib/revalle/sealed-versions';
 import { createRateLimit } from '@documenso/lib/server-only/rate-limit/rate-limit';
+import { loadCollaboratorContractLine } from '@documenso/lib/server-only/revalle/collaborator-contract/marker';
 import {
   findRevalleProofByCode,
   normalizeVerificationCodeInput,
@@ -78,6 +79,11 @@ type LoaderData =
        * da nota única. Nesse caso `invoice` só traz a substituição e `costCenterLabel` fica nulo.
        */
       invoiceDocuments: InvoiceDocumentLabels[] | null;
+      /**
+       * v.21, contrato para colaboradores: "Assinado pela empresa: {representante} em {data}, código {código}" (a mesma
+       * linha do certificado), com o código do representante para o link do /verificar dele.
+       */
+      companySignature: { text: string; code: string } | null;
     };
 
 type InvoiceDocumentLabels = {
@@ -154,6 +160,7 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
       select: {
         recipient: {
           select: {
+            envelopeId: true, // v.21: a linha do contrato para colaboradores
             envelope: {
               select: {
                 recipients: {
@@ -166,14 +173,22 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
         },
       },
     })
-    .then((row) => row?.recipient.envelope.recipients.map((r) => r.signingStatus) ?? []);
+    .then((row) => ({
+      envelopeId: row?.recipient.envelopeId ?? null,
+      states: row?.recipient.envelope.recipients.map((r) => r.signingStatus) ?? [],
+    }));
+
+  const companySignature = signerStates.envelopeId ? await loadCollaboratorContractLine(signerStates.envelopeId) : null;
 
   const signedNames = result.signers
     .filter((s) => s.role === RecipientRole.SIGNER || s.role === RecipientRole.APPROVER)
     .map((s) => s.nome);
-  const signedTotal = Math.max(signedNames.length, signerStates.filter((st) => st === SigningStatus.SIGNED).length);
-  const rejectedTotal = signerStates.filter((st) => st === SigningStatus.REJECTED).length;
-  const pendingTotal = Math.max(0, signerStates.length - signedTotal - rejectedTotal);
+  const signedTotal = Math.max(
+    signedNames.length,
+    signerStates.states.filter((st) => st === SigningStatus.SIGNED).length,
+  );
+  const rejectedTotal = signerStates.states.filter((st) => st === SigningStatus.REJECTED).length;
+  const pendingTotal = Math.max(0, signerStates.states.length - signedTotal - rejectedTotal);
 
   const slots: { name: string; state: 'signed' | 'pending' | 'rejected' }[] = [
     ...Array.from({ length: signedTotal }, (_, i) => ({ name: signedNames[i] ?? '', state: 'signed' as const })),
@@ -223,6 +238,7 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
         costCenterLabel: document.costCenter ? `Centro de custo: ${costCenterLabel(document.costCenter.code)}` : null,
         isAwaitingApproval: document.isAwaitingApproval,
       })) ?? null,
+    companySignature: companySignature && { text: companySignature.text, code: companySignature.verificationCode },
   });
 };
 
@@ -441,6 +457,23 @@ export default function VerificarPage() {
                 {result.status === 'REJECTED' && `Recusado em ${result.completedAtLabel ?? ''} (horário de Brasília)`}
                 {result.status === 'PENDING' && !result.invoice?.supersededLabel && 'Em andamento'}
               </p>
+
+              {/* v.21: contrato para colaboradores. A linha do certificado, com o código do representante levando ao
+                  /verificar dele. */}
+              {result.companySignature && (
+                <p className="break-words text-sm" data-testid="verify-company-signature">
+                  {result.companySignature.text.slice(
+                    0,
+                    result.companySignature.text.length - result.companySignature.code.length,
+                  )}
+                  <a
+                    className="font-semibold text-brand-text underline underline-offset-2"
+                    href={`/verificar?codigo=${encodeURIComponent(result.companySignature.code)}`}
+                  >
+                    {result.companySignature.code}
+                  </a>
+                </p>
+              )}
 
               {result.invoice?.supersededLabel && (
                 <p className="rounded-[13px] bg-warning-bg p-3 font-medium text-warning-text">
