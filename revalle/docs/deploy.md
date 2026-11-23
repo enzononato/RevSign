@@ -645,6 +645,25 @@ pessoal, senão ao pessoal. Antes, quem estava em dois times (por exemplo "Equip
 páginas de Notas fiscais, Caixa de entrada e Configurações. A conta ativa que tiver ficado sem organização volta à sua
 organização pessoal, ou ganha uma, na primeira página que abrir.
 
+## Antes de atualizar (contrato para colaboradores, v.21)
+
+Imagem `ghcr.io/enzononato/revsign:v2.21.1-revalle.21` (e `revsign-backup` com a mesma tag). Funcionamento da tela e do
+envio: `contrato-colaboradores.md`.
+
+1. **Backup antes** (seção "Backup antes de atualizar").
+2. **Migração.** `20261123100000_revalle_collaborator_contract` roda sozinha na subida e só ACRESCENTA (tabelas e
+   colunas novas). Nada existente é alterado.
+3. **Variável opcional.** `NEXT_PRIVATE_REVALLE_BULK_SEND_PER_HOUR` (padrão `100`): quantos convites por hora saem da
+   fila do contrato. Mantenha no que o SMTP do cPanel aguenta. Cada rodada de 15 minutos envia 1/4 desse valor.
+4. **Tarefa nova.** `internal.revalle-collaborator-send-sweep`, a cada 15 minutos, envia a parte da fila. Não precisa
+   configurar nada; ela nasce com o app.
+5. **Teste pequeno primeiro.** Assine um documento comum, use-o como contrato, ponha o campo de assinatura do
+   colaborador no modelo e envie uma planilha com 2 ou 3 e-mails, **incluindo o seu**. Espere a próxima rodada de 15
+   minutos, confira os convites, assine um deles (CPF e data de nascimento) e veja a linha "Assinado pela empresa" no
+   certificado. Só depois suba a planilha completa.
+6. **Voltar à imagem anterior.** A imagem antiga ignora as tabelas e colunas novas (só acrescentadas). Documentos que
+   ainda estavam na fila ficam parados.
+
 ## Atualizar a versão depois
 
 0. Antes de trocar a versão, confirme que as DUAS imagens existem para a tag nova: `ghcr.io/enzononato/revsign:<tag>` e `ghcr.io/enzononato/revsign-backup:<tag>` (GitHub → Packages; os dois jobs de publicação são independentes e um pode falhar sozinho).
