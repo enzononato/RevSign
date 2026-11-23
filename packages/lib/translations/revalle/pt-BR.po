@@ -5630,3 +5630,16 @@ msgstr "Linha {0}: e-mail inválido ou vazio."
 
 msgid "Os documentos entram numa fila e saem em lotes ao longo do dia."
 msgstr "Os documentos entram numa fila e saem em lotes ao longo do dia."
+
+
+msgid "Posicione a assinatura do colaborador em todos os arquivos do modelo antes de enviar a planilha."
+msgstr "Posicione a assinatura do colaborador em todos os arquivos do modelo antes de enviar a planilha."
+
+msgid "Os documentos da planilha anterior ainda estão sendo criados. Espere terminar para enviar outra planilha."
+msgstr "Os documentos da planilha anterior ainda estão sendo criados. Espere terminar para enviar outra planilha."
+
+msgid "Este documento é de um contrato para colaboradores: só o administrador pode alterá-lo."
+msgstr "Este documento é de um contrato para colaboradores: só o administrador pode alterá-lo."
+
+msgid "O contrato para colaboradores sai só pelo envio da planilha, sem link direto."
+msgstr "O contrato para colaboradores sai só pelo envio da planilha, sem link direto."
