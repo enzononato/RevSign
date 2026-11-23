@@ -33,7 +33,7 @@ const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}
 
 const user = { email: process.env.REVSIGN_USER_EMAIL, password: process.env.REVSIGN_USER_PASSWORD };
 const admin = { email: process.env.REVSIGN_ADMIN_EMAIL, password: process.env.REVSIGN_ADMIN_PASSWORD };
-const SHOT_DIR = process.env.REVSIGN_CONTRATO_SHOTS;
+const SHOT_DIR = process.env.REVSIGN_CONTRATO_SHOTS ?? process.env.REVSIGN_F9_SHOTS;
 
 // Colaboradoras da base fictícia (ativas) e um CPF válido fora da base.
 const MARIA_CPF = '390.533.447-05';
@@ -263,10 +263,10 @@ uiTest('subir arquivo: .xlsx com CPF numérico e .csv em Windows-1252', async (t
 uiTest('acompanhamento a 1280 e 390 px, sem rolagem lateral', async (t) => {
   assert.ok(createdContractId, 'depende do caso do assistente');
 
-  // Um contrato com documentos na fila (de outro teste, se houver) para ver a tabela e os cartões.
+  // Um contrato da página com documentos na fila (do teste do motor, se houver) para ver a tabela e os cartões.
   const withRows =
     db(
-      `select c.id from "RevalleCollaboratorContract" c where exists (select 1 from "RevalleBulkSendQueue" q where q."contractId" = c.id) order by c."createdAt" desc limit 1`,
+      `select c.id from "RevalleCollaboratorContract" c where c.status <> 'DRAFT' and c."representativeEnvelopeId" is not null and exists (select 1 from "RevalleBulkSendQueue" q where q."contractId" = c.id) order by c."createdAt" desc limit 1`,
     ) || null;
 
   await runCase(t, 'tracking', { adminCookie, contractId: createdContractId, withRowsId: withRows });

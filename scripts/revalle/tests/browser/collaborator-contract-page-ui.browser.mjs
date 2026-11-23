@@ -383,6 +383,7 @@ if (payload.case === 'tracking') {
         const isPhone = viewport.width < 768;
         const list = page.getByTestId(isPhone ? 'contract-rows-cards' : 'contract-rows-table');
 
+        await page.getByTestId('contract-status-page').waitFor();
         await list.waitFor();
         report(
           !(await page.getByTestId(isPhone ? 'contract-rows-table' : 'contract-rows-cards').isVisible()),
@@ -391,10 +392,20 @@ if (payload.case === 'tracking') {
         report(!/\b\d{11}\b|\d{3}\.\d{3}\.\d{3}-\d{2}/.test(await text(list)), `${label}: CPF mascarado na lista`);
         report(await noSideScroll(page), `${label}: sem rolagem lateral com a lista`);
 
+        const filtered = page.waitForResponse((res) => res.url().includes('collaboratorContract.page.rows'));
+
         await page.getByTestId('contract-filter-SIGNED').click();
         report(
           (await page.getByTestId('contract-filter-SIGNED').getAttribute('aria-pressed')) === 'true',
           `${label}: filtro "Assinado" marcado`,
+        );
+        // O print depois da busca filtrada (a lista anterior fica na tela enquanto a nova chega).
+        await filtered;
+        await page.waitForTimeout(500);
+        report(
+          (await page.getByTestId(isPhone ? 'contract-row-card' : 'contract-row').count()) ===
+            Number((await text(page.getByTestId('contract-filter-SIGNED'))).replace(/\D/g, '')),
+          `${label}: a lista mostra só os assinados`,
         );
         await shot(page, `contrato-lista-${label}`, { fullPage: true });
       } else {
