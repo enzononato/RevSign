@@ -664,6 +664,24 @@ envio: `contrato-colaboradores.md`.
 6. **Voltar à imagem anterior.** A imagem antiga ignora as tabelas e colunas novas (só acrescentadas). Documentos que
    ainda estavam na fila ficam parados.
 
+## Antes de atualizar (contratos para colaboradores pela página, v.22)
+
+Imagem `ghcr.io/enzononato/revsign:v2.21.1-revalle.22` (e `revsign-backup` com a mesma tag). Funcionamento: `contrato-colaboradores.md`.
+
+1. **Backup antes** (seção "Backup antes de atualizar").
+2. **Migração.** `20261124100000_revalle_collaborator_contract_page` roda sozinha na subida. Ela acrescenta colunas, **torna
+   opcionais** algumas colunas da v.21 (origem e representante, desconhecidos até o representante assinar) e põe os
+   contratos que já existiam da v.21 como "Enviando" (`SENDING`), para continuarem a fila.
+3. **Dependência nova.** `read-excel-file@9.3.14` (leitura de .xlsx no navegador). Já vem na imagem; nada a configurar.
+4. **Variável.** `NEXT_PRIVATE_REVALLE_BULK_SEND_PER_HOUR` (padrão `100`) continua valendo, sem mudança.
+5. **Muda a tela.** O botão "Usar como contrato para colaboradores" e o quadro do modelo da v.21 somem; o admin usa o
+   item **Contratos para colaboradores** do menu. Contratos da v.21 continuam funcionando e aparecem na lista nova.
+6. **Teste pequeno primeiro.** Crie um contrato com **2 ou 3 pessoas**, incluindo você, e o representante de teste. Assine
+   como representante, espere a rodada de 15 minutos, assine um convite (CPF e data de nascimento) e confira a linha
+   "Assinado pela empresa" no certificado. Só depois faça o contrato completo.
+7. **Voltar à imagem anterior.** A imagem antiga ignora as colunas novas, mas contratos criados pela página ficam
+   sem tela e os documentos que estavam na fila ficam parados.
+
 ## Atualizar a versão depois
 
 0. Antes de trocar a versão, confirme que as DUAS imagens existem para a tag nova: `ghcr.io/enzononato/revsign:<tag>` e `ghcr.io/enzononato/revsign-backup:<tag>` (GitHub → Packages; os dois jobs de publicação são independentes e um pode falhar sozinho).
