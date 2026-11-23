@@ -6128,3 +6128,40 @@ msgstr "Um contrato assinado pelo representante da empresa e enviado para cada c
 
 msgid "versão anterior"
 msgstr "versão anterior"
+
+
+# Origem: apps/remix/app/components/revalle/collaborator-contract-page/step-review.tsx
+msgid "{readyCount, plural, one {Enviar para o representante e, depois que ele assinar, para # colaborador?} other {Enviar para o representante e, depois que ele assinar, para # colaboradores?}}"
+msgstr "{readyCount, plural, one {Enviar para o representante e, depois que ele assinar, para # colaborador?} other {Enviar para o representante e, depois que ele assinar, para # colaboradores?}}"
+
+# Origem: apps/remix/app/routes/_authenticated+/contratos-colaboradores._index.tsx
+msgid "Excluir este rascunho?"
+msgstr "Excluir este rascunho?"
+
+# Origem: apps/remix/app/routes/_authenticated+/contratos-colaboradores._index.tsx
+msgid "Excluir rascunho"
+msgstr "Excluir rascunho"
+
+# Origem: apps/remix/app/routes/_authenticated+/contratos-colaboradores._index.tsx
+msgid "Excluir rascunho {0}"
+msgstr "Excluir rascunho {0}"
+
+# Origem: apps/remix/app/routes/_authenticated+/contratos-colaboradores._index.tsx
+msgid "Não foi possível excluir o rascunho"
+msgstr "Não foi possível excluir o rascunho"
+
+# Origem: apps/remix/app/components/revalle/collaborator-contract-page/contract-wizard.tsx
+msgid "Não foi possível subir o PDF agora. Tente de novo em instantes."
+msgstr "Não foi possível subir o PDF agora. Tente de novo em instantes."
+
+# Origem: apps/remix/app/components/revalle/collaborator-contract-page/contract-wizard.tsx
+msgid "O arquivo não é um PDF válido ou passou de {CONTRACT_PDF_MAX_MB} MB. Confira e tente de novo."
+msgstr "O arquivo não é um PDF válido ou passou de {CONTRACT_PDF_MAX_MB} MB. Confira e tente de novo."
+
+# Origem: apps/remix/app/routes/_authenticated+/contratos-colaboradores._index.tsx
+msgid "O rascunho e o PDF dele saem da lista. Nada foi enviado a ninguém."
+msgstr "O rascunho e o PDF dele saem da lista. Nada foi enviado a ninguém."
+
+# Origem: apps/remix/app/routes/_authenticated+/contratos-colaboradores._index.tsx
+msgid "Rascunho excluído"
+msgstr "Rascunho excluído"
