@@ -312,7 +312,9 @@ export const resendDocument = async ({
         teamName: envelope.team?.name,
         includeSenderDetails: settings.includeSenderDetails,
         reportUrl,
-        newAccountWarningSenderEmail: isNewAccountSender && !selfSigner ? user.email : undefined,
+        // REVALLE: contrato para colaboradores (v.22): o e-mail do admin nunca aparece no convite.
+        newAccountWarningSenderEmail:
+          isNewAccountSender && !selfSigner && revalleContractSender === null ? user.email : undefined,
       });
 
       const [html, text] = await Promise.all([

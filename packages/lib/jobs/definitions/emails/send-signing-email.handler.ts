@@ -212,7 +212,8 @@ export const run = async ({ payload, io }: { payload: TSendSigningEmailJobDefini
     teamEmail: team?.teamEmail?.email,
     includeSenderDetails: settings.includeSenderDetails,
     reportUrl,
-    newAccountWarningSenderEmail: showNewAccountWarning ? user.email : undefined,
+    // REVALLE: contrato para colaboradores (v.22): o e-mail do admin nunca aparece no convite.
+    newAccountWarningSenderEmail: showNewAccountWarning && revalleContractSender === null ? user.email : undefined,
   });
 
   if (isRecipientEmailValidForSending(recipient)) {
