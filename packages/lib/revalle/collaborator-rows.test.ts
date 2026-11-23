@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { estimateSendHours, parseCollaboratorTable, parseCollaboratorText } from './collaborator-rows';
+import {
+  estimateSendHours,
+  isInactiveSituacao,
+  parseCollaboratorTable,
+  parseCollaboratorText,
+} from './collaborator-rows';
 
 describe('parseCollaboratorText', () => {
   it('lê colagem separada por tab com cabeçalho', () => {
@@ -53,5 +58,15 @@ describe('parseCollaboratorTable', () => {
 describe('estimateSendHours', () => {
   it('arredonda para cima', () => {
     expect(estimateSendHours(1180, 100)).toBe(12);
+  });
+});
+
+describe('isInactiveSituacao', () => {
+  it.each(['Inativo', 'DESLIGADO', 'Demitido', 'Rescisão', 'Falecido'])('%s é inativo', (value) => {
+    expect(isInactiveSituacao(value)).toBe(true);
+  });
+
+  it.each([null, '', 'Ativo', 'Afastado', 'Férias'])('%s é ativo', (value) => {
+    expect(isInactiveSituacao(value)).toBe(false);
   });
 });

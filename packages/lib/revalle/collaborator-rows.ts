@@ -128,3 +128,12 @@ export const parseCollaboratorTable = (rows: string[][]): ParsedRow[] =>
   buildRows(rows.map((cells, index) => ({ line: index + 1, cells })));
 
 export const estimateSendHours = (count: number, perHour: number): number => Math.ceil(count / perHour);
+
+const INACTIVE_MARKERS = ['inativ', 'deslig', 'demit', 'rescis', 'falecid'];
+
+/** Inativo no RH só quando a situação indica saída; ausente, "afastado" e "férias" contam como ativo. */
+export const isInactiveSituacao = (situacao: string | null | undefined): boolean => {
+  const folded = (situacao ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+  return INACTIVE_MARKERS.some((marker) => folded.includes(marker));
+};

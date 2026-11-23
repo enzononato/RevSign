@@ -1,25 +1,18 @@
 import { z } from 'zod';
 import { AppError, AppErrorCode } from '../../../errors/app-error';
-import type { ParsedRow, PreviewResult, PreviewRow, RowIssue } from '../../../revalle/collaborator-rows';
+import {
+  isInactiveSituacao,
+  type ParsedRow,
+  type PreviewResult,
+  type PreviewRow,
+  type RowIssue,
+} from '../../../revalle/collaborator-rows';
 import { isValidCpf } from '../../../revalle/cpf';
 import { type Colaborador, getColaboradoresRepository } from '../colaboradores/repository';
 
 const CHUNK_SIZE = 500;
 
 const ZEmail = z.string().trim().toLowerCase().max(254).email();
-
-const fold = (value: string) => value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-
-const ACTIVE_VALUES = new Set(['ativo', 'ativa', 'ativ', 'a', 'true', 't', '1', 'sim', 's']);
-
-/** "ativo" no RH. Situação ausente na base não bloqueia (a base não informa); qualquer outro valor é inativo. */
-const isActive = (situacao: string | null): boolean => {
-  if (situacao === null || situacao.trim() === '') {
-    return true;
-  }
-
-  return ACTIVE_VALUES.has(fold(situacao));
-};
 
 const chunk = <T>(items: T[], size: number): T[][] => {
   const chunks: T[][] = [];
@@ -42,12 +35,8 @@ const lookupByCpf = async (cpfs: string[]): Promise<Map<string, Colaborador>> =>
 
   // Só leitura. Blocos de 500 CPFs; os resultados não são registrados em log.
   for (const block of chunk(cpfs, CHUNK_SIZE)) {
-    const results = await Promise.all(block.map(async (cpf) => await repository.findByCpf(cpf)));
-
-    for (const colaborador of results) {
-      if (colaborador) {
-        found.set(colaborador.cpf, colaborador);
-      }
+    for (const colaborador of await repository.findManyByCpf(block)) {
+      found.set(colaborador.cpf, colaborador);
     }
   }
 
@@ -77,7 +66,7 @@ export const validateCollaboratorRows = async (rows: ParsedRow[]): Promise<Previ
       issues.push('CPF inválido');
     } else if (!colaborador) {
       issues.push('CPF não está na base do RH');
-    } else if (!isActive(colaborador.situacao)) {
+    } else if (isInactiveSituacao(colaborador.situacao)) {
       issues.push('Colaborador inativo no RH');
     }
 

@@ -14,6 +14,8 @@ export type { Colaborador };
 
 export type ColaboradoresRepository = {
   findByCpf(cpf: string): Promise<Colaborador | null>;
+  /** REVALLE: leitura em lote, um SELECT por chamada (quem chama divide em blocos). */
+  findManyByCpf(cpfs: string[]): Promise<Colaborador[]>;
   findByEmail(email: string): Promise<Colaborador | null>;
   searchByName(query: string, limit?: number): Promise<Colaborador[]>;
 };
@@ -106,6 +108,18 @@ const createRepository = (connectionString: string): ColaboradoresRepository => 
       ]);
 
       return rows[0] ? mapColaboradorRow(rows[0]) : null;
+    },
+
+    findManyByCpf: async (cpfs) => {
+      if (cpfs.length === 0) {
+        return [];
+      }
+
+      const rows = await queryRows(`SELECT ${COLUMNS} FROM ${await getSource()} AS c WHERE cpf = ANY($1::text[])`, [
+        cpfs.map(normalizeCpf),
+      ]);
+
+      return rows.map(mapColaboradorRow);
     },
 
     findByEmail: async (email) => {
