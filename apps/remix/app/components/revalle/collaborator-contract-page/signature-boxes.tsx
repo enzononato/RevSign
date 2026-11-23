@@ -210,7 +210,7 @@ export const SignatureBoxesEditor = ({
                 aria-label={t`${labels[kind]}, página ${rect.page}`}
                 aria-describedby={helpId}
                 data-testid={`signature-box-${kind}`}
-                className="absolute flex cursor-move touch-none select-none items-start rounded-[6px] border-2 p-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="absolute flex cursor-move touch-none select-none items-start rounded-[6px] border-2 p-1 text-left outline-none focus:z-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 style={{
                   left: `${rect.positionX}%`,
                   top: `${rect.positionY}%`,

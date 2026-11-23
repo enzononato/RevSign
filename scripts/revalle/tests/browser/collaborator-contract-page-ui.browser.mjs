@@ -85,6 +85,11 @@ if (payload.case === 'wizard') {
     await uploadContract(page, title);
 
     const start = await boxOnPage(page, 'collaborator');
+    const blueStart = await boxOnPage(page, 'representative');
+
+    report(blueStart.right <= start.x, 'os quadros começam lado a lado, sem se cobrir (azul à esquerda)');
+    await page.getByTestId('signature-box-collaborator').scrollIntoViewIfNeeded();
+    await shot(page, 'contrato-passo-1');
 
     report(start.x > 50, `o quadro verde começa à direita (${start.x.toFixed(1)}%)`);
 
@@ -132,7 +137,7 @@ if (payload.case === 'wizard') {
 
     await waitSaved(page);
     report(/[?&]id=/.test(page.url()), 'o endereço passa a ter o rascunho');
-    await shot(page, 'contrato-passo-1');
+    await shot(page, 'contrato-passo-1-depois');
 
     await page.getByTestId('wizard-continue').click();
     await page.getByTestId('wizard-step-representative').waitFor();

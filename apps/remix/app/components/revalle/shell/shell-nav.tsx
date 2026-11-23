@@ -128,7 +128,8 @@ export const ShellNavList = ({ className, onNavigate }: ShellNavListProps) => {
             isActive ? 'bg-white text-shell' : 'text-[#D4DEF5] hover:bg-white/10 hover:text-white',
           )}
         >
-          <span className="min-w-0 truncate">{_(label)}</span>
+          {/* REVALLE (v.22): rótulo longo ("Contratos para colaboradores") quebra em duas linhas em vez de cortar. */}
+          <span className="line-clamp-2 min-w-0 break-words">{_(label)}</span>
 
           {counter === 'invoices' && <InvoicesNavBadge className="shrink-0" />}
 
