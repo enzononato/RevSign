@@ -181,6 +181,21 @@ before(async () => {
     ),
   );
   fx.dir = mkdtempSync(path.join(tmpdir(), 'contrato-colab-'));
+
+  // O documento do representante nasce no time do admin (o modelo nasce no time do documento). Token do admin: o do
+  // ambiente (REVSIGN_SENDER_API_TOKEN) ou um criado agora no time pessoal dele.
+  fx.adminToken = process.env.REVSIGN_SENDER_API_TOKEN;
+
+  if (!fx.adminToken) {
+    const created = await trpcAs(fx.adminCookie, 'mutation', 'apiToken.create', {
+      teamId: fx.adminTeamId,
+      tokenName: `contrato-colab-${RUN}`,
+      expirationDate: null,
+    });
+
+    assert.equal(created.status, 200, created.text);
+    fx.adminToken = data(created).token;
+  }
 });
 
 beforeEach(() => {
@@ -200,11 +215,17 @@ after(() => {
 sessionTest(
   'o representante assina e "Usar como contrato" gera o modelo marcado, sem certificado nem auditoria',
   async () => {
-    const created = await createEnvelope({ recipients: [{ email: repEmail, name: 'Representante' }], title });
+    const created = await createEnvelope({
+      recipients: [{ email: repEmail, name: 'Representante' }],
+      title,
+      apiToken: fx.adminToken,
+    });
 
     assert.equal(created.status, 200, created.text);
 
-    const [rep] = await distribute(created.id);
+    const [rep] = await distribute(created.id, { apiToken: fx.adminToken });
+
+    fx.adminTeamId = Number(db(`select "teamId" from "Envelope" where id = '${created.id}'`));
     const cookie = { Cookie: await sessionFor(repEmail) };
     const documentId = Number.parseInt(created.envelope.secondaryId.split('_')[1], 10);
     const field = created.envelope.fields.find((f) => f.recipientId === rep.id && f.type === 'SIGNATURE');
@@ -280,8 +301,11 @@ sessionTest(
     // Páginas: as do original, com o carimbo; nenhuma do certificado ou do log.
     const item = created.envelope.envelopeItems[0];
 
-    writeFileSync(path.join(fx.dir, 'original.pdf'), await downloadItem(item.id, 'original'));
-    writeFileSync(path.join(fx.dir, 'signed.pdf'), await downloadItem(item.id, 'signed'));
+    writeFileSync(
+      path.join(fx.dir, 'original.pdf'),
+      await downloadItem(item.id, 'original', { apiToken: fx.adminToken }),
+    );
+    writeFileSync(path.join(fx.dir, 'signed.pdf'), await downloadItem(item.id, 'signed', { apiToken: fx.adminToken }));
     pdfOfItem(fx.templateId, fx.dir, 'template.pdf');
 
     const originalPages = pageCount(fx.dir, 'original.pdf');
