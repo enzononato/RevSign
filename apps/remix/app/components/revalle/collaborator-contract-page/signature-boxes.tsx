@@ -22,6 +22,13 @@ export type ContractBoxes = Record<BoxKind, SignatureRect>;
 
 export const BOX_KINDS: BoxKind[] = ['representative', 'collaborator'];
 
+// Tons escuros da mesma cor para a etiqueta com texto branco: contraste acima de 7:1 (AA pede 4,5:1). O azul e o verde
+// do editor (--recipient-*) ficam na borda e no fundo do quadro.
+const BOX_LABEL_COLOR: Record<BoxKind, string> = {
+  representative: 'hsl(212 72% 34%)',
+  collaborator: 'hsl(110 60% 22%)',
+};
+
 const BOX_COLOR: Record<BoxKind, string> = {
   representative: '--recipient-blue',
   collaborator: '--recipient-green',
@@ -217,7 +224,7 @@ export const SignatureBoxesEditor = ({
               >
                 <span
                   className="max-w-full truncate rounded-[4px] px-1.5 py-0.5 font-bold text-[11px] text-white leading-tight"
-                  style={{ backgroundColor: `hsl(var(${color}))` }}
+                  style={{ backgroundColor: BOX_LABEL_COLOR[kind] }}
                 >
                   {labels[kind]}
                 </span>

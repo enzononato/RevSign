@@ -107,6 +107,21 @@ export const ContractStatus = ({ contractId }: { contractId: string }) => {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
+  // A lista encolheu (busca, filtro, atualização): a página atual passa a ser a última que existe.
+  const rowsTotal = rowsQuery.data?.total;
+
+  useEffect(() => {
+    if (rowsTotal === undefined) {
+      return;
+    }
+
+    const lastPage = Math.max(1, Math.ceil(rowsTotal / PER_PAGE));
+
+    if (page > lastPage) {
+      setPage(lastPage);
+    }
+  }, [rowsTotal, page]);
+
   const reload = async () => {
     await Promise.all([
       utils.revalle.collaboratorContract.page.get.invalidate({ contractId }),

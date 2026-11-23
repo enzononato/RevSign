@@ -2,9 +2,11 @@
 // "Contratos para colaboradores": o assistente (PDF, quadros, representante, lista colada com erros, revisar e enviar),
 // o rascunho retomado pela lista, a página de acompanhamento a 1280 e 390 px e a conta comum sem acesso.
 //
-// Entrada: a URL e o caso (`case`): 'wizard' (adminCookie, title, repEmail, list, expectedSummary, expectedReady),
-// 'draft' (adminCookie, title), 'resume' (adminCookie, title, draftId), 'tracking' (adminCookie, contractId,
-// withRowsId ou null) ou 'non-admin' (userCookie).
+// Entrada: a URL e o caso (`case`): 'wizard' (adminCookie, title, repEmail, list, listAfterEdit, expectedSummary,
+// expectedReady), 'draft' (adminCookie, title), 'resume' (adminCookie, title, draftId), 'file-upload' (adminCookie,
+// draftId, xlsxBase64, csvBase64), 'tracking' (adminCookie, contractId, withRowsId ou null) ou 'non-admin'
+// (userCookie, contractId). Partes que não dá para conferir (sem contrato com documentos) saem como "PULADO".
+
 import { finish, openAs, payload, report, section, shot } from './shared.mjs';
 
 const { baseUrl } = payload;
@@ -23,6 +25,16 @@ const noSideScroll = (page) =>
   page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
 
 const text = async (locator) => (await locator.innerText()).replace(/\s+/g, ' ').trim();
+
+const isVisibleSoon = (locator, timeout = 30_000) =>
+  locator.waitFor({ timeout }).then(
+    () => true,
+    () => false,
+  );
+
+const focusedTestId = (page) => page.evaluate(() => document.activeElement?.getAttribute('data-testid') ?? null);
+
+const skipped = (message) => console.log(`PULADO ${message}`);
 
 const waitSaved = (page) => page.getByTestId('wizard-save-state').filter({ hasText: 'Rascunho salvo' }).waitFor();
 
@@ -45,7 +57,7 @@ const uploadContract = async (page, title) => {
 };
 
 if (payload.case === 'wizard') {
-  const { adminCookie, title, repEmail, list, expectedSummary, expectedReady } = payload;
+  const { adminCookie, title, repEmail, list, listAfterEdit, expectedSummary, expectedReady } = payload;
   const { page } = await openAs(adminCookie, DESKTOP);
 
   await section('menu e lista', async () => {
@@ -119,6 +131,7 @@ if (payload.case === 'wizard') {
 
     await page.getByTestId('wizard-continue').click();
     await page.getByTestId('wizard-step-representative').waitFor();
+    report((await focusedTestId(page)) === 'wizard-step-heading', 'o foco vai para o título do passo novo');
   });
 
   await section('passo 2: representante', async () => {
@@ -166,15 +179,17 @@ if (payload.case === 'wizard') {
     report(await page.getByTestId('collaborators-download-errors').isEnabled(), '"Baixar as linhas com erro" liberado');
     await shot(page, 'contrato-passo-3', { fullPage: true });
 
+    // A caixa muda e Continuar vem logo em seguida (antes da pausa da conferência): a lista nova é conferida antes de
+    // seguir, e a prévia velha nunca vai para o envio.
+    await page.getByTestId('collaborators-paste').fill(listAfterEdit);
     await page.getByTestId('wizard-continue').click();
-    await page.getByTestId('wizard-step-review').waitFor();
+    await page.getByTestId('wizard-step-review').waitFor({ timeout: 60_000 });
   });
 
   await section('revisar e enviar', async () => {
-    report(
-      (await text(page.getByTestId('review-collaborators'))).startsWith(`${expectedReady} colaboradores`),
-      'o resumo traz só os colaboradores prontos',
-    );
+    const collaborators = await text(page.getByTestId('review-collaborators'));
+
+    report(/^1 colaborador(?!es)/.test(collaborators), `a lista mudada vale e no singular ("${collaborators}")`);
     report(
       (await text(page.getByTestId('review-subject'))) === `Revalle enviou "${title}" para você assinar`,
       'o assunto com o remetente padrão "Revalle"',
@@ -187,10 +202,8 @@ if (payload.case === 'wizard') {
 
     await dialog.waitFor();
     report(
-      (await text(dialog)).includes(
-        `Enviar para o representante e, depois que ele assinar, para ${expectedReady} colaboradores?`,
-      ),
-      'a confirmação pergunta antes de enviar',
+      (await text(dialog)).includes('Enviar para o representante e, depois que ele assinar, para 1 colaborador?'),
+      'a confirmação pergunta antes de enviar (singular)',
     );
     await shot(page, 'contrato-confirmar');
 
@@ -212,8 +225,15 @@ if (payload.case === 'draft') {
 
   await section('fechar o assistente no meio', async () => {
     await visit(page, '/contratos-colaboradores/novo');
+
+    // Só o título não cria rascunho (nada para continuar sem o PDF).
+    await page.getByTestId('contract-title').fill(title);
+    await page.waitForTimeout(2000);
+    report(!/[?&]id=/.test(page.url()), 'sem o PDF, nenhum rascunho');
+
     await uploadContract(page, title);
     await waitSaved(page);
+    report(/[?&]id=/.test(page.url()), 'com o PDF, o rascunho nasce');
 
     // Sai sem continuar: o rascunho fica na lista.
     await visit(page, '/contratos-colaboradores');
@@ -233,17 +253,21 @@ if (payload.case === 'resume') {
     const { page } = await openAs(adminCookie, DESKTOP);
 
     await visit(page, '/contratos-colaboradores');
-    await page.getByTestId('contracts-row').filter({ hasText: title }).click();
+    await page.getByTestId('contracts-row').filter({ hasText: title }).getByRole('link').click();
     await page.getByTestId('contract-wizard').waitFor();
 
     report(page.url().includes(`id=${draftId}`), 'abre o assistente com o rascunho');
-    await page.getByTestId('wizard-step-representative').waitFor();
-    report(true, 'continua no primeiro passo que falta (Representante)');
+    report(
+      await isVisibleSoon(page.getByTestId('wizard-step-representative')),
+      'continua no primeiro passo que falta (Representante)',
+    );
 
     await page.getByRole('button', { name: '1. Contrato' }).click();
     report((await page.getByTestId('contract-title').inputValue()) === title, 'o título voltou');
-    await page.getByTestId('signature-box-collaborator').waitFor({ timeout: 60_000 });
-    report(true, 'a prévia do PDF e os quadros voltaram');
+    report(
+      await isVisibleSoon(page.getByTestId('signature-box-collaborator'), 60_000),
+      'a prévia do PDF e os quadros voltaram',
+    );
   });
 
   await section('celular: o passo 1 pede uma tela maior', async () => {
@@ -261,6 +285,63 @@ if (payload.case === 'resume') {
     report(!(await page.getByTestId('contract-boxes-editor').isVisible()), 'os quadros não aparecem no celular');
     report(await noSideScroll(page), 'sem rolagem lateral no assistente a 390 px');
     await shot(page, 'contrato-celular-passo-1');
+  });
+
+  await section('excluir o rascunho pela lista', async () => {
+    const { page } = await openAs(adminCookie, DESKTOP);
+
+    await visit(page, '/contratos-colaboradores');
+
+    const row = page.getByTestId('contracts-row').filter({ hasText: title });
+
+    await row.getByTestId('contracts-delete-draft').click();
+    await page.getByTestId('contracts-delete-dialog').waitFor();
+    await page.getByTestId('contracts-delete-confirm').click();
+    await row.waitFor({ state: 'detached' });
+    report((await row.count()) === 0, 'o rascunho sai da lista');
+  });
+}
+
+if (payload.case === 'file-upload') {
+  const { adminCookie, draftId, xlsxBase64, csvBase64 } = payload;
+  const { page } = await openAs(adminCookie, DESKTOP);
+
+  const upload = async (name, mimeType, base64) => {
+    await page
+      .getByTestId('collaborators-file-input')
+      .setInputFiles({ name, mimeType, buffer: Buffer.from(base64, 'base64') });
+    await page.getByTestId('collaborators-file-name').filter({ hasText: name }).waitFor();
+    await page.getByTestId('collaborators-preview').waitFor({ timeout: 60_000 });
+    await page.getByTestId('collaborators-checking').waitFor({ state: 'hidden', timeout: 60_000 });
+  };
+
+  await section('planilha .xlsx', async () => {
+    await visit(page, `/contratos-colaboradores/novo?id=${draftId}`);
+    await page.getByTestId('wizard-step-collaborators').waitFor();
+    await page.getByTestId('collaborators-tab-file').click();
+
+    await upload('colaboradores.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', xlsxBase64);
+
+    const preview = await text(page.getByTestId('collaborators-preview'));
+
+    report((await page.getByTestId('preview-row-ready').count()) === 1, '.xlsx: a Maria (CPF numérico) fica pronta');
+    report(
+      preview.includes('CPF não está na base do RH') && !preview.includes('CPF inválido'),
+      '.xlsx: o CPF sem o zero à esquerda volta a ter 11 dígitos',
+    );
+    report(preview.includes('Zero à Esquerda'), '.xlsx: acentos do texto');
+    await shot(page, 'contrato-arquivo-xlsx', { fullPage: true });
+  });
+
+  await section('planilha .csv em Windows-1252', async () => {
+    await upload('colaboradores.csv', 'text/csv', csvBase64);
+
+    const preview = await text(page.getByTestId('collaborators-preview'));
+
+    report(preview.includes('Fernando Ação'), '.csv: acentos lidos (Windows-1252)');
+    report(preview.includes('João Conceição'), '.csv: acentos na segunda linha');
+    report((await page.getByTestId('preview-row-ready').count()) === 1, '.csv: o Fernando fica pronto');
+    report(preview.includes('Arquivo colaboradores.csv'), 'a prévia diz de qual arquivo veio');
   });
 }
 
@@ -287,8 +368,7 @@ if (payload.case === 'tracking') {
 
       // Pausar pede confirmação; cancelar não muda nada.
       await page.getByTestId('contract-pause').click();
-      await page.getByTestId('contract-pause-dialog').waitFor();
-      report(true, `${label}: Pausar pede confirmação`);
+      report(await isVisibleSoon(page.getByTestId('contract-pause-dialog')), `${label}: Pausar pede confirmação`);
       await page.getByRole('button', { name: 'Cancelar' }).click();
       await page.getByTestId('contract-pause-dialog').waitFor({ state: 'hidden' });
 
@@ -312,13 +392,15 @@ if (payload.case === 'tracking') {
           `${label}: filtro "Assinado" marcado`,
         );
         await shot(page, `contrato-lista-${label}`, { fullPage: true });
+      } else {
+        skipped(`${label}: tabela/cartões (nenhum contrato com documentos na stack)`);
       }
     });
   }
 }
 
 if (payload.case === 'non-admin') {
-  const { userCookie } = payload;
+  const { userCookie, contractId } = payload;
 
   await section('conta comum', async () => {
     const { page } = await openAs(userCookie, DESKTOP);
@@ -330,7 +412,11 @@ if (payload.case === 'non-admin') {
     await nav.waitFor();
     report((await nav.getByRole('link', { name: MENU_LABEL }).count()) === 0, 'sem o item no menu');
 
-    for (const route of ['/contratos-colaboradores', '/contratos-colaboradores/novo']) {
+    for (const route of [
+      '/contratos-colaboradores',
+      '/contratos-colaboradores/novo',
+      `/contratos-colaboradores/${contractId}`,
+    ]) {
       await visit(page, route);
       report(
         !new URL(page.url()).pathname.startsWith('/contratos-colaboradores'),

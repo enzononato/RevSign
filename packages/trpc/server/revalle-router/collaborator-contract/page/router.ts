@@ -1,5 +1,6 @@
 import { router } from '../../../trpc';
 import { createCollaboratorContractRoute } from './create';
+import { deleteCollaboratorContractDraftRoute } from './delete-draft';
 import { exportCollaboratorContractCsvRoute } from './export-csv';
 import { getCollaboratorContractRoute } from './get';
 import { listCollaboratorContractsRoute } from './list';
@@ -14,6 +15,7 @@ import { setCollaboratorContractPausedRoute } from './set-paused';
 export const collaboratorContractPageRouter = router({
   create: createCollaboratorContractRoute,
   saveDraft: saveCollaboratorContractDraftRoute,
+  deleteDraft: deleteCollaboratorContractDraftRoute,
   list: listCollaboratorContractsRoute,
   get: getCollaboratorContractRoute,
   rows: findCollaboratorContractRowsRoute,

@@ -1,8 +1,8 @@
+import { formatPath } from '@documenso/lib/constants/app';
 import { AppError } from '@documenso/lib/errors/app-error';
 import type { SignatureRect } from '@documenso/lib/revalle/collaborator-contract-rect';
 import type { PreviewResult } from '@documenso/lib/revalle/collaborator-rows';
 import { formatDomainList, getClientAllowedDomains, isExternalEmail } from '@documenso/lib/revalle/recipient-domains';
-import { putPdfFile } from '@documenso/lib/universal/upload/put-file';
 import { trpc } from '@documenso/trpc/react';
 import { cn } from '@documenso/ui/lib/utils';
 import { Button } from '@documenso/ui/primitives/button';
@@ -81,7 +81,12 @@ export const ContractWizard = ({ draftId, perHour }: ContractWizardProps) => {
   const [listFileName, setListFileName] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [previewOrigin, setPreviewOrigin] = useState<ListMode | null>(null);
+  const [previewText, setPreviewText] = useState<string | null>(null);
   const [isCheckingList, setIsCheckingList] = useState(false);
+  const checkNowRef = useRef<(() => Promise<PreviewResult | null>) | null>(null);
+  // Na aba "Colar", a caixa vale: texto mudado depois da última conferência ainda não pode ser enviado.
+  const isListStale =
+    listMode === 'paste' && listText.trim() !== '' && (previewOrigin !== 'paste' || listText !== previewText);
 
   // Passo 4.
   const [senderName, setSenderName] = useState('');
@@ -176,7 +181,8 @@ export const ContractWizard = ({ draftId, perHour }: ContractWizardProps) => {
     const run = async () => {
       const serialized = JSON.stringify(fields);
 
-      if (isSentRef.current || serialized === lastSavedRef.current) {
+      // Sem o PDF subido não nasce rascunho (só um título não deixa nada para continuar).
+      if (isSentRef.current || !fields.documentDataId || serialized === lastSavedRef.current) {
         return;
       }
 
@@ -221,9 +227,9 @@ export const ContractWizard = ({ draftId, perHour }: ContractWizardProps) => {
     return next;
   };
 
-  // Grava sozinho depois de uma pausa, a partir do momento em que há título ou PDF.
+  // Grava sozinho depois de uma pausa, a partir do momento em que o PDF subiu.
   useEffect(() => {
-    if (!isHydrated || isSentRef.current || (!draftFields.title && !draftFields.documentDataId)) {
+    if (!isHydrated || isSentRef.current || !draftFields.documentDataId) {
       return;
     }
 
@@ -260,13 +266,23 @@ export const ContractWizard = ({ draftId, perHour }: ContractWizardProps) => {
         return;
       }
 
-      const uploaded = await putPdfFile(file);
+      const uploaded = await uploadContractPdf(file);
+
+      if ('error' in uploaded) {
+        setPdfError(
+          uploaded.error === 'INVALID'
+            ? t`O arquivo não é um PDF válido ou passou de ${CONTRACT_PDF_MAX_MB} MB. Confira e tente de novo.`
+            : t`Não foi possível subir o PDF agora. Tente de novo em instantes.`,
+        );
+
+        return;
+      }
 
       setDocumentDataId(uploaded.id);
       setFileName(file.name);
       setPdfSource({ kind: 'bytes', data: bytes });
     } catch {
-      setPdfError(t`Não foi possível enviar o PDF. Confira a conexão e tente de novo.`);
+      setPdfError(t`Não foi possível subir o PDF agora. Tente de novo em instantes.`);
     } finally {
       setIsUploading(false);
     }
@@ -325,7 +341,7 @@ export const ContractWizard = ({ draftId, perHour }: ContractWizardProps) => {
     }
 
     if (index === 2) {
-      if (isCheckingList) {
+      if (isCheckingList || isListStale) {
         return t`Espere a conferência da lista terminar.`;
       }
 
@@ -347,13 +363,43 @@ export const ContractWizard = ({ draftId, perHour }: ContractWizardProps) => {
   const step0Error = showErrors[0] ? stepError(0) : null;
   const pdfStepError = pdfError ?? (step0Error && step0Error !== titleError ? step0Error : null);
 
+  const stepHeadingRef = useRef<HTMLHeadingElement>(null);
+  const isFirstStepRender = useRef(true);
+
+  // Leitor de tela e teclado começam o passo novo pelo título dele.
+  useEffect(() => {
+    if (isFirstStepRender.current) {
+      isFirstStepRender.current = false;
+
+      return;
+    }
+
+    stepHeadingRef.current?.focus({ preventScroll: true });
+  }, [step]);
+
   const goTo = (index: number) => {
     setStep(index);
     setMaxStep((max) => Math.max(max, index));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const onContinue = () => {
+  const onContinue = async () => {
+    // Lista colada mudada e ainda na pausa da conferência: confere agora e segue com o resultado.
+    if (step === 2 && isListStale && !isCheckingList && checkNowRef.current) {
+      const result = await checkNowRef.current();
+
+      if (!result || result.ready === 0) {
+        setShowErrors((previous) => ({ ...previous, [step]: true }));
+
+        return;
+      }
+
+      void saveDraft(draftFields);
+      goTo(step + 1);
+
+      return;
+    }
+
     const error = stepError(step);
 
     if (error) {
@@ -471,7 +517,12 @@ export const ContractWizard = ({ draftId, perHour }: ContractWizardProps) => {
       <WizardStepper labels={stepLabels} step={step} maxStep={maxStep} onSelect={goTo} />
 
       <PageCard className="mt-5 md:p-7" testId={`wizard-step-${step + 1}`}>
-        <h2 className="mb-5 font-display font-extrabold text-[22px] leading-tight">
+        <h2
+          ref={stepHeadingRef}
+          tabIndex={-1}
+          className="mb-5 rounded-sm font-display font-extrabold text-[22px] leading-tight outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          data-testid="wizard-step-heading"
+        >
           <span className="text-muted-foreground">{step + 1}.</span> {stepLabels[step]}
         </h2>
 
@@ -512,10 +563,13 @@ export const ContractWizard = ({ draftId, perHour }: ContractWizardProps) => {
             onFileName={setListFileName}
             preview={preview}
             previewOrigin={previewOrigin}
-            onPreview={(result, origin) => {
+            previewText={previewText}
+            onPreview={(result, origin, text) => {
               setPreview(result);
               setPreviewOrigin(origin);
+              setPreviewText(text);
             }}
+            checkNowRef={checkNowRef}
             onCheckingChange={setIsCheckingList}
             isResumed={draftId !== null}
             error={currentError}
@@ -553,7 +607,7 @@ export const ContractWizard = ({ draftId, perHour }: ContractWizardProps) => {
           ) : (
             <Button
               type="button"
-              onClick={onContinue}
+              onClick={() => void onContinue()}
               disabled={isUploading || (step === 2 && isCheckingList)}
               data-testid="wizard-continue"
             >
@@ -573,6 +627,29 @@ export const ContractWizard = ({ draftId, perHour }: ContractWizardProps) => {
       />
     </div>
   );
+};
+
+type UploadResult = { id: string } | { error: 'INVALID' | 'UNAVAILABLE' };
+
+/** O mesmo upload do editor (`/api/files/upload-pdf`), com a resposta do servidor separada para a mensagem certa. */
+const uploadContractPdf = async (file: File): Promise<UploadResult> => {
+  const form = new FormData();
+
+  form.append('file', file);
+
+  const response = await fetch(formatPath('/api/files/upload-pdf'), { method: 'POST', body: form });
+
+  if (response.status === 400 || response.status === 413) {
+    return { error: 'INVALID' };
+  }
+
+  if (!response.ok) {
+    return { error: 'UNAVAILABLE' };
+  }
+
+  const { id } = (await response.json()) as { id: string };
+
+  return { id };
 };
 
 const SaveIndicator = ({ state, onRetry }: { state: SaveState; onRetry: () => void }) => {

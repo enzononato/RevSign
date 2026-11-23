@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@documenso/ui/primitiv
 import { Textarea } from '@documenso/ui/primitives/textarea';
 import { Trans, useLingui } from '@lingui/react/macro';
 import { CheckIcon, DownloadIcon, FileSpreadsheetIcon, Loader2Icon, UploadIcon, XIcon } from 'lucide-react';
-import { type DragEvent, useEffect, useId, useRef, useState } from 'react';
+import { type DragEvent, type MutableRefObject, useEffect, useId, useRef, useState } from 'react';
 
 import { downloadText, errorMessage, formatCount } from './contract-ui';
 import { readSpreadsheetFile, SpreadsheetError } from './read-spreadsheet';
@@ -35,7 +35,11 @@ export type StepCollaboratorsProps = {
   preview: PreviewResult | null;
   /** De onde veio a prévia mostrada: a lista colada ou o arquivo. */
   previewOrigin: ListMode | null;
-  onPreview: (preview: PreviewResult | null, origin: ListMode | null) => void;
+  /** O texto colado que gerou a prévia (para saber se a caixa mudou depois). */
+  previewText: string | null;
+  onPreview: (preview: PreviewResult | null, origin: ListMode | null, text: string | null) => void;
+  /** O assistente confere a caixa na hora (Continuar com a lista mudada), sem esperar a pausa. */
+  checkNowRef: MutableRefObject<(() => Promise<PreviewResult | null>) | null>;
   /** Avisa o assistente enquanto a conferência roda (o Continuar espera). */
   onCheckingChange: (isChecking: boolean) => void;
   /** Rascunho retomado: a lista não fica guardada. */
@@ -54,7 +58,9 @@ export const StepCollaborators = ({
   onFileName,
   preview,
   previewOrigin,
+  previewText,
   onPreview,
+  checkNowRef,
   onCheckingChange,
   isResumed,
   error,
@@ -64,8 +70,9 @@ export const StepCollaborators = ({
   const textId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const requestRef = useRef(0);
-  // Voltar ao passo com a lista colada já conferida não confere de novo.
-  const checkedTextRef = useRef<string | null>(preview && previewOrigin === 'paste' ? text : null);
+  // O último texto mandado para a conferência. Começa com o da prévia: voltar ao passo só confere de novo se a caixa
+  // mudou desde então.
+  const checkedTextRef = useRef<string | null>(preview && previewOrigin === 'paste' ? previewText : null);
 
   const [checkError, setCheckError] = useState<string | null>(null);
   const [isChecking, setIsChecking] = useState(false);
@@ -84,9 +91,14 @@ export const StepCollaborators = ({
   };
 
   /** Confere a lista no servidor; respostas atrasadas (a pessoa já colou outra) são ignoradas. */
-  const check = async (input: { text: string } | { rows: string[][] }) => {
+  const check = async (input: { text: string } | { rows: string[][] }): Promise<PreviewResult | null> => {
     const request = ++requestRef.current;
     const origin: ListMode = 'text' in input ? 'paste' : 'file';
+    const sourceText = 'text' in input ? input.text : null;
+
+    if (sourceText !== null) {
+      checkedTextRef.current = sourceText;
+    }
 
     setCheckError(null);
 
@@ -95,16 +107,16 @@ export const StepCollaborators = ({
       const parsed = 'text' in input ? parseCollaboratorText(input.text) : parseCollaboratorTable(input.rows);
 
       if (parsed.length === 0) {
-        onPreview(null, null);
+        onPreview(null, null, null);
         setCheckError(t`Não encontramos nenhuma linha com nome, e-mail e CPF.`);
 
-        return;
+        return null;
       }
     } catch {
-      onPreview(null, null);
+      onPreview(null, null, null);
       setCheckError(tooManyMessage);
 
-      return;
+      return null;
     }
 
     setChecking(true);
@@ -112,14 +124,20 @@ export const StepCollaborators = ({
     try {
       const result = await previewRows.mutateAsync(input);
 
-      if (request === requestRef.current) {
-        onPreview(result, origin);
+      if (request !== requestRef.current) {
+        return null;
       }
+
+      onPreview(result, origin, sourceText);
+
+      return result;
     } catch (err) {
       if (request === requestRef.current) {
-        onPreview(null, null);
+        onPreview(null, null, null);
         setCheckError(errorMessage(err, t`Não foi possível conferir a lista. Tente de novo.`));
       }
+
+      return null;
     } finally {
       if (request === requestRef.current) {
         setChecking(false);
@@ -145,19 +163,25 @@ export const StepCollaborators = ({
       setCheckError(null);
 
       if (previewOrigin !== 'file') {
-        onPreview(null, null);
+        onPreview(null, null, null);
       }
 
       return;
     }
 
-    const timer = setTimeout(() => {
-      checkedTextRef.current = text;
-      void check({ text });
-    }, PASTE_DEBOUNCE_MS);
+    const timer = setTimeout(() => void check({ text }), PASTE_DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
   }, [text, mode]);
+
+  checkNowRef.current = () => check({ text });
+
+  useEffect(
+    () => () => {
+      checkNowRef.current = null;
+    },
+    [],
+  );
 
   const onFile = async (file: File | undefined) => {
     if (!file) {
@@ -165,7 +189,7 @@ export const StepCollaborators = ({
     }
 
     onFileName(file.name);
-    onPreview(null, null);
+    onPreview(null, null, null);
     checkedTextRef.current = null;
     setCheckError(null);
     setIsReadingFile(true);

@@ -165,14 +165,17 @@ export const ConfirmSendDialog = ({
   error,
   onConfirm,
 }: ConfirmSendDialogProps) => {
-  const count = formatCount(readyCount);
+  const { t } = useLingui();
 
   return (
     <Dialog open={open} onOpenChange={(value) => !isSending && onOpenChange(value)}>
       <DialogContent data-testid="confirm-send-dialog">
         <DialogHeader>
           <DialogTitle>
-            <Trans>Enviar para o representante e, depois que ele assinar, para {count} colaboradores?</Trans>
+            {t`${plural(readyCount, {
+              one: 'Enviar para o representante e, depois que ele assinar, para # colaborador?',
+              other: 'Enviar para o representante e, depois que ele assinar, para # colaboradores?',
+            })}`}
           </DialogTitle>
           <DialogDescription>
             <Trans>

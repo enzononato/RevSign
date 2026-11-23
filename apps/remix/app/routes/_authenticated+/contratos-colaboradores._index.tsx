@@ -3,15 +3,26 @@ import { formatRevalleDateTime } from '@documenso/lib/revalle/date-format';
 import { isAdmin } from '@documenso/lib/utils/is-admin';
 import { trpc } from '@documenso/trpc/react';
 import { Button } from '@documenso/ui/primitives/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@documenso/ui/primitives/dialog';
+import { useToast } from '@documenso/ui/primitives/use-toast';
 import { msg } from '@lingui/core/macro';
-import { Trans } from '@lingui/react/macro';
-import { ChevronRightIcon, PlusIcon } from 'lucide-react';
+import { Trans, useLingui } from '@lingui/react/macro';
+import { ChevronRightIcon, PlusIcon, Trash2Icon } from 'lucide-react';
+import { useState } from 'react';
 import { Link, redirect } from 'react-router';
 
 import {
   ContractStatusPill,
   contractPath,
   EmptyState,
+  errorMessage,
   formatCount,
   newContractPath,
 } from '~/components/revalle/collaborator-contract-page/contract-ui';
@@ -41,6 +52,29 @@ export default function CollaboratorContractsPage() {
   });
 
   const contracts = data?.contracts ?? [];
+
+  const { t } = useLingui();
+  const { toast } = useToast();
+  const [deleting, setDeleting] = useState<{ id: string; title: string } | null>(null);
+  const deleteDraft = trpc.revalle.collaboratorContract.page.deleteDraft.useMutation();
+
+  const onConfirmDelete = async () => {
+    if (!deleting) {
+      return;
+    }
+
+    try {
+      await deleteDraft.mutateAsync({ contractId: deleting.id });
+      setDeleting(null);
+      toast({ title: t`Rascunho excluído`, duration: 5000 });
+    } catch (err) {
+      toast({
+        title: t`Não foi possível excluir o rascunho`,
+        description: errorMessage(err, t`Tente de novo.`),
+        variant: 'destructive',
+      });
+    }
+  };
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-screen-lg px-4 md:px-8" data-testid="contracts-page">
@@ -75,46 +109,69 @@ export default function CollaboratorContractsPage() {
           const signed = formatCount(contract.signed);
 
           return (
-            <Link
+            <div
               key={contract.id}
-              to={href}
-              className="group flex min-w-0 items-center gap-4 rounded-card bg-card px-5 py-4 shadow-card transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="flex min-w-0 items-stretch rounded-card bg-card shadow-card"
               data-testid="contracts-row"
               data-status={contract.status}
             >
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                  <p className="min-w-0 break-words font-bold text-[15.5px]">
-                    {contract.title || <Trans>Sem título</Trans>}
+              <Link
+                to={href}
+                className="group flex min-w-0 flex-1 items-center gap-4 rounded-card px-5 py-4 transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <p className="min-w-0 break-words font-bold text-[15.5px]">
+                      {contract.title || <Trans>Sem título</Trans>}
+                    </p>
+                    <ContractStatusPill status={contract.status} />
+                  </div>
+                  <p className="mt-1 text-muted-foreground text-sm">
+                    {isDraft ? (
+                      <Trans>Rascunho: continue de onde parou.</Trans>
+                    ) : contract.total > 0 ? (
+                      <Trans>
+                        {signed} de {total} assinaram
+                      </Trans>
+                    ) : (
+                      <Trans>Nenhum documento enviado ainda.</Trans>
+                    )}
+                    <span aria-hidden> · </span>
+                    <Trans>criado em {formatRevalleDateTime(contract.createdAt)}</Trans>
+                    {contract.isLegacy && (
+                      <>
+                        <span aria-hidden> · </span>
+                        <Trans>versão anterior</Trans>
+                      </>
+                    )}
                   </p>
-                  <ContractStatusPill status={contract.status} />
                 </div>
-                <p className="mt-1 text-muted-foreground text-sm">
-                  {isDraft ? (
-                    <Trans>Rascunho: continue de onde parou.</Trans>
-                  ) : contract.total > 0 ? (
-                    <Trans>
-                      {signed} de {total} assinaram
-                    </Trans>
-                  ) : (
-                    <Trans>Nenhum documento enviado ainda.</Trans>
-                  )}
-                  <span aria-hidden> · </span>
-                  <Trans>criado em {formatRevalleDateTime(contract.createdAt)}</Trans>
-                  {contract.isLegacy && (
-                    <>
-                      <span aria-hidden> · </span>
-                      <Trans>versão anterior</Trans>
-                    </>
-                  )}
-                </p>
-              </div>
 
-              <span className="hidden shrink-0 items-center gap-1 font-bold text-brand-text text-sm sm:inline-flex">
-                {isDraft ? <Trans>Continuar</Trans> : <Trans>Acompanhar</Trans>}
-                <ChevronRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
-              </span>
-            </Link>
+                <span className="hidden shrink-0 items-center gap-1 font-bold text-brand-text text-sm sm:inline-flex">
+                  {isDraft ? <Trans>Continuar</Trans> : <Trans>Acompanhar</Trans>}
+                  <ChevronRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
+                </span>
+              </Link>
+
+              {isDraft && (
+                <div className="flex shrink-0 items-center border-border border-l px-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    aria-label={t`Excluir rascunho ${contract.title}`}
+                    onClick={() => setDeleting({ id: contract.id, title: contract.title })}
+                    data-testid="contracts-delete-draft"
+                  >
+                    <Trash2Icon className="h-4 w-4 sm:mr-1.5" aria-hidden />
+                    <span className="hidden sm:inline">
+                      <Trans>Excluir rascunho</Trans>
+                    </span>
+                  </Button>
+                </div>
+              )}
+            </div>
           );
         })}
 
@@ -154,6 +211,32 @@ export default function CollaboratorContractsPage() {
           </EmptyState>
         )}
       </div>
+
+      <Dialog open={deleting !== null} onOpenChange={(open) => !open && !deleteDraft.isPending && setDeleting(null)}>
+        <DialogContent data-testid="contracts-delete-dialog">
+          <DialogHeader>
+            <DialogTitle>
+              <Trans>Excluir este rascunho?</Trans>
+            </DialogTitle>
+            <DialogDescription>
+              <Trans>O rascunho e o PDF dele saem da lista. Nada foi enviado a ninguém.</Trans>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" disabled={deleteDraft.isPending} onClick={() => setDeleting(null)}>
+              <Trans>Cancelar</Trans>
+            </Button>
+            <Button
+              variant="destructive"
+              loading={deleteDraft.isPending}
+              onClick={() => void onConfirmDelete()}
+              data-testid="contracts-delete-confirm"
+            >
+              <Trans>Excluir rascunho</Trans>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
