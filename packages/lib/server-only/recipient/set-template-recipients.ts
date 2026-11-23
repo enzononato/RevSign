@@ -13,6 +13,7 @@ import { nanoid } from '../../universal/id';
 import { createRecipientAuthOptions } from '../../utils/document-auth';
 import { type EnvelopeIdOptions, mapSecondaryIdToTemplateId } from '../../utils/envelope';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
+import { assertCollaboratorContractMutable } from '../revalle/collaborator-contract/guard'; // REVALLE:
 import { findAccountNamesFor, findHrConfirmedRecipientIds } from '../revalle/recipients/fill-recipient-names'; // REVALLE:
 import { assertCompatibleRecipientGrouping } from '../signature-level/assert-compatible-recipient-grouping';
 import { assertCompatibleRecipientRole } from '../signature-level/assert-compatible-recipient-role';
@@ -53,6 +54,9 @@ export const setTemplateRecipients = async ({ userId, teamId, id, recipients }: 
   if (!envelope) {
     throw new Error('Template not found');
   }
+
+  // REVALLE: contrato para colaboradores (v.21): só o administrador do sistema altera.
+  await assertCollaboratorContractMutable({ envelopeId: envelope.id, actor: { userId } });
 
   const recipientsHaveActionAuth = recipients.some(
     (recipient) => recipient.actionAuth && recipient.actionAuth.length > 0,

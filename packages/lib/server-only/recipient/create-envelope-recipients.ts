@@ -112,7 +112,7 @@ export const createEnvelopeRecipients = async ({
     // Lock the envelope so concurrent additions allocate distinct signing orders.
     await tx.$queryRaw`SELECT "id" FROM "Envelope" WHERE "id" = ${envelope.id} FOR UPDATE`;
 
-    await assertEnvelopeMutable(envelope, tx);
+    await assertEnvelopeMutable(envelope, tx, { userId }); // REVALLE: quem altera (contrato para colaboradores)
 
     const existingRecipients = await tx.recipient.findMany({
       where: {

@@ -133,7 +133,7 @@ export const updateEnvelopeFields = async ({
   });
 
   const updatedFields = await prisma.$transaction(async (tx) => {
-    await assertEnvelopeMutable(envelope, tx);
+    await assertEnvelopeMutable(envelope, tx, { userId }); // REVALLE: quem altera (contrato para colaboradores)
 
     return await Promise.all(
       fieldsToUpdate.map(async ({ originalField, updateData, recipientEmail }) => {

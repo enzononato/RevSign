@@ -35,7 +35,7 @@ const ZBulkSendFormSchema = z.object({
 
 type TBulkSendFormSchema = z.infer<typeof ZBulkSendFormSchema>;
 
-type TBulkSendValidationError = TBulkSendCsvError | { type: 'UPLOAD_ERROR'; code: string };
+type TBulkSendValidationError = TBulkSendCsvError | { type: 'UPLOAD_ERROR'; code: string; message?: string }; // REVALLE: message
 
 export type TemplateBulkSendDialogProps = {
   templateId: number;
@@ -155,7 +155,13 @@ export const TemplateBulkSendDialog = ({
 
       const error = AppError.parseError(err);
 
-      setValidationError({ type: 'UPLOAD_ERROR', code: error.code });
+      // REVALLE: contrato para colaboradores: a recusa do servidor já vem em português (planilha em andamento, falta a
+      // assinatura do colaborador no modelo, só o admin).
+      setValidationError({
+        type: 'UPLOAD_ERROR',
+        code: error.code,
+        message: revalleCollaboratorContract ? error.userMessage : undefined,
+      });
     }
   };
 
@@ -352,8 +358,10 @@ export const TemplateBulkSendDialog = ({
                         </ul>
                       </>
                     ))
-                    .with({ type: 'UPLOAD_ERROR' }, ({ code }) =>
-                      code === AppErrorCode.LIMIT_EXCEEDED ? (
+                    .with({ type: 'UPLOAD_ERROR' }, ({ code, message }) =>
+                      message ? (
+                        message // REVALLE:
+                      ) : code === AppErrorCode.LIMIT_EXCEEDED ? (
                         <Trans>The CSV exceeds the maximum file size.</Trans>
                       ) : (
                         <Trans>Failed to upload CSV. Please check the file format and try again.</Trans>

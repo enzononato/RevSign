@@ -165,7 +165,7 @@ export const setDocumentRecipients = async ({
   const revalleAccountNames = await findAccountNamesFor(linkedRecipients);
 
   const persistedRecipients = await prisma.$transaction(async (tx) => {
-    await assertEnvelopeMutable(envelope, tx);
+    await assertEnvelopeMutable(envelope, tx, { userId }); // REVALLE: quem altera (contrato para colaboradores)
 
     return await Promise.all(
       linkedRecipients.map(async (recipient) => {

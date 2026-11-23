@@ -1,9 +1,9 @@
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
 import { getEnvelopeWhereInput } from '@documenso/lib/server-only/envelope/get-envelope-by-id';
 import { UNSAFE_updateEnvelopeItems } from '@documenso/lib/server-only/envelope-item/update-envelope-items';
+import { assertCollaboratorContractMutable } from '@documenso/lib/server-only/revalle/collaborator-contract/guard'; // REVALLE:
 import { getEnvelopeItemPermissions } from '@documenso/lib/utils/envelope';
 import { prisma } from '@documenso/prisma';
-
 import { authenticatedProcedure } from '../trpc';
 import {
   updateEnvelopeItemsMeta,
@@ -48,6 +48,9 @@ export const updateEnvelopeItemsRoute = authenticatedProcedure
         message: 'Envelope not found',
       });
     }
+
+    // REVALLE: contrato para colaboradores (v.21): arquivos do documento na fila e do modelo marcado, só o admin.
+    await assertCollaboratorContractMutable({ envelopeId: envelope.id, actor: { userId: user.id } });
 
     if (data.length === 0) {
       throw new AppError(AppErrorCode.INVALID_BODY, {

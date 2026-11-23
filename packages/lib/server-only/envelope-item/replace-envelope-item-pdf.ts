@@ -97,7 +97,7 @@ export const UNSAFE_replaceEnvelopeItemPdf = async ({
   let didFieldsChange = false;
 
   const updatedEnvelopeItem = await prisma.$transaction(async (tx) => {
-    await assertEnvelopeMutable(envelope, tx);
+    await assertEnvelopeMutable(envelope, tx, { userId: user.id }); // REVALLE: quem altera (contrato para colaboradores)
 
     // REVALLE: o bloco "Conta e centro de custo" era do arquivo antigo; o novo arquivo começa sem bloco. A trava do
     // envelope vem antes de tudo (mesma ordem da gravação do bloco: envelope, depois item), senão as duas se travam.

@@ -845,7 +845,7 @@ export const templateRouter = router({
     if (revalleContract) {
       return await uploadCollaboratorBulkSend({
         contractId: revalleContract.id,
-        templateRecipientCount: template.recipients.length,
+        templateEnvelopeId: template.envelopeId,
         csv,
         userId: user.id,
       });

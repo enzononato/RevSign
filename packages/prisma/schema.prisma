@@ -1762,6 +1762,8 @@ model RevalleBulkSendUpload {
   createdCount  Int                         @default(0)
   skippedCount  Int                         @default(0)
   failedCount   Int                         @default(0)
+  /// Quem está criando os documentos agora (renovado a cada linha). Outro disparo só entra depois que ele vence.
+  leaseUntil    DateTime?
   completedAt   DateTime?
   createdAt     DateTime                    @default(now())
   /// Avança a cada linha: parada há mais de 15 minutos sem terminar = o job caiu (a varredura dispara de novo).
@@ -1777,12 +1779,14 @@ enum RevalleBulkSendStatus {
   FAILED
 }
 
-/// REVALLE (v.21): documento criado de um contrato para colaboradores. A linha é a marca "sem conta" do documento (a
-/// regra "e-mail da empresa precisa de conta" não vale nele e o portão pede CPF e data sempre) e a fila de envio em
-/// lotes. `lastErrorCode` é só o código do erro, nunca dado pessoal.
+/// REVALLE (v.21): documento criado de um contrato para colaboradores. A linha é a marca "sem conta" do documento e a
+/// fila de envio em lotes. A dispensa de conta (e o CPF sempre no portão) vale só para `recipientId` e só enquanto o
+/// e-mail dele continua `email` (normalizado); um e-mail por contrato. `lastErrorCode` é só o código, nunca dado pessoal.
 model RevalleBulkSendQueue {
   id            String                      @id @default(cuid())
   envelopeId    String                      @unique
+  recipientId   Int                         @unique
+  email         String
   envelope      Envelope                    @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
   contractId    String
   contract      RevalleCollaboratorContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
@@ -1794,6 +1798,7 @@ model RevalleBulkSendQueue {
   createdAt     DateTime                    @default(now())
   updatedAt     DateTime                    @updatedAt
 
+  @@unique([contractId, email])
   @@index([contractId, status])
   @@index([status, createdAt])
 }

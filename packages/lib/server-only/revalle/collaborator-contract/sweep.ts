@@ -12,23 +12,58 @@ import { revalleErrorCode } from '../error-code';
 /** Linha presa por uma varredura que caiu no meio: depois disso, outra varredura pode pegá-la. */
 const STALE_LOCK_MS = 10 * 60 * 1000;
 
+/** Planilha sem a vez de ninguém e parada há mais que isso sem terminar: o job caiu (ex.: o app reiniciou). */
+const STALLED_UPLOAD_MS = 15 * 60 * 1000;
+
 const SYSTEM_REQUEST_METADATA: ApiRequestMetadata = { source: 'app', auth: null, requestMetadata: {} };
 
-/** Cada linha da planilha avança `updatedAt`; parada há mais que isso sem terminar, o job caiu (ex.: o app reiniciou). */
-const STALLED_UPLOAD_MS = 15 * 60 * 1000;
+/**
+ * O rascunho que não vai mais sair é cancelado: nenhum documento com a marca "sem conta" fica esperando um envio que
+ * não acontece (e ninguém o envia à mão).
+ */
+const cancelDraft = async (envelopeId: string) => {
+  await prisma.envelope.updateMany({
+    where: { id: envelopeId, status: DocumentStatus.DRAFT },
+    data: { status: DocumentStatus.CANCELLED, completedAt: new Date() },
+  });
+};
 
 const resumeStalledUploads = async (now: Date) => {
   const stalled = await prisma.revalleBulkSendUpload.findMany({
-    where: { completedAt: null, updatedAt: { lt: new Date(now.getTime() - STALLED_UPLOAD_MS) } },
+    where: {
+      completedAt: null,
+      updatedAt: { lt: new Date(now.getTime() - STALLED_UPLOAD_MS) },
+      OR: [{ leaseUntil: null }, { leaseUntil: { lt: now } }],
+    },
     select: { id: true },
     take: 5,
   });
 
   for (const upload of stalled) {
-    // Marca o novo disparo: a próxima varredura só dispara de novo se esta também parar.
+    // Marca o novo disparo: a próxima varredura só dispara de novo se este também parar. Um disparo que ainda está
+    // trabalhando segura a vez (`leaseUntil`) e o novo sai sem fazer nada.
     await prisma.revalleBulkSendUpload.update({ where: { id: upload.id }, data: { updatedAt: now } });
     await jobs.triggerJob({ name: 'internal.revalle-collaborator-bulk-send', payload: { uploadId: upload.id } });
   }
+};
+
+/** Modelo apagado: a fila do contrato não sai mais; cada documento fica como "falhou" (TEMPLATE_DELETED), cancelado. */
+const failQueueOfDeletedTemplates = async () => {
+  const orphaned = await prisma.revalleBulkSendQueue.findMany({
+    where: { status: RevalleBulkSendStatus.QUEUED, contract: { templateEnvelopeId: null } },
+    select: { id: true, envelopeId: true },
+    take: 500,
+  });
+
+  for (const row of orphaned) {
+    await prisma.revalleBulkSendQueue.update({
+      where: { id: row.id },
+      data: { status: RevalleBulkSendStatus.FAILED, lastErrorCode: 'TEMPLATE_DELETED', lockedAt: null },
+    });
+    await cancelDraft(row.envelopeId);
+  }
+
+  return orphaned.length;
 };
 
 /**
@@ -36,31 +71,37 @@ const resumeStalledUploads = async (now: Date) => {
  * `ceil(NEXT_PRIVATE_REVALLE_BULK_SEND_PER_HOUR / 4)` documentos (padrão 25), os mais antigos primeiro, dos contratos
  * não pausados cujo modelo ainda existe. Cada envio é o `sendDocument` normal (convite com o assunto automático e o
  * comprovante), feito como o dono do documento (quem enviou a planilha). A falha de um documento não para a fila: ele
- * volta para a fila e, na 3ª falha, fica como "falhou" com o código do erro. O log nunca traz nome nem e-mail.
+ * volta para a fila e, na 3ª falha, fica como "falhou" com o código do erro e o rascunho é cancelado. O log nunca traz
+ * nome nem e-mail.
  */
 export const sweepCollaboratorSendQueue = async ({ now = new Date() }: { now?: Date } = {}) => {
   await resumeStalledUploads(now);
 
+  const result = { sent: 0, retried: 0, failed: await failQueueOfDeletedTemplates() };
+
   const batchSize = revalleBulkSendBatchSize(env('NEXT_PRIVATE_REVALLE_BULK_SEND_PER_HOUR'));
-  const unlocked = [{ lockedAt: null }, { lockedAt: { lt: new Date(now.getTime() - STALE_LOCK_MS) } }];
+  const unlocked = () => [{ lockedAt: null }, { lockedAt: { lt: new Date(Date.now() - STALE_LOCK_MS) } }];
 
   const candidates = await prisma.revalleBulkSendQueue.findMany({
     where: {
       status: RevalleBulkSendStatus.QUEUED,
       contract: { paused: false, templateEnvelopeId: { not: null } },
-      OR: unlocked,
+      OR: unlocked(),
     },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     take: batchSize,
     select: { id: true, envelopeId: true, attempts: true },
   });
 
-  const result = { sent: 0, retried: 0, failed: 0 };
-
   for (const candidate of candidates) {
     const claimed = await prisma.revalleBulkSendQueue.updateMany({
-      where: { id: candidate.id, status: RevalleBulkSendStatus.QUEUED, OR: unlocked },
-      data: { lockedAt: now, attempts: { increment: 1 } },
+      where: {
+        id: candidate.id,
+        status: RevalleBulkSendStatus.QUEUED,
+        contract: { paused: false },
+        OR: unlocked(),
+      },
+      data: { lockedAt: new Date(), attempts: { increment: 1 } },
     });
 
     if (claimed.count === 0) {
@@ -125,6 +166,7 @@ export const sweepCollaboratorSendQueue = async ({ now = new Date() }: { now?: D
       });
 
       if (isFinal) {
+        await cancelDraft(candidate.envelopeId);
         result.failed += 1;
       } else {
         result.retried += 1;

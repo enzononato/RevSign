@@ -20,6 +20,7 @@ import { AppError, AppErrorCode } from '../../errors/app-error';
 import type { EnvelopeIdOptions } from '../../utils/envelope';
 import { mapFieldToLegacyField } from '../../utils/fields';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
+import { assertCollaboratorContractMutable } from '../revalle/collaborator-contract/guard'; // REVALLE:
 import { assertRevalleFieldTypesAllowed } from '../revalle/signature-only'; // REVALLE:
 
 export type SetFieldsForTemplateOptions = {
@@ -71,6 +72,9 @@ export const setFieldsForTemplate = async ({ userId, teamId, id, fields }: SetFi
       message: 'Document not found',
     });
   }
+
+  // REVALLE: contrato para colaboradores (v.21): só o administrador do sistema altera.
+  await assertCollaboratorContractMutable({ envelopeId: envelope.id, actor: { userId } });
 
   const existingFields = envelope.fields;
 

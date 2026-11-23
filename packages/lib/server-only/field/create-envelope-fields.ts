@@ -248,7 +248,7 @@ export const createEnvelopeFields = async ({
   });
 
   const createdFields = await prisma.$transaction(async (tx) => {
-    await assertEnvelopeMutable(envelope, tx);
+    await assertEnvelopeMutable(envelope, tx, { userId }); // REVALLE: quem altera (contrato para colaboradores)
 
     const newlyCreatedFields = await tx.field.createManyAndReturn({
       data: validatedFields.map((field) => ({

@@ -11,6 +11,7 @@ import type { EnvelopeIdOptions } from '../../utils/envelope';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { incrementDocumentId, incrementTemplateId } from '../envelope/increment-id';
 import { assertOrganisationRatesAndLimits } from '../rate-limit/assert-organisation-rates-and-limits';
+import { assertCollaboratorContractMutable } from '../revalle/collaborator-contract/guard'; // REVALLE:
 import { copyInvoiceAnnotationBoxes } from '../revalle/invoice/annotation-box'; // REVALLE:
 import { assertNotPatrimonioTermo } from '../revalle/patrimonio/guard'; // REVALLE:
 import { resolveSignatureLevel } from '../signature-level/resolve-signature-level';
@@ -83,6 +84,7 @@ export const duplicateEnvelope = async ({ id, userId, teamId, overrides }: Dupli
   }
 
   await assertNotPatrimonioTermo(envelope.id); // REVALLE: termo do Patrimônio não é duplicado nem vira modelo
+  await assertCollaboratorContractMutable({ envelopeId: envelope.id, actor: { userId } }); // REVALLE: contrato para colaboradores: duplicar ou virar modelo, só o admin
 
   if (duplicateAsTemplate && envelope.type !== EnvelopeType.DOCUMENT) {
     throw new AppError(AppErrorCode.INVALID_REQUEST, {

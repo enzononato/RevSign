@@ -85,7 +85,7 @@ export const adminDeleteRecipient = async ({ recipientId, reason, requestMetadat
   await assertEnvelopeMutable(envelope);
 
   const deletedRecipient = await prisma.$transaction(async (tx) => {
-    await assertEnvelopeMutable(envelope, tx);
+    await assertEnvelopeMutable(envelope, tx, { isAdmin: true }); // REVALLE: quem altera (contrato para colaboradores)
 
     await tx.documentAuditLog.create({
       data: createDocumentAuditLogData({

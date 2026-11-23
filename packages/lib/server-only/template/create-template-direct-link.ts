@@ -9,6 +9,7 @@ import { nanoid } from 'nanoid';
 import { AppError, AppErrorCode } from '../../errors/app-error';
 import { type EnvelopeIdOptions, mapSecondaryIdToTemplateId } from '../../utils/envelope';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
+import { assertNotCollaboratorContractTemplate } from '../revalle/collaborator-contract/guard'; // REVALLE:
 
 export type CreateTemplateDirectLinkOptions = {
   id: EnvelopeIdOptions;
@@ -41,6 +42,8 @@ export const createTemplateDirectLink = async ({
   if (!envelope) {
     throw new AppError(AppErrorCode.NOT_FOUND, { message: 'Template not found' });
   }
+
+  await assertNotCollaboratorContractTemplate(envelope.id); // REVALLE: contrato para colaboradores sem link direto
 
   if (envelope.directLink) {
     throw new AppError(AppErrorCode.ALREADY_EXISTS, { message: 'Direct template already exists' });

@@ -104,7 +104,7 @@ export const deleteEnvelopeRecipient = async ({
   });
 
   const deletedRecipient = await prisma.$transaction(async (tx) => {
-    await assertEnvelopeMutable(envelope, tx);
+    await assertEnvelopeMutable(envelope, tx, { userId }); // REVALLE: quem altera (contrato para colaboradores)
 
     if (envelope.type === EnvelopeType.DOCUMENT) {
       await tx.documentAuditLog.create({

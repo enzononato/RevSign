@@ -11,6 +11,7 @@ import { getFileServerSide } from '../../../universal/upload/get-file.server';
 import { putPdfFileServerSide } from '../../../universal/upload/put-file.server';
 import { isAdmin } from '../../../utils/is-admin';
 import { createEnvelope } from '../../envelope/create-envelope';
+import { assertNotPatrimonioTermo } from '../patrimonio/guard';
 
 const FORBIDDEN_MESSAGE = 'Só o administrador pode fazer isso.';
 
@@ -109,7 +110,8 @@ export const createCollaboratorContractFromEnvelope = async ({
   }
 
   const source = await prisma.envelope.findFirst({
-    where: { id: sourceEnvelopeId, type: EnvelopeType.DOCUMENT, deletedAt: null },
+    // Só um documento do time aberto pelo admin (o modelo nasce nesse time).
+    where: { id: sourceEnvelopeId, type: EnvelopeType.DOCUMENT, deletedAt: null, teamId },
     select: {
       id: true,
       title: true,
@@ -133,6 +135,8 @@ export const createCollaboratorContractFromEnvelope = async ({
   if (!source) {
     throw new AppError(AppErrorCode.NOT_FOUND, { message: 'Documento não encontrado.', statusCode: 404 });
   }
+
+  await assertNotPatrimonioTermo(source.id);
 
   if (source.status !== DocumentStatus.COMPLETED) {
     throw invalid('Só um documento concluído pode virar contrato para colaboradores.');

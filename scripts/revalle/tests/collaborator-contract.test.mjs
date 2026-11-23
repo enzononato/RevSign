@@ -14,7 +14,7 @@
 // revalle/colaboradores/dev-seed.sql. Não importa `account-autologin.mjs`: o colaborador age sem sessão de propósito.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, beforeEach, test } from 'node:test';
@@ -50,6 +50,8 @@ const repEmail = `contrato-rep-${RUN}@revalle.com.br`;
 const colabA = `contrato-colab-a-${RUN}@revalle.com.br`;
 const colabB = `contrato-colab-b-${RUN}@revalle.com.br`;
 const title = `[TESTE] contrato colaboradores ${RUN}`;
+const memberEmail = `contrato-membro-${RUN}@revalle.com.br`;
+const memberRowId = `contrato-membro-${RUN}`;
 
 const user = { email: process.env.REVSIGN_USER_EMAIL, password: process.env.REVSIGN_USER_PASSWORD };
 const admin = { email: process.env.REVSIGN_ADMIN_EMAIL, password: process.env.REVSIGN_ADMIN_PASSWORD };
@@ -187,6 +189,7 @@ beforeEach(() => {
 
 after(() => {
   cleanupLinks();
+  db(`delete from "OrganisationMember" where id = '${memberRowId}'`);
 
   // A fila deste teste não sai mais em outras varreduras (ex.: do cron da stack).
   if (fx.contractId) {
@@ -291,6 +294,27 @@ sessionTest(
     assert.ok(!templateText.includes('SHA-256 do original'), 'o modelo levou a página do certificado');
     assert.ok(templateText.includes(fx.repCode), 'o modelo perdeu o carimbo do representante');
 
+    // Sem a assinatura do colaborador no modelo, a planilha é recusada (nada entra na fila).
+    const legacyTemplateId = Number(
+      db(`select "secondaryId" from "Envelope" where id = '${fx.templateId}'`).replace(/\D/g, ''),
+    );
+    const early = await trpcAs(
+      fx.adminCookie,
+      'mutation',
+      'template.uploadBulkSend',
+      {
+        templateId: legacyTemplateId,
+        teamId: fx.adminTeamId,
+        csv: `recipient_1_email,recipient_1_name\n${colabA},A\n`,
+        sendImmediately: false,
+      },
+      { 'x-team-id': String(fx.adminTeamId) },
+    );
+
+    assert.equal(early.status, 400, early.text);
+    assert.ok(early.text.includes('Posicione a assinatura do colaborador'), early.text);
+    assert.equal(db(`select count(*) from "RevalleBulkSendUpload" where "contractId" = '${fx.contractId}'`), '0');
+
     // A assinatura do colaborador, como o admin faz no editor.
     const recipientId = Number(db(`select id from "Recipient" where "envelopeId" = '${fx.templateId}'`));
     const fields = await trpcAs(
@@ -373,8 +397,121 @@ sessionTest('a planilha com 3 linhas (uma repetida) gera 2 documentos na fila, s
   assert.equal((await mailsTo(colabB)).filter((m) => !seenB.has(m.ID)).length, 0, 'saiu e-mail antes da varredura');
 });
 
-sessionTest('a varredura envia a fila e o Mailpit recebe um convite por pessoa', async () => {
+sessionTest('membro do time (não admin) não altera o rascunho na fila nem o modelo marcado', async (t) => {
   needs('contractId');
+
+  const teamRoleGroup = db(
+    `select "organisationGroupId" from "TeamGroup" where "teamId" = ${fx.adminTeamId} and "teamRole" = 'ADMIN' order by id limit 1`,
+  );
+
+  if (!teamRoleGroup) {
+    t.skip('o time do admin não tem o grupo de ADMIN do time');
+
+    return;
+  }
+
+  const memberCookie = await sessionFor(memberEmail);
+  const memberId = Number(db(`select id from "User" where email = '${memberEmail}'`));
+  const orgId = db(`select "organisationId" from "Team" where id = ${fx.adminTeamId}`);
+
+  db(
+    `insert into "OrganisationMember" (id, "userId", "organisationId", "updatedAt") values ('${memberRowId}', ${memberId}, '${orgId}', now()) on conflict do nothing`,
+  );
+  db(
+    `insert into "OrganisationGroupMember" (id, "groupId", "organisationMemberId") values ('${memberRowId}-g', '${teamRoleGroup}', '${memberRowId}') on conflict do nothing`,
+  );
+
+  const asMember = (kind, procedure, input) =>
+    trpcAs(memberCookie, kind, procedure, input, { 'x-team-id': String(fx.adminTeamId) });
+  const draft = db(
+    `select "envelopeId" from "RevalleBulkSendQueue" where "contractId" = '${fx.contractId}' and email = '${colabB}'`,
+  );
+  const [itemId, dataId] = db(
+    `select id || '|' || "documentDataId" from "EnvelopeItem" where "envelopeId" = '${draft}'`,
+  ).split('|');
+  const recipientsBefore = db(`select string_agg(email, ',') from "Recipient" where "envelopeId" = '${draft}'`);
+
+  // O membro vê o documento (é admin do time): a recusa vem da regra do contrato, não do acesso.
+  assert.equal((await asMember('query', 'envelope.get', { envelopeId: draft })).status, 200);
+
+  for (const [what, res] of [
+    [
+      'trocar os destinatários do rascunho',
+      await asMember('mutation', 'envelope.recipient.set', {
+        envelopeId: draft,
+        envelopeType: 'DOCUMENT',
+        recipients: [{ email: `contrato-outro-${RUN}@revalle.com.br`, name: 'Outro', role: 'SIGNER' }],
+      }),
+    ],
+    [
+      'apagar o arquivo do rascunho',
+      await asMember('mutation', 'envelope.item.delete', { envelopeId: draft, envelopeItemId: itemId }),
+    ],
+    ['duplicar o modelo marcado', await asMember('mutation', 'envelope.duplicate', { envelopeId: fx.templateId })],
+    ['duplicar o rascunho', await asMember('mutation', 'envelope.duplicate', { envelopeId: draft })],
+    [
+      'trocar os campos do modelo',
+      await asMember('mutation', 'envelope.field.set', {
+        envelopeId: fx.templateId,
+        envelopeType: 'TEMPLATE',
+        fields: [],
+      }),
+    ],
+  ]) {
+    assert.equal(res.status, 403, `${what}: HTTP ${res.status} ${res.text}`);
+  }
+
+  // Trocar o PDF (multipart, como o editor faz).
+  const form = new FormData();
+
+  form.append('payload', JSON.stringify({ envelopeId: draft, envelopeItemId: itemId }));
+  form.append('file', new File([readFileSync('assets/example.pdf')], 'outro.pdf', { type: 'application/pdf' }));
+
+  const replaced = await fetch(`${BASE_URL}/api/trpc/envelope.item.replacePdf`, {
+    method: 'POST',
+    headers: { Origin: new URL(BASE_URL).origin, Cookie: memberCookie, 'x-team-id': String(fx.adminTeamId) },
+    body: form,
+  });
+
+  assert.notEqual(replaced.status, 200, 'o membro trocou o PDF do rascunho');
+  assert.equal(db(`select "documentDataId" from "EnvelopeItem" where id = '${itemId}'`), dataId);
+  assert.equal(db(`select string_agg(email, ',') from "Recipient" where "envelopeId" = '${draft}'`), recipientsBefore);
+  assert.equal(db(`select count(*) from "Field" where "envelopeId" = '${fx.templateId}'`), '1');
+});
+
+sessionTest('pausado, a varredura não envia nada; o contrato fica na fila', async () => {
+  needs('contractId');
+
+  const paused = await trpcAs(fx.adminCookie, 'mutation', 'revalle.collaboratorContract.setPaused', {
+    templateEnvelopeId: fx.templateId,
+    paused: true,
+  });
+
+  assert.equal(paused.status, 200, paused.text);
+  assert.equal(await sweep(), 'COMPLETED');
+  assert.equal(
+    db(`select count(*) from "RevalleBulkSendQueue" where "contractId" = '${fx.contractId}' and status = 'QUEUED'`),
+    '2',
+  );
+  assert.equal(
+    data(
+      await trpcAs(fx.adminCookie, 'query', 'revalle.collaboratorContract.getStatus', {
+        templateEnvelopeId: fx.templateId,
+      }),
+    ).paused,
+    true,
+  );
+});
+
+sessionTest('retomado, a varredura envia a fila e o Mailpit recebe um convite por pessoa', async () => {
+  needs('contractId');
+
+  const resumed = await trpcAs(fx.adminCookie, 'mutation', 'revalle.collaboratorContract.setPaused', {
+    templateEnvelopeId: fx.templateId,
+    paused: false,
+  });
+
+  assert.equal(resumed.status, 200, resumed.text);
 
   const queued = () =>
     db(`select count(*) from "RevalleBulkSendQueue" where "contractId" = '${fx.contractId}' and status = 'QUEUED'`);
@@ -585,5 +722,60 @@ sessionTest('usuário não admin: 403 no modelo (quadro e "Usar") e no envio em 
     db(`select count(*) from "RevalleBulkSendUpload" where "contractId" = '${fx.contractId}'`),
     '1',
     'a planilha do não admin entrou',
+  );
+});
+
+sessionTest('duas planilhas iguais ao mesmo tempo: cada e-mail entra na fila uma vez só', async () => {
+  needs('legacyTemplateId');
+
+  const emails = ['c', 'd'].map((tag) => `contrato-colab-${tag}-${RUN}@revalle.com.br`);
+  const csv = `recipient_1_email,recipient_1_name\n${emails.join(',\n')},\n`;
+  const upload = () =>
+    trpcAs(
+      fx.adminCookie,
+      'mutation',
+      'template.uploadBulkSend',
+      { templateId: fx.legacyTemplateId, teamId: fx.adminTeamId, csv, sendImmediately: false },
+      { 'x-team-id': String(fx.adminTeamId) },
+    );
+
+  const results = await Promise.all([upload(), upload()]);
+  const accepted = results.filter((res) => res.status === 200 && data(res)?.success === true);
+
+  assert.ok(accepted.length >= 1, results.map((res) => res.text).join('\n'));
+
+  for (const res of results.filter((r) => !accepted.includes(r))) {
+    assert.ok(res.text.includes('ainda estão sendo criados'), res.text);
+  }
+
+  await waitFor(
+    () =>
+      db(
+        `select count(*) from "RevalleBulkSendUpload" where "contractId" = '${fx.contractId}' and "completedAt" is null`,
+      ) === '0',
+    'a criação dos documentos das planilhas',
+  );
+
+  for (const email of emails) {
+    assert.equal(
+      db(`select count(*) from "RevalleBulkSendQueue" where "contractId" = '${fx.contractId}' and email = '${email}'`),
+      '1',
+      email,
+    );
+    assert.equal(
+      db(
+        `select count(*) from "Envelope" e join "Recipient" r on r."envelopeId" = e.id where e.type = 'DOCUMENT' and e.title = '${title}' and r.email = '${email}'`,
+      ),
+      '1',
+      `${email}: rascunho a mais`,
+    );
+  }
+
+  // As linhas da planilha saem do banco quando ela termina.
+  assert.equal(
+    db(
+      `select count(*) from "RevalleBulkSendUpload" where "contractId" = '${fx.contractId}' and jsonb_array_length(rows) > 0`,
+    ),
+    '0',
   );
 });

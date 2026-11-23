@@ -25,6 +25,7 @@ import type { EnvelopeIdOptions } from '../../utils/envelope';
 import { mapFieldToLegacyField } from '../../utils/fields';
 import { canRecipientFieldsBeModified } from '../../utils/recipients';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
+import { assertCollaboratorContractMutable } from '../revalle/collaborator-contract/guard'; // REVALLE:
 import { assertRevalleFieldTypesAllowed } from '../revalle/signature-only'; // REVALLE:
 
 export interface SetFieldsForDocumentOptions {
@@ -71,6 +72,9 @@ export const setFieldsForDocument = async ({
       message: 'Document not found',
     });
   }
+
+  // REVALLE: contrato para colaboradores (v.21): só o administrador do sistema altera.
+  await assertCollaboratorContractMutable({ envelopeId: envelope.id, actor: { userId } });
 
   if (envelope.completedAt) {
     throw new AppError(AppErrorCode.INVALID_REQUEST, {

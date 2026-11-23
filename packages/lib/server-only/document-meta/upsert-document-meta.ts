@@ -111,7 +111,7 @@ export const updateDocumentMeta = async ({
   }
 
   return await prisma.$transaction(async (tx) => {
-    await assertEnvelopeMutable(envelope, tx);
+    await assertEnvelopeMutable(envelope, tx, { userId }); // REVALLE: quem altera (contrato para colaboradores)
 
     const upsertedDocumentMeta = await tx.documentMeta.update({
       where: {

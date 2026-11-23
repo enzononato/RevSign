@@ -33,6 +33,7 @@ CREATE TABLE "RevalleBulkSendUpload" (
     "createdCount" INTEGER NOT NULL DEFAULT 0,
     "skippedCount" INTEGER NOT NULL DEFAULT 0,
     "failedCount" INTEGER NOT NULL DEFAULT 0,
+    "leaseUntil" TIMESTAMP(3),
     "completedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -44,6 +45,8 @@ CREATE TABLE "RevalleBulkSendUpload" (
 CREATE TABLE "RevalleBulkSendQueue" (
     "id" TEXT NOT NULL,
     "envelopeId" TEXT NOT NULL,
+    "recipientId" INTEGER NOT NULL,
+    "email" TEXT NOT NULL,
     "contractId" TEXT NOT NULL,
     "status" "RevalleBulkSendStatus" NOT NULL DEFAULT 'QUEUED',
     "attempts" INTEGER NOT NULL DEFAULT 0,
@@ -72,10 +75,16 @@ CREATE INDEX "RevalleBulkSendUpload_completedAt_updatedAt_idx" ON "RevalleBulkSe
 CREATE UNIQUE INDEX "RevalleBulkSendQueue_envelopeId_key" ON "RevalleBulkSendQueue"("envelopeId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "RevalleBulkSendQueue_recipientId_key" ON "RevalleBulkSendQueue"("recipientId");
+
+-- CreateIndex
 CREATE INDEX "RevalleBulkSendQueue_contractId_status_idx" ON "RevalleBulkSendQueue"("contractId", "status");
 
 -- CreateIndex
 CREATE INDEX "RevalleBulkSendQueue_status_createdAt_idx" ON "RevalleBulkSendQueue"("status", "createdAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "RevalleBulkSendQueue_contractId_email_key" ON "RevalleBulkSendQueue"("contractId", "email");
 
 -- AddForeignKey
 ALTER TABLE "RevalleCollaboratorContract" ADD CONSTRAINT "RevalleCollaboratorContract_templateEnvelopeId_fkey" FOREIGN KEY ("templateEnvelopeId") REFERENCES "Envelope"("id") ON DELETE SET NULL ON UPDATE CASCADE;

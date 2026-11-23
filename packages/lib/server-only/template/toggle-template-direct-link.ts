@@ -4,6 +4,7 @@ import { EnvelopeType } from '@prisma/client';
 import { AppError, AppErrorCode } from '../../errors/app-error';
 import { mapSecondaryIdToTemplateId } from '../../utils/envelope';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
+import { assertNotCollaboratorContractTemplate } from '../revalle/collaborator-contract/guard'; // REVALLE:
 
 export type ToggleTemplateDirectLinkOptions = {
   templateId: number;
@@ -41,6 +42,8 @@ export const toggleTemplateDirectLink = async ({
       message: 'Template not found',
     });
   }
+
+  await assertNotCollaboratorContractTemplate(envelope.id); // REVALLE: contrato para colaboradores sem link direto
 
   const { directLink } = envelope;
 

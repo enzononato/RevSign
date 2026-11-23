@@ -3,6 +3,10 @@ import { match } from 'ts-pattern';
 
 import { AppError, AppErrorCode } from '../../errors/app-error';
 import { isTspEnvelope } from '../../types/signature-level';
+import {
+  assertCollaboratorContractMutable,
+  type CollaboratorContractActor,
+} from '../revalle/collaborator-contract/guard'; // REVALLE:
 import { assertNotPatrimonioTermo } from '../revalle/patrimonio/guard'; // REVALLE:
 
 type EnvelopeMutableSnapshot = {
@@ -40,22 +44,34 @@ type EnvelopeIdRef = Pick<Envelope, 'id'>;
  *   vocabulary.
  */
 export function assertEnvelopeMutable(envelope: EnvelopeMutableSnapshot): Promise<void>;
-export function assertEnvelopeMutable(envelope: EnvelopeIdRef, tx: Prisma.TransactionClient): Promise<void>;
+export function assertEnvelopeMutable(
+  envelope: EnvelopeIdRef,
+  tx: Prisma.TransactionClient,
+  revalleActor?: CollaboratorContractActor, // REVALLE: quem altera (contrato para colaboradores, v.21)
+): Promise<void>;
 
 export async function assertEnvelopeMutable(
   envelope: EnvelopeMutableSnapshot | EnvelopeIdRef,
   tx?: Prisma.TransactionClient,
+  revalleActor?: CollaboratorContractActor, // REVALLE:
 ): Promise<void> {
   if (tx) {
-    return await refetchAndAssert(tx, (envelope as EnvelopeIdRef).id);
+    return await refetchAndAssert(tx, (envelope as EnvelopeIdRef).id, revalleActor);
   }
 
   assertSnapshotMutable(envelope as EnvelopeMutableSnapshot);
 }
 
-const refetchAndAssert = async (tx: Prisma.TransactionClient, envelopeId: string): Promise<void> => {
+const refetchAndAssert = async (
+  tx: Prisma.TransactionClient,
+  envelopeId: string,
+  revalleActor?: CollaboratorContractActor, // REVALLE:
+): Promise<void> => {
   // REVALLE: termo do Patrimônio só muda pelas rotas da integração (destinatários, campos, dados, arquivo).
   await assertNotPatrimonioTermo(envelopeId, { tx });
+
+  // REVALLE: documento na fila do contrato para colaboradores e o modelo marcado: só o administrador do sistema altera.
+  await assertCollaboratorContractMutable({ envelopeId, actor: revalleActor, tx });
 
   const refetched = await tx.envelope.findFirstOrThrow({
     where: { id: envelopeId },

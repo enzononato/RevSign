@@ -84,7 +84,7 @@ export const deleteDocumentField = async ({ userId, teamId, fieldId, requestMeta
   }
 
   return await prisma.$transaction(async (tx) => {
-    await assertEnvelopeMutable(envelope, tx);
+    await assertEnvelopeMutable(envelope, tx, { userId }); // REVALLE: quem altera (contrato para colaboradores)
 
     const deletedField = await tx.field.delete({
       where: {
