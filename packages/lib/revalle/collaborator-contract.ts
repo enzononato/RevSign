@@ -1,3 +1,4 @@
+import { maskCpf } from './cpf';
 import { formatRevalleDateTime } from './date-format';
 import { normalizeEmail } from './email-domain';
 import { escapeCsvCell } from './invoice/export-csv';
@@ -128,6 +129,8 @@ export const bulkSendFailureLabel = (code: string | null | undefined) => {
 export type RevalleCollaboratorStatusRow = {
   name: string;
   email: string;
+  /** v.22: o CPF da lista; sai sempre mascarado. */
+  cpf?: string | null;
   status: RevalleCollaboratorDocStatus;
   failureCode: string | null;
   date: Date | null;
@@ -135,15 +138,20 @@ export type RevalleCollaboratorStatusRow = {
 
 /**
  * Planilha "situação" do contrato: nome;email;situação;data, separada por ponto e vírgula (Excel em português), com BOM
- * e a mesma neutralização de fórmulas da planilha de notas fiscais. Nunca leva CPF.
+ * e a mesma neutralização de fórmulas da planilha de notas fiscais. Com `withMaskedCpf` (página própria, v.22), a
+ * coluna CPF vem depois do e-mail, sempre mascarada; sem ela, nenhum CPF (v.21).
  */
-export const buildCollaboratorStatusCsv = (rows: RevalleCollaboratorStatusRow[]) => {
+export const buildCollaboratorStatusCsv = (
+  rows: RevalleCollaboratorStatusRow[],
+  { withMaskedCpf = false }: { withMaskedCpf?: boolean } = {},
+) => {
   const lines = [
-    ['nome', 'email', 'situação', 'data'].join(';'),
+    (withMaskedCpf ? ['nome', 'email', 'CPF', 'situação', 'data'] : ['nome', 'email', 'situação', 'data']).join(';'),
     ...rows.map((row) =>
       [
         row.name,
         row.email,
+        ...(withMaskedCpf ? [row.cpf ? maskCpf(row.cpf) : ''] : []),
         row.status === 'FAILED'
           ? `${REVALLE_COLLABORATOR_STATUS_LABELS.FAILED}: ${bulkSendFailureLabel(row.failureCode)}`
           : REVALLE_COLLABORATOR_STATUS_LABELS[row.status],
@@ -155,4 +163,57 @@ export const buildCollaboratorStatusCsv = (rows: RevalleCollaboratorStatusRow[])
   ];
 
   return `﻿${lines.join('\r\n')}\r\n`;
+};
+
+// REVALLE (v.22): contrato para colaboradores pela página própria.
+
+/** "Nome do remetente" quando o admin não muda: o nome no assunto do convite. */
+export const REVALLE_COLLABORATOR_DEFAULT_SENDER_NAME = 'Revalle';
+
+/** "Reenviar" de uma pessoa: no máximo 1 vez a cada 10 minutos. */
+export const REVALLE_COLLABORATOR_RESEND_INTERVAL_MS = 10 * 60 * 1000;
+
+export type RevalleCollaboratorContractStatus =
+  | 'DRAFT'
+  | 'AWAITING_REPRESENTATIVE'
+  | 'SENDING'
+  | 'PAUSED'
+  | 'COMPLETED'
+  | 'REJECTED_BY_REPRESENTATIVE';
+
+export const REVALLE_COLLABORATOR_CONTRACT_STATUS_LABELS: Record<RevalleCollaboratorContractStatus, string> = {
+  DRAFT: 'Montando',
+  AWAITING_REPRESENTATIVE: 'Aguardando representante',
+  SENDING: 'Enviando',
+  PAUSED: 'Pausado',
+  COMPLETED: 'Concluído',
+  REJECTED_BY_REPRESENTATIVE: 'Recusado pelo representante',
+};
+
+/**
+ * A situação mostrada do contrato. O banco guarda até "Enviando"/"Pausado"; "Concluído" é quando os documentos já foram
+ * todos criados e cada colaborador assinou, recusou ou falhou.
+ */
+export const effectiveCollaboratorContractStatus = ({
+  status,
+  paused,
+  total,
+  finished,
+  isBuilding,
+}: {
+  status: RevalleCollaboratorContractStatus;
+  paused: boolean;
+  total: number;
+  finished: number;
+  isBuilding: boolean;
+}): RevalleCollaboratorContractStatus => {
+  if (status === 'DRAFT' || status === 'AWAITING_REPRESENTATIVE' || status === 'REJECTED_BY_REPRESENTATIVE') {
+    return status;
+  }
+
+  if (total > 0 && finished >= total && !isBuilding) {
+    return 'COMPLETED';
+  }
+
+  return paused ? 'PAUSED' : 'SENDING';
 };

@@ -6,6 +6,7 @@ import {
   bulkSendFailureLabel,
   collaboratorDocStatus,
   dedupeCollaboratorRows,
+  effectiveCollaboratorContractStatus,
   revalleBulkSendBatchSize,
 } from './collaborator-contract';
 
@@ -121,6 +122,35 @@ describe('buildCollaboratorStatusCsv', () => {
     expect(csv.startsWith('﻿nome;email;situação;data\r\n')).toBe(true);
     expect(csv).toContain(`"'=HYPERLINK(""x"")";a@revalle.com.br;Assinado;23/11/2026 14:05\r\n`);
     expect(csv).toContain('Bruno;b@revalle.com.br;Falhou: Falta a posição da assinatura do colaborador no modelo;\r\n');
+  });
+});
+
+describe('v.22 contract page', () => {
+  it('the status CSV carries the CPF masked, never in full', () => {
+    const csv = buildCollaboratorStatusCsv(
+      [{ name: 'Ana', email: 'a@x.com', cpf: '39053344705', status: 'SENT', failureCode: null, date: null }],
+      { withMaskedCpf: true },
+    );
+
+    expect(csv).toBe('﻿nome;email;CPF;situação;data\r\nAna;a@x.com;***.533.447-**;Enviado;\r\n');
+  });
+
+  it('is completed only once every document was created and answered', () => {
+    const base = { status: 'SENDING' as const, paused: false, total: 3 };
+
+    expect(effectiveCollaboratorContractStatus({ ...base, finished: 3, isBuilding: false })).toBe('COMPLETED');
+    expect(effectiveCollaboratorContractStatus({ ...base, finished: 3, isBuilding: true })).toBe('SENDING');
+    expect(effectiveCollaboratorContractStatus({ ...base, paused: true, finished: 1, isBuilding: false })).toBe(
+      'PAUSED',
+    );
+    expect(
+      effectiveCollaboratorContractStatus({
+        ...base,
+        status: 'AWAITING_REPRESENTATIVE',
+        finished: 0,
+        isBuilding: false,
+      }),
+    ).toBe('AWAITING_REPRESENTATIVE');
   });
 });
 

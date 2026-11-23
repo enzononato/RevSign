@@ -1,7 +1,7 @@
 import type { RevalleIdentityPolicy } from '../../../revalle/identity-policy';
 import { resolveRevalleIdentityPolicy } from '../../../revalle/identity-policy';
 import { isRevalleExternalEmail } from '../assert-recipient-domains';
-import { isCollaboratorContractRecipient } from '../collaborator-contract/marker';
+import { findCollaboratorContractRecipientCpf, isCollaboratorContractRecipient } from '../collaborator-contract/marker';
 import { findPatrimonioSignerCpf } from '../patrimonio/gate';
 
 export type { RevalleIdentityPolicy };
@@ -15,4 +15,5 @@ export const getRevalleIdentityPolicy = async (recipient: {
     isExternalEmail: isRevalleExternalEmail(recipient.email),
     termoCpf: await findPatrimonioSignerCpf(recipient.id),
     isCollaboratorContract: await isCollaboratorContractRecipient(recipient.id),
+    collaboratorCpf: await findCollaboratorContractRecipientCpf(recipient.id),
   });

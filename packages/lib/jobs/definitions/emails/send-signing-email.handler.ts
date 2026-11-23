@@ -21,6 +21,7 @@ import { buildEnvelopeEmailHeaders } from '../../../server-only/email/build-enve
 import { getEmailContext } from '../../../server-only/email/get-email-context';
 import { assertOrganisationRatesAndLimits } from '../../../server-only/rate-limit/assert-organisation-rates-and-limits';
 import { updateRecipientNextReminder } from '../../../server-only/recipient/update-recipient-next-reminder';
+import { findCollaboratorContractEmailSender } from '../../../server-only/revalle/collaborator-contract/sender'; // REVALLE:
 import { recordSendReceipt } from '../../../server-only/revalle/receipts/record-send-receipt'; // REVALLE:
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import { extractDerivedDocumentEmailSettings } from '../../../types/document-email';
@@ -163,12 +164,16 @@ export const run = async ({ payload, io }: { payload: TSendSigningEmailJobDefini
     }
   }
 
+  // REVALLE: v.22, contrato para colaboradores: o remetente fixo do contrato no assunto e no corpo, e a resposta vai
+  // para o admin que criou o contrato.
+  const revalleContractSender = await findCollaboratorContractEmailSender(envelope.id);
+
   // REVALLE: assunto padrão do convite (envio simplificado): `{quem enviou} enviou "{título}" para você {verbo}`, com o
   // nome do time se quem enviou não tiver nome. O assunto gravado no documento (`documentMeta.subject`) continua valendo.
   emailSubject = i18n._(
     revalleInviteSubject({
       role: recipient.role,
-      senderName: user.name,
+      senderName: revalleContractSender?.senderName ?? user.name, // REVALLE:
       teamName: team.name,
       documentTitle: envelope.title,
     }),
@@ -193,7 +198,7 @@ export const run = async ({ payload, io }: { payload: TSendSigningEmailJobDefini
 
   const template = createElement(DocumentInviteEmailTemplate, {
     documentName: envelope.title,
-    inviterName: user.name || undefined,
+    inviterName: revalleContractSender?.senderName ?? (user.name || undefined), // REVALLE: remetente fixo (v.22)
     inviterEmail:
       organisationType === OrganisationType.ORGANISATION ? team?.teamEmail?.email || user.email : user.email,
     assetBaseUrl,
@@ -245,7 +250,8 @@ export const run = async ({ payload, io }: { payload: TSendSigningEmailJobDefini
           address: recipient.email,
         },
         from: senderEmail,
-        replyTo: revalleInviteReplyTo(replyToEmail, user.email), // REVALLE: sem resposta configurada, quem enviou
+        // REVALLE: sem resposta configurada, quem enviou; contrato para colaboradores (v.22), quem criou o contrato.
+        replyTo: revalleContractSender?.replyTo ?? revalleInviteReplyTo(replyToEmail, user.email),
         subject: renderCustomEmailTemplate(documentMeta?.subject || emailSubject, customEmailTemplate),
         html,
         text,

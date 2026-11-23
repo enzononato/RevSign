@@ -11,23 +11,39 @@
  *   `askCpfEveryTime`: o vínculo salvo e o e-mail da base NÃO dispensam a tela de CPF (o link chega sem conta), mas as
  *   conferências do e-mail da empresa continuam (conflito com o vínculo e com o e-mail da base; o vínculo nasce na
  *   primeira confirmação). No e-mail de fora, `ALWAYS_CPF` como sempre.
+ * - v.22, contrato para colaboradores pela página própria: o documento está amarrado ao CPF da lista. Mesma regra do
+ *   termo do Patrimônio, em qualquer e-mail: `ALWAYS_CPF` (`COLLABORATOR_CONTRACT`) com `expectedCpf` = o CPF da lista;
+ *   sem vínculo e-mail ↔ CPF e sem comparar com o e-mail da base (o e-mail da lista vale para o envio).
  */
 export type RevalleIdentityPolicy =
   | { mode: 'LINKED_EMAIL'; askCpfEveryTime?: true }
-  | { mode: 'ALWAYS_CPF'; reason: 'EXTERNAL_EMAIL' | 'PATRIMONIO_TERMO'; expectedCpf: string | null };
+  | {
+      mode: 'ALWAYS_CPF';
+      reason: 'EXTERNAL_EMAIL' | 'PATRIMONIO_TERMO' | 'COLLABORATOR_CONTRACT';
+      expectedCpf: string | null;
+    };
 
-/** O termo do Patrimônio manda; depois, o domínio do e-mail; por último, o contrato para colaboradores. */
+/**
+ * O termo do Patrimônio manda; depois, o CPF da lista do contrato (v.22); depois, o domínio do e-mail; por último, o
+ * contrato para colaboradores da v.21.
+ */
 export const resolveRevalleIdentityPolicy = ({
   isExternalEmail,
   termoCpf,
   isCollaboratorContract = false,
+  collaboratorCpf = null,
 }: {
   isExternalEmail: boolean;
   termoCpf: string | null;
   isCollaboratorContract?: boolean;
+  collaboratorCpf?: string | null;
 }): RevalleIdentityPolicy => {
   if (termoCpf !== null) {
     return { mode: 'ALWAYS_CPF', reason: 'PATRIMONIO_TERMO', expectedCpf: termoCpf };
+  }
+
+  if (collaboratorCpf !== null) {
+    return { mode: 'ALWAYS_CPF', reason: 'COLLABORATOR_CONTRACT', expectedCpf: collaboratorCpf };
   }
 
   if (isExternalEmail) {

@@ -17,12 +17,17 @@ export const isCollaboratorContractEnvelope = async (
   envelopeId: string,
   tx: Prisma.TransactionClient = prisma,
 ): Promise<boolean> => {
-  const [queued, contract] = await Promise.all([
+  const [queued, contract, representative] = await Promise.all([
     tx.revalleBulkSendQueue.findUnique({ where: { envelopeId }, select: { id: true } }),
     tx.revalleCollaboratorContract.findUnique({ where: { templateEnvelopeId: envelopeId }, select: { id: true } }),
+    // v.22: o documento do representante (o PDF e os quadros vêm do assistente).
+    tx.revalleCollaboratorContract.findUnique({
+      where: { representativeEnvelopeId: envelopeId },
+      select: { id: true },
+    }),
   ]);
 
-  return queued !== null || contract !== null;
+  return queued !== null || contract !== null || representative !== null;
 };
 
 const isActorAdmin = async (actor: CollaboratorContractActor | undefined, tx: Prisma.TransactionClient) => {

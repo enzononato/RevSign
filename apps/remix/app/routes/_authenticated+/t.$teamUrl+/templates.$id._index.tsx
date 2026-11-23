@@ -31,7 +31,6 @@ import { TemplatePageViewInformation } from '~/components/general/template/templ
 import { TemplatePageViewRecentActivity } from '~/components/general/template/template-page-view-recent-activity';
 import { TemplatePageViewRecipients } from '~/components/general/template/template-page-view-recipients';
 import { TemplateType } from '~/components/general/template/template-type';
-import { CollaboratorContractPanel } from '~/components/revalle/collaborator-contract/collaborator-contract-panel'; // REVALLE:
 import { TemplatesTableActionDropdown } from '~/components/tables/templates-table-action-dropdown';
 import { useCurrentTeam } from '~/providers/team';
 
@@ -54,7 +53,8 @@ export default function TemplatePage({ params }: Route.ComponentProps) {
 
   const envelope = teamTemplateQuery.data ?? orgTemplateQuery.data;
 
-  // REVALLE: v.21, contrato para colaboradores (só admin): o quadro do envio e o limite de 3.000 linhas na planilha.
+  // REVALLE: v.21, contrato para colaboradores (só admin): sem link direto e o limite de 3.000 linhas na planilha (o
+  // acompanhamento fica na página "Contratos para colaboradores", v.22).
   const revalleContractQuery = trpc.revalle.collaboratorContract.getStatus.useQuery(
     { templateEnvelopeId: params.id },
     { enabled: isAdmin(user), retry: false },
@@ -239,9 +239,6 @@ export default function TemplatePage({ params }: Route.ComponentProps) {
 
         <div className={cn('col-span-12 lg:col-span-6 xl:col-span-5', isMultiEnvelopeItem && 'mt-20')}>
           <div className="space-y-6">
-            {/* REVALLE: v.21, quadro "Envio para colaboradores" (só admin, modelo marcado). */}
-            {revalleContract && <CollaboratorContractPanel templateEnvelopeId={envelope.id} status={revalleContract} />}
-
             <section className="flex flex-col rounded-xl border border-border bg-widget pt-6 pb-4">
               <div className="flex flex-row items-center justify-between px-4">
                 <h3 className="font-semibold text-2xl text-foreground">

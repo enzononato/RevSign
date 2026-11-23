@@ -30,6 +30,20 @@ describe('pickDocumentsTeamUrl', () => {
     expect(pickDocumentsTeamUrl({ organisations: [{ ...personalOrg, teams: [{ id: 10, url: 'p' }] }] })).toBe('p');
   });
 
+  it('never picks the collaborator contracts team on its own', () => {
+    const withContracts = {
+      ...personalOrg,
+      teams: [
+        { id: 10, url: 'personal_abc' },
+        { id: 40, url: 'contratos-colab-7' },
+      ],
+    };
+
+    expect(pickDocumentsTeamUrl({ organisations: [withContracts], lastTeamUrl: 'contratos-colab-7' })).toBe(
+      'personal_abc',
+    );
+  });
+
   it('returns null without teams', () => {
     expect(pickDocumentsTeamUrl({ organisations: [] })).toBeNull();
     expect(pickDocumentsTeamUrl({ organisations: [{ ...otherOrg, teams: [] }] })).toBeNull();

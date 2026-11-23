@@ -41,4 +41,17 @@ describe('resolveRevalleIdentityPolicy', () => {
       resolveRevalleIdentityPolicy({ isExternalEmail: true, termoCpf: null, isCollaboratorContract: true }).mode,
     ).toBe('ALWAYS_CPF');
   });
+
+  it('v.22 collaborator contract: only the CPF from the list, whatever the e-mail', () => {
+    for (const isExternalEmail of [true, false]) {
+      expect(
+        resolveRevalleIdentityPolicy({
+          isExternalEmail,
+          termoCpf: null,
+          isCollaboratorContract: true,
+          collaboratorCpf: '39053344705',
+        }),
+      ).toEqual({ mode: 'ALWAYS_CPF', reason: 'COLLABORATOR_CONTRACT', expectedCpf: '39053344705' });
+    }
+  });
 });

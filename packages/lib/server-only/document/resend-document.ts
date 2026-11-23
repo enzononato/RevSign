@@ -35,6 +35,7 @@ import { getEmailContext } from '../email/get-email-context';
 import { getEnvelopeWhereInput } from '../envelope/get-envelope-by-id';
 import { assertOrganisationRatesAndLimits } from '../rate-limit/assert-organisation-rates-and-limits';
 import { updateRecipientNextReminder } from '../recipient/update-recipient-next-reminder';
+import { findCollaboratorContractEmailSender } from '../revalle/collaborator-contract/sender'; // REVALLE:
 import { assertNotPatrimonioTermo } from '../revalle/patrimonio/guard'; // REVALLE:
 import { computeReceiptDocuments, recordSendReceiptSafely } from '../revalle/receipts/record-send-receipt'; // REVALLE:
 import { assertUserNotDisabled } from '../user/assert-user-not-disabled';
@@ -186,6 +187,9 @@ export const resendDocument = async ({
     return envelope;
   }
 
+  // REVALLE: v.22, contrato para colaboradores: o remetente fixo e a resposta para quem criou o contrato.
+  const revalleContractSender = await findCollaboratorContractEmailSender(envelope.id);
+
   const {
     branding,
     emailLanguage,
@@ -273,7 +277,7 @@ export const resendDocument = async ({
           i18n._(
             revalleInviteSubject({
               role: recipient.role,
-              senderName: user.name,
+              senderName: revalleContractSender?.senderName ?? user.name, // REVALLE:
               teamName: envelope.team.name,
               documentTitle: envelope.title,
             }),
@@ -293,7 +297,7 @@ export const resendDocument = async ({
 
       const template = createElement(DocumentInviteEmailTemplate, {
         documentName: envelope.title,
-        inviterName: user.name || undefined,
+        inviterName: revalleContractSender?.senderName ?? (user.name || undefined), // REVALLE: remetente fixo (v.22)
         inviterEmail:
           organisationType === OrganisationType.ORGANISATION
             ? envelope.team?.teamEmail?.email || user.email
@@ -330,7 +334,8 @@ export const resendDocument = async ({
           name,
         },
         from: senderEmail,
-        replyTo: revalleInviteReplyTo(replyToEmail, user.email), // REVALLE: sem resposta configurada, quem reenviou
+        // REVALLE: sem resposta configurada, quem reenviou; contrato para colaboradores (v.22), quem criou o contrato.
+        replyTo: revalleContractSender?.replyTo ?? revalleInviteReplyTo(replyToEmail, user.email),
         subject: envelope.documentMeta.subject
           ? renderCustomEmailTemplate(i18n._(msg`Reminder: ${envelope.documentMeta.subject}`), customEmailTemplate)
           : emailSubject,

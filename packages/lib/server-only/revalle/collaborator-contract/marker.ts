@@ -30,6 +30,30 @@ export const isCollaboratorContractRecipient = async (recipientId: number): Prom
   return recipient !== null && recipient.envelopeId === row.envelopeId && normalizeEmail(recipient.email) === row.email;
 };
 
+/**
+ * v.22: o CPF da lista para o colaborador desta linha da fila (o mesmo destinatário, com o mesmo e-mail). Como no termo
+ * do Patrimônio, o portão só aceita este CPF. Documento da v.21 (sem CPF) ou outro destinatário: null.
+ */
+export const findCollaboratorContractRecipientCpf = async (recipientId: number): Promise<string | null> => {
+  const row = await prisma.revalleBulkSendQueue.findUnique({
+    where: { recipientId },
+    select: { cpf: true, email: true, envelopeId: true },
+  });
+
+  if (!row?.cpf) {
+    return null;
+  }
+
+  const recipient = await prisma.recipient.findUnique({
+    where: { id: recipientId },
+    select: { email: true, envelopeId: true },
+  });
+
+  return recipient !== null && recipient.envelopeId === row.envelopeId && normalizeEmail(recipient.email) === row.email
+    ? row.cpf
+    : null;
+};
+
 export type CollaboratorContractLine = {
   /** "Assinado pela empresa: {nome} em {data}, código {código}" (certificado e `/verificar`). */
   text: string;
@@ -67,6 +91,11 @@ export const loadCollaboratorContractLine = async (envelopeId: string): Promise<
   }
 
   const { contract } = row;
+
+  // v.22: a linha só existe depois que o representante assinou (o documento do colaborador nasce daí).
+  if (!contract.representativeName || !contract.representativeSignedAt || !contract.sourceVerificationCode) {
+    return null;
+  }
 
   return {
     text: buildCollaboratorContractLine({

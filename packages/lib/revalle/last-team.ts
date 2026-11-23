@@ -1,5 +1,7 @@
 import { OrganisationType } from '@prisma/client';
 
+import { isCollaboratorContractTeamUrl } from './collaborator-contract-team';
+
 // Último time aberto, para o link "Documentos" do menu fora das páginas de time. Cookie de primeira parte só com o `url`
 // do time (sem dado pessoal), legível no navegador para o menu acompanhar a navegação sem recarregar a página.
 export const REVALLE_LAST_TEAM_COOKIE = 'revalle_last_team';
@@ -45,7 +47,8 @@ type MenuOrganisation = {
 
 /**
  * Time do link "Documentos": o time da página; senão o último aberto, se ainda é da pessoa; senão o primeiro que não é o
- * pessoal; por último o pessoal. "Pessoal" é o primeiro time criado da organização pessoal. Sem time nenhum, null.
+ * pessoal; por último o pessoal. "Pessoal" é o primeiro time criado da organização pessoal. Sem time nenhum, null. O
+ * time "Contratos para colaboradores" (v.22) só vale quando é o da página: nunca é escolhido sozinho.
  */
 export const pickDocumentsTeamUrl = ({
   organisations,
@@ -70,6 +73,7 @@ export const pickDocumentsTeamUrl = ({
         isPersonal: organisation.type === OrganisationType.PERSONAL && index === 0,
       }));
     })
+    .filter((team) => !isCollaboratorContractTeamUrl(team.url))
     .sort((a, b) => a.id - b.id);
 
   if (lastTeamUrl && teams.some((team) => team.url === lastTeamUrl)) {

@@ -64,7 +64,7 @@ export const findCollaboratorContractForSource = async ({
  * páginas do certificado e do log DEPOIS das páginas do arquivo original (`initialData`), então as N primeiras páginas
  * do arquivo selado, com N = páginas do original, são o contrato com o carimbo de quem assinou.
  */
-const contractPagesOf = async (documentData: { type: DocumentDataType; data: string; initialData: string }) => {
+export const contractPagesOf = async (documentData: { type: DocumentDataType; data: string; initialData: string }) => {
   const [sealedBytes, originalBytes] = await Promise.all([
     getFileServerSide({ type: documentData.type, data: documentData.data }),
     getFileServerSide({ type: documentData.type, data: documentData.initialData }),
@@ -81,6 +81,34 @@ const contractPagesOf = async (documentData: { type: DocumentDataType; data: str
   const bytes = await extracted.save();
 
   return bytes.slice().buffer;
+};
+
+type RepresentativeRecipient = {
+  name: string;
+  role: RecipientRole;
+  signingStatus: SigningStatus;
+  revalleProof: { verificationCode: string; signedAt: Date; employee: unknown } | null;
+};
+
+/**
+ * O representante: quem assinou (SIGNER) com prova; com mais de um, o primeiro a assinar. O nome segue a regra do
+ * carimbo e do /verificar: o do RH; sem ele, o do destinatário.
+ */
+export const representativeProofOf = (recipients: RepresentativeRecipient[]) => {
+  const representative = recipients
+    .filter((recipient) => recipient.role === RecipientRole.SIGNER && recipient.signingStatus === SigningStatus.SIGNED)
+    .flatMap((recipient) => (recipient.revalleProof ? [{ ...recipient.revalleProof, name: recipient.name }] : []))
+    .sort((a, b) => a.signedAt.getTime() - b.signedAt.getTime())[0];
+
+  if (!representative) {
+    return null;
+  }
+
+  const employee = (representative.employee ?? null) as { nome?: unknown } | null;
+  const representativeName =
+    typeof employee?.nome === 'string' && employee.nome.trim() ? employee.nome.trim() : representative.name.trim();
+
+  return { verificationCode: representative.verificationCode, signedAt: representative.signedAt, representativeName };
 };
 
 /**
@@ -146,20 +174,13 @@ export const createCollaboratorContractFromEnvelope = async ({
     throw invalid('Nota fiscal não pode virar contrato para colaboradores.');
   }
 
-  // O representante: quem assinou (SIGNER) com prova; com mais de um, o primeiro a assinar.
-  const representative = source.recipients
-    .filter((recipient) => recipient.role === RecipientRole.SIGNER && recipient.signingStatus === SigningStatus.SIGNED)
-    .flatMap((recipient) => (recipient.revalleProof ? [{ ...recipient.revalleProof, name: recipient.name }] : []))
-    .sort((a, b) => a.signedAt.getTime() - b.signedAt.getTime())[0];
+  const representative = representativeProofOf(source.recipients);
 
   if (!representative) {
     throw invalid('Este documento não tem o código de verificação de quem assinou.');
   }
 
-  // Mesma regra do carimbo e do /verificar: o nome do RH; sem ele, o nome do destinatário.
-  const employee = (representative.employee ?? null) as { nome?: unknown } | null;
-  const representativeName =
-    typeof employee?.nome === 'string' && employee.nome.trim() ? employee.nome.trim() : representative.name.trim();
+  const { representativeName } = representative;
 
   const envelopeItems = [];
 

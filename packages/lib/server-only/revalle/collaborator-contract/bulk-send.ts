@@ -18,7 +18,8 @@ import { type TBulkSendCsvError, validateBulkSendCsv } from '../../template/vali
 import { revalleErrorCode } from '../error-code';
 import { assertCollaboratorContractAdmin } from './create-from-envelope';
 
-const ZRows = z.array(z.object({ name: z.string(), email: z.string() }));
+// v.22: a linha da página própria traz também o CPF da lista (11 números), que vai para a fila.
+const ZRows = z.array(z.object({ name: z.string(), email: z.string(), cpf: z.string().nullish() }));
 
 /** Quanto vale a vez de quem cria os documentos; renovada a cada linha (uma linha leva bem menos que isso). */
 const LEASE_MS = 5 * 60 * 1000;
@@ -197,7 +198,7 @@ export const processCollaboratorBulkSendUpload = async ({
 
   const contractId = upload.contract.id;
   const template = upload.contract.templateEnvelope;
-  const rows: RevalleCollaboratorRow[] = ZRows.parse(upload.rows);
+  const rows: Array<RevalleCollaboratorRow & { cpf?: string | null }> = ZRows.parse(upload.rows);
 
   try {
     if (template) {
@@ -224,6 +225,7 @@ export const processCollaboratorBulkSendUpload = async ({
             createdById: upload.createdById,
             email,
             name: rows[index].name,
+            cpf: rows[index].cpf ?? null,
             requestMetadata,
           });
         } catch (error) {
@@ -295,6 +297,7 @@ const processRow = async ({
   createdById,
   email,
   name,
+  cpf,
   requestMetadata,
 }: {
   contractId: string;
@@ -304,6 +307,7 @@ const processRow = async ({
   createdById: number;
   email: string;
   name: string;
+  cpf: string | null;
   requestMetadata: ApiRequestMetadata;
 }): Promise<RowOutcome> => {
   const existing = await prisma.revalleBulkSendQueue.findUnique({
@@ -349,7 +353,9 @@ const processRow = async ({
   });
 
   try {
-    await prisma.revalleBulkSendQueue.create({ data: { envelopeId, contractId, recipientId: recipient.id, email } });
+    await prisma.revalleBulkSendQueue.create({
+      data: { envelopeId, contractId, recipientId: recipient.id, email, cpf, name: name.trim() || null },
+    });
   } catch (error) {
     if (!isUniqueViolation(error)) {
       throw error;

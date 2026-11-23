@@ -1730,21 +1730,47 @@ model RevalleInvoiceAnnotationBox {
 /// se o documento do representante for apagado. Apagar o modelo só solta `templateEnvelopeId` (a marca dos documentos já
 /// criados continua valendo); a fila desse contrato para de sair.
 model RevalleCollaboratorContract {
-  id                     String                  @id @default(cuid())
-  templateEnvelopeId     String?                 @unique
-  templateEnvelope       Envelope?               @relation("RevalleCollaboratorContractTemplate", fields: [templateEnvelopeId], references: [id], onDelete: SetNull)
-  sourceEnvelopeId       String
-  sourceVerificationCode String
-  representativeName     String
-  representativeSignedAt DateTime
-  createdById            Int
-  paused                 Boolean                 @default(false)
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
-  uploads                RevalleBulkSendUpload[]
-  queue                  RevalleBulkSendQueue[]
+  id                       String                            @id @default(cuid())
+  templateEnvelopeId       String?                           @unique
+  templateEnvelope         Envelope?                         @relation("RevalleCollaboratorContractTemplate", fields: [templateEnvelopeId], references: [id], onDelete: SetNull)
+  /// v.21: sempre preenchidos. v.22: ficam vazios até o representante assinar.
+  sourceEnvelopeId         String?
+  sourceVerificationCode   String?
+  representativeName       String?
+  representativeSignedAt   DateTime?
+  createdById              Int
+  paused                   Boolean                           @default(false)
+  /// v.22 (página própria). Os contratos da v.21 ficam como SENDING, sem título (vale o do modelo).
+  title                    String?
+  status                   RevalleCollaboratorContractStatus @default(DRAFT)
+  /// "Nome do remetente": o nome no assunto do convite (padrão "Revalle").
+  senderName               String?
+  /// O time "Contratos para colaboradores" onde ficam o documento do representante, o modelo e os documentos.
+  teamId                   Int?
+  /// Sem FK: a referência fica mesmo se o documento do representante for apagado.
+  representativeEnvelopeId String?                           @unique
+  representativeEmail      String?
+  /// Quadros de assinatura (`SignatureRect`: % da página vista na tela, página a partir de 1).
+  representativeRect       Json?
+  collaboratorRect         Json?
+  sourcePdfDocumentDataId  String?
+  createdAt                DateTime                          @default(now())
+  updatedAt                DateTime                          @updatedAt
+  uploads                  RevalleBulkSendUpload[]
+  queue                    RevalleBulkSendQueue[]
 
   @@index([sourceEnvelopeId])
+  @@index([status])
+}
+
+/// REVALLE (v.22): situação do contrato para colaboradores criado pela página própria.
+enum RevalleCollaboratorContractStatus {
+  DRAFT
+  AWAITING_REPRESENTATIVE
+  SENDING
+  PAUSED
+  COMPLETED
+  REJECTED_BY_REPRESENTATIVE
 }
 
 /// REVALLE (v.21): uma planilha enviada para um contrato para colaboradores. As linhas (nome e e-mail, já sem repetidos)
@@ -1795,6 +1821,12 @@ model RevalleBulkSendQueue {
   lastErrorCode String?
   lockedAt      DateTime?
   sentAt        DateTime?
+  /// v.22: o CPF da lista (11 números, como no termo do Patrimônio): o portão só aceita este CPF. Null na v.21.
+  cpf           String?
+  /// v.22: o nome usado no documento (o do RH quando a base tem).
+  name          String?
+  /// v.22: último "Reenviar" do admin (no máximo 1 a cada 10 minutos).
+  resentAt      DateTime?
   createdAt     DateTime                    @default(now())
   updatedAt     DateTime                    @updatedAt
 

@@ -28,13 +28,16 @@ export const run = async ({ payload, io }: { payload: TRevalleCollaboratorBulkSe
     prisma.user.findUnique({ where: { id: summary.createdById }, select: { email: true, name: true } }),
     prisma.revalleBulkSendUpload.findUnique({
       where: { id: payload.uploadId },
-      select: { contract: { select: { templateEnvelope: { select: { teamId: true } } } } },
+      select: {
+        contract: { select: { representativeEnvelopeId: true, templateEnvelope: { select: { teamId: true } } } },
+      },
     }),
   ]);
 
   const teamId = template?.contract.templateEnvelope?.teamId;
 
-  if (!user || teamId === undefined) {
+  // v.22 (página própria): o acompanhamento fica na página do contrato, sem o e-mail de resumo.
+  if (!user || teamId === undefined || template?.contract.representativeEnvelopeId) {
     return;
   }
 

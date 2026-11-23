@@ -1,4 +1,6 @@
+import { isCollaboratorContractTeamUrl } from '@documenso/lib/revalle/collaborator-contract-team'; // REVALLE:
 import { ensurePersonalOrganisation } from '@documenso/lib/server-only/revalle/personal-organisation'; // REVALLE:
+import { isAdmin } from '@documenso/lib/utils/is-admin'; // REVALLE:
 import { getHighestOrganisationRoleInGroup } from '@documenso/lib/utils/organisations';
 import { buildTeamWhereQuery, extractDerivedTeamSettings, getHighestTeamRoleInGroup } from '@documenso/lib/utils/teams';
 import { prisma } from '@documenso/prisma';
@@ -77,22 +79,29 @@ export const getOrganisationSession = async ({
     return await getOrganisationSession({ userId, revalleHealed: true });
   }
 
+  // REVALLE: v.22, o time "Contratos para colaboradores" só aparece para administrador do sistema (seletor e menus).
+  const revalleHideContractTeams =
+    organisations.some((organisation) => organisation.teams.some((team) => isCollaboratorContractTeamUrl(team.url))) &&
+    !isAdmin(await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { roles: true } }));
+
   return organisations.map((organisation) => {
     const { organisationGlobalSettings } = organisation;
 
     return {
       ...organisation,
-      teams: organisation.teams.map((team) => {
-        const derivedSettings = extractDerivedTeamSettings(organisationGlobalSettings, team.teamGlobalSettings);
+      teams: organisation.teams
+        .filter((team) => !revalleHideContractTeams || !isCollaboratorContractTeamUrl(team.url)) // REVALLE:
+        .map((team) => {
+          const derivedSettings = extractDerivedTeamSettings(organisationGlobalSettings, team.teamGlobalSettings);
 
-        return {
-          ...team,
-          currentTeamRole: getHighestTeamRoleInGroup(team.teamGroups),
-          preferences: {
-            aiFeaturesEnabled: derivedSettings.aiFeaturesEnabled,
-          },
-        };
-      }),
+          return {
+            ...team,
+            currentTeamRole: getHighestTeamRoleInGroup(team.teamGroups),
+            preferences: {
+              aiFeaturesEnabled: derivedSettings.aiFeaturesEnabled,
+            },
+          };
+        }),
       currentOrganisationRole: getHighestOrganisationRoleInGroup(organisation.groups),
     };
   });

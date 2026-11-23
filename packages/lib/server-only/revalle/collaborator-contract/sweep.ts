@@ -8,6 +8,7 @@ import { env } from '../../../utils/env';
 import { logger } from '../../../utils/logger';
 import { sendDocument } from '../../document/send-document';
 import { revalleErrorCode } from '../error-code';
+import { recoverRepresentativeOutcomes } from './representative';
 
 /** Linha presa por uma varredura que caiu no meio: depois disso, outra varredura pode pegá-la. */
 const STALE_LOCK_MS = 10 * 60 * 1000;
@@ -34,6 +35,8 @@ const resumeStalledUploads = async (now: Date) => {
       completedAt: null,
       updatedAt: { lt: new Date(now.getTime() - STALLED_UPLOAD_MS) },
       OR: [{ leaseUntil: null }, { leaseUntil: { lt: now } }],
+      // v.22: a lista só vira documentos depois que o representante assina (aí o contrato ganha o modelo).
+      contract: { templateEnvelopeId: { not: null } },
     },
     select: { id: true },
     take: 5,
@@ -75,6 +78,7 @@ const failQueueOfDeletedTemplates = async () => {
  * nome nem e-mail.
  */
 export const sweepCollaboratorSendQueue = async ({ now = new Date() }: { now?: Date } = {}) => {
+  await recoverRepresentativeOutcomes();
   await resumeStalledUploads(now);
 
   const result = { sent: 0, retried: 0, failed: await failQueueOfDeletedTemplates() };

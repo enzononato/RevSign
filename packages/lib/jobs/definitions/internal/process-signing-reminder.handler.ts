@@ -21,6 +21,7 @@ import { buildEnvelopeEmailHeaders } from '../../../server-only/email/build-enve
 import { getEmailContext } from '../../../server-only/email/get-email-context';
 import { assertOrganisationRatesAndLimits } from '../../../server-only/rate-limit/assert-organisation-rates-and-limits';
 import { updateRecipientNextReminder } from '../../../server-only/recipient/update-recipient-next-reminder';
+import { findCollaboratorContractEmailSender } from '../../../server-only/revalle/collaborator-contract/sender'; // REVALLE:
 import { recordSendReceiptSafely } from '../../../server-only/revalle/receipts/record-send-receipt'; // REVALLE:
 import { triggerWebhook } from '../../../server-only/webhooks/trigger/trigger-webhook';
 import { DOCUMENT_AUDIT_LOG_TYPE, DOCUMENT_EMAIL_TYPE } from '../../../types/document-audit-logs';
@@ -142,13 +143,16 @@ export const run = async ({ payload, io }: { payload: TProcessSigningReminderJob
     emailSubject = i18n._(msg`Reminder: ${envelope.team.name} invited you to ${recipientActionVerb} a document`);
   }
 
+  // REVALLE: v.22, contrato para colaboradores: o remetente fixo e a resposta para quem criou o contrato.
+  const revalleContractSender = await findCollaboratorContractEmailSender(envelope.id);
+
   // REVALLE: envio simplificado: o mesmo assunto padrão do convite (o dono do envelope, ou o time), com "Lembrete: ".
   emailSubject = i18n._(
     revalleReminderSubject(
       i18n._(
         revalleInviteSubject({
           role: recipient.role,
-          senderName: envelope.user.name,
+          senderName: revalleContractSender?.senderName ?? envelope.user.name,
           teamName: envelope.team.name,
           documentTitle: envelope.title,
         }),
@@ -236,7 +240,8 @@ export const run = async ({ payload, io }: { payload: TProcessSigningReminderJob
         address: recipient.email,
       },
       from: senderEmail,
-      replyTo: revalleInviteReplyTo(replyToEmail, envelope.user.email), // REVALLE: sem resposta configurada, o dono
+      // REVALLE: sem resposta configurada, o dono; contrato para colaboradores (v.22), quem criou o contrato.
+      replyTo: revalleContractSender?.replyTo ?? revalleInviteReplyTo(replyToEmail, envelope.user.email),
       subject: emailSubject,
       html,
       text,

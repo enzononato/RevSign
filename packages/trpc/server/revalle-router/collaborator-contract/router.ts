@@ -12,6 +12,7 @@ import { prisma } from '@documenso/prisma';
 import { TRPCError } from '@trpc/server';
 
 import { authenticatedProcedure, router } from '../../trpc';
+import { collaboratorContractPageRouter } from './page/router';
 import {
   ZCollaboratorContractFromEnvelopeRequestSchema,
   ZCollaboratorContractSetPausedRequestSchema,
@@ -33,6 +34,9 @@ const collaboratorContractAdminProcedure = authenticatedProcedure.use(async ({ c
 });
 
 export const collaboratorContractRouter = router({
+  /** v.22: a página "Contratos para colaboradores". */
+  page: collaboratorContractPageRouter,
+
   /** "Usar como contrato para colaboradores": cria (ou devolve o já criado neste time) o modelo marcado. */
   createFromEnvelope: collaboratorContractAdminProcedure
     .input(ZCollaboratorContractFromEnvelopeRequestSchema)

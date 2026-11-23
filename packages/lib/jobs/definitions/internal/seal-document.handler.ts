@@ -22,6 +22,7 @@ import { getCertificatePdf } from '../../../server-only/htmltopdf/get-certificat
 import { insertFieldInPDFV1 } from '../../../server-only/pdf/insert-field-in-pdf-v1';
 import { insertFieldInPDFV2 } from '../../../server-only/pdf/insert-field-in-pdf-v2';
 import { legacy_insertFieldInPDF } from '../../../server-only/pdf/legacy-insert-field-in-pdf';
+import { onCollaboratorContractRepresentativeSealed } from '../../../server-only/revalle/collaborator-contract/representative'; // REVALLE:
 import { recordFinalHash } from '../../../server-only/revalle/document-hashes'; // REVALLE:
 import { holdSealForFinance, lockSupersededInvoiceForSealing } from '../../../server-only/revalle/finance/seal-hold'; // REVALLE:
 import {
@@ -403,6 +404,10 @@ export const run = async ({ payload, io }: { payload: TSealDocumentJobDefinition
   }
 
   const { envelopeId, envelopeStatus, isRejected } = revalleSealResult; // REVALLE:
+
+  // REVALLE: v.22, documento do representante de um contrato para colaboradores: concluído agenda os documentos dos
+  // colaboradores; recusado marca o contrato. Nunca lança.
+  await onCollaboratorContractRepresentativeSealed({ envelopeId, isRejected });
 
   const updatedEnvelope = await prisma.envelope.findFirstOrThrow({
     where: {
