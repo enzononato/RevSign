@@ -5643,3 +5643,488 @@ msgstr "Este documento é de um contrato para colaboradores: só o administrador
 
 msgid "O contrato para colaboradores sai só pelo envio da planilha, sem link direto."
 msgstr "O contrato para colaboradores sai só pelo envio da planilha, sem link direto."
+
+
+# REVALLE: página contratos para colaboradores (v.22).
+msgid "Não foi possível mostrar esta página."
+msgstr "Não foi possível mostrar esta página."
+
+msgid "{0, plural, one {# colaborador não pôde receber o documento} other {# colaboradores não puderam receber o documento}}"
+msgstr "{0, plural, one {# colaborador não pôde receber o documento} other {# colaboradores não puderam receber o documento}}"
+
+msgid "{0} falharam"
+msgstr "{0} falharam"
+
+msgid "{0} recusaram"
+msgstr "{0} recusaram"
+
+msgid "{0} sem documento"
+msgstr "{0} sem documento"
+
+msgid "{sentLabel}/{totalLabel} enviados"
+msgstr "{sentLabel}/{totalLabel} enviados"
+
+msgid "{signedLabel} de {totalLabel} assinaram"
+msgstr "{signedLabel} de {totalLabel} assinaram"
+
+msgid "A lista aparece aqui depois que o representante assinar e os documentos forem criados."
+msgstr "A lista aparece aqui depois que o representante assinar e os documentos forem criados."
+
+msgid "abriu, ainda não assinou"
+msgstr "abriu, ainda não assinou"
+
+msgid "Ações"
+msgstr "Ações"
+
+msgid "aguardando a assinatura"
+msgstr "aguardando a assinatura"
+
+msgid "Aguardando o representante ({0}). Assim que ele assinar, o envio para os colaboradores começa sozinho."
+msgstr "Aguardando o representante ({0}). Assim que ele assinar, o envio para os colaboradores começa sozinho."
+
+msgid "ainda não recebeu"
+msgstr "ainda não recebeu"
+
+msgid "Assinaturas"
+msgstr "Assinaturas"
+
+msgid "assinou"
+msgstr "assinou"
+
+msgid "assinou {0}"
+msgstr "assinou {0}"
+
+msgid "Atualiza sozinha a cada 30 segundos."
+msgstr "Atualiza sozinha a cada 30 segundos."
+
+msgid "Baixar situação"
+msgstr "Baixar situação"
+
+msgid "Buscar por nome, e-mail ou CPF"
+msgstr "Buscar por nome, e-mail ou CPF"
+
+msgid "Buscar por nome, e-mail ou CPF completo"
+msgstr "Buscar por nome, e-mail ou CPF completo"
+
+msgid "Colaboradores"
+msgstr "Colaboradores"
+
+msgid "Contrato da versão anterior (por modelo): só a situação."
+msgstr "Contrato da versão anterior (por modelo): só a situação."
+
+msgid "Contrato reenviado para o representante"
+msgstr "Contrato reenviado para o representante"
+
+msgid "Contratos para colaboradores"
+msgstr "Contratos para colaboradores"
+
+msgid "Convite reenviado"
+msgstr "Convite reenviado"
+
+msgid "Data"
+msgstr "Data"
+
+msgid "Envio"
+msgstr "Envio"
+
+msgid "Envio retomado"
+msgstr "Envio retomado"
+
+msgid "Erro ao criar o documento: confira a linha na planilha e envie de novo num contrato novo."
+msgstr "Erro ao criar o documento: confira a linha na planilha e envie de novo num contrato novo."
+
+msgid "Filtrar por situação"
+msgstr "Filtrar por situação"
+
+msgid "Limpar busca e filtro"
+msgstr "Limpar busca e filtro"
+
+msgid "Não foi possível baixar a situação"
+msgstr "Não foi possível baixar a situação"
+
+msgid "Não foi possível carregar a lista. Tente de novo."
+msgstr "Não foi possível carregar a lista. Tente de novo."
+
+msgid "Não foi possível carregar o contrato. Tente de novo."
+msgstr "Não foi possível carregar o contrato. Tente de novo."
+
+msgid "Não foi possível enviar para o representante. Tente de novo."
+msgstr "Não foi possível enviar para o representante. Tente de novo."
+
+msgid "Não foi possível mudar o envio"
+msgstr "Não foi possível mudar o envio"
+
+msgid "Não foi possível reenviar"
+msgstr "Não foi possível reenviar"
+
+msgid "Nenhum documento foi criado."
+msgstr "Nenhum documento foi criado."
+
+msgid "Ninguém encontrado com essa busca."
+msgstr "Ninguém encontrado com essa busca."
+
+msgid "Ninguém nesta situação."
+msgstr "Ninguém nesta situação."
+
+msgid "O envio está pausado: depois da assinatura, ele só começa quando você retomar."
+msgstr "O envio está pausado: depois da assinatura, ele só começa quando você retomar."
+
+msgid "O envio está pausado. Ninguém mais recebe o convite até você retomar."
+msgstr "O envio está pausado. Ninguém mais recebe o convite até você retomar."
+
+msgid "O representante assinou. Os documentos dos colaboradores estão sendo criados; isso leva alguns minutos."
+msgstr "O representante assinou. Os documentos dos colaboradores estão sendo criados; isso leva alguns minutos."
+
+msgid "O representante recusou o contrato. Nada foi enviado aos colaboradores."
+msgstr "O representante recusou o contrato. Nada foi enviado aos colaboradores."
+
+msgid "Os convites que faltam voltam a sair, no ritmo de sempre."
+msgstr "Os convites que faltam voltam a sair, no ritmo de sempre."
+
+msgid "Página {page} de {totalPages}"
+msgstr "Página {page} de {totalPages}"
+
+msgid "Paginação"
+msgstr "Paginação"
+
+msgid "Pausar o envio?"
+msgstr "Pausar o envio?"
+
+msgid "Quem ainda está na fila não recebe o convite até você retomar. Quem já recebeu continua podendo assinar."
+msgstr "Quem ainda está na fila não recebe o convite até você retomar. Quem já recebeu continua podendo assinar."
+
+msgid "recusou"
+msgstr "recusou"
+
+msgid "Reenviar"
+msgstr "Reenviar"
+
+msgid "Reenviar para {0}"
+msgstr "Reenviar para {0}"
+
+msgid "Reenviar para o representante"
+msgstr "Reenviar para o representante"
+
+msgid "Representante"
+msgstr "Representante"
+
+msgid "Retomar o envio?"
+msgstr "Retomar o envio?"
+
+msgid "Tente de novo."
+msgstr "Tente de novo."
+
+msgid "Voltar para a lista"
+msgstr "Voltar para a lista"
+
+msgid "Carregando o rascunho…"
+msgstr "Carregando o rascunho…"
+
+msgid "Cole a lista ou suba o arquivo dos colaboradores."
+msgstr "Cole a lista ou suba o arquivo dos colaboradores."
+
+msgid "Contrato"
+msgstr "Contrato"
+
+msgid "Dê um título ao contrato."
+msgstr "Dê um título ao contrato."
+
+msgid "Digite o e-mail do representante, por exemplo nome@revalle.com.br."
+msgstr "Digite o e-mail do representante, por exemplo nome@revalle.com.br."
+
+msgid "Enviar para o representante"
+msgstr "Enviar para o representante"
+
+msgid "Escolha um arquivo PDF."
+msgstr "Escolha um arquivo PDF."
+
+msgid "Espere a conferência da lista terminar."
+msgstr "Espere a conferência da lista terminar."
+
+msgid "Espere a prévia do PDF carregar."
+msgstr "Espere a prévia do PDF carregar."
+
+msgid "Espere o PDF terminar de subir."
+msgstr "Espere o PDF terminar de subir."
+
+msgid "Não foi possível abrir a prévia do PDF. Escolha o arquivo de novo."
+msgstr "Não foi possível abrir a prévia do PDF. Escolha o arquivo de novo."
+
+msgid "Não foi possível abrir este PDF. Ele pode estar protegido por senha ou danificado."
+msgstr "Não foi possível abrir este PDF. Ele pode estar protegido por senha ou danificado."
+
+msgid "Não foi possível abrir o rascunho. Ele pode ter sido enviado ou apagado."
+msgstr "Não foi possível abrir o rascunho. Ele pode ter sido enviado ou apagado."
+
+msgid "Não foi possível enviar o PDF. Confira a conexão e tente de novo."
+msgstr "Não foi possível enviar o PDF. Confira a conexão e tente de novo."
+
+msgid "Não foi possível enviar. Tente de novo."
+msgstr "Não foi possível enviar. Tente de novo."
+
+msgid "Não foi possível salvar o rascunho."
+msgstr "Não foi possível salvar o rascunho."
+
+msgid "Nenhuma linha está pronta. Corrija a planilha e cole de novo."
+msgstr "Nenhuma linha está pronta. Corrija a planilha e cole de novo."
+
+msgid "Novo contrato"
+msgstr "Novo contrato"
+
+msgid "O PDF tem mais de {CONTRACT_PDF_MAX_MB} MB. Diminua o arquivo e tente de novo."
+msgstr "O PDF tem mais de {CONTRACT_PDF_MAX_MB} MB. Diminua o arquivo e tente de novo."
+
+msgid "O representante assina pela empresa: use um e-mail {0}."
+msgstr "O representante assina pela empresa: use um e-mail {0}."
+
+msgid "Passos do novo contrato"
+msgstr "Passos do novo contrato"
+
+msgid "Rascunho salvo"
+msgstr "Rascunho salvo"
+
+msgid "Revisar e enviar"
+msgstr "Revisar e enviar"
+
+msgid "Salvando o rascunho…"
+msgstr "Salvando o rascunho…"
+
+msgid "Suba o PDF do contrato."
+msgstr "Suba o PDF do contrato."
+
+msgid "{0}, página {1}"
+msgstr "{0}, página {1}"
+
+msgid "Arraste cada quadro até o lugar da assinatura e puxe o canto para mudar o tamanho. No teclado: as setas movem o quadro e Shift + setas mudam o tamanho."
+msgstr "Arraste cada quadro até o lugar da assinatura e puxe o canto para mudar o tamanho. No teclado: as setas movem o quadro e Shift + setas mudam o tamanho."
+
+msgid "Assinatura do colaborador"
+msgstr "Assinatura do colaborador"
+
+msgid "Assinatura do representante"
+msgstr "Assinatura do representante"
+
+msgid "Mostrar"
+msgstr "Mostrar"
+
+msgid "Página"
+msgstr "Página"
+
+msgid "Página {currentPage} de {pageCount}"
+msgstr "Página {currentPage} de {pageCount}"
+
+msgid "Página {currentPage} do contrato"
+msgstr "Página {currentPage} do contrato"
+
+msgid "Página anterior"
+msgstr "Página anterior"
+
+msgid "Próxima página"
+msgstr "Próxima página"
+
+msgid "quadro arrastável"
+msgstr "quadro arrastável"
+
+msgid ".xlsx ou .csv. A lista é lida na primeira aba."
+msgstr ".xlsx ou .csv. A lista é lida na primeira aba."
+
+msgid "{ready} prontos · {withErrors} com erro · {duplicates} repetidos"
+msgstr "{ready} prontos · {withErrors} com erro · {duplicates} repetidos"
+
+msgid "A lista tem mais de {0} linhas. Divida em partes de até {1} e crie um contrato para cada parte."
+msgstr "A lista tem mais de {0} linhas. Divida em partes de até {1} e crie um contrato para cada parte."
+
+msgid "Arquivo {fileName}"
+msgstr "Arquivo {fileName}"
+
+msgid "Arquivo da lista de colaboradores"
+msgstr "Arquivo da lista de colaboradores"
+
+msgid "Arquivos .xls antigos não são lidos. No Excel, salve como .xlsx ou .csv e escolha de novo."
+msgstr "Arquivos .xls antigos não são lidos. No Excel, salve como .xlsx ou .csv e escolha de novo."
+
+msgid "Arraste a planilha até aqui ou escolha o arquivo."
+msgstr "Arraste a planilha até aqui ou escolha o arquivo."
+
+msgid "Baixar as linhas com erro"
+msgstr "Baixar as linhas com erro"
+
+msgid "Colar da planilha"
+msgstr "Colar da planilha"
+
+msgid "Colunas aceitas, em qualquer ordem: nome, e-mail e CPF. Sem cabeçalho, a ordem é nome, e-mail, CPF. O CPF pode vir com ou sem pontuação. Até {0} linhas."
+msgstr "Colunas aceitas, em qualquer ordem: nome, e-mail e CPF. Sem cabeçalho, a ordem é nome, e-mail, CPF. O CPF pode vir com ou sem pontuação. Até {0} linhas."
+
+msgid "Conferindo a lista na base do RH…"
+msgstr "Conferindo a lista na base do RH…"
+
+msgid "Copie as colunas nome, e-mail e CPF da planilha e cole aqui."
+msgstr "Copie as colunas nome, e-mail e CPF da planilha e cole aqui."
+
+msgid "Escolha um arquivo .xlsx ou .csv."
+msgstr "Escolha um arquivo .xlsx ou .csv."
+
+msgid "Escolher arquivo"
+msgstr "Escolher arquivo"
+
+msgid "Escolher outro arquivo"
+msgstr "Escolher outro arquivo"
+
+msgid "Linha"
+msgstr "Linha"
+
+msgid "Lista colada"
+msgstr "Lista colada"
+
+msgid "Lista de colaboradores"
+msgstr "Lista de colaboradores"
+
+msgid "Não encontramos nenhuma linha com nome, e-mail e CPF."
+msgstr "Não encontramos nenhuma linha com nome, e-mail e CPF."
+
+msgid "Não foi possível conferir a lista. Tente de novo."
+msgstr "Não foi possível conferir a lista. Tente de novo."
+
+msgid "Não foi possível ler o arquivo. Confira se ele abre no Excel e tente de novo."
+msgstr "Não foi possível ler o arquivo. Confira se ele abre no Excel e tente de novo."
+
+msgid "Nome na lista"
+msgstr "Nome na lista"
+
+msgid "Nome no RH"
+msgstr "Nome no RH"
+
+msgid "O arquivo está vazio. Confira se a lista está na primeira aba da planilha."
+msgstr "O arquivo está vazio. Confira se a lista está na primeira aba da planilha."
+
+msgid "Por segurança, a lista não fica guardada no rascunho. Cole ou suba a lista de novo."
+msgstr "Por segurança, a lista não fica guardada no rascunho. Cole ou suba a lista de novo."
+
+msgid "Pronto"
+msgstr "Pronto"
+
+msgid "Só as linhas com erro"
+msgstr "Só as linhas com erro"
+
+msgid "Só as linhas prontas recebem o contrato, com o nome que está no RH. Para incluir as outras, corrija a planilha e cole de novo."
+msgstr "Só as linhas prontas recebem o contrato, com o nome que está no RH. Para incluir as outras, corrija a planilha e cole de novo."
+
+msgid "Subir arquivo"
+msgstr "Subir arquivo"
+
+msgid "Arraste o PDF até aqui ou escolha o arquivo."
+msgstr "Arraste o PDF até aqui ou escolha o arquivo."
+
+msgid "Carregando a prévia…"
+msgstr "Carregando a prévia…"
+
+msgid "Enviando o PDF…"
+msgstr "Enviando o PDF…"
+
+msgid "Escolher PDF"
+msgstr "Escolher PDF"
+
+msgid "Onde cada um assina"
+msgstr "Onde cada um assina"
+
+msgid "Os dois quadros são obrigatórios. O representante assina no azul; cada colaborador, no verde."
+msgstr "Os dois quadros são obrigatórios. O representante assina no azul; cada colaborador, no verde."
+
+msgid "PDF do contrato"
+msgstr "PDF do contrato"
+
+msgid "PDF do rascunho"
+msgstr "PDF do rascunho"
+
+msgid "Por exemplo: Termo de confidencialidade 2026"
+msgstr "Por exemplo: Termo de confidencialidade 2026"
+
+msgid "Título do contrato"
+msgstr "Título do contrato"
+
+msgid "Trocar o PDF"
+msgstr "Trocar o PDF"
+
+msgid "Um arquivo PDF, até {CONTRACT_PDF_MAX_MB} MB."
+msgstr "Um arquivo PDF, até {CONTRACT_PDF_MAX_MB} MB."
+
+msgid "Use uma tela maior para posicionar as assinaturas"
+msgstr "Use uma tela maior para posicionar as assinaturas"
+
+msgid "E-mail do representante"
+msgstr "E-mail do representante"
+
+msgid "nome@revalle.com.br"
+msgstr "nome@revalle.com.br"
+
+msgid "O representante recebe o contrato primeiro. Assim que ele assinar, o envio para os colaboradores começa sozinho."
+msgstr "O representante recebe o contrato primeiro. Assim que ele assinar, o envio para os colaboradores começa sozinho."
+
+msgid "{readyCount, plural, one {# colaborador} other {# colaboradores}}"
+msgstr "{readyCount, plural, one {# colaborador} other {# colaboradores}}"
+
+msgid "{skippedCount, plural, one {# linha com erro fica de fora} other {# linhas com erro ficam de fora}}"
+msgstr "{skippedCount, plural, one {# linha com erro fica de fora} other {# linhas com erro ficam de fora}}"
+
+msgid "Alterar"
+msgstr "Alterar"
+
+msgid "Aparece nos e-mails. Assunto:"
+msgstr "Aparece nos e-mails. Assunto:"
+
+msgid "cerca de {hours} horas, {perHourLabel} e-mails por hora"
+msgstr "cerca de {hours} horas, {perHourLabel} e-mails por hora"
+
+msgid "cerca de 1 hora, {perHourLabel} e-mails por hora"
+msgstr "cerca de 1 hora, {perHourLabel} e-mails por hora"
+
+msgid "Depois de enviar não dá para mudar o contrato nem a lista. Se precisar parar, use Pausar envio na página do contrato."
+msgstr "Depois de enviar não dá para mudar o contrato nem a lista. Se precisar parar, use Pausar envio na página do contrato."
+
+msgid "Enviar"
+msgstr "Enviar"
+
+msgid "Enviar para o representante e, depois que ele assinar, para {count} colaboradores?"
+msgstr "Enviar para o representante e, depois que ele assinar, para {count} colaboradores?"
+
+msgid "Estimativa de envio"
+msgstr "Estimativa de envio"
+
+msgid "Nome do remetente"
+msgstr "Nome do remetente"
+
+msgid "O envio começa sozinho quando o representante assinar."
+msgstr "O envio começa sozinho quando o representante assinar."
+
+msgid "Páginas"
+msgstr "Páginas"
+
+msgid "{signed} de {total} assinaram"
+msgstr "{signed} de {total} assinaram"
+
+msgid "Acompanhar"
+msgstr "Acompanhar"
+
+msgid "criado em {0}"
+msgstr "criado em {0}"
+
+msgid "Não foi possível carregar os contratos. Tente de novo."
+msgstr "Não foi possível carregar os contratos. Tente de novo."
+
+msgid "Nenhum contrato ainda. Suba o PDF, escolha o representante e cole a lista de colaboradores: o envio começa sozinho depois que o representante assinar."
+msgstr "Nenhum contrato ainda. Suba o PDF, escolha o representante e cole a lista de colaboradores: o envio começa sozinho depois que o representante assinar."
+
+msgid "Nenhum documento enviado ainda."
+msgstr "Nenhum documento enviado ainda."
+
+msgid "Rascunho: continue de onde parou."
+msgstr "Rascunho: continue de onde parou."
+
+msgid "Sem título"
+msgstr "Sem título"
+
+msgid "Um contrato assinado pelo representante da empresa e enviado para cada colaborador assinar, com o acompanhamento de quem já assinou."
+msgstr "Um contrato assinado pelo representante da empresa e enviado para cada colaborador assinar, com o acompanhamento de quem já assinou."
+
+msgid "versão anterior"
+msgstr "versão anterior"
