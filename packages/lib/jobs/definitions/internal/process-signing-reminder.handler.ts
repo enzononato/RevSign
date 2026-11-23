@@ -222,7 +222,9 @@ export const run = async ({ payload, io }: { payload: TProcessSigningReminderJob
       customBody: emailMessage,
       role: recipient.role,
       reportUrl,
-      newAccountWarningSenderEmail: showNewAccountWarning ? envelope.user.email : undefined,
+      // REVALLE: contrato para colaboradores (v.22): o e-mail do admin nunca aparece no lembrete.
+      newAccountWarningSenderEmail:
+        showNewAccountWarning && revalleContractSender === null ? envelope.user.email : undefined,
     });
 
     const [html, text] = await Promise.all([

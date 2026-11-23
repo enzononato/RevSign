@@ -1,5 +1,5 @@
 import { prisma } from '@documenso/prisma';
-import { DocumentStatus, RevalleBulkSendStatus } from '@prisma/client';
+import { DocumentStatus, RevalleBulkSendStatus, RevalleCollaboratorContractStatus } from '@prisma/client';
 
 import { jobs } from '../../../jobs/client';
 import { REVALLE_BULK_SEND_MAX_ATTEMPTS, revalleBulkSendBatchSize } from '../../../revalle/collaborator-contract';
@@ -35,8 +35,13 @@ const resumeStalledUploads = async (now: Date) => {
       completedAt: null,
       updatedAt: { lt: new Date(now.getTime() - STALLED_UPLOAD_MS) },
       OR: [{ leaseUntil: null }, { leaseUntil: { lt: now } }],
-      // v.22: a lista só vira documentos depois que o representante assina (aí o contrato ganha o modelo).
-      contract: { templateEnvelopeId: { not: null } },
+      // v.22: a lista só vira documentos depois que o representante assina. Modelo apagado continua: as linhas que
+      // sobraram viram falha e a lista sai do banco.
+      contract: {
+        status: {
+          notIn: [RevalleCollaboratorContractStatus.DRAFT, RevalleCollaboratorContractStatus.AWAITING_REPRESENTATIVE],
+        },
+      },
     },
     select: { id: true },
     take: 5,
