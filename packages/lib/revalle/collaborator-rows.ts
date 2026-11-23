@@ -26,23 +26,38 @@ const fold = (value: string) =>
 
 type Field = 'name' | 'email' | 'cpf';
 
-const HEADER_NAMES: Record<string, Field> = { nome: 'name', email: 'email', cpf: 'cpf' };
+type RawRow = { line: number; cells: string[] };
 
-const splitLine = (line: string, delimiter: string): string[] => {
-  const cells: string[] = [];
+/** Leitura caractere a caractere: campo entre aspas pode ter delimitador e quebra de linha (Alt+Enter do Excel). */
+const tokenize = (text: string, delimiter: string): RawRow[] => {
+  const rows: RawRow[] = [];
+  let cells: string[] = [];
   let current = '';
   let quoted = false;
+  let line = 1;
+  let rowLine = 1;
 
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
+  const endRow = () => {
+    cells.push(current);
+    rows.push({ line: rowLine, cells });
+    cells = [];
+    current = '';
+  };
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
 
     if (quoted) {
-      if (char === '"' && line[index + 1] === '"') {
+      if (char === '"' && text[index + 1] === '"') {
         current += '"';
         index += 1;
       } else if (char === '"') {
         quoted = false;
       } else {
+        if (char === '\n') {
+          line += 1;
+        }
+
         current += char;
       }
     } else if (char === '"') {
@@ -50,27 +65,62 @@ const splitLine = (line: string, delimiter: string): string[] => {
     } else if (char === delimiter) {
       cells.push(current);
       current = '';
+    } else if (char === '\r' || char === '\n') {
+      if (char === '\r' && text[index + 1] === '\n') {
+        index += 1;
+      }
+
+      endRow();
+      line += 1;
+      rowLine = line;
     } else {
       current += char;
     }
   }
 
-  cells.push(current);
-
-  return cells;
-};
-
-const pickDelimiter = (lines: string[]): string => {
-  const sample = lines.find((line) => line.trim() !== '') ?? '';
-
-  if (sample.includes('\t')) {
-    return '\t';
+  if (current !== '' || cells.length > 0) {
+    endRow();
   }
 
-  const semicolons = sample.match(/;/g)?.length ?? 0;
-  const commas = sample.match(/,/g)?.length ?? 0;
+  return rows;
+};
 
-  return semicolons >= commas && semicolons > 0 ? ';' : ',';
+const isBlank = (row: RawRow) => row.cells.every((cell) => String(cell ?? '').trim() === '');
+
+const DELIMITERS = ['\t', ';', ','];
+
+const pickDelimiter = (text: string): string => {
+  let best = { delimiter: ',', score: -1, width: 0 };
+
+  for (const delimiter of DELIMITERS) {
+    const sample = tokenize(text, delimiter)
+      .filter((row) => !isBlank(row))
+      .slice(0, 5);
+    const counts = new Map<number, number>();
+
+    for (const row of sample) {
+      counts.set(row.cells.length, (counts.get(row.cells.length) ?? 0) + 1);
+    }
+
+    let width = 0;
+    let score = 0;
+
+    for (const [count, rows] of counts) {
+      if (rows > score || (rows === score && count > width)) {
+        width = count;
+        score = rows;
+      }
+    }
+
+    // Só vale quem separa em 3 colunas ou mais; empate fica com tab, depois ';', depois ','.
+    const effective = width >= 3 ? score : 0;
+
+    if (effective > best.score || (effective === best.score && effective === 0 && width > best.width)) {
+      best = { delimiter, score: effective, width };
+    }
+  }
+
+  return best.delimiter;
 };
 
 const normalizeCpfCell = (value: string): string => {
@@ -80,8 +130,24 @@ const normalizeCpfCell = (value: string): string => {
   return digits.length >= 9 && digits.length < 11 ? digits.padStart(11, '0') : digits;
 };
 
-const buildRows = (table: { line: number; cells: string[] }[]): ParsedRow[] => {
-  const filled = table.filter(({ cells }) => cells.some((cell) => String(cell ?? '').trim() !== ''));
+const matchField = (header: string): Field | null => {
+  if (header.startsWith('nome')) {
+    return 'name';
+  }
+
+  if (header.includes('mail')) {
+    return 'email';
+  }
+
+  if (header.startsWith('cpf')) {
+    return 'cpf';
+  }
+
+  return null;
+};
+
+const buildRows = (table: RawRow[]): ParsedRow[] => {
+  const filled = table.filter((row) => !isBlank(row));
 
   if (filled.length === 0) {
     return [];
@@ -90,14 +156,14 @@ const buildRows = (table: { line: number; cells: string[] }[]): ParsedRow[] => {
   const headerMap: Partial<Record<Field, number>> = {};
 
   filled[0].cells.forEach((cell, index) => {
-    const field = HEADER_NAMES[fold(String(cell ?? ''))];
+    const field = matchField(fold(String(cell ?? '')));
 
     if (field && headerMap[field] === undefined) {
       headerMap[field] = index;
     }
   });
 
-  const hasHeader = Object.keys(headerMap).length > 0;
+  const hasHeader = Object.keys(headerMap).length >= 2;
   const columns: Record<Field, number> = hasHeader
     ? { name: headerMap.name ?? -1, email: headerMap.email ?? -1, cpf: headerMap.cpf ?? -1 }
     : { name: 0, email: 1, cpf: 2 };
@@ -118,10 +184,9 @@ const buildRows = (table: { line: number; cells: string[] }[]): ParsedRow[] => {
 };
 
 export const parseCollaboratorText = (text: string): ParsedRow[] => {
-  const lines = text.replace(/^﻿/, '').split(/\r\n|\r|\n/);
-  const delimiter = pickDelimiter(lines);
+  const clean = text.replace(/^\uFEFF/, '');
 
-  return buildRows(lines.map((line, index) => ({ line: index + 1, cells: splitLine(line, delimiter) })));
+  return buildRows(tokenize(clean, pickDelimiter(clean)));
 };
 
 export const parseCollaboratorTable = (rows: string[][]): ParsedRow[] =>
@@ -129,11 +194,16 @@ export const parseCollaboratorTable = (rows: string[][]): ParsedRow[] =>
 
 export const estimateSendHours = (count: number, perHour: number): number => Math.ceil(count / perHour);
 
+const INACTIVE_EXACT = new Set(['false', 'f', 'n', 'nao', '0']);
 const INACTIVE_MARKERS = ['inativ', 'deslig', 'demit', 'rescis', 'falecid'];
 
 /** Inativo no RH só quando a situação indica saída; ausente, "afastado" e "férias" contam como ativo. */
 export const isInactiveSituacao = (situacao: string | null | undefined): boolean => {
   const folded = (situacao ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+  if (INACTIVE_EXACT.has(folded.trim())) {
+    return true;
+  }
 
   return INACTIVE_MARKERS.some((marker) => folded.includes(marker));
 };

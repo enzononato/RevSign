@@ -2,10 +2,10 @@ import { z } from 'zod';
 
 export const ZPreviewRowsRequestSchema = z
   .object({
-    text: z.string().max(2_000_000).optional(),
+    text: z.string().max(5_000_000).optional(),
     rows: z
       .array(z.array(z.string().max(500)).max(50))
-      .max(3100)
+      .max(10000)
       .optional(),
   })
   .refine((value) => value.text !== undefined || value.rows !== undefined, {
