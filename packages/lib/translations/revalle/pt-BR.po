@@ -5541,3 +5541,92 @@ msgstr "Nenhum e-mail sai. Você recebe os links para mandar a cada pessoa como 
 #: packages/lib/revalle/invite-email.ts
 msgid "Lembrete: {subject}"
 msgstr "Lembrete: {subject}"
+
+
+# REVALLE: contrato para colaboradores (v.21, 23/11/2026).
+msgid "Não foi possível criar o modelo. Tente de novo."
+msgstr "Não foi possível criar o modelo. Tente de novo."
+
+msgid "Contrato para colaboradores"
+msgstr "Contrato para colaboradores"
+
+msgid "Este documento já virou um modelo para os colaboradores assinarem."
+msgstr "Este documento já virou um modelo para os colaboradores assinarem."
+
+msgid "Cria um modelo com as páginas assinadas, para cada colaborador receber o seu documento por e-mail e assinar."
+msgstr "Cria um modelo com as páginas assinadas, para cada colaborador receber o seu documento por e-mail e assinar."
+
+msgid "Abrir contrato para colaboradores"
+msgstr "Abrir contrato para colaboradores"
+
+msgid "Usar como contrato para colaboradores"
+msgstr "Usar como contrato para colaboradores"
+
+msgid "Não foi possível baixar a planilha. Tente de novo."
+msgstr "Não foi possível baixar a planilha. Tente de novo."
+
+msgid "Envio para colaboradores"
+msgstr "Envio para colaboradores"
+
+msgid "Envio pausado"
+msgstr "Envio pausado"
+
+msgid "Enviando em lotes ao longo do dia"
+msgstr "Enviando em lotes ao longo do dia"
+
+msgid "Criando os documentos da planilha"
+msgstr "Criando os documentos da planilha"
+
+msgid "Total da planilha"
+msgstr "Total da planilha"
+
+msgid "Repetidas (puladas)"
+msgstr "Repetidas (puladas)"
+
+msgid "Linhas que não viraram documento"
+msgstr "Linhas que não viraram documento"
+
+msgid "Na fila"
+msgstr "Na fila"
+
+msgid "Enviados"
+msgstr "Enviados"
+
+msgid "Falharam"
+msgstr "Falharam"
+
+msgid "Visualizados"
+msgstr "Visualizados"
+
+msgid "Assinados"
+msgstr "Assinados"
+
+msgid "Recusados"
+msgstr "Recusados"
+
+msgid "Falhas no envio"
+msgstr "Falhas no envio"
+
+msgid "Baixar planilha da situação"
+msgstr "Baixar planilha da situação"
+
+msgid "Pausar envio"
+msgstr "Pausar envio"
+
+msgid "Retomar envio"
+msgstr "Retomar envio"
+
+msgid "Planilha recebida"
+msgstr "Planilha recebida"
+
+msgid "{uniqueRows} colaboradores entram na fila e recebem o documento em lotes ao longo do dia. Linhas repetidas puladas: {duplicateRows}."
+msgstr "{uniqueRows} colaboradores entram na fila e recebem o documento em lotes ao longo do dia. Linhas repetidas puladas: {duplicateRows}."
+
+msgid "Tamanho máximo: 4 MB. Até 3.000 linhas por planilha. Cada linha precisa de um e-mail válido; o nome é opcional. Linhas repetidas pelo mesmo e-mail são puladas."
+msgstr "Tamanho máximo: 4 MB. Até 3.000 linhas por planilha. Cada linha precisa de um e-mail válido; o nome é opcional. Linhas repetidas pelo mesmo e-mail são puladas."
+
+msgid "Linha {0}: e-mail inválido ou vazio."
+msgstr "Linha {0}: e-mail inválido ou vazio."
+
+msgid "Os documentos entram numa fila e saem em lotes ao longo do dia."
+msgstr "Os documentos entram numa fila e saem em lotes ao longo do dia."
