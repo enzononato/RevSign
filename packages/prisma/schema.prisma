@@ -505,10 +505,12 @@ model Envelope {
 
   envelopeAttachments EnvelopeAttachment[]
 
-  revalleInvoice         RevalleInvoiceClassification? // REVALLE: back-relation (nota fiscal e conta contábil)
-  revallePatrimonioTermo RevallePatrimonioTermo? // REVALLE: back-relation (termo do Patrimônio)
-  revalleInvoiceFiles    RevalleInvoiceFile[] // REVALLE: back-relation (Fase 9, uma linha por arquivo da NF)
-  revalleAnnotationBoxes RevalleInvoiceAnnotationBox[] // REVALLE: back-relation (bloco de conta e centro no PDF)
+  revalleInvoice              RevalleInvoiceClassification? // REVALLE: back-relation (nota fiscal e conta contábil)
+  revallePatrimonioTermo      RevallePatrimonioTermo? // REVALLE: back-relation (termo do Patrimônio)
+  revalleInvoiceFiles         RevalleInvoiceFile[] // REVALLE: back-relation (Fase 9, uma linha por arquivo da NF)
+  revalleAnnotationBoxes      RevalleInvoiceAnnotationBox[] // REVALLE: back-relation (bloco de conta e centro no PDF)
+  revalleCollaboratorContract RevalleCollaboratorContract?  @relation("RevalleCollaboratorContractTemplate") // REVALLE: back-relation (v.21, modelo marcado como contrato para colaboradores)
+  revalleBulkSendQueue        RevalleBulkSendQueue? // REVALLE: back-relation (v.21, documento do contrato para colaboradores: marca "sem conta" e fila de envio)
 
   @@index([type])
   @@index([status])
@@ -1720,4 +1722,78 @@ model RevalleInvoiceAnnotationBox {
   updatedAt      DateTime     @updatedAt
 
   @@index([envelopeId])
+}
+
+/// REVALLE (v.21): modelo marcado como "contrato para colaboradores". Nasce de um documento concluído (o representante da
+/// empresa já assinou): `sourceEnvelopeId` e o código de verificação do representante ficam guardados, com o nome e a
+/// data da assinatura dele congelados para o certificado de cada colaborador. Sem FK na origem: a referência fica mesmo
+/// se o documento do representante for apagado. Apagar o modelo só solta `templateEnvelopeId` (a marca dos documentos já
+/// criados continua valendo); a fila desse contrato para de sair.
+model RevalleCollaboratorContract {
+  id                     String                  @id @default(cuid())
+  templateEnvelopeId     String?                 @unique
+  templateEnvelope       Envelope?               @relation("RevalleCollaboratorContractTemplate", fields: [templateEnvelopeId], references: [id], onDelete: SetNull)
+  sourceEnvelopeId       String
+  sourceVerificationCode String
+  representativeName     String
+  representativeSignedAt DateTime
+  createdById            Int
+  paused                 Boolean                 @default(false)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  uploads                RevalleBulkSendUpload[]
+  queue                  RevalleBulkSendQueue[]
+
+  @@index([sourceEnvelopeId])
+}
+
+/// REVALLE (v.21): uma planilha enviada para um contrato para colaboradores. As linhas (nome e e-mail, já sem repetidos)
+/// ficam aqui, e não no payload do job (que vai para o log). `processedRows` é o ponto em que o job parou: um novo
+/// disparo continua dali (a varredura da fila dispara de novo a planilha parada).
+model RevalleBulkSendUpload {
+  id            String                      @id @default(cuid())
+  contractId    String
+  contract      RevalleCollaboratorContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  createdById   Int
+  rows          Json
+  totalRows     Int
+  duplicateRows Int
+  processedRows Int                         @default(0)
+  createdCount  Int                         @default(0)
+  skippedCount  Int                         @default(0)
+  failedCount   Int                         @default(0)
+  completedAt   DateTime?
+  createdAt     DateTime                    @default(now())
+  /// Avança a cada linha: parada há mais de 15 minutos sem terminar = o job caiu (a varredura dispara de novo).
+  updatedAt     DateTime                    @updatedAt
+
+  @@index([contractId])
+  @@index([completedAt, updatedAt])
+}
+
+enum RevalleBulkSendStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+/// REVALLE (v.21): documento criado de um contrato para colaboradores. A linha é a marca "sem conta" do documento (a
+/// regra "e-mail da empresa precisa de conta" não vale nele e o portão pede CPF e data sempre) e a fila de envio em
+/// lotes. `lastErrorCode` é só o código do erro, nunca dado pessoal.
+model RevalleBulkSendQueue {
+  id            String                      @id @default(cuid())
+  envelopeId    String                      @unique
+  envelope      Envelope                    @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
+  contractId    String
+  contract      RevalleCollaboratorContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  status        RevalleBulkSendStatus       @default(QUEUED)
+  attempts      Int                         @default(0)
+  lastErrorCode String?
+  lockedAt      DateTime?
+  sentAt        DateTime?
+  createdAt     DateTime                    @default(now())
+  updatedAt     DateTime                    @updatedAt
+
+  @@index([contractId, status])
+  @@index([status, createdAt])
 }

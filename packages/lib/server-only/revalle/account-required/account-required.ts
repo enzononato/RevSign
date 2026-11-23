@@ -11,6 +11,7 @@ import {
   type RevalleAccountRecipient,
 } from '../../../revalle/account-required/rule';
 import { env } from '../../../utils/env';
+import { isCollaboratorContractRecipient } from '../collaborator-contract/marker';
 
 /**
  * Quem age com o token do destinatário: o usuário da sessão do pedido (null/undefined sem sessão). Todas as ações por
@@ -43,6 +44,12 @@ export const getRevalleAccountCheck = async (
   actor: RevalleSigningActor,
 ): Promise<RevalleAccountCheck> => {
   if (!isRevalleAccountRequiredFor(recipient)) {
+    return { status: 'NOT_REQUIRED' };
+  }
+
+  // v.21: documento do contrato para colaboradores: sem conta (o portão pede CPF e data de nascimento sempre). Quem já
+  // está logado com a própria conta entra normalmente. Sem o id do destinatário, a regra de sempre (conta exigida).
+  if (recipient.id !== undefined && (await isCollaboratorContractRecipient(recipient.id))) {
     return { status: 'NOT_REQUIRED' };
   }
 

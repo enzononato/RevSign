@@ -19,6 +19,8 @@ export const isRevalleAccountErrorCode = (code: unknown): boolean =>
   code === REVALLE_ACCOUNT_REQUIRED_CODE || code === REVALLE_ACCOUNT_MISMATCH_CODE;
 
 export type RevalleAccountRecipient = {
+  /** v.21: com o id, o servidor confere se o documento é de um contrato para colaboradores (dispensa a conta). */
+  id?: number;
   email: string;
   role: string;
   signingStatus: string;

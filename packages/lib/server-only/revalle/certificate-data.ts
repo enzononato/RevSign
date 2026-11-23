@@ -12,6 +12,7 @@ import {
 } from '../../revalle/certificate-rows';
 import { fileFinanceStatus, invoicePositions } from '../../revalle/invoice/invoice-files';
 import { revalleRoleVerb } from '../../revalle/role-verbs';
+import { loadCollaboratorContractLine } from './collaborator-contract/marker';
 import { loadInvoiceFiles } from './invoice/invoice-files';
 
 export type RevalleCertificateRecipient = {
@@ -43,7 +44,7 @@ export const loadRevalleCertificateData = async ({
   recipients,
   envelopeItemId,
 }: LoadRevalleCertificateDataOptions): Promise<RevalleCertificateData> => {
-  const [proofs, hashes, meta, invoiceLines, costCenterLine] = await Promise.all([
+  const [proofs, hashes, meta, invoiceLines, costCenterLine, collaboratorContractLine] = await Promise.all([
     prisma.revalleSignatureProof.findMany({
       where: { recipientId: { in: recipients.map((recipient) => recipient.id) } },
     }),
@@ -57,6 +58,7 @@ export const loadRevalleCertificateData = async ({
     }),
     loadInvoiceLines(envelopeId),
     loadCostCenterLine(envelopeId),
+    loadCollaboratorContractLine(envelopeId),
   ]);
 
   // Ordem de assinatura só existe (e só aparece) em documento sequencial.
@@ -102,6 +104,11 @@ export const loadRevalleCertificateData = async ({
     if (costCenterLine) {
       headerLines.push({ text: costCenterLine, wrap: 'word' });
     }
+  }
+
+  // v.21, contrato para colaboradores: "Assinado pela empresa: {representante} em {data}, código {código}".
+  if (collaboratorContractLine) {
+    headerLines.push({ text: collaboratorContractLine.text, wrap: 'word' });
   }
 
   return { recipients: byRecipient, headerLines };

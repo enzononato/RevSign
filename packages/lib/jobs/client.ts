@@ -31,6 +31,8 @@ import { EXECUTE_WEBHOOK_JOB_DEFINITION } from './definitions/internal/execute-w
 import { EXPIRE_RECIPIENTS_SWEEP_JOB_DEFINITION } from './definitions/internal/expire-recipients-sweep';
 import { PROCESS_RECIPIENT_EXPIRED_JOB_DEFINITION } from './definitions/internal/process-recipient-expired';
 import { PROCESS_SIGNING_REMINDER_JOB_DEFINITION } from './definitions/internal/process-signing-reminder';
+import { REVALLE_COLLABORATOR_BULK_SEND_JOB_DEFINITION } from './definitions/internal/revalle-collaborator-bulk-send'; // REVALLE: contrato para colaboradores (v.21)
+import { REVALLE_COLLABORATOR_SEND_SWEEP_JOB_DEFINITION } from './definitions/internal/revalle-collaborator-send-sweep'; // REVALLE: contrato para colaboradores (v.21)
 import { REVALLE_INVOICE_SUGGEST_JOB_DEFINITION } from './definitions/internal/revalle-invoice-suggest'; // REVALLE: sugestão de conta da nota fiscal
 import { REVALLE_PATRIMONIO_WEBHOOK_JOB_DEFINITION } from './definitions/internal/revalle-patrimonio-webhook'; // REVALLE: avisos ao Patrimônio
 import { REVALLE_PATRIMONIO_WEBHOOK_SWEEP_JOB_DEFINITION } from './definitions/internal/revalle-patrimonio-webhook-sweep'; // REVALLE: avisos ao Patrimônio
@@ -88,6 +90,9 @@ export const jobsClient = new JobClient([
   // REVALLE: avisos (webhook) ao Patrimônio, com a varredura das tentativas vencidas.
   REVALLE_PATRIMONIO_WEBHOOK_JOB_DEFINITION,
   REVALLE_PATRIMONIO_WEBHOOK_SWEEP_JOB_DEFINITION,
+  // REVALLE: contrato para colaboradores (v.21): criação dos documentos da planilha e a varredura do envio em lotes.
+  REVALLE_COLLABORATOR_BULK_SEND_JOB_DEFINITION,
+  REVALLE_COLLABORATOR_SEND_SWEEP_JOB_DEFINITION,
 ] as const);
 
 export const jobs = jobsClient;

@@ -9,6 +9,8 @@ import { createDocumentData } from '@documenso/lib/server-only/document-data/cre
 import { createEnvelope } from '@documenso/lib/server-only/envelope/create-envelope';
 import { duplicateEnvelope } from '@documenso/lib/server-only/envelope/duplicate-envelope';
 import { updateEnvelope } from '@documenso/lib/server-only/envelope/update-envelope';
+import { uploadCollaboratorBulkSend } from '@documenso/lib/server-only/revalle/collaborator-contract/bulk-send'; // REVALLE:
+import { findCollaboratorContractByTemplateEnvelopeId } from '@documenso/lib/server-only/revalle/collaborator-contract/marker'; // REVALLE:
 import {
   createDocumentFromDirectTemplate,
   ZCreateDocumentFromDirectTemplateResponseSchema,
@@ -833,6 +835,19 @@ export const templateRouter = router({
     if (!template) {
       throw new AppError(AppErrorCode.NOT_FOUND, {
         message: 'Template not found',
+      });
+    }
+
+    // REVALLE: contrato para colaboradores (v.21): só o admin (403), até 3.000 linhas, sem repetidos, e os documentos
+    // entram na fila de envio em lotes em vez de sair na hora. Modelo comum segue o fluxo abaixo, sem mudança.
+    const revalleContract = await findCollaboratorContractByTemplateEnvelopeId(template.envelopeId);
+
+    if (revalleContract) {
+      return await uploadCollaboratorBulkSend({
+        contractId: revalleContract.id,
+        templateRecipientCount: template.recipients.length,
+        csv,
+        userId: user.id,
       });
     }
 

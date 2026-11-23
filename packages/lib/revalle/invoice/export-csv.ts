@@ -70,7 +70,8 @@ const BOM = '﻿';
 // número ou data (id, valor `1234,56`, `29/10/2026 14:30`) não começa com esses caracteres.
 const FORMULA_START = /^[=+\-@\t\r]/;
 
-const escapeCell = (value: string) => {
+/** v.21: também usada pela planilha de situação do contrato para colaboradores. */
+export const escapeCsvCell = (value: string) => {
   const text = FORMULA_START.test(value) ? `'${value}` : value;
 
   return /[;"\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
@@ -125,7 +126,7 @@ export const buildInvoiceExportCsv = (rows: InvoiceExportRow[]): string => {
       row.accessKeys.map(formatAccessKey).join(' / '),
       row.isPossibleDuplicate ? 'sim' : '',
     ]
-      .map(escapeCell)
+      .map(escapeCsvCell)
       .join(';');
   });
 

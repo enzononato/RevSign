@@ -3,6 +3,7 @@ import type { RevalleRecipientGate } from '@prisma/client';
 
 import { maskCpf } from '../../../revalle/cpf';
 import { normalizeEmail } from '../../../revalle/email-domain';
+import { revalleIdentityAsksCpfEveryTime } from '../../../revalle/identity-policy';
 import { REVALLE_TERM_NOTICE, REVALLE_TERM_TEXT, REVALLE_TERM_VERSION } from '../../../revalle/term';
 import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import type { RequestMetadata } from '../../../universal/extract-request-metadata';
@@ -197,8 +198,9 @@ export const getRevalleGateState = async (
   const email = normalizeEmail(recipient.email);
 
   // E-mail de fora da empresa e termo do Patrimônio: CPF e data de nascimento sempre. O e-mail nunca identifica sozinho:
-  // nem o vínculo salvo nem o e-mail da base valem aqui.
-  const isAlwaysCpf = (await getRevalleIdentityPolicy(recipient)).mode === 'ALWAYS_CPF';
+  // nem o vínculo salvo nem o e-mail da base valem aqui. v.21: o contrato para colaboradores (sem conta) também pede
+  // sempre, mesmo no e-mail da empresa.
+  const isAlwaysCpf = revalleIdentityAsksCpfEveryTime(await getRevalleIdentityPolicy(recipient));
 
   if (!isAlwaysCpf) {
     const link = await prisma.revalleEmailLink.findUnique({ where: { email } });

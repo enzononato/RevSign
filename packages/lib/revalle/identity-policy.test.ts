@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveRevalleIdentityPolicy } from './identity-policy';
+import { resolveRevalleIdentityPolicy, revalleIdentityAsksCpfEveryTime } from './identity-policy';
 
 describe('resolveRevalleIdentityPolicy', () => {
   it('company e-mail uses the e-mail link', () => {
@@ -23,5 +23,22 @@ describe('resolveRevalleIdentityPolicy', () => {
         expectedCpf: '52871936455',
       });
     }
+  });
+
+  it('v.21 collaborator contract: company e-mail keeps the e-mail checks but asks for CPF every time', () => {
+    const policy = resolveRevalleIdentityPolicy({
+      isExternalEmail: false,
+      termoCpf: null,
+      isCollaboratorContract: true,
+    });
+
+    expect(policy).toEqual({ mode: 'LINKED_EMAIL', askCpfEveryTime: true });
+    expect(revalleIdentityAsksCpfEveryTime(policy)).toBe(true);
+    expect(
+      revalleIdentityAsksCpfEveryTime(resolveRevalleIdentityPolicy({ isExternalEmail: false, termoCpf: null })),
+    ).toBe(false);
+    expect(
+      resolveRevalleIdentityPolicy({ isExternalEmail: true, termoCpf: null, isCollaboratorContract: true }).mode,
+    ).toBe('ALWAYS_CPF');
   });
 });

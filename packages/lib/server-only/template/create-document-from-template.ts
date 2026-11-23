@@ -55,6 +55,7 @@ import { insertFormValuesInPdf } from '../pdf/insert-form-values-in-pdf';
 import { assertOrganisationRatesAndLimits } from '../rate-limit/assert-organisation-rates-and-limits';
 import { assignOmittedRecipientSigningOrders } from '../recipient/assign-omitted-recipient-signing-orders';
 import { assertRecipientEmailsAllowed } from '../revalle/assert-recipient-domains'; // REVALLE:
+import { assertCollaboratorContractTemplateUse } from '../revalle/collaborator-contract/create-from-envelope'; // REVALLE:
 import { copyInvoiceAnnotationBoxes } from '../revalle/invoice/annotation-box'; // REVALLE:
 import { fillRecipientNamesFromAccounts } from '../revalle/recipients/fill-recipient-names'; // REVALLE:
 import { assertCompatibleRecipientGrouping } from '../signature-level/assert-compatible-recipient-grouping';
@@ -359,6 +360,9 @@ export const createDocumentFromTemplate = async ({
       message: 'Template not found',
     });
   }
+
+  // REVALLE: v.21, contrato para colaboradores: só o admin usa o modelo marcado (403 para os outros).
+  await assertCollaboratorContractTemplateUse({ templateEnvelopeId: template.id, userId });
 
   if (folderId) {
     const folder = await prisma.folder.findUnique({

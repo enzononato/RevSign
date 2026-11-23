@@ -4,6 +4,7 @@ import { accountingRouter } from './accounting/router';
 import { adminDeleteLinkRoute } from './admin-delete-link';
 import { adminFindGatesRoute } from './admin-find-gates';
 import { adminUnlockGateRoute } from './admin-unlock-gate';
+import { collaboratorContractRouter } from './collaborator-contract/router';
 import { confirmIdentityRoute } from './confirm-identity';
 import { financeRouter } from './finance/router';
 import { invoiceRouter } from './invoice/router';
@@ -29,4 +30,5 @@ export const revalleRouter = router({
   invoice: invoiceRouter,
   finance: financeRouter,
   accounting: accountingRouter,
+  collaboratorContract: collaboratorContractRouter,
 });
