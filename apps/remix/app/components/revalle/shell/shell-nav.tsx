@@ -75,6 +75,16 @@ const useShellNavLinks = (): ShellNavLink[] => {
         isActive: startsWithSegment(pathname, '/notas-fiscais'),
         counter: 'invoices',
       },
+      // REVALLE (v.22): contrato para colaboradores, só para o administrador do sistema.
+      ...(isAdmin(user)
+        ? [
+            {
+              href: '/contratos-colaboradores',
+              label: msg`Contratos para colaboradores`,
+              isActive: startsWithSegment(pathname, '/contratos-colaboradores'),
+            },
+          ]
+        : []),
       { href: '/inbox', label: msg`Inbox`, isActive: startsWithSegment(pathname, '/inbox'), counter: 'inbox' },
       { href: '/verificar', label: msg`Verify document`, isActive: false },
       { href: '/settings/profile', label: msg`Settings`, isActive: SETTINGS_PATH.test(pathname) },
