@@ -10,3 +10,6 @@ export const collaboratorContractTeamUrl = (userId: number) => `${TEAM_URL_PREFI
 
 export const isCollaboratorContractTeamUrl = (url: string | null | undefined): boolean =>
   typeof url === 'string' && /^contratos-colab-\d+$/.test(url);
+
+/** O prefixo inteiro é reservado: criar ou renomear um time (ou organização) com ele é recusado. */
+export const isReservedCollaboratorContractTeamUrl = (url: string): boolean => url.startsWith(TEAM_URL_PREFIX);

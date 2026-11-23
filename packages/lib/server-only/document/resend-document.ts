@@ -298,6 +298,7 @@ export const resendDocument = async ({
       const template = createElement(DocumentInviteEmailTemplate, {
         documentName: envelope.title,
         inviterName: revalleContractSender?.senderName ?? (user.name || undefined), // REVALLE: remetente fixo (v.22)
+        revalleHideInviterEmail: revalleContractSender !== null, // REVALLE: só o nome do remetente fixo
         inviterEmail:
           organisationType === OrganisationType.ORGANISATION
             ? envelope.team?.teamEmail?.email || user.email

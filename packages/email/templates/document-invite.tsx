@@ -28,6 +28,9 @@ export type DocumentInviteEmailTemplateProps = Partial<TemplateDocumentInvitePro
    * actually contacted them.
    */
   newAccountWarningSenderEmail?: string;
+
+  /** REVALLE: v.22, contrato para colaboradores: só o nome do remetente fixo, sem o e-mail de quem criou. */
+  revalleHideInviterEmail?: boolean;
 };
 
 export const DocumentInviteEmailTemplate = ({
@@ -44,6 +47,7 @@ export const DocumentInviteEmailTemplate = ({
   organisationType,
   reportUrl,
   newAccountWarningSenderEmail,
+  revalleHideInviterEmail = false, // REVALLE:
 }: DocumentInviteEmailTemplateProps) => {
   const { _ } = useLingui();
 
@@ -94,7 +98,12 @@ export const DocumentInviteEmailTemplate = ({
 
           <Container className="mx-auto mt-12 max-w-xl">
             <Section>
-              {organisationType === OrganisationType.PERSONAL && (
+              {/* REVALLE: remetente fixo do contrato para colaboradores: só o nome. */}
+              {organisationType === OrganisationType.PERSONAL && revalleHideInviterEmail && (
+                <Text className="my-4 font-semibold text-base">{inviterName}</Text>
+              )}
+
+              {organisationType === OrganisationType.PERSONAL && !revalleHideInviterEmail && (
                 <Text className="my-4 font-semibold text-base">
                   <Trans>
                     {inviterName}{' '}

@@ -1,4 +1,5 @@
 import { PROTECTED_TEAM_URLS } from '@documenso/lib/constants/teams';
+import { isReservedCollaboratorContractTeamUrl } from '@documenso/lib/revalle/collaborator-contract-team'; // REVALLE:
 import { ZNameSchema } from '@documenso/lib/types/name';
 import { zEmail } from '@documenso/lib/utils/zod';
 import { TeamMemberRole } from '@prisma/client';
@@ -29,6 +30,10 @@ export const ZTeamUrlSchema = z
   .regex(/^(?!.*[-_]{2})/, 'Team URL cannot contain consecutive dashes or underscores.')
   .regex(/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/, 'Team URL can only contain letters, numbers, dashes and underscores.')
   .refine((value) => !PROTECTED_TEAM_URLS.includes(value), {
+    message: 'This URL is already in use.',
+  })
+  // REVALLE: v.22, o prefixo do time "Contratos para colaboradores" é reservado (ninguém ocupa o endereço antes).
+  .refine((value) => !isReservedCollaboratorContractTeamUrl(value), {
     message: 'This URL is already in use.',
   });
 

@@ -21,7 +21,7 @@ export const ZGetCollaboratorContractResponseSchema = z.object({
     isLegacy: z.boolean(),
     createdAt: z.date(),
   }),
-  /** Grupos que não se repetem: a soma é o total de documentos criados. */
+  /** Grupos que não se repetem: a soma (sem `notCreated`) é o total de documentos criados. */
   counts: z.object({
     queued: z.number(),
     sent: z.number(),
@@ -29,6 +29,8 @@ export const ZGetCollaboratorContractResponseSchema = z.object({
     signed: z.number(),
     rejected: z.number(),
     failed: z.number(),
+    /** Linhas da lista que não viraram documento (erro ao criar); não aparecem em `rows`. */
+    notCreated: z.number(),
   }),
   representative: z
     .object({

@@ -84,6 +84,20 @@ export const uploadCollaboratorBulkSend = async ({
   userId: number;
 }): Promise<CollaboratorBulkSendResult> => {
   await assertCollaboratorContractAdmin(userId);
+
+  // v.22: o contrato da página própria tem a lista conferida no RH e amarrada ao CPF; planilha pelo modelo dele criaria
+  // documentos sem o CPF da lista.
+  const contract = await prisma.revalleCollaboratorContract.findUnique({
+    where: { id: contractId },
+    select: { representativeEnvelopeId: true },
+  });
+
+  if (contract?.representativeEnvelopeId) {
+    const message = 'Este contrato sai só pela página "Contratos para colaboradores".';
+
+    throw new AppError(AppErrorCode.FORBIDDEN, { message, userMessage: message, statusCode: 403 });
+  }
+
   await assertTemplateReady(templateEnvelopeId);
 
   const validation = validateBulkSendCsv({

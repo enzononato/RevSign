@@ -78,7 +78,7 @@ const failQueueOfDeletedTemplates = async () => {
  * nome nem e-mail.
  */
 export const sweepCollaboratorSendQueue = async ({ now = new Date() }: { now?: Date } = {}) => {
-  await recoverRepresentativeOutcomes();
+  await recoverRepresentativeOutcomes({ now });
   await resumeStalledUploads(now);
 
   const result = { sent: 0, retried: 0, failed: await failQueueOfDeletedTemplates() };

@@ -1,4 +1,5 @@
 import { prisma } from '@documenso/prisma';
+import type { DocumentDataType, Prisma } from '@prisma/client';
 import {
   DocumentStatus,
   EnvelopeType,
@@ -26,6 +27,91 @@ export const lockCollaboratorContract = async (
   contractId: string,
 ): Promise<void> => {
   await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtext(${`revalle-collaborator:${contractId}`}))`;
+};
+
+/** Marca do modelo no `externalId`: uma execução que caiu depois de criá-lo reaproveita o mesmo (nunca cria outro). */
+const templateExternalId = (contractId: string) => `revalle-collaborator-contract:${contractId}`;
+
+/**
+ * O modelo do contrato: as páginas assinadas (sem certificado e auditoria, como na v.21), um signatário genérico com a
+ * assinatura no quadro verde. Se uma execução anterior já o criou (e caiu antes de gravar no contrato), é o mesmo.
+ */
+const findOrCreateContractTemplate = async ({
+  contractId,
+  createdById,
+  teamId,
+  title,
+  collaboratorRect,
+  item,
+}: {
+  contractId: string;
+  createdById: number;
+  teamId: number;
+  title: string;
+  collaboratorRect: Prisma.JsonValue;
+  item: { title: string; documentData: { type: DocumentDataType; data: string; initialData: string } };
+}): Promise<{ id: string }> => {
+  const existing = await prisma.envelope.findFirst({
+    where: { type: EnvelopeType.TEMPLATE, teamId, externalId: templateExternalId(contractId), deletedAt: null },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true },
+  });
+
+  if (existing) {
+    return existing;
+  }
+
+  // O documento do representante tem um arquivo só (o PDF do assistente).
+  const bytes = await contractPagesOf(item.documentData);
+  const { documentData } = await putPdfFileServerSide({
+    name: item.title,
+    type: 'application/pdf',
+    arrayBuffer: async () => Promise.resolve(bytes),
+  });
+
+  const rect = clampSignatureRect(ZSignatureRectSchema.parse(collaboratorRect));
+
+  try {
+    return await createEnvelope({
+      userId: createdById,
+      teamId,
+      internalVersion: 2,
+      normalizePdf: false,
+      bypassDefaultRecipients: true,
+      data: {
+        type: EnvelopeType.TEMPLATE,
+        title,
+        externalId: templateExternalId(contractId),
+        envelopeItems: [{ title: item.title, documentDataId: documentData.id, order: 1 }],
+        recipients: [
+          {
+            email: 'recipient.1@documenso.com',
+            name: REVALLE_COLLABORATOR_RECIPIENT_NAME,
+            role: RecipientRole.SIGNER,
+            signingOrder: 1,
+            fields: [
+              {
+                type: FieldType.SIGNATURE,
+                fieldMeta: FIELD_SIGNATURE_META_DEFAULT_VALUES,
+                documentDataId: documentData.id,
+                ...rect,
+              },
+            ],
+          },
+        ],
+      },
+      // Centenas de documentos: o dono não recebe um e-mail a cada assinatura nem a cada conclusão.
+      meta: {
+        emailSettings: { ...DEFAULT_DOCUMENT_EMAIL_SETTINGS, recipientSigned: false, ownerDocumentCompleted: false },
+      },
+      requestMetadata: SYSTEM_REQUEST_METADATA,
+    });
+  } catch (error) {
+    // O PDF que não virou modelo não fica órfão no banco.
+    await prisma.documentData.deleteMany({ where: { id: documentData.id, envelopeItem: null } }).catch(() => undefined);
+
+    throw error;
+  }
 };
 
 type PrepareOutcome = 'NOT_FOUND' | 'NOT_READY' | 'REJECTED' | 'READY';
@@ -89,50 +175,13 @@ const prepareContractTemplate = async (contractId: string): Promise<PrepareOutco
         return 'NOT_READY';
       }
 
-      // O documento do representante tem um arquivo só (o PDF do assistente).
-      const [item] = source.envelopeItems;
-      const bytes = await contractPagesOf(item.documentData);
-      const { documentData } = await putPdfFileServerSide({
-        name: item.title,
-        type: 'application/pdf',
-        arrayBuffer: async () => Promise.resolve(bytes),
-      });
-
-      const rect = clampSignatureRect(ZSignatureRectSchema.parse(contract.collaboratorRect));
-      const title = contract.title?.trim() || source.title;
-
-      const template = await createEnvelope({
-        userId: contract.createdById,
+      const template = await findOrCreateContractTemplate({
+        contractId,
+        createdById: contract.createdById,
         teamId: contract.teamId,
-        internalVersion: 2,
-        normalizePdf: false,
-        bypassDefaultRecipients: true,
-        data: {
-          type: EnvelopeType.TEMPLATE,
-          title,
-          envelopeItems: [{ title: item.title, documentDataId: documentData.id, order: 1 }],
-          recipients: [
-            {
-              email: 'recipient.1@documenso.com',
-              name: REVALLE_COLLABORATOR_RECIPIENT_NAME,
-              role: RecipientRole.SIGNER,
-              signingOrder: 1,
-              fields: [
-                {
-                  type: FieldType.SIGNATURE,
-                  fieldMeta: FIELD_SIGNATURE_META_DEFAULT_VALUES,
-                  documentDataId: documentData.id,
-                  ...rect,
-                },
-              ],
-            },
-          ],
-        },
-        // Centenas de documentos: o dono não recebe um e-mail a cada assinatura nem a cada conclusão.
-        meta: {
-          emailSettings: { ...DEFAULT_DOCUMENT_EMAIL_SETTINGS, recipientSigned: false, ownerDocumentCompleted: false },
-        },
-        requestMetadata: SYSTEM_REQUEST_METADATA,
+        title: contract.title?.trim() || source.title,
+        collaboratorRect: contract.collaboratorRect,
+        item: source.envelopeItems[0],
       });
 
       await tx.revalleCollaboratorContract.update({

@@ -132,7 +132,7 @@ const runJobLikeTheApp = async ({ jobId, name, version, payload }) => {
   const signature = execFileSync('docker', ['exec', APP_CONTAINER, 'node', '-e', script, JSON.stringify(options)], {
     encoding: 'utf8',
   }).trim();
-  const id = `revsign-test-${jobId}-${RUN}-${Date.now()}`;
+  const id = `revsign-test-${jobId}-${RUN}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   db(
     `insert into "BackgroundJob" (id, "jobId", name, version, payload, "updatedAt") values ('${id}', '${jobId}', '${name}', '${version}', '${JSON.stringify(payload)}', now())`,
@@ -322,6 +322,11 @@ sessionTest('admin cria o contrato e o representante recebe o convite com o reme
   fx.contractId = data(draft).contractId;
   assert.equal(contractStatus(fx.contractId), 'DRAFT');
 
+  // Rascunho de outra pessoa: quem envia vira o dono (time, modelo e resposta ao convite são de quem enviou).
+  db(
+    `update "RevalleCollaboratorContract" set "createdById" = (select id from "User" where email = '${user.email}') where id = '${fx.contractId}'`,
+  );
+
   const seenRep = new Set((await mailsTo(repEmail)).map((message) => message.ID));
   const input = {
     contractId: fx.contractId,
@@ -354,6 +359,10 @@ sessionTest('admin cria o contrato e o representante recebe o convite com o reme
 
   assert.equal(status, 'AWAITING_REPRESENTATIVE');
   assert.equal(teamUrl, `contratos-colab-${fx.adminId}`);
+  assert.equal(
+    db(`select "createdById" from "RevalleCollaboratorContract" where id = '${fx.contractId}'`),
+    String(fx.adminId),
+  );
   assert.equal(senderName, 'Revalle');
   assert.equal(envelopeStatus(repEnvelopeId), 'PENDING');
   fx.repEnvelopeId = repEnvelopeId;
@@ -390,6 +399,10 @@ sessionTest('conclusão do representante cria os documentos uma vez só', async 
 
   await passGateAsRepresentative(rep.token, cookie);
 
+  // Sem o vínculo, a selagem não agenda a criação: o contrato fica "Aguardando representante" com o documento
+  // concluído, para as duas criações abaixo correrem juntas desde o começo.
+  db(`update "RevalleCollaboratorContract" set "representativeEnvelopeId" = null where id = '${fx.contractId}'`);
+
   const signed = await trpc(
     'envelope.field.sign',
     { token: rep.token, fieldId, fieldValue: { type: 'SIGNATURE', value: 'Representante' } },
@@ -407,6 +420,14 @@ sessionTest('conclusão do representante cria os documentos uma vez só', async 
 
   assert.ok(done.ok, done.text);
   await waitFor(() => envelopeStatus(fx.repEnvelopeId) === 'COMPLETED', 'a selagem do documento do representante');
+  await sleep(2000);
+  assert.equal(contractStatus(fx.contractId), 'AWAITING_REPRESENTATIVE');
+  db(
+    `update "RevalleCollaboratorContract" set "representativeEnvelopeId" = '${fx.repEnvelopeId}' where id = '${fx.contractId}'`,
+  );
+
+  // Duas criações ao mesmo tempo e mais uma depois (o mesmo evento repetido): N documentos, nenhum a mais.
+  assert.deepEqual(await Promise.all([build(fx.contractId), build(fx.contractId)]), ['COMPLETED', 'COMPLETED']);
   await waitFor(
     () =>
       queueCount(fx.contractId) === 2 &&
@@ -415,13 +436,10 @@ sessionTest('conclusão do representante cria os documentos uma vez só', async 
       ) === '0',
     'a criação dos documentos dos colaboradores',
   );
+  assert.equal(await build(fx.contractId), 'COMPLETED');
 
   fx.repCode = db(`select "verificationCode" from "RevalleSignatureProof" where "recipientId" = ${rep.id}`);
   fx.repName = db(`select employee->>'nome' from "RevalleSignatureProof" where "recipientId" = ${rep.id}`);
-
-  // O mesmo evento de novo (duas vezes): nada a mais.
-  assert.equal(await build(fx.contractId), 'COMPLETED');
-  assert.equal(await build(fx.contractId), 'COMPLETED');
 
   assert.equal(queueCount(fx.contractId), 2);
   assert.equal(queueCount(fx.contractId, 'QUEUED'), 2);
@@ -464,6 +482,32 @@ sessionTest('conclusão do representante cria os documentos uma vez só', async 
     ),
     `contratos-colab-${fx.adminId}|1|55`,
   );
+});
+
+sessionTest('o modelo do contrato não aceita a planilha da v.21 (sem o CPF da lista)', async () => {
+  needs('repCode');
+
+  const [templateEnvelopeId, secondaryId, teamId] = db(
+    `select e.id || '|' || e."secondaryId" || '|' || e."teamId" from "RevalleCollaboratorContract" c join "Envelope" e on e.id = c."templateEnvelopeId" where c.id = '${fx.contractId}'`,
+  ).split('|');
+
+  assert.ok(templateEnvelopeId, 'o contrato não tem modelo');
+
+  const res = await trpcAs(
+    fx.adminCookie,
+    'mutation',
+    'template.uploadBulkSend',
+    {
+      templateId: Number(secondaryId.replace(/\D/g, '')),
+      teamId: Number(teamId),
+      csv: `recipient_1_email,recipient_1_name\ncontrato-pag-v21-${RUN}@revalle.com.br,X\n`,
+      sendImmediately: false,
+    },
+    { 'x-team-id': teamId },
+  );
+
+  assert.equal(res.status, 403, res.text);
+  assert.equal(queueCount(fx.contractId), 2);
 });
 
 sessionTest('pausar e retomar', async () => {

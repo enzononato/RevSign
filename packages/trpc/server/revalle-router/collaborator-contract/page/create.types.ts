@@ -26,6 +26,10 @@ export const ZCreateCollaboratorContractRequestSchema = z.object({
     .max(REVALLE_COLLABORATOR_CONTRACT_MAX_ROWS),
 });
 
-export const ZCreateCollaboratorContractResponseSchema = z.object({ contractId: z.string() });
+export const ZCreateCollaboratorContractResponseSchema = z.object({
+  contractId: z.string(),
+  /** O contrato foi criado, mas o convite ao representante não saiu: mostrar "Reenviar para o representante". */
+  warning: z.literal('REPRESENTATIVE_NOT_SENT').optional(),
+});
 
 export type TCreateCollaboratorContractRequest = z.infer<typeof ZCreateCollaboratorContractRequestSchema>;

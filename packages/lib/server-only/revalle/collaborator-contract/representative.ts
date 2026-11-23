@@ -81,36 +81,68 @@ export const onCollaboratorContractRepresentativeSealed = async ({
   }
 };
 
+/** Contrato parado há mais que isso em "Aguardando representante" sem o convite ter saído: a varredura resolve. */
+const STUCK_MS = 15 * 60 * 1000;
+
+const SYSTEM_REQUEST_METADATA: ApiRequestMetadata = { source: 'app', auth: null, requestMetadata: {} };
+
 /**
  * Varredura: contrato ainda "Aguardando representante" cujo documento já foi concluído ou recusado (o evento da
- * selagem se perdeu, ex.: o app reiniciou). Concluído agenda a criação de novo (idempotente); recusado marca.
+ * selagem se perdeu, ex.: o app reiniciou): concluído agenda a criação de novo (idempotente); recusado marca. Parado
+ * sem o documento do representante (caiu entre gravar e criar): volta a rascunho e a lista sai do banco. Documento do
+ * representante ainda em rascunho (o envio falhou): tenta enviar de novo.
  */
-export const recoverRepresentativeOutcomes = async (): Promise<void> => {
+export const recoverRepresentativeOutcomes = async ({ now = new Date() }: { now?: Date } = {}): Promise<void> => {
   const waiting = await prisma.revalleCollaboratorContract.findMany({
-    where: {
-      status: RevalleCollaboratorContractStatus.AWAITING_REPRESENTATIVE,
-      representativeEnvelopeId: { not: null },
-    },
+    where: { status: RevalleCollaboratorContractStatus.AWAITING_REPRESENTATIVE },
     orderBy: { updatedAt: 'asc' },
     take: RECOVER_BATCH,
-    select: { id: true, representativeEnvelopeId: true },
+    select: { id: true, representativeEnvelopeId: true, updatedAt: true },
   });
 
   for (const contract of waiting) {
-    if (!contract.representativeEnvelopeId) {
-      continue;
-    }
-
-    const envelope = await prisma.envelope.findUnique({
-      where: { id: contract.representativeEnvelopeId },
-      select: { status: true },
-    });
+    const isStuck = contract.updatedAt.getTime() < now.getTime() - STUCK_MS;
 
     try {
+      if (!contract.representativeEnvelopeId) {
+        if (isStuck) {
+          await prisma.$transaction(async (tx) => {
+            await lockCollaboratorContract(tx, contract.id);
+
+            const reverted = await tx.revalleCollaboratorContract.updateMany({
+              where: {
+                id: contract.id,
+                status: RevalleCollaboratorContractStatus.AWAITING_REPRESENTATIVE,
+                representativeEnvelopeId: null,
+              },
+              data: { status: RevalleCollaboratorContractStatus.DRAFT },
+            });
+
+            if (reverted.count > 0) {
+              await tx.revalleBulkSendUpload.deleteMany({ where: { contractId: contract.id, completedAt: null } });
+            }
+          });
+        }
+
+        continue;
+      }
+
+      const envelope = await prisma.envelope.findUnique({
+        where: { id: contract.representativeEnvelopeId },
+        select: { status: true },
+      });
+
       if (envelope?.status === DocumentStatus.COMPLETED) {
         await triggerBuild(contract.id);
       } else if (envelope?.status === DocumentStatus.REJECTED) {
         await markRepresentativeRejected(contract.id);
+      } else if (envelope?.status === DocumentStatus.DRAFT && isStuck) {
+        // Marca a tentativa: um envio que falha sempre tenta de novo só a cada 15 minutos.
+        await prisma.revalleCollaboratorContract.update({ where: { id: contract.id }, data: { updatedAt: now } });
+        await sendToRepresentative({
+          representativeEnvelopeId: contract.representativeEnvelopeId,
+          requestMetadata: SYSTEM_REQUEST_METADATA,
+        });
       }
     } catch (error) {
       logger.warn({

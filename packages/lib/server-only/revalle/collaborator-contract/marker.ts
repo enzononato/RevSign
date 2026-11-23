@@ -31,27 +31,23 @@ export const isCollaboratorContractRecipient = async (recipientId: number): Prom
 };
 
 /**
- * v.22: o CPF da lista para o colaborador desta linha da fila (o mesmo destinatário, com o mesmo e-mail). Como no termo
- * do Patrimônio, o portão só aceita este CPF. Documento da v.21 (sem CPF) ou outro destinatário: null.
+ * v.22: o CPF da lista para o destinatário desta linha da fila (pelo id do destinatário). Como no termo do Patrimônio,
+ * o portão só aceita este CPF. Fecha por segurança: mesmo com o e-mail trocado, vale o CPF da lista (nunca "qualquer
+ * CPF da base"). Documento da v.21 (sem CPF) ou destinatário fora da fila: null.
  */
 export const findCollaboratorContractRecipientCpf = async (recipientId: number): Promise<string | null> => {
   const row = await prisma.revalleBulkSendQueue.findUnique({
     where: { recipientId },
-    select: { cpf: true, email: true, envelopeId: true },
+    select: { cpf: true, envelopeId: true },
   });
 
   if (!row?.cpf) {
     return null;
   }
 
-  const recipient = await prisma.recipient.findUnique({
-    where: { id: recipientId },
-    select: { email: true, envelopeId: true },
-  });
+  const recipient = await prisma.recipient.findUnique({ where: { id: recipientId }, select: { envelopeId: true } });
 
-  return recipient !== null && recipient.envelopeId === row.envelopeId && normalizeEmail(recipient.email) === row.email
-    ? row.cpf
-    : null;
+  return recipient?.envelopeId === row.envelopeId ? row.cpf : null;
 };
 
 export type CollaboratorContractLine = {

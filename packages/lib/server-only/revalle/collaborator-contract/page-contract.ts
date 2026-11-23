@@ -176,7 +176,7 @@ export const createCollaboratorContract = async ({
   collaboratorRect: SignatureRect;
   rows: ContractRowInput[];
   requestMetadata: ApiRequestMetadata;
-}): Promise<{ contractId: string }> => {
+}): Promise<{ contractId: string; warning?: 'REPRESENTATIVE_NOT_SENT' }> => {
   await assertCollaboratorContractAdmin(userId);
 
   // O segundo clique responde 409 antes de conferir de novo (o PDF já é do documento do representante).
@@ -241,6 +241,8 @@ export const createCollaboratorContract = async ({
     collaboratorRect: colabRect,
     sourcePdfDocumentDataId: documentDataId,
     status: RevalleCollaboratorContractStatus.AWAITING_REPRESENTATIVE,
+    // Quem envia vira o dono (o time, o modelo e a resposta ao convite são dele), mesmo num rascunho de outro admin.
+    createdById: userId,
   };
 
   // O rascunho vira "Aguardando representante" de uma vez (o segundo clique não acha mais o rascunho).
@@ -261,7 +263,7 @@ export const createCollaboratorContract = async ({
     } else {
       id = (
         await tx.revalleCollaboratorContract.create({
-          data: { ...contractData, createdById: userId },
+          data: contractData,
           select: { id: true },
         })
       ).id;
@@ -326,14 +328,15 @@ export const createCollaboratorContract = async ({
   try {
     await sendToRepresentative({ representativeEnvelopeId, requestMetadata });
   } catch (error) {
-    // O documento fica como rascunho; "Reenviar para o representante" na página do contrato envia de novo.
+    // O contrato existe e o documento fica como rascunho: a tela mostra o aviso e "Reenviar para o representante" (a
+    // varredura também tenta de novo).
     logger.warn({
       msg: '[RevSign] contrato para colaboradores: envio ao representante falhou',
       contractId: id,
       code: revalleErrorCode(error),
     });
 
-    throw error;
+    return { contractId: id, warning: 'REPRESENTATIVE_NOT_SENT' };
   }
 
   return { contractId: id };
@@ -379,11 +382,13 @@ const summaryOf = async (contract: { id: string; status: RevalleCollaboratorCont
     countsOf(contract.id),
     prisma.revalleBulkSendUpload.aggregate({
       where: { contractId: contract.id },
-      _sum: { totalRows: true, duplicateRows: true, skippedCount: true },
+      _sum: { totalRows: true, duplicateRows: true, skippedCount: true, failedCount: true },
       _count: { completedAt: true, _all: true },
     }),
   ]);
 
+  // Linhas da lista que não viraram documento (o motivo, só o código, vai para o log): contam como terminadas.
+  const notCreated = uploads._sum.failedCount ?? 0;
   const queueTotal = Object.values(counts).reduce((sum, value) => sum + value, 0);
   const expected = (uploads._sum.totalRows ?? 0) - (uploads._sum.duplicateRows ?? 0) - (uploads._sum.skippedCount ?? 0);
   const isBuilding = uploads._count._all > uploads._count.completedAt;
@@ -394,14 +399,14 @@ const summaryOf = async (contract: { id: string; status: RevalleCollaboratorCont
       : Math.max(queueTotal, expected);
 
   return {
-    counts,
+    counts: { ...counts, notCreated },
     total,
     isBuilding,
     status: effectiveCollaboratorContractStatus({
       status: contract.status,
       paused: contract.paused,
       total,
-      finished: counts.signed + counts.rejected + counts.failed,
+      finished: counts.signed + counts.rejected + counts.failed + notCreated,
       isBuilding,
     }),
   };
