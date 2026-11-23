@@ -1,7 +1,14 @@
 import { prisma } from '@documenso/prisma';
 import { PDF } from '@libpdf/core';
 import type { DocumentDataType } from '@prisma/client';
-import { DocumentStatus, EnvelopeType, RecipientRole, RevalleInvoiceStatus, SigningStatus } from '@prisma/client';
+import {
+  DocumentStatus,
+  EnvelopeType,
+  RecipientRole,
+  RevalleCollaboratorContractStatus,
+  RevalleInvoiceStatus,
+  SigningStatus,
+} from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { REVALLE_COLLABORATOR_RECIPIENT_NAME } from '../../../revalle/collaborator-contract';
@@ -230,6 +237,8 @@ export const createCollaboratorContractFromEnvelope = async ({
       representativeName,
       representativeSignedAt: representative.signedAt,
       createdById: userId,
+      // O contrato da v.21 nasce já assinado pelo representante: o padrão (DRAFT) é do assistente da v.22.
+      status: RevalleCollaboratorContractStatus.SENDING,
     },
   });
 
