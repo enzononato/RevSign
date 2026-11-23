@@ -15,6 +15,23 @@ export const ZRevalleGeolocationSchema = z.discriminatedUnion('status', [
 
 export type RevalleGeolocation = z.infer<typeof ZRevalleGeolocationSchema>;
 
+/**
+ * Entrada da conclusão: a localização é só um dado a mais da prova e nunca pode impedir a assinatura. O que não passa
+ * no formato acima (ex.: computador sem GPS com precisão acima de 100 km) é gravado como indisponível.
+ */
+export const ZRevalleGeolocationInputSchema = z
+  .unknown()
+  .optional()
+  .transform((value): RevalleGeolocation | undefined => {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    const parsed = ZRevalleGeolocationSchema.safeParse(value);
+
+    return parsed.success ? parsed.data : { status: 'UNAVAILABLE' };
+  });
+
 /** Arredonda para ~1 m (5 casas) e metros inteiros; o que o servidor grava. */
 export const roundGeolocation = (geo: RevalleGeolocation): RevalleGeolocation =>
   geo.status === 'GRANTED'

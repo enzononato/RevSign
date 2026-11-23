@@ -4,6 +4,7 @@ import {
   canRequestDeviceLocation,
   revalleRoleRequestsDeviceLocation,
   roundGeolocation,
+  ZRevalleGeolocationInputSchema,
   ZRevalleGeolocationSchema,
 } from './geolocation';
 
@@ -31,6 +32,31 @@ describe('ZRevalleGeolocationSchema', () => {
     for (const b of bad) {
       expect(ZRevalleGeolocationSchema.safeParse(b).success).toBe(false);
     }
+  });
+});
+
+// Produção, 23/11/2026: um computador sem GPS mandou precisão acima de 100 km e a assinatura inteira foi recusada.
+describe('ZRevalleGeolocationInputSchema', () => {
+  it('localização imprecisa ou inválida nunca impede a assinatura: vira "indisponível"', () => {
+    const bad = [
+      { status: 'GRANTED', lat: -9.4, lon: -40.5, accuracyM: 250000 },
+      { status: 'GRANTED', lat: 200, lon: 0, accuracyM: 1 },
+      { status: 'GRANTED', lat: 0, lon: 0, accuracyM: Number.POSITIVE_INFINITY },
+      { status: 'NOT_REQUESTED' },
+      'lixo',
+    ];
+
+    for (const b of bad) {
+      expect(ZRevalleGeolocationInputSchema.parse(b)).toEqual({ status: 'UNAVAILABLE' });
+    }
+  });
+
+  it('a localização boa e os outros estados passam como vieram; sem localização continua sem', () => {
+    const good = { status: 'GRANTED', lat: -12.97, lon: -38.5, accuracyM: 20 };
+
+    expect(ZRevalleGeolocationInputSchema.parse(good)).toEqual(good);
+    expect(ZRevalleGeolocationInputSchema.parse({ status: 'DENIED' })).toEqual({ status: 'DENIED' });
+    expect(ZRevalleGeolocationInputSchema.parse(undefined)).toBeUndefined();
   });
 });
 

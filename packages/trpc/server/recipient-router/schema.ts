@@ -1,5 +1,5 @@
 import { isTemplateRecipientEmailPlaceholder } from '@documenso/lib/constants/template';
-import { ZRevalleGeolocationSchema } from '@documenso/lib/revalle/geolocation'; // REVALLE:
+import { ZRevalleGeolocationInputSchema } from '@documenso/lib/revalle/geolocation'; // REVALLE:
 import {
   ZRecipientAccessAuthSchema,
   ZRecipientAccessAuthTypesSchema,
@@ -175,7 +175,7 @@ export const ZCompleteDocumentWithTokenMutationSchema = z.object({
       name: z.string().max(255).optional(),
     })
     .optional(),
-  revalleGeolocation: ZRevalleGeolocationSchema.optional(), // REVALLE: localização opcional do aparelho
+  revalleGeolocation: ZRevalleGeolocationInputSchema, // REVALLE: localização opcional; imprecisa vira indisponível
 });
 
 export type TCompleteDocumentWithTokenMutationSchema = z.infer<typeof ZCompleteDocumentWithTokenMutationSchema>;
