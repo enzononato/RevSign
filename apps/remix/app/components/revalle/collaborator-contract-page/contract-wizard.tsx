@@ -199,8 +199,9 @@ export const ContractWizard = ({ draftId, perHour }: ContractWizardProps) => {
         contractIdRef.current = result.contractId;
 
         if (isNew) {
-          // O endereço passa a ter o rascunho: recarregar a página continua daqui (a rota lê o id só ao abrir).
-          void navigate(
+          // O endereço passa a ter o rascunho antes de "Rascunho salvo": recarregar a página continua daqui (a rota lê
+          // o id só ao abrir).
+          await navigate(
             { search: `?id=${encodeURIComponent(result.contractId)}` },
             { replace: true, preventScrollReset: true },
           );

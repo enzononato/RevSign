@@ -88,7 +88,10 @@ if (payload.case === 'wizard') {
 
     report(start.x > 50, `o quadro verde começa à direita (${start.x.toFixed(1)}%)`);
 
-    // Arrasta o quadro verde 30% para a esquerda.
+    // Arrasta o quadro verde 30% para a esquerda. O mouse do Playwright usa a parte visível da tela: o quadro começa
+    // embaixo da página, fora dela, até rolar.
+    await page.getByTestId('signature-box-collaborator').scrollIntoViewIfNeeded();
+
     const box = await page.getByTestId('signature-box-collaborator').boundingBox();
     const overlay = await page.getByTestId('contract-pdf-overlay').boundingBox();
     const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
@@ -99,6 +102,8 @@ if (payload.case === 'wizard') {
     await page.mouse.up();
 
     const moved = await boxOnPage(page, 'collaborator');
+
+    await shot(page, 'contrato-quadro-arrastado');
 
     report(Math.abs(moved.x - (start.x - 30)) <= 2, `o quadro verde foi arrastado (${moved.x.toFixed(1)}%)`);
 

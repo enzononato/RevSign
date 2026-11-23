@@ -203,9 +203,12 @@ uiTest('rascunho: fechar o assistente no meio, nada é enviado, e continuar pela
 
   assert.equal(pdfAsUser.status, 403);
 
+  // Sem sessão, o layout autenticado manda para o login antes da rota (o 401 da rota cobre chamada fora dele).
   const pdfAnonymous = await fetch(`${BASE_URL}/contratos-colaboradores/pdf/${id}`, { redirect: 'manual' });
 
-  assert.equal(pdfAnonymous.status, 401);
+  assert.equal(pdfAnonymous.status, 302);
+  assert.match(pdfAnonymous.headers.get('location') ?? '', /\/signin/);
+  assert.notEqual(pdfAnonymous.headers.get('content-type'), 'application/pdf');
 
   // Continua pela lista e, no fim, exclui o rascunho pela lista.
   await runCase(t, 'resume', { adminCookie, title: draftTitle, draftId: id });
