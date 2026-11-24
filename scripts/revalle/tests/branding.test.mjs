@@ -224,8 +224,7 @@ test('e-mails do fluxo de assinatura (convite, código, concluído): remetente R
 
 // Assunto: o padrão do envio simplificado (17/11/2026), `{quem enviou} enviou "{título}" para você assinar`.
 test('convite para assinar: assunto de quem enviou e 1ª linha "Você tem um novo documento para assinar"', () => {
-  // Só o convite traz o link "denunciar o remetente" (/report/<token>).
-  const invite = flow.signerMails.find((mail) => /\/report\//.test(mail.HTML ?? ''));
+  const invite = flow.signerMails.find((mail) => mail.Subject.endsWith(` enviou "${flow.title}" para você assinar`));
 
   assert.ok(invite, `convite não encontrado entre: ${flow.signerMails.map((mail) => mail.Subject).join(' | ')}`);
   assert.ok(
@@ -234,6 +233,11 @@ test('convite para assinar: assunto de quem enviou e 1ª linha "Você tem um nov
   );
   // 1ª linha do corpo (depois do logo e da imagem): o mesmo texto, com quem enviou e o nome do documento.
   assert.match(invite.Text, /Você tem um novo documento para assinar, enviado por [^:\n]+:\s*"\[TESTE\] Marca/);
+  // 24/11/2026: sem "Não esperava este e-mail? Denunciar o remetente" nem o aviso de conta nova (sistema interno).
+  for (const mail of flow.signerMails) {
+    assert.ok(!/\/report\//.test(mail.HTML ?? ''), `link de denúncia no e-mail "${mail.Subject}"`);
+    assert.ok(!/denunciar/i.test(mail.Text ?? ''), `texto de denúncia no e-mail "${mail.Subject}"`);
+  }
 });
 
 test('certificado e log do PDF selado: nenhum Documenso no texto, nos metadados nem no motivo da assinatura', () => {

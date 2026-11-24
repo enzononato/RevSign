@@ -1,5 +1,4 @@
 import { REVALLE_COMPANY_FOOTER } from '@documenso/lib/revalle/brand';
-import { Trans } from '@lingui/react/macro';
 import { Fragment } from 'react';
 
 import { Link, Section, Text } from '../components';
@@ -11,24 +10,14 @@ export type TemplateFooterProps = {
   reportUrl?: string;
 };
 
-export const TemplateFooter = ({ reportUrl }: TemplateFooterProps) => {
+export const TemplateFooter = (_props: TemplateFooterProps) => {
   const branding = useBranding();
 
   const safeBrandingUrl = branding.brandingEnabled ? getSafeBrandingUrl(branding.brandingUrl) : null;
 
   return (
     <Section>
-      {reportUrl && (
-        <Text className="my-4 text-base text-muted-foreground">
-          <Trans>
-            Did not expect this email?{' '}
-            <Link className="text-primary" href={reportUrl}>
-              Click here to report the sender
-            </Link>
-            . Never sign a document you don't recognize or weren't expecting.
-          </Trans>
-        </Text>
-      )}
+      {/* REVALLE: sem o "Não esperava este e-mail? Denunciar o remetente": todo envio sai de dentro da Revalle. */}
 
       {/* REVALLE: sem o "enviado usando Documenso" (link de divulgação para documen.so) */}
 
