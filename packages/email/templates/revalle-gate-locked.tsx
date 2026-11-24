@@ -38,17 +38,17 @@ export const RevalleGateLockedTemplate = ({
 
               <TemplateDocumentImage className="mt-6" assetBaseUrl={assetBaseUrl} />
 
-              <Text className="mx-auto mb-0 max-w-[80%] text-center font-semibold text-foreground text-lg">
+              <Text className="mb-0 text-left font-semibold text-foreground text-lg">
                 <Trans>O link de assinatura foi bloqueado</Trans>
               </Text>
 
-              <Text className="my-1 text-center text-base text-muted-foreground">
+              <Text className="my-1 text-left text-base text-muted-foreground">
                 <Trans>
                   O link de {recipientEmail} para o documento "{documentName}" foi bloqueado.
                 </Trans>
               </Text>
 
-              <Text className="my-1 text-center text-base text-muted-foreground">
+              <Text className="my-1 text-left text-base text-muted-foreground">
                 {reason === 'ATTEMPTS' && <Trans>Motivo: a pessoa errou o CPF ou a data de nascimento 5 vezes.</Trans>}
                 {reason === 'CPF_CONFLICT' && <Trans>Motivo: o CPF informado já pertence a outro e-mail.</Trans>}
                 {reason === 'CODE_ATTEMPTS' && (
@@ -56,7 +56,7 @@ export const RevalleGateLockedTemplate = ({
                 )}
               </Text>
 
-              <Text className="my-1 text-center text-base text-muted-foreground">
+              <Text className="my-1 text-left text-base text-muted-foreground">
                 <Trans>
                   Quem recebeu o link vê: "Este link foi bloqueado por segurança. Avisamos quem enviou o documento e a
                   equipe de TI. Aguarde o desbloqueio ou peça um novo envio para outro e-mail." Para liberar, a equipe

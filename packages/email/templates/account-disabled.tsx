@@ -1,11 +1,11 @@
 import { msg } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 
-import { Body, Container, Head, Html, Img, Preview, Section } from '../components';
+import { Body, Container, Head, Html, Preview, Section } from '../components';
 import type { TemplateAccountDisabledProps } from '../template-components/template-account-disabled';
 import { TemplateAccountDisabled } from '../template-components/template-account-disabled';
+import { TemplateBrandingLogo } from '../template-components/template-branding-logo'; // REVALLE:
 import { TemplateFooter } from '../template-components/template-footer';
-import { getEmailAssetUrl } from '../utils/asset-url';
 
 export type AccountDisabledEmailTemplateProps = Partial<TemplateAccountDisabledProps>;
 
@@ -26,8 +26,8 @@ export const AccountDisabledEmailTemplate = ({
         <Section>
           <Container className="mx-auto mt-8 mb-2 max-w-xl rounded-lg border border-border border-solid p-4 backdrop-blur-sm">
             <Section>
-              {/* REVALLE: alt RevSign */}
-              <Img src={getEmailAssetUrl(assetBaseUrl, 'static/logo.png')} alt="RevSign" className="mb-4 h-6" />
+              {/* REVALLE: marca em texto, sem imagem (era o logo com alt RevSign) */}
+              <TemplateBrandingLogo assetBaseUrl={assetBaseUrl} />
 
               <TemplateAccountDisabled assetBaseUrl={assetBaseUrl} supportEmail={supportEmail} />
             </Section>

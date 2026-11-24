@@ -1,7 +1,4 @@
-import { Img, Link } from '../components';
-import { useBranding } from '../providers/branding';
-import { getEmailAssetUrl } from '../utils/asset-url';
-import { getSafeBrandingUrl } from '../utils/branding-url';
+import { RevalleWordmark } from './revalle-letter';
 
 export type TemplateBrandingLogoProps = {
   assetBaseUrl: string;
@@ -9,35 +6,15 @@ export type TemplateBrandingLogoProps = {
 };
 
 /**
- * Renders the email logo.
- *
- * - When custom branding is enabled with a logo, the branding logo is shown.
- *   If a safe (http/https) Brand Website is configured, the logo links to it.
- * - Otherwise the Documenso logo is shown.
+ * REVALLE: e-mails sem imagem (24/11/2026): no lugar do logo (o do RevSign ou o da marca personalizada), sempre a marca
+ * em texto "RevSign · Revalle". A Revalle não usa logo personalizado e imagem pesa para o Gmail mandar para
+ * "Promoções". `assetBaseUrl` e `className` ficam no tipo para os modelos do upstream continuarem iguais.
  */
-export const TemplateBrandingLogo = ({ assetBaseUrl, className = 'mb-4 h-6' }: TemplateBrandingLogoProps) => {
-  const branding = useBranding();
-
-  const hasCustomBrandingLogo = branding.brandingEnabled && Boolean(branding.brandingLogo);
-
-  if (!hasCustomBrandingLogo) {
-    const documensoLogoUrl = getEmailAssetUrl(assetBaseUrl, 'static/logo.png');
-
-    return <Img src={documensoLogoUrl} alt="RevSign" className={className} />; // REVALLE: alt RevSign
-  }
-
-  const brandingLogo = <Img src={branding.brandingLogo} alt="Branding Logo" className={className} />;
-
-  const safeBrandingUrl = getSafeBrandingUrl(branding.brandingUrl);
-
-  if (!safeBrandingUrl) {
-    return brandingLogo;
-  }
-
+export const TemplateBrandingLogo = (_props: TemplateBrandingLogoProps) => {
   return (
-    <Link href={safeBrandingUrl} target="_blank">
-      {brandingLogo}
-    </Link>
+    <div style={{ marginBottom: '16px' }}>
+      <RevalleWordmark />
+    </div>
   );
 };
 

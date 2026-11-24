@@ -1,11 +1,11 @@
 import { msg } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 
-import { Body, Container, Head, Html, Img, Preview, Section } from '../components';
+import { Body, Container, Head, Html, Preview, Section } from '../components';
 import type { TemplateAdminUserCreatedProps } from '../template-components/template-admin-user-created';
 import { TemplateAdminUserCreated } from '../template-components/template-admin-user-created';
+import { TemplateBrandingLogo } from '../template-components/template-branding-logo'; // REVALLE:
 import { TemplateFooter } from '../template-components/template-footer';
-import { getEmailAssetUrl } from '../utils/asset-url';
 
 export const AdminUserCreatedTemplate = ({
   resetPasswordLink,
@@ -24,8 +24,8 @@ export const AdminUserCreatedTemplate = ({
         <Section>
           <Container className="mx-auto mt-8 mb-2 max-w-xl rounded-lg border border-border border-solid p-4 backdrop-blur-sm">
             <Section>
-              {/* REVALLE: alt RevSign */}
-              <Img src={getEmailAssetUrl(assetBaseUrl, 'static/logo.png')} alt="RevSign" className="mb-4 h-6" />
+              {/* REVALLE: marca em texto, sem imagem (era o logo com alt RevSign) */}
+              <TemplateBrandingLogo assetBaseUrl={assetBaseUrl} />
 
               <TemplateAdminUserCreated resetPasswordLink={resetPasswordLink} assetBaseUrl={assetBaseUrl} />
             </Section>

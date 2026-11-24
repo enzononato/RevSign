@@ -55,7 +55,7 @@ export const RevalleFinanceAccountChangedTemplate = ({
 
               <TemplateDocumentImage className="mt-6" assetBaseUrl={assetBaseUrl} />
 
-              <Text className="mx-auto mb-0 max-w-[80%] text-center font-semibold text-foreground text-lg">
+              <Text className="mb-0 text-left font-semibold text-foreground text-lg">
                 {kind === 'COST_CENTER' ? (
                   <Trans>O centro de custo de uma nota fiscal foi corrigido</Trans>
                 ) : (
@@ -63,18 +63,18 @@ export const RevalleFinanceAccountChangedTemplate = ({
                 )}
               </Text>
 
-              <Text className="my-2 text-center text-base text-foreground">{notice}</Text>
+              <Text className="my-2 text-left text-base text-foreground">{notice}</Text>
 
-              <Text className="my-1 text-center text-base text-muted-foreground">
+              <Text className="my-1 text-left text-base text-muted-foreground">
                 <Trans>
                   A versão anterior não vale mais para assinatura. A nova versão, {newDocumentName}, precisa ser
                   assinada de novo por todos.
                 </Trans>
               </Text>
 
-              <Section className="mt-6 mb-4 text-center">
+              <Section className="mt-6 mb-4 text-left">
                 <Button
-                  className="inline-flex items-center justify-center rounded-lg bg-primary px-6 py-3 text-center font-medium text-base text-primary-foreground no-underline"
+                  className="inline-flex items-center justify-center rounded-lg bg-primary px-6 py-3 text-left font-medium text-base text-primary-foreground no-underline"
                   href={actionUrl}
                 >
                   {action === 'SIGN' && <Trans>Assinar a nova versão</Trans>}

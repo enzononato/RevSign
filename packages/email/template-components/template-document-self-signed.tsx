@@ -1,3 +1,4 @@
+// REVALLE: texto e botão alinhados à esquerda, como numa carta (e-mails simples, 24/11/2026).
 import { env } from '@documenso/lib/utils/env';
 import { Trans } from '@lingui/react/macro';
 
@@ -21,7 +22,7 @@ export const TemplateDocumentSelfSigned = ({ documentName, assetBaseUrl }: Templ
 
       <Section className="flex-row items-center justify-center">
         <Section>
-          <Column align="center">
+          <Column align="left">
             <Text className="font-semibold text-base text-foreground">
               <Img
                 src={getEmailAssetUrl(assetBaseUrl, 'static/completed.png')}
@@ -33,11 +34,11 @@ export const TemplateDocumentSelfSigned = ({ documentName, assetBaseUrl }: Templ
           </Column>
         </Section>
 
-        <Text className="mt-6 mb-0 text-center font-semibold text-foreground text-lg">
+        <Text className="mt-6 mb-0 text-left font-semibold text-foreground text-lg">
           <Trans>You have signed “{documentName}”</Trans>
         </Text>
 
-        <Text className="mx-auto mt-1 mb-6 max-w-[80%] text-center text-base text-muted-foreground">
+        <Text className="mt-1 mb-6 text-left text-base text-muted-foreground">
           <Trans>
             Create a{' '}
             <Link href={signUpUrl} target="_blank" className="whitespace-nowrap text-primary hover:text-primary">
@@ -47,10 +48,10 @@ export const TemplateDocumentSelfSigned = ({ documentName, assetBaseUrl }: Templ
           </Trans>
         </Text>
 
-        <Section className="mt-8 mb-6 text-center">
+        <Section className="mt-8 mb-6 text-left">
           <Button
             href={signUpUrl}
-            className="mr-4 rounded-lg border border-border border-solid px-4 py-2 text-center font-medium text-foreground text-sm no-underline"
+            className="mr-4 rounded-lg border border-border border-solid px-4 py-2 text-left font-medium text-foreground text-sm no-underline"
           >
             <Img
               src={getEmailAssetUrl(assetBaseUrl, 'static/user-plus.png')}

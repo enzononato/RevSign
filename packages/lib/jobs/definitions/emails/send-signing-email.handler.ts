@@ -179,6 +179,12 @@ export const run = async ({ payload, io }: { payload: TSendSigningEmailJobDefini
     }),
   );
 
+  // REVALLE: e-mail em formato de carta (24/11/2026): a 1ª frase do corpo já diz quem enviou o quê. As frases padrão do
+  // upstream (quem assina o próprio documento; organização sem mensagem) repetiriam a mesma coisa logo abaixo.
+  if (organisationType === OrganisationType.ORGANISATION ? !customEmail?.message : selfSigner && !isDirectTemplate) {
+    emailMessage = '';
+  }
+
   const customEmailTemplate = {
     'signer.name': greetingName(name, email), // REVALLE: sem nome ainda, o e-mail
     'signer.email': email,
@@ -200,6 +206,7 @@ export const run = async ({ payload, io }: { payload: TSendSigningEmailJobDefini
     documentName: envelope.title,
     inviterName: revalleContractSender?.senderName ?? (user.name || undefined), // REVALLE: remetente fixo (v.22)
     revalleHideInviterEmail: revalleContractSender !== null, // REVALLE: só o nome do remetente fixo
+    recipientName: name, // REVALLE: "Olá, {nome}," (vazio, só "Olá,")
     inviterEmail:
       organisationType === OrganisationType.ORGANISATION ? team?.teamEmail?.email || user.email : user.email,
     assetBaseUrl,

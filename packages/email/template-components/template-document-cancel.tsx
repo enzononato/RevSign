@@ -1,3 +1,4 @@
+// REVALLE: texto e botão alinhados à esquerda, como numa carta (e-mails simples, 24/11/2026).
 import { Trans } from '@lingui/react/macro';
 
 import { Section, Text } from '../components';
@@ -22,23 +23,23 @@ export const TemplateDocumentCancel = ({
       <TemplateDocumentImage className="mt-6" assetBaseUrl={assetBaseUrl} />
 
       <Section>
-        <Text className="mx-auto mb-0 max-w-[80%] text-center font-semibold text-foreground text-lg">
+        <Text className="mb-0 text-left font-semibold text-foreground text-lg">
           <Trans>
             {inviterName} has cancelled the document
             <br />"{documentName}"
           </Trans>
         </Text>
 
-        <Text className="my-1 text-center text-base text-muted-foreground">
+        <Text className="my-1 text-left text-base text-muted-foreground">
           <Trans>All signatures have been voided.</Trans>
         </Text>
 
-        <Text className="my-1 text-center text-base text-muted-foreground">
+        <Text className="my-1 text-left text-base text-muted-foreground">
           <Trans>You don't need to sign it anymore.</Trans>
         </Text>
 
         {cancellationReason && (
-          <Text className="mt-4 text-center text-base">
+          <Text className="mt-4 text-left text-base">
             <Trans>Reason for cancellation: {cancellationReason}</Trans>
           </Text>
         )}

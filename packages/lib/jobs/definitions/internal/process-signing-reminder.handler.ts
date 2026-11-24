@@ -215,7 +215,8 @@ export const run = async ({ payload, io }: { payload: TProcessSigningReminderJob
       });
 
     const template = createElement(DocumentReminderEmailTemplate, {
-      recipientName: greetingName(recipient.name, recipient.email), // REVALLE: nunca "Olá, ,"
+      recipientName: recipient.name, // REVALLE: "Olá, {nome},"; vazio, só "Olá," (nunca "Olá, ,")
+      inviterName: revalleContractSender?.senderName ?? (envelope.user.name || undefined), // REVALLE: frase e assinatura
       documentName: envelope.title,
       assetBaseUrl,
       signDocumentLink,

@@ -1,14 +1,12 @@
-import { Img } from '../components';
-import { getEmailAssetUrl } from '../utils/asset-url';
-
 export interface TemplateImageProps {
   assetBaseUrl: string;
   className?: string;
   staticAsset: string;
 }
 
-export const TemplateImage = ({ assetBaseUrl, className, staticAsset }: TemplateImageProps) => {
-  return <Img className={className} src={getEmailAssetUrl(assetBaseUrl, `static/${staticAsset}`)} alt="" />;
+// REVALLE: e-mails sem imagem (24/11/2026): sem os ícones decorativos (convite de organização, equipe excluída…).
+export const TemplateImage = (_props: TemplateImageProps) => {
+  return null;
 };
 
 export default TemplateImage;

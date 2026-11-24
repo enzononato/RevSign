@@ -1,3 +1,4 @@
+// REVALLE: texto e botão alinhados à esquerda, como numa carta (e-mails simples, 24/11/2026).
 import { Trans } from '@lingui/react/macro';
 
 import { Column, Img, Section, Text } from '../components';
@@ -25,7 +26,7 @@ export const TemplateDocumentRecipientSigned = ({
 
       <Section>
         <Section className="mb-4">
-          <Column align="center">
+          <Column align="left">
             <Text className="font-semibold text-base text-foreground">
               <Img
                 src={getEmailAssetUrl(assetBaseUrl, 'static/completed.png')}
@@ -37,13 +38,13 @@ export const TemplateDocumentRecipientSigned = ({
           </Column>
         </Section>
 
-        <Text className="mb-0 text-center font-semibold text-foreground text-lg">
+        <Text className="mb-0 text-left font-semibold text-foreground text-lg">
           <Trans>
             {recipientReference} has signed "{documentName}"
           </Trans>
         </Text>
 
-        <Text className="mx-auto mt-1 mb-6 max-w-[80%] text-center text-base text-muted-foreground">
+        <Text className="mt-1 mb-6 text-left text-base text-muted-foreground">
           <Trans>{recipientReference} has completed signing the document.</Trans>
         </Text>
       </Section>

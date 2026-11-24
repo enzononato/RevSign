@@ -1,26 +1,11 @@
-import { Column, Img, Row, Section } from '../components';
-import { getEmailAssetUrl } from '../utils/asset-url';
-
 export interface TemplateDocumentImageProps {
   assetBaseUrl: string;
   className?: string;
 }
 
-export const TemplateDocumentImage = ({ assetBaseUrl, className }: TemplateDocumentImageProps) => {
-  return (
-    <Section className={className}>
-      <Row className="table-fixed">
-        <Column />
-
-        <Column>
-          {/* REVALLE: alt RevSign */}
-          <Img className="mx-auto h-42" src={getEmailAssetUrl(assetBaseUrl, 'static/document.png')} alt="RevSign" />
-        </Column>
-
-        <Column />
-      </Row>
-    </Section>
-  );
+// REVALLE: e-mails sem imagem (24/11/2026): sem a ilustração grande do documento em todos os modelos.
+export const TemplateDocumentImage = (_props: TemplateDocumentImageProps) => {
+  return null;
 };
 
 export default TemplateDocumentImage;

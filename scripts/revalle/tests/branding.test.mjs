@@ -223,7 +223,9 @@ test('e-mails do fluxo de assinatura (convite, código, concluído): remetente R
 });
 
 // Assunto: o padrão do envio simplificado (17/11/2026), `{quem enviou} enviou "{título}" para você assinar`.
-test('convite para assinar: assunto de quem enviou e 1ª linha "Você tem um novo documento para assinar"', () => {
+// Corpo em formato de carta (24/11/2026), para não cair em "Promoções": marca em texto, "Olá,", a frase com quem enviou
+// o documento, o botão com o link e "Atenciosamente", sem nenhuma imagem.
+test('convite para assinar: assunto de quem enviou e corpo em formato de carta, sem imagem', () => {
   const invite = flow.signerMails.find((mail) => mail.Subject.endsWith(` enviou "${flow.title}" para você assinar`));
 
   assert.ok(invite, `convite não encontrado entre: ${flow.signerMails.map((mail) => mail.Subject).join(' | ')}`);
@@ -231,8 +233,27 @@ test('convite para assinar: assunto de quem enviou e 1ª linha "Você tem um nov
     invite.Subject.endsWith(` enviou "${flow.title}" para você assinar`) && !invite.Subject.startsWith(' '),
     invite.Subject,
   );
-  // 1ª linha do corpo (depois do logo e da imagem): o mesmo texto, com quem enviou e o nome do documento.
-  assert.match(invite.Text, /Você tem um novo documento para assinar, enviado por [^:\n]+:\s*"\[TESTE\] Marca/);
+  // Texto puro: marca, saudação com o nome do destinatário, a frase, o botão com o link e a assinatura.
+  const text = invite.Text ?? '';
+
+  assert.match(text, /^\s*RevSign · Revalle\s*\n/, text);
+  assert.match(text, /\nOlá, Marca Um,\s*\n/, text);
+  assert.match(text, /\n[^\n"]+ enviou o documento "\[TESTE\] Marca [^"]+" para você assinar\.\s*\n/, text);
+  assert.match(text, /Assinar documento https?:\/\/\S+\/sign\/[A-Za-z0-9_-]+/, text);
+  assert.match(text, /Atenciosamente,\s*\n[^\n]+/, text);
+  assert.ok(
+    text.indexOf('Olá,') < text.indexOf(' enviou o documento ') &&
+      text.indexOf(' enviou o documento ') < text.indexOf('Assinar documento') &&
+      text.indexOf('Assinar documento') < text.indexOf('Atenciosamente,'),
+    `ordem da carta: ${text}`,
+  );
+  // HTML: nenhuma imagem (nem logo, nem a ilustração do documento) e o endereço por extenso abaixo do botão.
+  assert.ok(!/<img\b/i.test(invite.HTML ?? ''), 'imagem no convite');
+  assert.ok((invite.HTML ?? '').includes('Se o botão não funcionar, copie e cole este endereço no navegador:'));
+  // Os outros e-mails de quem assina (código, concluído) também saem sem imagem.
+  for (const mail of flow.signerMails) {
+    assert.ok(!/<img\b/i.test(mail.HTML ?? ''), `imagem no e-mail "${mail.Subject}"`);
+  }
   // 24/11/2026: sem "Não esperava este e-mail? Denunciar o remetente" nem o aviso de conta nova (sistema interno).
   for (const mail of flow.signerMails) {
     assert.ok(!/\/report\//.test(mail.HTML ?? ''), `link de denúncia no e-mail "${mail.Subject}"`);

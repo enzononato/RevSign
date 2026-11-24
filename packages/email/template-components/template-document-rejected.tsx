@@ -1,3 +1,4 @@
+// REVALLE: texto e botão alinhados à esquerda, como numa carta (e-mails simples, 24/11/2026).
 import { Trans } from '@lingui/react/macro';
 
 import { Button, Heading, Text } from '../components';
@@ -17,7 +18,7 @@ export function TemplateDocumentRejected({
 }: TemplateDocumentRejectedProps) {
   return (
     <div className="mt-4">
-      <Heading className="mb-4 text-center font-semibold text-2xl text-foreground">
+      <Heading className="mb-4 text-left font-semibold text-2xl text-foreground">
         <Trans>Document Rejected</Trans>
       </Heading>
 
@@ -39,7 +40,7 @@ export function TemplateDocumentRejected({
 
       <Button
         href={documentUrl}
-        className="inline-flex items-center justify-center rounded-lg bg-primary px-6 py-3 text-center font-medium text-primary-foreground text-sm no-underline"
+        className="inline-flex items-center justify-center rounded-lg bg-primary px-6 py-3 text-left font-medium text-primary-foreground text-sm no-underline"
       >
         <Trans>View Document</Trans>
       </Button>

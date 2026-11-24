@@ -1,16 +1,21 @@
 import { RECIPIENT_ROLES_DESCRIPTION } from '@documenso/lib/constants/recipient-roles';
+import { REVALLE_APP_NAME } from '@documenso/lib/revalle/brand'; // REVALLE:
 import { msg } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
-import { Trans } from '@lingui/react/macro';
 import type { RecipientRole } from '@prisma/client';
 import { OrganisationType } from '@prisma/client';
 
-import { Body, Container, Head, Hr, Html, Link, Preview, Section, Text } from '../components';
-import { TemplateBrandingLogo } from '../template-components/template-branding-logo';
-import { TemplateCustomMessageBody } from '../template-components/template-custom-message-body';
+// REVALLE: convite em formato de carta (24/11/2026), sem logo, sem imagem e sem cartão: marca em texto, "Olá, {nome},",
+// uma frase com quem enviou o quê, a mensagem de quem enviou, botão discreto + endereço por extenso, "Atenciosamente".
+// Mesmas informações e variações de antes (próprio documento, organização, remetente fixo do contrato).
+import {
+  RevalleActionButton,
+  RevalleLetter,
+  RevalleLetterOpening,
+  RevalleSignOff,
+  revalleRoleVerb,
+} from '../template-components/revalle-letter';
 import type { TemplateDocumentInviteProps } from '../template-components/template-document-invite';
-import { TemplateDocumentInvite } from '../template-components/template-document-invite';
-import { TemplateFooter } from '../template-components/template-footer';
 import { TemplateNewAccountWarning } from '../template-components/template-new-account-warning';
 
 export type DocumentInviteEmailTemplateProps = Partial<TemplateDocumentInviteProps> & {
@@ -31,14 +36,16 @@ export type DocumentInviteEmailTemplateProps = Partial<TemplateDocumentInvitePro
 
   /** REVALLE: v.22, contrato para colaboradores: só o nome do remetente fixo, sem o e-mail de quem criou. */
   revalleHideInviterEmail?: boolean;
+
+  /** REVALLE: nome de quem recebe, para "Olá, {nome},"; vazio, só "Olá,". */
+  recipientName?: string;
 };
 
 export const DocumentInviteEmailTemplate = ({
-  inviterName = 'Lucas Smith',
+  inviterName = '', // REVALLE: sem nome, o e-mail de quem enviou (nunca o "Lucas Smith" do exemplo do upstream)
   inviterEmail = 'lucas@documenso.com',
   documentName = 'Open Source Pledge.pdf',
   signDocumentLink = 'https://documenso.com',
-  assetBaseUrl = 'http://localhost:3002',
   customBody,
   role,
   selfSigner = false,
@@ -48,6 +55,7 @@ export const DocumentInviteEmailTemplate = ({
   reportUrl,
   newAccountWarningSenderEmail,
   revalleHideInviterEmail = false, // REVALLE:
+  recipientName = '', // REVALLE:
 }: DocumentInviteEmailTemplateProps) => {
   const { _ } = useLingui();
 
@@ -65,75 +73,47 @@ export const DocumentInviteEmailTemplate = ({
     previewText = msg`Please ${action} your document ${documentName}`;
   }
 
+  // REVALLE: a frase do convite e a assinatura da carta, com as mesmas variações da frase grande do upstream.
+  const verb = _(revalleRoleVerb(role));
+  const personName = inviterName.trim() || inviterEmail;
+  const isOrganisation = organisationType === OrganisationType.ORGANISATION && Boolean(teamName);
+  const onBehalfOfTeam = isOrganisation && includeSenderDetails;
+
+  let sender = personName;
+  let sentence = msg`${sender} enviou o documento "${documentName}" para você ${verb}.`;
+  let signOff: { name: string; detail?: string | null } = {
+    name: personName,
+    detail: revalleHideInviterEmail || !inviterName.trim() ? null : inviterEmail,
+  };
+
+  if (isOrganisation && !onBehalfOfTeam) {
+    sender = teamName;
+    sentence = msg`${sender} enviou o documento "${documentName}" para você ${verb}.`;
+    signOff = { name: teamName };
+  }
+
+  if (onBehalfOfTeam) {
+    sentence = msg`${personName}, em nome de "${teamName}", enviou o documento "${documentName}" para você ${verb}.`;
+    signOff = { name: personName, detail: teamName };
+  }
+
+  if (selfSigner) {
+    sentence = msg`Seu documento "${documentName}" está pronto para você ${verb}.`;
+    signOff = { name: REVALLE_APP_NAME };
+  }
+
   return (
-    <Html>
-      <Head />
+    <RevalleLetter preview={_(previewText)}>
+      {newAccountWarningSenderEmail && (
+        <TemplateNewAccountWarning senderEmail={newAccountWarningSenderEmail} reportUrl={reportUrl} />
+      )}
 
-      <Body className="mx-auto my-auto bg-background font-sans">
-        <Preview>{_(previewText)}</Preview>
+      <RevalleLetterOpening recipientName={recipientName} sentence={_(sentence)} customBody={customBody} />
 
-        <Section>
-          {newAccountWarningSenderEmail && (
-            <TemplateNewAccountWarning senderEmail={newAccountWarningSenderEmail} reportUrl={reportUrl} />
-          )}
+      <RevalleActionButton role={role} href={signDocumentLink} />
 
-          <Container className="mx-auto mt-8 mb-2 max-w-xl rounded-lg border border-border border-solid p-4 backdrop-blur-sm">
-            <Section>
-              <TemplateBrandingLogo assetBaseUrl={assetBaseUrl} className="mb-4 h-6" />
-
-              <TemplateDocumentInvite
-                inviterName={inviterName}
-                inviterEmail={inviterEmail}
-                documentName={documentName}
-                signDocumentLink={signDocumentLink}
-                assetBaseUrl={assetBaseUrl}
-                role={role}
-                selfSigner={selfSigner}
-                organisationType={organisationType}
-                teamName={teamName}
-                includeSenderDetails={includeSenderDetails}
-              />
-            </Section>
-          </Container>
-
-          <Container className="mx-auto mt-12 max-w-xl">
-            <Section>
-              {/* REVALLE: remetente fixo do contrato para colaboradores: só o nome. */}
-              {organisationType === OrganisationType.PERSONAL && revalleHideInviterEmail && (
-                <Text className="my-4 font-semibold text-base">{inviterName}</Text>
-              )}
-
-              {organisationType === OrganisationType.PERSONAL && !revalleHideInviterEmail && (
-                <Text className="my-4 font-semibold text-base">
-                  <Trans>
-                    {inviterName}{' '}
-                    <Link className="font-normal text-muted-foreground" href={`mailto:${inviterEmail}`}>
-                      ({inviterEmail})
-                    </Link>
-                  </Trans>
-                </Text>
-              )}
-
-              <Text className="mt-2 text-base text-muted-foreground">
-                {customBody ? (
-                  <TemplateCustomMessageBody text={customBody} />
-                ) : (
-                  <Trans>
-                    {inviterName} has invited you to {action} the document "{documentName}".
-                  </Trans>
-                )}
-              </Text>
-            </Section>
-          </Container>
-
-          <Hr className="mx-auto mt-12 max-w-xl" />
-
-          <Container className="mx-auto max-w-xl">
-            <TemplateFooter reportUrl={reportUrl} />
-          </Container>
-        </Section>
-      </Body>
-    </Html>
+      <RevalleSignOff name={signOff.name} detail={signOff.detail} />
+    </RevalleLetter>
   );
 };
 
