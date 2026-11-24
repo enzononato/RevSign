@@ -6165,3 +6165,47 @@ msgstr "O rascunho e o PDF dele saem da lista. Nada foi enviado a ninguém."
 # Origem: apps/remix/app/routes/_authenticated+/contratos-colaboradores._index.tsx
 msgid "Rascunho excluído"
 msgstr "Rascunho excluído"
+
+
+# REVALLE: e-mails simples (24/11/2026).
+msgid "Olá,"
+msgstr "Olá,"
+
+msgid "assinar"
+msgstr "assinar"
+
+msgid "aprovar"
+msgstr "aprovar"
+
+msgid "ver"
+msgstr "ver"
+
+msgid "preencher"
+msgstr "preencher"
+
+msgid "acompanhar"
+msgstr "acompanhar"
+
+msgid "Preencher documento"
+msgstr "Preencher documento"
+
+msgid "Se o botão não funcionar, copie e cole este endereço no navegador:"
+msgstr "Se o botão não funcionar, copie e cole este endereço no navegador:"
+
+msgid "Atenciosamente,"
+msgstr "Atenciosamente,"
+
+msgid "{sender} enviou o documento \"{documentName}\" para você {verb}."
+msgstr "{sender} enviou o documento \"{documentName}\" para você {verb}."
+
+msgid "{personName}, em nome de \"{teamName}\", enviou o documento \"{documentName}\" para você {verb}."
+msgstr "{personName}, em nome de \"{teamName}\", enviou o documento \"{documentName}\" para você {verb}."
+
+msgid "Seu documento \"{documentName}\" está pronto para você {verb}."
+msgstr "Seu documento \"{documentName}\" está pronto para você {verb}."
+
+msgid "Lembrete: {sender} enviou o documento \"{documentName}\" para você {verb} e ele ainda está pendente."
+msgstr "Lembrete: {sender} enviou o documento \"{documentName}\" para você {verb} e ele ainda está pendente."
+
+msgid "Lembrete: o documento \"{documentName}\" ainda está pendente para você {verb}."
+msgstr "Lembrete: o documento \"{documentName}\" ainda está pendente para você {verb}."
