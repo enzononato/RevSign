@@ -6209,3 +6209,20 @@ msgstr "Lembrete: {sender} enviou o documento \"{documentName}\" para você {ver
 
 msgid "Lembrete: o documento \"{documentName}\" ainda está pendente para você {verb}."
 msgstr "Lembrete: o documento \"{documentName}\" ainda está pendente para você {verb}."
+
+
+# REVALLE: apenas assinar (26/11/2026).
+msgid "Apenas assinar"
+msgstr "Apenas assinar"
+
+msgid "Sem conta contábil, centro de custo ou OBZ. Vai direto para quem assina."
+msgstr "Sem conta contábil, centro de custo ou OBZ. Vai direto para quem assina."
+
+msgid "Pede conta contábil e centro de custo e passa pela aprovação do Financeiro."
+msgstr "Pede conta contábil e centro de custo e passa pela aprovação do Financeiro."
+
+msgid "O que este envio é"
+msgstr "O que este envio é"
+
+msgid "Escolha \"Apenas assinar\" ou \"Nota fiscal\" para enviar."
+msgstr "Escolha \"Apenas assinar\" ou \"Nota fiscal\" para enviar."
