@@ -27,6 +27,7 @@ import {
   InvoiceUnknownFileBlock,
 } from './invoice-file-block';
 import type { InvoiceFileKindChoice } from './invoice-file-kind-select';
+import { type InvoiceSendKind, InvoiceSendKindChoice } from './invoice-send-kind-choice';
 
 export type InvoiceAccountPanelProps = {
   envelopeId: string;
@@ -122,6 +123,8 @@ export const InvoiceAccountPanel = ({
   const [isDuplicateAcknowledged, setIsDuplicateAcknowledged] = useState(false);
   // Fase 9: com várias notas, a confirmação é de cada nota (`envelopeItemId`).
   const [acknowledgedDuplicateIds, setAcknowledgedDuplicateIds] = useState<ReadonlySet<string>>(() => new Set());
+  // "Apenas assinar" / "Nota fiscal" escolhido e ainda gravando: o cartão marca na hora.
+  const [pendingSendKind, setPendingSendKind] = useState<InvoiceSendKind | null>(null);
   const pendingSince = useRef<number | null>(null);
 
   const { mutateAsync: classify } = trpc.revalle.invoice.classify.useMutation();
@@ -261,9 +264,12 @@ export const InvoiceAccountPanel = ({
         (!showEnvelopeDuplicates || isDuplicateAcknowledged)
       : isInvoiceReady({ ...readyInput, duplicateAcknowledged: isDuplicateAcknowledged, state }));
 
+  // Enquanto "Apenas assinar" / "Nota fiscal" grava, o envio espera: o servidor ainda tem a resposta anterior.
+  const isReadyToSend = isReady && !isSavingFlag;
+
   useEffect(() => {
-    onReadyChange(isReady);
-  }, [isReady]);
+    onReadyChange(isReadyToSend);
+  }, [isReadyToSend]);
 
   const showError = () =>
     toast({ title: t`Não foi possível salvar. Tente de novo.`, variant: 'destructive', duration: 5000 });
@@ -285,11 +291,17 @@ export const InvoiceAccountPanel = ({
     }
   };
 
-  const onFlag = async (value: boolean) => {
+  // "Apenas assinar" = "Não é nota fiscal" (as notas e os arquivos sem texto viram documento comum, sem conta nem
+  // centro); "Nota fiscal" = "Sim, é nota fiscal" (as notas detectadas voltam). As mesmas rotas de antes.
+  const onSendKind = async (kind: InvoiceSendKind) => {
+    setPendingSendKind(kind);
+
     try {
-      await store(await setInvoiceFlag({ envelopeId, isInvoice: value }));
+      await store(await setInvoiceFlag({ envelopeId, isInvoice: kind === 'INVOICE' }));
     } catch {
       showError();
+    } finally {
+      setPendingSendKind(null);
     }
   };
 
@@ -366,6 +378,23 @@ export const InvoiceAccountPanel = ({
   }
 
   const isBusy = isSavingChoice || isSavingCostCenter || isSavingFlag || isResuggesting || isSavingKind;
+  // A escolha do topo: o que o sistema detectou (ou o que a pessoa já escolheu). Arquivo sem texto (UNKNOWN) fica sem
+  // nenhuma marcada até a resposta: uma NF tirada no celular não sai do fluxo do Financeiro sem a pessoa decidir.
+  const detectedSendKind: InvoiceSendKind | null =
+    state.isInvoice === 'YES' ? 'INVOICE' : state.isInvoice === 'NO' ? 'SIGN_ONLY' : null;
+  const sendKindChoiceOf = (className?: string) => (
+    <InvoiceSendKindChoice
+      className={className}
+      value={pendingSendKind ?? detectedSendKind}
+      disabled={isBusy}
+      onChange={(kind) => {
+        if (kind !== detectedSendKind) {
+          void onSendKind(kind);
+        }
+      }}
+    />
+  );
+  const sendKindChoice = sendKindChoiceOf();
   const domainList = formatDomainList(allowedDomains);
   // Mesmo texto da recusa do servidor (`formatInvoiceExternalRecipientMessage`).
   const externalNotice = externalRecipientEmail ? (
@@ -492,51 +521,38 @@ export const InvoiceAccountPanel = ({
     };
 
     return (
-      <section className="mb-4 flex min-w-0 flex-col gap-3" data-testid="invoice-account-panel">
-        <h3 className="font-medium text-sm">
-          <Trans>Notas fiscais · Conta contábil</Trans>
-        </h3>
+      <>
+        {sendKindChoice}
 
-        {externalNotice}
+        <section className="mb-4 flex min-w-0 flex-col gap-3" data-testid="invoice-account-panel">
+          <h3 className="font-medium text-sm">
+            <Trans>Notas fiscais · Conta contábil</Trans>
+          </h3>
 
-        {showEnvelopeDuplicates && duplicateNotice}
+          {externalNotice}
 
-        {hasNoAccounts && (
-          <p className="text-sm text-warning-text">
-            <Trans>Nenhuma conta contábil cadastrada. Fale com o administrador.</Trans>
-          </p>
-        )}
+          {showEnvelopeDuplicates && duplicateNotice}
 
-        {documents.map(blockOf)}
+          {hasNoAccounts && (
+            <p className="text-sm text-warning-text">
+              <Trans>Nenhuma conta contábil cadastrada. Fale com o administrador.</Trans>
+            </p>
+          )}
 
-        {annotationWarnings}
-      </section>
+          {documents.map(blockOf)}
+
+          {annotationWarnings}
+        </section>
+      </>
     );
   }
 
   if (state.isInvoice === 'NO') {
-    // Só quem marcou "Não é nota fiscal" vê o desfazer; documento comum não muda em nada (só o aviso de um bloco de conta e
-    // centro posto nele, que não sai no PDF).
-    if (state.detectedBy !== 'SENDER') {
-      return <div className="mb-4 empty:hidden">{annotationWarnings}</div>;
-    }
-
+    // "Apenas assinar" (detectado ou escolhido): só a escolha do topo, para trocar para "Nota fiscal", e o aviso de um bloco
+    // de conta e centro posto num documento comum (que não sai no PDF).
     return (
-      <div className="mb-4 flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-x-2 text-muted-foreground text-sm">
-          <span>
-            <Trans>Você marcou que não é nota fiscal.</Trans>
-          </span>
-          <Button
-            type="button"
-            variant="link"
-            className="h-11 px-0"
-            disabled={isBusy}
-            onClick={() => void onFlag(true)}
-          >
-            <Trans>Desfazer</Trans>
-          </Button>
-        </div>
+      <div className="mb-4 flex flex-col gap-2" data-testid="invoice-sign-only">
+        {sendKindChoiceOf('mb-0')}
         {annotationWarnings}
       </div>
     );
@@ -544,34 +560,11 @@ export const InvoiceAccountPanel = ({
 
   if (state.isInvoice === 'UNKNOWN') {
     return (
-      <section className="mb-4 rounded-[13px] border p-3" data-testid="invoice-question">
-        <p className="font-medium text-sm">
-          <Trans>Este documento é uma nota fiscal?</Trans>
-        </p>
+      <section className="mb-4 flex flex-col gap-2" data-testid="invoice-question">
+        {sendKindChoiceOf('mb-0')}
 
-        <div className="mt-2 flex gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 flex-1"
-            disabled={isBusy}
-            onClick={() => void onFlag(true)}
-          >
-            <Trans>Sim</Trans>
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 flex-1"
-            disabled={isBusy}
-            onClick={() => void onFlag(false)}
-          >
-            <Trans>Não</Trans>
-          </Button>
-        </div>
-
-        <p className="mt-2 text-sm text-warning-text">
-          <Trans>Responda para enviar</Trans>
+        <p className="text-sm text-warning-text">
+          <Trans>Escolha "Apenas assinar" ou "Nota fiscal" para enviar.</Trans>
         </p>
       </section>
     );
@@ -639,131 +632,130 @@ export const InvoiceAccountPanel = ({
   const invoiceDataLine = formatInvoiceDataLine(state.invoiceData);
 
   return (
-    <section className="mb-4 flex flex-col gap-3 rounded-[13px] border p-3" data-testid="invoice-account-panel">
-      <div className="flex flex-wrap items-center justify-between gap-x-2">
+    <>
+      {sendKindChoice}
+
+      <section className="mb-4 flex flex-col gap-3 rounded-[13px] border p-3" data-testid="invoice-account-panel">
         <h3 className="font-medium text-sm">
           <Trans>Nota fiscal · Conta contábil</Trans>
         </h3>
-        <Button type="button" variant="link" className="h-11 px-0" disabled={isBusy} onClick={() => void onFlag(false)}>
-          <Trans>Não é nota fiscal</Trans>
-        </Button>
-      </div>
 
-      {externalNotice}
+        {externalNotice}
 
-      {duplicateNotice}
+        {duplicateNotice}
 
-      {isPending && !hasGivenUp && (
-        <p className="flex items-center gap-2 text-muted-foreground text-sm">
-          <Spinner size="sm" />
-          <Trans>Buscando sugestão…</Trans>
-        </p>
-      )}
-
-      {suggestion && (
-        <div className="rounded-[10px] bg-muted/60 p-3 text-sm">
-          <p className="font-medium">
-            <Trans>
-              Sugestão da IA: {suggestionCode} · {suggestionName} (confira)
-            </Trans>
+        {isPending && !hasGivenUp && (
+          <p className="flex items-center gap-2 text-muted-foreground text-sm">
+            <Spinner size="sm" />
+            <Trans>Buscando sugestão…</Trans>
           </p>
-          {/* Texto puro: o motivo vem da IA e nunca é interpretado como HTML. */}
-          <p className="mt-1 break-words text-muted-foreground">{suggestion.reason}</p>
+        )}
 
-          {choiceCode !== suggestion.accountCode && (
-            <Button
-              type="button"
-              className="mt-2 h-11 w-full sm:w-auto"
-              disabled={isBusy}
-              onClick={() => void onChoose({ code: suggestion.accountCode })}
-            >
-              <Trans>Usar sugestão</Trans>
-            </Button>
-          )}
-        </div>
-      )}
+        {suggestion && (
+          <div className="rounded-[10px] bg-muted/60 p-3 text-sm">
+            <p className="font-medium">
+              <Trans>
+                Sugestão da IA: {suggestionCode} · {suggestionName} (confira)
+              </Trans>
+            </p>
+            {/* Texto puro: o motivo vem da IA e nunca é interpretado como HTML. */}
+            <p className="mt-1 break-words text-muted-foreground">{suggestion.reason}</p>
 
-      {invoiceDataLine && (
-        <p className="break-words text-muted-foreground text-sm" data-testid="invoice-data-line">
-          <Trans>Lido pela IA: {invoiceDataLine}</Trans>
-        </p>
-      )}
+            {choiceCode !== suggestion.accountCode && (
+              <Button
+                type="button"
+                className="mt-2 h-11 w-full sm:w-auto"
+                disabled={isBusy}
+                onClick={() => void onChoose({ code: suggestion.accountCode })}
+              >
+                <Trans>Usar sugestão</Trans>
+              </Button>
+            )}
+          </div>
+        )}
 
-      {hasFailed && (
-        <p className="text-muted-foreground text-sm">
-          <Trans>Não foi possível sugerir; escolha na lista</Trans>
-        </p>
-      )}
-
-      {canResuggest && (
-        <Button
-          type="button"
-          variant="outline"
-          className="h-11 w-full sm:w-auto sm:self-start"
-          disabled={isBusy}
-          onClick={() => void onResuggest()}
-        >
-          <Trans>Sugerir de novo</Trans>
-        </Button>
-      )}
-
-      {choice && !isChanging && (
-        <div className="flex flex-wrap items-center justify-between gap-x-2 text-sm">
-          <p className="min-w-0 break-words">
-            <Trans>
-              Conta escolhida: {choiceCode} · {choiceName}
-            </Trans>
+        {invoiceDataLine && (
+          <p className="break-words text-muted-foreground text-sm" data-testid="invoice-data-line">
+            <Trans>Lido pela IA: {invoiceDataLine}</Trans>
           </p>
-          {!hasNoAccounts && (
-            <Button
-              type="button"
-              variant="link"
-              className="h-11 px-0"
-              disabled={isBusy}
-              onClick={() => setIsChanging(true)}
-            >
-              <Trans>Trocar</Trans>
-            </Button>
-          )}
-        </div>
-      )}
+        )}
 
-      {hasNoAccounts && (
-        <p className="text-sm text-warning-text">
-          <Trans>Nenhuma conta contábil cadastrada. Fale com o administrador.</Trans>
-        </p>
-      )}
+        {hasFailed && (
+          <p className="text-muted-foreground text-sm">
+            <Trans>Não foi possível sugerir; escolha na lista</Trans>
+          </p>
+        )}
 
-      {(!choice || isChanging) && !hasNoAccounts && (
-        <AccountCombobox
-          accounts={accountsData?.accounts ?? []}
-          value={choiceCode ?? null}
+        {canResuggest && (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 w-full sm:w-auto sm:self-start"
+            disabled={isBusy}
+            onClick={() => void onResuggest()}
+          >
+            <Trans>Sugerir de novo</Trans>
+          </Button>
+        )}
+
+        {choice && !isChanging && (
+          <div className="flex flex-wrap items-center justify-between gap-x-2 text-sm">
+            <p className="min-w-0 break-words">
+              <Trans>
+                Conta escolhida: {choiceCode} · {choiceName}
+              </Trans>
+            </p>
+            {!hasNoAccounts && (
+              <Button
+                type="button"
+                variant="link"
+                className="h-11 px-0"
+                disabled={isBusy}
+                onClick={() => setIsChanging(true)}
+              >
+                <Trans>Trocar</Trans>
+              </Button>
+            )}
+          </div>
+        )}
+
+        {hasNoAccounts && (
+          <p className="text-sm text-warning-text">
+            <Trans>Nenhuma conta contábil cadastrada. Fale com o administrador.</Trans>
+          </p>
+        )}
+
+        {(!choice || isChanging) && !hasNoAccounts && (
+          <AccountCombobox
+            accounts={accountsData?.accounts ?? []}
+            value={choiceCode ?? null}
+            disabled={isBusy}
+            onSelect={(code) => void onChoose({ code })}
+          />
+        )}
+
+        {!choice && !hasNoAccounts && (
+          <p className="text-sm text-warning-text">
+            <Trans>Escolha a conta contábil.</Trans>
+          </p>
+        )}
+
+        <CostCenterSelect
+          value={state.costCenter?.code ?? null}
           disabled={isBusy}
-          onSelect={(code) => void onChoose({ code })}
+          onSelect={(code) => void onChooseCostCenter(code)}
         />
-      )}
 
-      {!choice && !hasNoAccounts && (
-        <p className="text-sm text-warning-text">
-          <Trans>Escolha a conta contábil.</Trans>
-        </p>
-      )}
+        {!state.costCenter && (
+          <p className="text-sm text-warning-text">
+            <Trans>Escolha o centro de custo.</Trans>
+          </p>
+        )}
 
-      <CostCenterSelect
-        value={state.costCenter?.code ?? null}
-        disabled={isBusy}
-        onSelect={(code) => void onChooseCostCenter(code)}
-      />
+        {pdfLineOf(singleInvoiceItemId)}
 
-      {!state.costCenter && (
-        <p className="text-sm text-warning-text">
-          <Trans>Escolha o centro de custo.</Trans>
-        </p>
-      )}
-
-      {pdfLineOf(singleInvoiceItemId)}
-
-      {annotationWarnings}
-    </section>
+        {annotationWarnings}
+      </section>
+    </>
   );
 };

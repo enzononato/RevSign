@@ -13,7 +13,8 @@
 // conferência vale só para o bloco/cartão: o editor do upstream não é feito para celular (a 360 px a página passa da
 // largura da tela e as abas "E-mail"/"Nenhum" do diálogo têm 32 px). Depois abre a página "Notas fiscais": botões da
 // página com 44 px e nenhuma rolagem horizontal da página inteira (a tabela rola dentro do próprio quadro).
-// Depois: NF escaneada no diálogo de envio ("Responda para enviar" e o botão de enviar bloqueado até "Sim"/"Não"),
+// Depois: NF escaneada no diálogo de envio ("Apenas assinar" / "Nota fiscal" sem marca e o botão de enviar bloqueado
+// até a escolha),
 // NF v1 no editor antigo (o bloco da NF no topo), o link discreto "Marcar como nota fiscal" num documento comum já
 // enviado (o cartão só aparece depois de marcar) e o cartão com a pergunta numa NF escaneada enviada sem resposta.
 // Fase 6: quem assina essa NF enviada (portão com a Maria fictícia) vê, no celular, o bloco "Nota fiscal · Conta
@@ -626,8 +627,8 @@ const runBrowser = async () => {
       await sender.getByTestId('invoices-page').locator('tbody tr').first().waitFor();
       await check('00d-notas-fiscais', sender, '[data-testid="invoices-page"]', { pageScroll: true });
 
-      // NF escaneada: "Este documento é uma nota fiscal?" com "Responda para enviar" e o botão de enviar bloqueado até
-      // a resposta; "Não" libera.
+      // NF escaneada: "Apenas assinar" / "Nota fiscal" sem nenhum marcado, com o aviso para escolher e o botão de enviar
+      // bloqueado até a resposta; "Apenas assinar" libera.
       await sender.goto(process.env.SCANNED_EDITOR_URL, { waitUntil: 'networkidle' });
       await sender
         .getByRole('button', { name: /enviar documento/i })
@@ -638,16 +639,16 @@ const runBrowser = async () => {
       const question = sender.getByTestId('invoice-question');
       const sendButton = sender.getByRole('dialog').getByRole('button', { name: /^(enviar|gerar links)$/i });
 
-      await question.getByText('Responda para enviar').waitFor();
+      await question.getByText('Escolha "Apenas assinar" ou "Nota fiscal" para enviar.').waitFor();
 
       if (!(await sendButton.isDisabled())) {
         throw new Error('NF escaneada sem resposta: o botão de enviar deveria estar bloqueado');
       }
 
       await check('00e-nf-escaneada', sender, '[data-testid="invoice-question"]');
-      // A 360 px o editor do upstream passa da largura da tela e o diálogo fica deslocado: o "Não" fica fora da tela
+      // A 360 px o editor do upstream passa da largura da tela e o diálogo fica deslocado: a opção pode ficar fora da tela
       // (limite já conhecido do editor, ver o topo do arquivo). O clique vai pelo DOM; a conferência vale para o bloco.
-      await question.getByRole('button', { name: 'Não', exact: true }).evaluate((button) => button.click());
+      await question.getByRole('radio', { name: 'Apenas assinar', exact: true }).evaluate((button) => button.click());
       await question.waitFor({ state: 'detached' });
       await sender.waitForFunction(
         () =>

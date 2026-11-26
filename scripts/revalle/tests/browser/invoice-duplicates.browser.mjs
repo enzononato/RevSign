@@ -158,10 +158,10 @@ await section('editor antigo (documento v1): o aviso aparece, sem a caixa de con
 if (lateId) {
   await section('chave da IA chega com o diálogo aberto', async () => {
     const { context, page } = await openAs(ownerCookie, DESKTOP);
-    // NF escaneada sem resposta: o bloco mostra a pergunta "É nota fiscal?" no lugar da conta.
+    // NF escaneada sem resposta: o topo pede "Apenas assinar" ou "Nota fiscal", nenhum marcado, no lugar da conta.
     const dialog = await openSendDialog(page, lateId, 'invoice-question');
 
-    await dialog.getByRole('button', { name: 'Sim', exact: true }).click();
+    await dialog.getByRole('radio', { name: 'Nota fiscal', exact: true }).click();
 
     // A conta e o centro, como a tela grava (o envio só libera com os dois).
     for (const [procedure, json] of [

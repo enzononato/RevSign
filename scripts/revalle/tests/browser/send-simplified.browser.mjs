@@ -29,14 +29,14 @@ const openSendDialog = async (page, id) => {
   await dialog.getByTestId('distribution-method').waitFor();
 
   // Documento comum sem resposta da IA: o painel da nota fiscal pode perguntar antes de liberar o Enviar. Espera um dos
-  // dois: a pergunta (responde "Não") ou o Enviar liberado.
+  // dois: a pergunta (escolhe "Apenas assinar") ou o Enviar liberado.
   const question = dialog.getByTestId('invoice-question');
   const submitButton = dialog.locator('button[type="submit"]');
   const deadline = Date.now() + 20_000;
 
   while (Date.now() < deadline) {
     if (await question.isVisible().catch(() => false)) {
-      await question.getByRole('button', { name: 'Não', exact: true }).click();
+      await question.getByRole('radio', { name: 'Apenas assinar', exact: true }).click();
       await question.waitFor({ state: 'detached' });
       break;
     }
