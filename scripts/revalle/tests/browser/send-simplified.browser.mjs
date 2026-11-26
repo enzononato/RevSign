@@ -65,9 +65,12 @@ const checkDialog = async (dialog, label) => {
   report((await dialog.getByRole('tab').count()) === 0, `${label}: sem as abas "E-mail"/"Nenhum"`);
   report((await dialog.locator(OLD_FIELDS).count()) === 0, `${label}: sem os campos de resposta, assunto e mensagem`);
 
-  const radios = dialog.getByRole('radio');
+  // Desde 26/11/2026 o diálogo também tem "Apenas assinar" / "Nota fiscal": conta só as opções de envio.
+  const sendOptions =
+    (await dialog.getByRole('radio', { name: EMAIL_OPTION, exact: true }).count()) +
+    (await dialog.getByRole('radio', { name: LINKS_OPTION, exact: true }).count());
 
-  report((await radios.count()) === 2, `${label}: duas opções`);
+  report(sendOptions === 2, `${label}: duas opções de envio`);
   report(
     (await dialog.getByRole('radio', { name: EMAIL_OPTION, exact: true }).count()) === 1,
     `${label}: opção "${EMAIL_OPTION}"`,
