@@ -20,11 +20,13 @@ import { Form, FormControl, FormField, FormItem, FormLabel } from '@documenso/ui
 import { FormErrorMessage } from '@documenso/ui/primitives/form/form-error-message';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@documenso/ui/primitives/tooltip';
 import { Trans } from '@lingui/react/macro';
-import { DocumentSigningOrder, RecipientRole, SendStatus } from '@prisma/client';
+import { DocumentSigningOrder, DocumentStatus, EnvelopeType, RecipientRole, SendStatus } from '@prisma/client'; // REVALLE: DocumentStatus, EnvelopeType
 import { HelpCircleIcon, PlusIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFieldArray, useWatch } from 'react-hook-form';
 import { isDeepEqual } from 'remeda';
+
+import { claimSelfSignerPrefill } from '~/components/revalle/envelope-editor/self-signer-prefill'; // REVALLE:
 
 import { RecipientStepList } from './recipient-step-list';
 
@@ -262,6 +264,31 @@ export const EnvelopeEditorRecipientForm = () => {
       });
     }
   }, [formValues]);
+
+  // REVALLE: rascunho novo, sem destinatário nenhum: quem cria já entra como o primeiro signatário (o "Add Myself" ligado
+  // por padrão). Sai pelo botão de remover da linha. Uma vez por envelope (quem se removeu não volta ao reabrir); só em
+  // documento do editor (modelo, envio por API com `externalId` e editor embutido ficam como no upstream).
+  useEffect(() => {
+    if (
+      envelope.type !== EnvelopeType.DOCUMENT ||
+      envelope.status !== DocumentStatus.DRAFT ||
+      envelope.externalId ||
+      isEmbedded ||
+      recipients.length > 0 ||
+      !currentEditorEmail ||
+      emptySignerIndex !== 0 ||
+      watchedSigners.length !== 1
+    ) {
+      return;
+    }
+
+    if (!claimSelfSignerPrefill(envelope.id)) {
+      return;
+    }
+
+    setValue('signers.0.name', currentEditorName ?? '', { shouldValidate: true, shouldDirty: true });
+    setValue('signers.0.email', currentEditorEmail, { shouldValidate: true, shouldDirty: true });
+  }, [envelope.id, currentEditorEmail]);
 
   const recipientCountLimit = organisation.organisationClaim.recipientCount;
   const isOverRecipientLimit = recipientCountLimit > 0 && watchedSigners.length > recipientCountLimit;
