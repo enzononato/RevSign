@@ -6612,29 +6612,35 @@ msgstr "Notas fiscais enviadas pelo espaço pessoal antes das unidades. O Financ
 msgid "Levar as notas antigas para a unidade de quem enviou"
 msgstr "Levar as notas antigas para a unidade de quem enviou"
 
-msgid "{n} notas de {p} pessoas vão para a unidade de quem enviou. {k} ficam no espaço pessoal porque quem enviou não está em nenhuma unidade."
-msgstr "{n} notas de {p} pessoas vão para a unidade de quem enviou. {k} ficam no espaço pessoal porque quem enviou não está em nenhuma unidade."
-
 msgid "Ponha estas pessoas numa unidade e use o botão de novo:"
 msgstr "Ponha estas pessoas numa unidade e use o botão de novo:"
-
-msgid "{count} notas"
-msgstr "{count} notas"
-
-msgid "e mais {rest} pessoas"
-msgstr "e mais {rest} pessoas"
-
-msgid "Levar {n} notas"
-msgstr "Levar {n} notas"
-
-msgid "{n} notas levadas para as unidades."
-msgstr "{n} notas levadas para as unidades."
-
-msgid "{failed} notas não foram levadas. Tente de novo."
-msgstr "{failed} notas não foram levadas. Tente de novo."
 
 msgid "Nenhuma nota antiga no espaço pessoal."
 msgstr "Nenhuma nota antiga no espaço pessoal."
 
 msgid "Nota fiscal antiga levada do espaço pessoal para o time {team} da unidade {unit}"
 msgstr "Nota fiscal antiga levada do espaço pessoal para o time {team} da unidade {unit}"
+
+msgid "{n, plural, one {# nota} other {# notas}} de {p, plural, one {# pessoa} other {# pessoas}} {n, plural, one {vai} other {vão}} para a unidade de quem enviou. {k, plural, one {# fica} other {# ficam}} no espaço pessoal porque quem enviou não está em nenhuma unidade."
+msgstr "{n, plural, one {# nota} other {# notas}} de {p, plural, one {# pessoa} other {# pessoas}} {n, plural, one {vai} other {vão}} para a unidade de quem enviou. {k, plural, one {# fica} other {# ficam}} no espaço pessoal porque quem enviou não está em nenhuma unidade."
+
+msgid "{count, plural, one {# nota} other {# notas}}"
+msgstr "{count, plural, one {# nota} other {# notas}}"
+
+msgid "{rest, plural, one {e mais # pessoa} other {e mais # pessoas}}"
+msgstr "{rest, plural, one {e mais # pessoa} other {e mais # pessoas}}"
+
+msgid "{n, plural, one {Levar # nota} other {Levar # notas}}"
+msgstr "{n, plural, one {Levar # nota} other {Levar # notas}}"
+
+msgid "{n, plural, one {# nota levada para a unidade.} other {# notas levadas para as unidades.}}"
+msgstr "{n, plural, one {# nota levada para a unidade.} other {# notas levadas para as unidades.}}"
+
+msgid "{failed, plural, one {# nota não foi levada. Tente de novo.} other {# notas não foram levadas. Tente de novo.}}"
+msgstr "{failed, plural, one {# nota não foi levada. Tente de novo.} other {# notas não foram levadas. Tente de novo.}}"
+
+msgid "{conflicts, plural, one {# nota também fica porque as versões dela já estão em times de unidade diferentes.} other {# notas também ficam porque as versões delas já estão em times de unidade diferentes.}}"
+msgstr "{conflicts, plural, one {# nota também fica porque as versões dela já estão em times de unidade diferentes.} other {# notas também ficam porque as versões delas já estão em times de unidade diferentes.}}"
+
+msgid "A mudança das notas antigas já está em andamento. Espere terminar e atualize a página."
+msgstr "A mudança das notas antigas já está em andamento. Espere terminar e atualize a página."

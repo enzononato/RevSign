@@ -190,13 +190,19 @@ Como funciona:
 - Vão todas as notas fiscais do espaço pessoal: rascunhos, pendentes, concluídas, recusadas, substituídas e as que
   quem enviou excluiu. Documento comum ("Apenas assinar") não é tocado.
 - O destino é o **primeiro time de unidade** de quem enviou (o mesmo time que abre por padrão no envio). A nota e as
-  versões dela (nova versão do Financeiro ou da Contabilidade) vão sempre juntas para o mesmo time.
+  versões dela (nova versão do Financeiro ou da Contabilidade) vão sempre juntas para o mesmo time. Se uma versão já
+  está num time de unidade, as outras vão para esse time. Se as versões já estão em times de unidade diferentes, a
+  prévia avisa e a nota fica (o TI resolve à mão).
+- Uma vez só: se outro admin (ou outra aba) já está levando as notas, o botão avisa "A mudança das notas antigas já
+  está em andamento. Espere terminar e atualize a página." e não faz nada.
+- Só o espaço pessoal: uma nota enviada antes da v.26 por uma organização que não é unidade nem pessoal não entra na
+  conta nem é levada. "Nenhuma nota antiga no espaço pessoal." não quer dizer que o Financeiro vê todas as notas.
 - A nota sai da pasta em que estava (a pasta é do espaço pessoal) e fica na lista do time.
 - O histórico do documento ganha a linha "Nota fiscal antiga levada do espaço pessoal para o time … da unidade …",
   com o admin que levou. Essa linha não entra no PDF assinado.
 - Pode rodar de novo quando quiser: só leva o que ainda está no espaço pessoal.
 - Quem assina não percebe nada: o link de assinatura continua o mesmo. Um link antigo do painel de quem enviou (com o
-  endereço do espaço pessoal) deixa de abrir; a nota está agora no time da unidade.
+  endereço do espaço pessoal) pode deixar de abrir; use a lista do time da unidade.
 - Os próximos e-mails e webhooks da nota seguem as configurações do time da unidade.
 
 ## Inativação pela folha (toda noite)

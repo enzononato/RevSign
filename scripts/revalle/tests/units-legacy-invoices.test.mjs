@@ -5,10 +5,14 @@
 //     admin, sem e-mail); o Financeiro com escopo nessa unidade passa a ver a nota;
 //   - a nota de quem não está em nenhuma unidade fica e entra em "ficam";
 //   - o documento comum (não é nota) no espaço pessoal não é tocado;
+//   - duas chamadas ao mesmo tempo (dois cliques, duas abas): uma trava no banco deixa só uma rodar (a outra volta com
+//     `busy`, ou move 0 se chegou depois); juntas levam exatamente o que a prévia contou, e cada envelope tem um evento só;
 //   - rodar de novo: move 0.
 //
 // A prévia e o botão valem para o banco inteiro: outras suítes também deixam notas no espaço pessoal. Por isso os números
 // globais são conferidos com "pelo menos", e o resto pelas notas desta suíte.
+// ATENÇÃO: esta suíte leva TODA nota antiga do banco do hml (de qualquer suíte) para a unidade de quem enviou. Nenhuma
+// suíte pode reaproveitar uma nota do espaço pessoal entre execuções: crie a nota a cada execução.
 //
 // Montagem (como `units-finance-scope`): o admin cria a organização e o time pelas rotas do upstream; a marca de unidade
 // (`RevalleUnit`), a entrada da conta na organização e o escopo do Financeiro são gravados por SQL. As notas antigas
@@ -275,6 +279,7 @@ sessionTest('prévia, mover, o Financeiro passa a ver e rodar de novo move 0', a
   assert.ok(before.movePeopleCount >= 1);
   assert.ok(before.stayCount >= 1, 'a nota de quem não está em unidade não entrou em "ficam"');
   assert.ok(before.stayPeopleCount >= 1);
+  assert.equal(typeof before.conflictCount, 'number');
   assert.ok(before.stayPeople.length <= STAY_PEOPLE_LIMIT);
   assert.ok(
     !before.stayPeople.some((person) => person.userId === mover.id),
@@ -292,11 +297,36 @@ sessionTest('prévia, mover, o Financeiro passa a ver e rodar de novo move 0', a
   // A prévia não grava nada.
   assert.equal(envelopeRow(docs.moving).teamId, mover.personalTeamId);
 
-  const moved = await move();
+  // Dois cliques ao mesmo tempo: só um roda (a trava no banco); juntos levam exatamente o que a prévia contou.
+  const results = await Promise.all([move(), move()]);
+  const ran = results.filter((result) => !result.busy);
 
-  assert.ok(moved.moved >= 1, JSON.stringify(moved));
-  assert.equal(moved.failed, 0, JSON.stringify(moved));
-  assert.ok(moved.stayed >= 1, JSON.stringify(moved));
+  assert.ok(ran.length >= 1, JSON.stringify(results));
+  assert.equal(
+    results.reduce((total, result) => total + result.moved, 0),
+    before.moveCount,
+    JSON.stringify(results),
+  );
+  assert.ok(
+    results.every((result) => result.failed === 0),
+    JSON.stringify(results),
+  );
+  assert.ok(
+    ran.some((result) => result.moved >= 1 && result.stayed >= 1),
+    JSON.stringify(results),
+  );
+
+  for (const result of results.filter((item) => item.busy)) {
+    assert.deepEqual(result, { moved: 0, failed: 0, stayed: 0, busy: true });
+  }
+
+  // Nenhum envelope do banco ganhou dois eventos.
+  assert.equal(
+    db(
+      `select count(*) from (select "envelopeId" from "DocumentAuditLog" where type = 'REVALLE_INVOICE_MOVED_TO_UNIT' group by "envelopeId" having count(*) > 1) d`,
+    ),
+    '0',
+  );
 
   assert.deepEqual(envelopeRow(docs.moving), { teamId: unit.teamId, folderId: null });
 
@@ -322,6 +352,7 @@ sessionTest('prévia, mover, o Financeiro passa a ver e rodar de novo move 0', a
 
   assert.equal(again.moved, 0, JSON.stringify(again));
   assert.equal(again.failed, 0, JSON.stringify(again));
+  assert.equal(again.busy, false, JSON.stringify(again));
   assert.equal((await preview()).moveCount, 0);
   assert.equal(movedEvents(docs.moving).length, 1, 'rodar de novo gravou outro evento');
 });

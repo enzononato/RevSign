@@ -9,8 +9,10 @@ import { revalleErrorCode } from '../error-code';
 import { findRevalleUnitTeams } from '../visibility/unit-team';
 import {
   countByOwner,
+  groupInvoiceChains,
   type LegacyInvoicePlan,
   type LegacyInvoiceRow,
+  linkedOutsideIds,
   planLegacyInvoiceMoves,
 } from './legacy-invoice-plan';
 
@@ -56,8 +58,23 @@ const loadPlan = async (): Promise<LegacyInvoicePlan> => {
     unitTeamByUser.set(userId, (await findRevalleUnitTeams(userId))[0]?.id ?? null);
   }
 
-  return planLegacyInvoiceMoves(rows, unitTeamByUser);
+  // Versão ligada que já não está na lista (ex.: levada antes): se está num time de unidade, a cadeia vai para lá.
+  const outsideIds = [...new Set(groupInvoiceChains(rows).flatMap((chain) => linkedOutsideIds(chain)))];
+  const linked = outsideIds.length
+    ? await prisma.envelope.findMany({
+        where: { id: { in: outsideIds } },
+        select: { id: true, teamId: true, team: { select: { organisation: { select: { revalleUnit: true } } } } },
+      })
+    : [];
+  const linkedUnitTeamById = new Map(
+    linked.map((envelope) => [envelope.id, envelope.team.organisation.revalleUnit ? envelope.teamId : null]),
+  );
+
+  return planLegacyInvoiceMoves(rows, unitTeamByUser, linkedUnitTeamById);
 };
+
+const countEnvelopes = (chains: { envelopeIds: string[] }[]) =>
+  chains.reduce((total, chain) => total + chain.envelopeIds.length, 0);
 
 export type LegacyInvoicesPreview = {
   /** Notas (envelopes, cada versão conta) que vão para a unidade de quem enviou. */
@@ -69,6 +86,8 @@ export type LegacyInvoicesPreview = {
   /** Quem fica, para o TI pôr numa unidade (só na tela do admin; nunca em log). */
   stayPeople: { userId: number; name: string | null; email: string; count: number }[];
   stayPeopleCount: number;
+  /** Notas que ficam porque as versões delas já estão em times de unidade diferentes (o TI resolve à mão). */
+  conflictCount: number;
 };
 
 /** Prévia: só consulta, não grava. */
@@ -84,26 +103,63 @@ export const previewLegacyInvoices = async (): Promise<LegacyInvoicesPreview> =>
   const userById = new Map(users.map((user) => [user.id, user]));
 
   return {
-    moveCount: plan.moves.reduce((total, chain) => total + chain.envelopeIds.length, 0),
+    moveCount: countEnvelopes(plan.moves),
     movePeopleCount: new Set(plan.moves.map((chain) => chain.ownerUserId)).size,
-    stayCount: plan.stays.reduce((total, chain) => total + chain.envelopeIds.length, 0),
+    stayCount: countEnvelopes(plan.stays),
     stayPeople: shown.flatMap((owner) => {
       const user = userById.get(owner.userId);
 
       return user ? [{ userId: user.id, name: user.name, email: user.email, count: owner.count }] : [];
     }),
     stayPeopleCount: stayOwners.length,
+    conflictCount: countEnvelopes(plan.conflicts),
   };
 };
 
-export type LegacyInvoicesMoveResult = { moved: number; failed: number; stayed: number };
+export type LegacyInvoicesMoveResult = {
+  moved: number;
+  failed: number;
+  stayed: number;
+  /** Outra chamada já está levando as notas: esta não fez nada. */
+  busy: boolean;
+};
+
+/** Chave da trava de "Levar as notas antigas" (uma por banco). */
+const LEGACY_INVOICES_LOCK_KEY = 'revalle:units:legacy-invoices';
+
+/** Até quanto tempo a trava pode ficar presa (a transação que a segura só espera as cadeias). */
+const LEGACY_INVOICES_LOCK_TIMEOUT_MS = 60 * 60 * 1000;
 
 /**
- * Leva as notas antigas para o primeiro time de unidade de quem enviou. Cada cadeia (a nota e as versões dela) numa
- * transação: muda o time, tira da pasta (a pasta é do time antigo) e grava um evento por envelope. Só o que ainda está
- * no pessoal no momento da gravação é levado (rodar de novo não move nada). Uma cadeia que falha não para as outras.
+ * Leva as notas antigas para o primeiro time de unidade de quem enviou. Uma chamada por vez no banco inteiro: a trava
+ * `pg_try_advisory_xact_lock` fica numa transação só dela, aberta até o fim; a segunda chamada (outra aba, outro admin,
+ * o clique de novo depois de um tempo esgotado no proxy) volta na hora com `busy` e não move nada. Cada cadeia (a nota e
+ * as versões dela) continua numa transação própria: muda o time, tira da pasta (a pasta é do time antigo) e grava um
+ * evento por envelope. Só o que ainda está no pessoal no momento da gravação é levado (rodar de novo não move nada).
+ * Uma cadeia que falha não para as outras.
  */
-export const moveLegacyInvoices = async ({
+export const moveLegacyInvoices = async (options: {
+  admin: { id: number; name: string | null; email: string };
+  requestMetadata?: ApiRequestMetadata;
+}): Promise<LegacyInvoicesMoveResult> =>
+  await prisma.$transaction(
+    async (lockTx) => {
+      const [lock] = await lockTx.$queryRaw<{ locked: boolean }[]>`
+        SELECT pg_try_advisory_xact_lock(hashtext(${LEGACY_INVOICES_LOCK_KEY})) AS locked
+      `;
+
+      if (!lock?.locked) {
+        console.info('[revalle] Notas antigas do espaço pessoal: já em andamento (REVALLE_LEGACY_INVOICES_BUSY).');
+
+        return { moved: 0, failed: 0, stayed: 0, busy: true };
+      }
+
+      return await moveLegacyInvoicesLocked(options);
+    },
+    { maxWait: 10_000, timeout: LEGACY_INVOICES_LOCK_TIMEOUT_MS },
+  );
+
+const moveLegacyInvoicesLocked = async ({
   admin,
   requestMetadata,
 }: {
@@ -114,7 +170,8 @@ export const moveLegacyInvoices = async ({
   const result: LegacyInvoicesMoveResult = {
     moved: 0,
     failed: 0,
-    stayed: plan.stays.reduce((total, chain) => total + chain.envelopeIds.length, 0),
+    stayed: countEnvelopes(plan.stays) + countEnvelopes(plan.conflicts),
+    busy: false,
   };
   const failureCodes = new Map<string, number>();
 
@@ -123,8 +180,12 @@ export const moveLegacyInvoices = async ({
       result.moved += await prisma.$transaction(async (tx) => {
         const toTeam = await tx.team.findUniqueOrThrow({
           where: { id: chain.toTeamId },
-          select: { id: true, name: true, organisation: { select: { name: true } } },
+          select: { id: true, name: true, organisation: { select: { name: true, revalleUnit: true } } },
         });
+
+        if (!toTeam.organisation.revalleUnit) {
+          throw new AppError('REVALLE_LEGACY_INVOICE_NOT_UNIT');
+        }
 
         const envelopes = await tx.envelope.findMany({
           where: { id: { in: chain.envelopeIds }, ...legacyInvoiceWhere },

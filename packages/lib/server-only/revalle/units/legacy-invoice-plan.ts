@@ -1,7 +1,8 @@
 /**
  * REVALLE (v.26, Task 7): o plano de "Levar as notas antigas para a unidade de quem enviou", sem banco. Uma nota e as
  * versões dela (nova versão do Financeiro ou da Contabilidade) andam sempre juntas: viram uma cadeia e vão para o mesmo
- * time. Todas as versões têm o mesmo dono; se um dia não tiverem, vale o dono da primeira versão da cadeia.
+ * time. Todas as versões têm o mesmo dono; se um dia não tiverem, vale o dono da primeira versão da cadeia. Se uma
+ * versão ligada já está num time de unidade (fora da lista), a cadeia vai para esse time, não para o do dono.
  */
 
 export type LegacyInvoiceRow = {
@@ -22,6 +23,8 @@ export type LegacyInvoicePlan = {
   moves: (LegacyInvoiceChain & { toTeamId: number })[];
   /** Cadeias que ficam no espaço pessoal: o dono não está em nenhum time de unidade. */
   stays: LegacyInvoiceChain[];
+  /** Cadeias que ficam porque versões ligadas já estão em times de unidade diferentes (o TI resolve à mão). */
+  conflicts: LegacyInvoiceChain[];
 };
 
 /**
@@ -93,17 +96,40 @@ const chainOwner = (chain: LegacyInvoiceRow[]): number => {
   return first.userId;
 };
 
-/** `unitTeamByUser`: o primeiro time de unidade de cada dono (`findRevalleUnitTeams`), ou null sem nenhum. */
+/** Os ids ligados à cadeia (anterior ou seguinte) que não estão nela. */
+export const linkedOutsideIds = (chain: LegacyInvoiceRow[]): string[] => {
+  const ids = new Set(chain.map((row) => row.id));
+  const links = chain.flatMap((row) => [row.previousEnvelopeId, row.supersededByEnvelopeId]);
+
+  return [...new Set(links.filter((id): id is string => id !== null && !ids.has(id)))];
+};
+
+/**
+ * `unitTeamByUser`: o primeiro time de unidade de cada dono (`findRevalleUnitTeams`), ou null sem nenhum.
+ * `linkedUnitTeamById`: para cada versão ligada fora da lista, o time dela quando é de unidade (null quando não é).
+ */
 export const planLegacyInvoiceMoves = (
   rows: LegacyInvoiceRow[],
   unitTeamByUser: ReadonlyMap<number, number | null>,
+  linkedUnitTeamById: ReadonlyMap<string, number | null> = new Map(),
 ): LegacyInvoicePlan => {
-  const plan: LegacyInvoicePlan = { moves: [], stays: [] };
+  const plan: LegacyInvoicePlan = { moves: [], stays: [], conflicts: [] };
 
   for (const chain of groupInvoiceChains(rows)) {
     const ownerUserId = chainOwner(chain);
     const envelopeIds = chain.map((row) => row.id);
-    const toTeamId = unitTeamByUser.get(ownerUserId) ?? null;
+    const linkedTeams = new Set(
+      linkedOutsideIds(chain)
+        .map((id) => linkedUnitTeamById.get(id) ?? null)
+        .filter((teamId): teamId is number => teamId !== null),
+    );
+
+    if (linkedTeams.size > 1) {
+      plan.conflicts.push({ envelopeIds, ownerUserId });
+      continue;
+    }
+
+    const toTeamId = linkedTeams.size === 1 ? [...linkedTeams][0] : (unitTeamByUser.get(ownerUserId) ?? null);
 
     if (toTeamId === null) {
       plan.stays.push({ envelopeIds, ownerUserId });

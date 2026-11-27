@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { countByOwner, groupInvoiceChains, type LegacyInvoiceRow, planLegacyInvoiceMoves } from './legacy-invoice-plan';
+import {
+  countByOwner,
+  groupInvoiceChains,
+  type LegacyInvoiceRow,
+  linkedOutsideIds,
+  planLegacyInvoiceMoves,
+} from './legacy-invoice-plan';
 
 const row = (
   id: string,
@@ -69,6 +75,42 @@ describe('planLegacyInvoiceMoves', () => {
     );
 
     expect(plan.moves).toEqual([{ envelopeIds: ['v1', 'v2'], ownerUserId: 1, toTeamId: 7 }]);
+  });
+
+  it('versão ligada já num time de unidade: a cadeia vai para esse time, mesmo sem o dono em unidade', () => {
+    const rows = [
+      row('v2', 1, 20, { previous: 'v1-levada', supersededBy: 'v3' }),
+      row('v3', 1, 30, { previous: 'v2' }),
+    ];
+
+    expect(linkedOutsideIds(groupInvoiceChains(rows)[0])).toEqual(['v1-levada']);
+
+    const plan = planLegacyInvoiceMoves(rows, new Map([[1, 7]]), new Map([['v1-levada', 9]]));
+
+    expect(plan.moves).toEqual([{ envelopeIds: ['v2', 'v3'], ownerUserId: 1, toTeamId: 9 }]);
+    expect(planLegacyInvoiceMoves(rows, new Map(), new Map([['v1-levada', 9]])).moves[0]?.toTeamId).toBe(9);
+  });
+
+  it('versão ligada fora da lista sem time de unidade: vale o time do dono', () => {
+    const rows = [row('v2', 1, 20, { previous: 'v1-comum' })];
+
+    expect(planLegacyInvoiceMoves(rows, new Map([[1, 7]]), new Map([['v1-comum', null]])).moves[0]?.toTeamId).toBe(7);
+  });
+
+  it('versões ligadas em times de unidade diferentes: a cadeia fica e é conflito', () => {
+    const rows = [row('v2', 1, 20, { previous: 'v1', supersededBy: 'v3' })];
+    const plan = planLegacyInvoiceMoves(
+      rows,
+      new Map([[1, 7]]),
+      new Map([
+        ['v1', 9],
+        ['v3', 10],
+      ]),
+    );
+
+    expect(plan.moves).toEqual([]);
+    expect(plan.stays).toEqual([]);
+    expect(plan.conflicts).toEqual([{ envelopeIds: ['v2'], ownerUserId: 1 }]);
   });
 
   it('dono sem entrada no mapa fica', () => {

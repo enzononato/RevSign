@@ -169,10 +169,13 @@ export const ZUnitsLegacyInvoicesPreviewResponseSchema = z.object({
     z.object({ userId: z.number(), name: z.string().nullable(), email: z.string(), count: z.number() }),
   ),
   stayPeopleCount: z.number(),
+  conflictCount: z.number(),
 });
 
 export const ZUnitsLegacyInvoicesMoveResponseSchema = z.object({
   moved: z.number(),
   failed: z.number(),
   stayed: z.number(),
+  /** Outra chamada já está levando as notas (trava no banco): esta não fez nada. */
+  busy: z.boolean(),
 });

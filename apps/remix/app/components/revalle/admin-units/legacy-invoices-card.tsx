@@ -10,6 +10,7 @@ import {
 } from '@documenso/ui/primitives/alert-dialog';
 import { Button } from '@documenso/ui/primitives/button';
 import { useToast } from '@documenso/ui/primitives/use-toast';
+import { plural } from '@lingui/core/macro';
 import { Trans, useLingui } from '@lingui/react/macro';
 import { ArchiveRestoreIcon } from 'lucide-react';
 import { useState } from 'react';
@@ -34,6 +35,7 @@ export const LegacyInvoicesCard = () => {
   const k = data?.stayCount ?? 0;
   const stayPeople = data?.stayPeople ?? [];
   const rest = (data?.stayPeopleCount ?? 0) - stayPeople.length;
+  const conflicts = data?.conflictCount ?? 0;
 
   const onOpen = async () => {
     const result = await refetch();
@@ -49,11 +51,27 @@ export const LegacyInvoicesCard = () => {
 
   const onMove = async () => {
     try {
-      const { moved: n, failed } = await move();
+      const { moved: n, failed, busy } = await move();
+
+      if (busy) {
+        toast({
+          title: t`A mudança das notas antigas já está em andamento. Espere terminar e atualize a página.`,
+          variant: 'destructive',
+        });
+        setIsOpen(false);
+
+        return;
+      }
 
       toast({
-        title: t`${n} notas levadas para as unidades.`,
-        description: failed > 0 ? t`${failed} notas não foram levadas. Tente de novo.` : undefined,
+        title: t`${plural(n, { one: '# nota levada para a unidade.', other: '# notas levadas para as unidades.' })}`,
+        description:
+          failed > 0
+            ? t`${plural(failed, {
+                one: '# nota não foi levada. Tente de novo.',
+                other: '# notas não foram levadas. Tente de novo.',
+              })}`
+            : undefined,
         variant: failed > 0 ? 'destructive' : 'default',
       });
       setIsOpen(false);
@@ -76,7 +94,7 @@ export const LegacyInvoicesCard = () => {
     );
   }
 
-  if (n === 0 && k === 0) {
+  if (n === 0 && k === 0 && conflicts === 0) {
     return (
       <p className="mt-10 text-muted-foreground text-sm">
         <Trans>Nenhuma nota antiga no espaço pessoal.</Trans>
@@ -113,12 +131,18 @@ export const LegacyInvoicesCard = () => {
               <Trans>Levar as notas antigas para a unidade de quem enviou</Trans>
             </AlertDialogTitle>
             <AlertDialogDescription>
-              <Trans>
-                {n} notas de {p} pessoas vão para a unidade de quem enviou. {k} ficam no espaço pessoal porque quem
-                enviou não está em nenhuma unidade.
-              </Trans>
+              {t`${plural(n, { one: '# nota', other: '# notas' })} de ${plural(p, { one: '# pessoa', other: '# pessoas' })} ${plural(n, { one: 'vai', other: 'vão' })} para a unidade de quem enviou. ${plural(k, { one: '# fica', other: '# ficam' })} no espaço pessoal porque quem enviou não está em nenhuma unidade.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {conflicts > 0 && (
+            <p className="text-muted-foreground text-sm">
+              {t`${plural(conflicts, {
+                one: '# nota também fica porque as versões dela já estão em times de unidade diferentes.',
+                other: '# notas também ficam porque as versões delas já estão em times de unidade diferentes.',
+              })}`}
+            </p>
+          )}
 
           {stayPeople.length > 0 && (
             <div className="text-sm">
@@ -136,7 +160,7 @@ export const LegacyInvoicesCard = () => {
                         {person.name?.trim() ? <span className="text-muted-foreground"> · {person.email}</span> : null}
                       </span>
                       <span className="shrink-0 text-muted-foreground">
-                        <Trans>{count} notas</Trans>
+                        {t`${plural(count, { one: '# nota', other: '# notas' })}`}
                       </span>
                     </li>
                   );
@@ -144,7 +168,7 @@ export const LegacyInvoicesCard = () => {
               </ul>
               {rest > 0 && (
                 <p className="mt-1 text-muted-foreground">
-                  <Trans>e mais {rest} pessoas</Trans>
+                  {t`${plural(rest, { one: 'e mais # pessoa', other: 'e mais # pessoas' })}`}
                 </p>
               )}
             </div>
@@ -155,7 +179,7 @@ export const LegacyInvoicesCard = () => {
               <Trans>Cancelar</Trans>
             </AlertDialogCancel>
             <Button loading={isMoving} disabled={n === 0} onClick={() => void onMove()}>
-              <Trans>Levar {n} notas</Trans>
+              {t`${plural(n, { one: 'Levar # nota', other: 'Levar # notas' })}`}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

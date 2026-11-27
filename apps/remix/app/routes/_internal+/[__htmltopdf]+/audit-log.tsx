@@ -67,12 +67,14 @@ export async function loader({ request }: Route.LoaderArgs) {
   const messages = await getTranslations(documentLanguage);
 
   return {
-    // REVALLE: a conta contábil, o centro de custo e a validação da NF ficam fora do PDF (selado ou baixado).
+    // REVALLE: a conta contábil, o centro de custo e a validação da NF ficam fora do PDF (selado ou baixado). v.26: a
+    // nota antiga levada para o time da unidade também (como em generate-audit-log-pdf.ts).
     auditLogs: auditLogs.filter(
       (auditLog) =>
         auditLog.type !== 'REVALLE_INVOICE_ACCOUNT_SET' &&
         auditLog.type !== 'REVALLE_INVOICE_COST_CENTER_SET' &&
-        auditLog.type !== 'REVALLE_COST_CENTER_VALIDATED',
+        auditLog.type !== 'REVALLE_COST_CENTER_VALIDATED' &&
+        auditLog.type !== 'REVALLE_INVOICE_MOVED_TO_UNIT',
     ),
     document: {
       id: mapSecondaryIdToDocumentId(envelope.secondaryId),
