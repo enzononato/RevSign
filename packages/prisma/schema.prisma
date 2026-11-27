@@ -77,6 +77,9 @@ model User {
   revalleFinanceMember    RevalleFinanceMember? // REVALLE: back-relation (perfil Financeiro)
   revalleAccountingMember RevalleAccountingMember? // REVALLE: back-relation (perfil Contabilidade)
   revalleSignupIdentity   RevalleSignupIdentity? // REVALLE: back-relation (CPF do cadastro, até confirmar o e-mail)
+  revalleVisibility       RevalleUserVisibility? // REVALLE: back-relation (v.26, ver só o que enviou ou recebeu)
+  revalleUnitScopes       RevalleUnitScope[] // REVALLE: back-relation (v.26, unidades do Financeiro e da Contabilidade)
+  revalleKeepActive       RevalleUserKeepActive? // REVALLE: back-relation (v.26, mantido ativo pelo TI)
 
   @@index([email])
 }
@@ -870,6 +873,9 @@ model Organisation {
   embedSignatures EmbedSignature[]
 
   avatarImage AvatarImage? @relation(fields: [avatarImageId], references: [id], onDelete: SetNull)
+
+  revalleUnit       RevalleUnit? // REVALLE: back-relation (v.26, organização marcada como unidade)
+  revalleUnitScopes RevalleUnitScope[] // REVALLE: back-relation (v.26, escopo de unidades)
 
   ownerUserId Int
   owner       User @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
@@ -1833,4 +1839,68 @@ model RevalleBulkSendQueue {
   @@unique([contractId, email])
   @@index([contractId, status])
   @@index([status, createdAt])
+}
+
+/// REVALLE (v.26): marca a organização como unidade do RH. `hrUnitName` é o valor da coluna `unidade` na base do RH.
+model RevalleUnit {
+  organisationId String       @id
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  hrUnitName     String       @unique
+  createdAt      DateTime     @default(now())
+}
+
+/// REVALLE (v.26): "ver só o que enviou ou recebeu para assinar". Sem linha = vê tudo o que o time permite.
+model RevalleUserVisibility {
+  userId      Int      @id
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ownOnly     Boolean  @default(false)
+  updatedById Int?
+  updatedAt   DateTime @updatedAt
+}
+
+/// REVALLE (v.26): unidades que o Financeiro e a Contabilidade enxergam. Segue o id da organização (apagou, sai).
+model RevalleUnitScope {
+  userId         Int
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  createdById    Int?
+  createdAt      DateTime     @default(now())
+
+  @@id([userId, organisationId])
+  @@index([organisationId])
+}
+
+enum RevalleUserStatusAction {
+  INACTIVATED
+  REACTIVATED
+  KEPT_ACTIVE_ON
+  KEPT_ACTIVE_OFF
+  TOTP_RESET
+}
+
+enum RevalleUserStatusSource {
+  HR_SYNC
+  ADMIN
+}
+
+/// REVALLE (v.26): histórico de situação do usuário (inativação pela folha, reativação, "mantido ativo", zerar autenticador).
+/// Sem chave estrangeira de propósito: o histórico sobrevive à exclusão da conta.
+model RevalleUserStatusEvent {
+  id        String                  @id @default(cuid())
+  userId    Int
+  action    RevalleUserStatusAction
+  source    RevalleUserStatusSource
+  actorId   Int?
+  createdAt DateTime                @default(now())
+
+  @@index([userId, createdAt])
+}
+
+/// REVALLE (v.26): o TI mantém a conta ativa mesmo que a folha a marque como inativa (a rotina noturna pula).
+model RevalleUserKeepActive {
+  userId    Int      @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  setById   Int
+  createdAt DateTime @default(now())
 }
