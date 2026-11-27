@@ -4,7 +4,7 @@
 //     (sem mexer na do Financeiro); a do Financeiro sobe ao enviar e desce ao aprovar (sem mexer na da Contabilidade); NF
 //     recusada, substituída e excluída saem das duas; NF concluída e ainda sem validação continua na da Contabilidade;
 //   - o número do menu é o mesmo da fila da página (`financeiro=pendentes` e `contabilidade=pendentes` em `find`), e o
-//     aviso do admin (`accountingPendingCount`) é o mesmo da Contabilidade;
+//     aviso do admin (`accountingPendingCount`) anda junto com a Contabilidade (v.26: conta todas as unidades);
 //   - lista (`find`): centro de custo, validação e quem validou em cada linha; filtro `contabilidade` (pendentes,
 //     validadas, todas) respeitando a visibilidade; a página abre com as colunas novas;
 //   - planilha (`/notas-fiscais/csv`): as quatro colunas novas vêm depois de `aprovado_por`, o filtro `contabilidade` vale,
@@ -437,6 +437,8 @@ sessionTest('pendingCounts: sobe ao enviar, desce ao validar e ao aprovar, e cad
   const base = {
     accountant: (await pendingCounts(accountant.cookie)).accounting,
     finance: (await pendingCounts(financeOnly.cookie)).finance,
+    // v.26: o aviso do admin conta todas as notas; a Contabilidade, só as das suas unidades. Cada um anda +1/-1.
+    adminPending: data(await trpcAs(adminCookie, 'query', 'revalle.finance.adminListUsers', {})).accountingPendingCount,
   };
   const doc = await newInvoice('contagem');
 
@@ -451,7 +453,7 @@ sessionTest('pendingCounts: sobe ao enviar, desce ao validar e ao aprovar, e cad
   const listed = await trpcAs(adminCookie, 'query', 'revalle.finance.adminListUsers', {});
 
   assert.equal(listed.status, 200, listed.text);
-  assert.equal(data(listed).accountingPendingCount, base.accountant + 1);
+  assert.equal(data(listed).accountingPendingCount, base.adminPending + 1);
 
   const validated = await validate(doc.id);
 
@@ -476,7 +478,7 @@ sessionTest('pendingCounts: sobe ao enviar, desce ao validar e ao aprovar, e cad
   assert.deepEqual(await pendingCounts(both.cookie), { finance: base.finance, accounting: base.accountant });
   assert.equal(
     data(await trpcAs(adminCookie, 'query', 'revalle.finance.adminListUsers', {})).accountingPendingCount,
-    base.accountant,
+    base.adminPending,
   );
 });
 
