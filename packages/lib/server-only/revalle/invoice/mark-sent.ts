@@ -12,6 +12,7 @@ import {
 import { AppError, AppErrorCode } from '../../../errors/app-error';
 import { pickSentInvoiceTargets } from '../../../revalle/invoice/invoice-files';
 import { isAdmin } from '../../../utils/is-admin';
+import { assertTeamIsUnitForInvoice } from '../visibility/unit-team';
 import { wasSentBeforeAnnotationBox } from './annotation-box';
 import type { InvoiceState } from './classify';
 import { getInvoiceState } from './classify';
@@ -39,7 +40,10 @@ export const markSentEnvelopeAsInvoice = async ({
   user: { id: number };
 }): Promise<InvoiceState> => {
   const [envelope, account] = await Promise.all([
-    prisma.envelope.findUnique({ where: { id: envelopeId }, select: { userId: true, status: true, deletedAt: true } }),
+    prisma.envelope.findUnique({
+      where: { id: envelopeId },
+      select: { userId: true, teamId: true, status: true, deletedAt: true },
+    }),
     prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { roles: true } }),
   ]);
 
@@ -66,6 +70,9 @@ export const markSentEnvelopeAsInvoice = async ({
   if (row?.isInvoice === RevalleInvoiceStatus.YES) {
     return await getInvoiceState(envelopeId);
   }
+
+  // v.26: nota fiscal só de um time de unidade (o mesmo texto da recusa do envio), antes da conferência dos e-mails.
+  await assertTeamIsUnitForInvoice(envelope.teamId);
 
   // Nota fiscal só vai para e-mails da empresa: com um destinatário de fora, o documento continua comum.
   const recipients = await prisma.recipient.findMany({ where: { envelopeId }, select: { email: true } });

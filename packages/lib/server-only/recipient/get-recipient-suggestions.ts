@@ -2,6 +2,7 @@ import { buildTeamWhereQuery } from '@documenso/lib/utils/teams';
 import { prisma } from '@documenso/prisma';
 import { EnvelopeType, Prisma } from '@prisma/client';
 import { mergeRevalleRecipientSuggestions } from '../revalle/merge-recipient-suggestions'; // REVALLE:
+import { getRevalleOwnOnlyScope, revalleOwnOnlyPrismaWhere } from '../revalle/visibility/own-only'; // REVALLE:
 
 export type GetRecipientSuggestionsOptions = {
   userId: number;
@@ -32,11 +33,14 @@ const getUpstreamRecipientSuggestions = async ({ userId, teamId, query }: GetRec
       }
     : {};
 
+  const revalleOwnOnly = await getRevalleOwnOnlyScope(userId); // REVALLE: ver só o que enviou ou recebeu (v.26)
+
   const recipients = await prisma.recipient.findMany({
     where: {
       envelope: {
         type: EnvelopeType.DOCUMENT,
         team: buildTeamWhereQuery({ teamId, userId }),
+        ...(revalleOwnOnly ? { AND: [revalleOwnOnlyPrismaWhere(revalleOwnOnly)] } : {}), // REVALLE:
       },
       ...nameEmailFilter,
     },

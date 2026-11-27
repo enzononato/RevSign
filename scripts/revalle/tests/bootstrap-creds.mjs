@@ -17,8 +17,12 @@
 //   - admin@hml.local: `hml.local` não é domínio da empresa (os testes contam com isso), então o cadastro o recusa. Quem
 //     cria é o admin (rsadmin) pela rota `admin.user.create`; a senha vem pelo link do e-mail "conta criada" (Mailpit,
 //     /reset-password) e a organização pessoal nasce no primeiro getOrganisationSession (ensurePersonalOrganisation).
-//   - Tokens: `apiToken.create` com a sessão da conta, no time pessoal dela. Só ADMIN cria token: admin@hml.local é
-//     promovido por instantes e volta a USER (o token continua valendo).
+//   - Unidade de teste (v.26): nota fiscal só sai de um time de unidade. O admin cria (uma vez) a unidade "Unidade
+//     Testes HML" e o time "Envios" pelo painel (`revalle.units.create`, `revalle.units.createTeam`) e põe admin@hml.local
+//     como membro (`revalle.units.addMember`).
+//   - Tokens: `apiToken.create` com a sessão da conta. O de admin@hml.local (api.token) é do time "Envios" da unidade de
+//     teste (as NFs dos testes saem de um time de unidade); o de rsadmin, do time pessoal dele. Só ADMIN cria token:
+//     admin@hml.local é promovido por instantes e volta a USER (o token continua valendo).
 // Nunca imprime senha nem token.
 
 import { createHash } from 'node:crypto';
@@ -252,6 +256,77 @@ const personalTeamId = async (email, cookie) => {
   return Number(teamId);
 };
 
+const UNIT_NAME = 'Unidade Testes HML';
+const UNIT_HR_NAME = 'TESTES HML';
+const UNIT_TEAM_NAME = 'Envios';
+
+// Unidade de teste com o time "Envios" e admin@hml.local como membro dele. Idempotente; só leitura por SQL, gravação
+// pelas rotas do painel "Unidades e times".
+const ensureUserUnitTeam = async (adminCookie, email) => {
+  let organisationId = db(`select "organisationId" from "RevalleUnit" where "hrUnitName" = ${sql(UNIT_HR_NAME)}`);
+  let status = 'ok';
+
+  if (!organisationId) {
+    const res = await trpcAs(adminCookie, 'mutation', 'revalle.units.create', {
+      name: UNIT_NAME,
+      hrUnitName: UNIT_HR_NAME,
+      createTeamsFromHr: false,
+    });
+
+    organisationId = res.body?.result?.data?.json?.organisationId;
+
+    if (!res.ok || !organisationId) {
+      throw failure('criação da unidade de teste', res);
+    }
+
+    status = 'criada';
+  }
+
+  let teamId = Number(
+    db(
+      `select id from "Team" where "organisationId" = ${sql(organisationId)} and name = ${sql(UNIT_TEAM_NAME)} order by id limit 1`,
+    ) || 0,
+  );
+
+  if (!teamId) {
+    const res = await trpcAs(adminCookie, 'mutation', 'revalle.units.createTeam', {
+      organisationId,
+      name: UNIT_TEAM_NAME,
+    });
+
+    teamId = res.body?.result?.data?.json?.teamId;
+
+    if (!res.ok || !teamId) {
+      throw failure('criação do time da unidade de teste', res);
+    }
+
+    status += ' (time criado)';
+  }
+
+  const isMember =
+    db(
+      `select count(*) from "TeamGroup" tg join "OrganisationGroupMember" gm on gm."groupId" = tg."organisationGroupId" join "OrganisationMember" m on m.id = gm."organisationMemberId" join "User" u on u.id = m."userId" where tg."teamId" = ${teamId} and u.email = ${sql(email)}`,
+    ) !== '0';
+
+  if (!isMember) {
+    const res = await trpcAs(adminCookie, 'mutation', 'revalle.units.addMember', {
+      organisationId,
+      userId: userRow(email).id,
+      teams: [{ teamId, role: 'MEMBER' }],
+    });
+
+    if (!res.ok) {
+      throw failure(`entrada de ${email} na unidade de teste`, res);
+    }
+
+    status += ' (membro incluído)';
+  }
+
+  console.log(`unidade de teste: ${status}`);
+
+  return teamId;
+};
+
 // O token do arquivo vale se é desta conta, deste time, não venceu e a API v2 o aceita.
 const tokenWorks = async (token, email, teamId) => {
   if (!token) {
@@ -270,8 +345,8 @@ const tokenWorks = async (token, email, teamId) => {
   return (await api('GET', '/envelope', undefined, { apiToken: token })).status === 200;
 };
 
-const ensureToken = async ({ email, cookie, file, temporaryAdmin }) => {
-  const teamId = await personalTeamId(email, cookie);
+const ensureToken = async ({ email, cookie, file, temporaryAdmin, teamId: fixedTeamId }) => {
+  const teamId = fixedTeamId ?? (await personalTeamId(email, cookie));
 
   if (await tokenWorks(readSecret(file), email, teamId)) {
     console.log(`token ${file}: ok`);
@@ -318,7 +393,18 @@ if (!adminPassword || !userPassword) {
 const adminCookie = await ensureAdminAccount(adminPassword);
 const userCookie = await ensureUserAccount(userPassword, adminCookie);
 
-await ensureToken({ email: USER_EMAIL, cookie: userCookie, file: 'api.token', temporaryAdmin: true });
+// A organização pessoal de admin@hml.local nasce antes (getOrganisationSession): os testes do espaço pessoal contam com ela.
+await personalTeamId(USER_EMAIL, userCookie);
+
+const userUnitTeamId = await ensureUserUnitTeam(adminCookie, USER_EMAIL);
+
+await ensureToken({
+  email: USER_EMAIL,
+  cookie: userCookie,
+  file: 'api.token',
+  temporaryAdmin: true,
+  teamId: userUnitTeamId,
+});
 await ensureToken({ email: ADMIN_EMAIL, cookie: adminCookie, file: 'rsadmin.token', temporaryAdmin: false });
 
 const roles = userRow(USER_EMAIL).roles.join(',');

@@ -1,5 +1,5 @@
 import { prisma } from '@documenso/prisma';
-import { RevalleInvoiceStatus } from '@prisma/client';
+import { OrganisationType, RevalleInvoiceStatus } from '@prisma/client';
 
 import { AppError } from '../../../errors/app-error';
 import { isCollaboratorContractTeamUrl } from '../../../revalle/collaborator-contract-team';
@@ -55,6 +55,14 @@ export const assertInvoiceFromUnitTeam = async ({ envelopeId, teamId }: { envelo
     return;
   }
 
+  await assertTeamIsUnitForInvoice(teamId);
+};
+
+/**
+ * Recusa (400 `INVOICE_UNIT_TEAM_REQUIRED`, texto exato) quando o time não é de uma unidade. Usado no primeiro envio e
+ * ao marcar como nota fiscal um documento já enviado. Sem exceção para o admin.
+ */
+export const assertTeamIsUnitForInvoice = async (teamId: number) => {
   if (await isRevalleUnitTeam(teamId)) {
     return;
   }
@@ -65,3 +73,7 @@ export const assertInvoiceFromUnitTeam = async ({ envelopeId, teamId }: { envelo
     statusCode: 400,
   });
 };
+
+/** O time é de uma organização pessoal? (v.26: o último time pessoal perde para o time da unidade.) */
+export const isPersonalOrganisationTeam = async (teamId: number): Promise<boolean> =>
+  (await prisma.team.count({ where: { id: teamId, organisation: { type: OrganisationType.PERSONAL } } })) > 0;

@@ -8,8 +8,10 @@
 //
 // Montagem: o admin cria as três organizações e os times pelas rotas do upstream (`organisation.create`, `team.create`).
 // Só a marca de unidade (`RevalleUnit`), as linhas de escopo e o time do envelope são gravados por SQL, para preparar o
-// cenário (as rotas do painel de unidades são de outra tarefa). As notas saem pela API (REVSIGN_USER) no espaço pessoal
-// e são movidas para o time da unidade depois do envio.
+// cenário (as rotas do painel de unidades são de outra tarefa). As notas saem pela API (REVSIGN_USER, documento comum),
+// vão para o time da unidade e só então o admin as marca como nota fiscal: desde a Task 2, marcar como NF um envio de
+// fora de um time de unidade é recusado. A nota "antiga do espaço pessoal" é marcada num time de unidade e devolvida ao
+// time pessoal de quem enviou por SQL, para simular uma nota de antes da v.26.
 //
 // Sessões: REVSIGN_USER_* (remetente) e REVSIGN_ADMIN_* (admin). As duas contas do perfil nascem pelo cadastro.
 
@@ -75,8 +77,17 @@ const createUnit = async (label) => {
   return { organisationId, teamId: Number(db(`select id from "Team" where url = '${teamUrl}'`)) };
 };
 
-// NF enviada (aguarda o Financeiro) e, com `teamId`, movida para o time da unidade.
-const sendInvoice = async (label, teamId) => {
+// Time pessoal de quem envia (REVSIGN_USER): o primeiro time da organização pessoal dele.
+const personalTeamOf = (email) =>
+  Number(
+    db(
+      `select t.id from "Team" t join "Organisation" o on o.id = t."organisationId" join "User" u on u.id = o."ownerUserId" where o.type = 'PERSONAL' and u.email = '${email}' order by t.id limit 1`,
+    ),
+  );
+
+// NF enviada (aguarda o Financeiro): documento comum enviado, movido para o time da unidade `teamId` e marcado como NF
+// pelo admin (marcar só vale num time de unidade). `legacyPersonal`: depois de marcada, volta ao time pessoal.
+const sendInvoice = async (label, teamId, { legacyPersonal = false } = {}) => {
   const email = `escopo-${label}-${RUN}@revalle.com.br`;
   const created = await retryCreateOnStaleSocket(() =>
     createEnvelope({ recipients: [{ email }], title: `[TESTE NF] escopo ${label} ${RUN}` }),
@@ -85,12 +96,14 @@ const sendInvoice = async (label, teamId) => {
   assert.equal(created.status, 200, created.text);
   await distribute(created.id);
 
-  const marked = await trpcAs(userCookie, 'mutation', 'revalle.invoice.markAsInvoice', { envelopeId: created.id });
+  db(`update "Envelope" set "teamId" = ${teamId} where id = '${created.id}'`);
+
+  const marked = await trpcAs(adminCookie, 'mutation', 'revalle.invoice.markAsInvoice', { envelopeId: created.id });
 
   assert.equal(marked.status, 200, marked.text);
 
-  if (teamId) {
-    db(`update "Envelope" set "teamId" = ${teamId} where id = '${created.id}'`);
+  if (legacyPersonal) {
+    db(`update "Envelope" set "teamId" = ${personalTeamOf(user.email)} where id = '${created.id}'`);
   }
 
   return created.id;
@@ -165,7 +178,7 @@ before(async () => {
   invoices.A = await sendInvoice('a', units.A.teamId);
   invoices.B = await sendInvoice('b', units.B.teamId);
   invoices.C = await sendInvoice('c', units.C.teamId);
-  invoices.personal = await sendInvoice('pessoal', null);
+  invoices.personal = await sendInvoice('pessoal', units.C.teamId, { legacyPersonal: true });
 });
 
 sessionTest('lista, fila e contador: só as notas das unidades A e B', async () => {

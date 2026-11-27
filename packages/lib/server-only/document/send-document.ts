@@ -182,7 +182,8 @@ export const sendDocument = async ({
   // qualquer envio (o documento comum vai para qualquer e-mail).
   const revalleRecipientEmails = envelope.recipients.map((r) => r.email);
   // REVALLE (v.26): nota fiscal só sai de um time de unidade. A recusa do time vem antes da falta de conta: trocar de
-  // time é o que destrava, e a conta escolhida não muda nada.
+  // time é o que destrava, e a conta escolhida não muda nada. De propósito, a conferência do time roda em qualquer erro
+  // da conferência da NF (também um erro passageiro): se o time não é de unidade, é essa a recusa que vale.
   const revalleAssertUnitTeam = async () =>
     await assertInvoiceFromUnitTeam({ envelopeId: envelope.id, teamId: envelope.teamId });
   const revalleInvoiceSend =

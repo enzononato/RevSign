@@ -3,6 +3,7 @@ import { EnvelopeType } from '@prisma/client';
 
 import { TEAM_DOCUMENT_VISIBILITY_MAP } from '../../constants/teams';
 import type { TFolderType } from '../../types/folder-type';
+import { getRevalleOwnOnlyScope, revalleOwnOnlyPrismaWhere } from '../revalle/visibility/own-only'; // REVALLE:
 import { getTeamById } from '../team/get-team';
 
 export interface FindFoldersInternalOptions {
@@ -14,6 +15,7 @@ export interface FindFoldersInternalOptions {
 
 export const findFoldersInternal = async ({ userId, teamId, parentId, type }: FindFoldersInternalOptions) => {
   const team = await getTeamById({ userId, teamId });
+  const revalleOwnOnly = await getRevalleOwnOnlyScope(userId); // REVALLE: ver só o que enviou ou recebeu (v.26)
 
   const visibilityFilters = {
     visibility: {
@@ -61,6 +63,7 @@ export const findFoldersInternal = async ({ userId, teamId, parentId, type }: Fi
                 type: EnvelopeType.DOCUMENT,
                 folderId: folder.id,
                 deletedAt: null,
+                ...(revalleOwnOnly ? { AND: [revalleOwnOnlyPrismaWhere(revalleOwnOnly)] } : {}), // REVALLE:
               },
             }),
             prisma.envelope.count({

@@ -32,10 +32,25 @@ describe('pickDocumentsTeamUrl', () => {
     expect(
       pickDocumentsTeamUrl({ organisations: [personalOrg, otherOrg, unitOrg], unitTeamUrl: 'juazeiro-compras' }),
     ).toBe('juazeiro-compras');
+    // Último time do espaço pessoal perde para o time da unidade; o de outra organização continua valendo.
     expect(
       pickDocumentsTeamUrl({
         organisations: [personalOrg, unitOrg],
         lastTeamUrl: 'personal_abc',
+        unitTeamUrl: 'juazeiro-compras',
+      }),
+    ).toBe('juazeiro-compras');
+    expect(
+      pickDocumentsTeamUrl({
+        organisations: [personalOrg, otherOrg, unitOrg],
+        lastTeamUrl: 'financeiro',
+        unitTeamUrl: 'juazeiro-compras',
+      }),
+    ).toBe('financeiro');
+    expect(
+      pickDocumentsTeamUrl({
+        organisations: [personalOrg, unitOrg],
+        currentTeamUrl: 'personal_abc',
         unitTeamUrl: 'juazeiro-compras',
       }),
     ).toBe('personal_abc');

@@ -4,7 +4,8 @@
 //     download pela API e do arquivo pela sessão; o documento em que a pessoa é destinatária continua; o colega sem a marca
 //     segue vendo tudo; o admin com a marca não é limitado;
 //   - nota fiscal (classificação YES) do espaço pessoal é recusada com a mensagem exata; "Apenas assinar" no pessoal
-//     passa; a nota do time da unidade passa.
+//     passa; marcar como NF depois do envio um documento do pessoal é recusado com a mesma mensagem; a nota do time da
+//     unidade passa.
 //
 // Montagem: o admin cria as duas organizações e os times pelas rotas do upstream (`organisation.create`, `team.create`).
 // A marca de unidade (`RevalleUnit`), a entrada das duas contas na organização A (membro, no grupo interno MEMBER, que o
@@ -315,24 +316,36 @@ sessionTest(
     const classify = async (cookie, envelopeId) =>
       data(await trpcAs(cookie, 'mutation', 'revalle.invoice.classify', { envelopeId }))?.isInvoice;
 
-    // Pessoal (REVSIGN_API_TOKEN): NF com conta e centro é recusada com a mensagem exata.
-    const personal = await draft('pessoal');
+    // Pessoal: o REVSIGN_API_TOKEN é do time da unidade de teste (bootstrap-creds), então o remetente ganha aqui um token
+    // do próprio time pessoal (promoção a ADMIN só na criação do token).
+    const userId = Number(db(`select id from "User" where email = '${user.email}'`));
+    const personalTeamId = Number(
+      db(
+        `select t.id from "Team" t join "Organisation" o on o.id = t."organisationId" where o.type = 'PERSONAL' and o."ownerUserId" = ${userId} order by t.id limit 1`,
+      ),
+    );
+    const personalToken = await tokenFor({ id: userId, cookie: userCookie }, personalTeamId);
+    const sendPersonal = (envelopeId) =>
+      api('POST', '/envelope/distribute', { envelopeId }, { apiToken: personalToken });
+
+    // NF com conta e centro é recusada com a mensagem exata.
+    const personal = await draft('pessoal', personalToken);
 
     assert.equal(await classify(userCookie, personal), 'YES');
     assert.equal((await chooseInvoice({ cookie: userCookie, envelopeId: personal })).status, 200);
 
-    const refused = await api('POST', '/envelope/distribute', { envelopeId: personal });
+    const refused = await sendPersonal(personal);
 
     assert.equal(refused.status, 400, refused.text);
     assert.ok(refused.text.includes(UNIT_MESSAGE), refused.text);
     assert.equal(db(`select status from "Envelope" where id = '${personal}'`), 'DRAFT');
 
     // Sem conta escolhida, a recusa do time vem antes da falta de conta.
-    const noAccount = await draft('pessoal-sem-conta');
+    const noAccount = await draft('pessoal-sem-conta', personalToken);
 
     assert.equal(await classify(userCookie, noAccount), 'YES');
 
-    const refusedNoAccount = await api('POST', '/envelope/distribute', { envelopeId: noAccount });
+    const refusedNoAccount = await sendPersonal(noAccount);
 
     assert.equal(refusedNoAccount.status, 400, refusedNoAccount.text);
     assert.ok(refusedNoAccount.text.includes(UNIT_MESSAGE), refusedNoAccount.text);
@@ -345,9 +358,15 @@ sessionTest(
 
     assert.equal(signOnly.status, 200, signOnly.text);
 
-    const sent = await api('POST', '/envelope/distribute', { envelopeId: personal });
+    const sent = await sendPersonal(personal);
 
     assert.equal(sent.status, 200, sent.text);
+
+    // Marcar depois do envio como nota fiscal o que saiu do pessoal também é recusado (mesma mensagem).
+    const marked = await trpcAs(userCookie, 'mutation', 'revalle.invoice.markAsInvoice', { envelopeId: personal });
+
+    assert.equal(marked.status, 400, marked.text);
+    assert.ok(marked.text.includes(UNIT_MESSAGE), marked.text);
 
     // NF do time da unidade passa.
     const unitInvoice = await draft('unidade', member.token);

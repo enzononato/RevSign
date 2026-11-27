@@ -31,11 +31,15 @@ export const getRevalleOwnOnlyScope = async (userId: number): Promise<RevalleOwn
 };
 
 /**
- * Filtro Prisma: dono OU destinatário (e-mail da conta). Modelos passam (`type = TEMPLATE`), para que um `where` sem
+ * Filtro Prisma: dono OU destinatário (e-mail da conta, sem diferença de maiúsculas). Modelos passam (`type = TEMPLATE`), para que um `where` sem
  * tipo fixo (type null) não esconda os modelos do time.
  */
 export const revalleOwnOnlyPrismaWhere = (scope: RevalleOwnOnlyScope): Prisma.EnvelopeWhereInput => ({
-  OR: [{ type: EnvelopeType.TEMPLATE }, { userId: scope.userId }, { recipients: { some: { email: scope.email } } }],
+  OR: [
+    { type: EnvelopeType.TEMPLATE },
+    { userId: scope.userId },
+    { recipients: { some: { email: { equals: scope.email, mode: 'insensitive' } } } },
+  ],
 });
 
 /** Mesmo filtro em Kysely, para os finders que montam a consulta na mão (lista, contadores). */
@@ -50,7 +54,8 @@ export const revalleOwnOnlyKyselyWhere = (
       eb
         .selectFrom('Recipient')
         .whereRef('Recipient.envelopeId', '=', 'Envelope.id')
-        .where('Recipient.email', '=', scope.email)
+        // Sem diferença de maiúsculas: há caminhos que gravam o e-mail do destinatário como veio.
+        .where((reb) => reb(reb.fn('lower', ['Recipient.email']), '=', scope.email.toLowerCase()))
         .select(sql.lit(1).as('one')),
     ),
   ]);

@@ -76,7 +76,11 @@ export const InvoiceAccountCard = ({ envelope }: InvoiceAccountCardProps) => {
       const error = AppError.parseError(err);
 
       // Nota fiscal só vai para e-mails da empresa: a recusa nomeia o e-mail de fora (texto do servidor).
-      if (error.code === 'INVOICE_EXTERNAL_RECIPIENT' && error.message) {
+      // v.26: nota fiscal só de um time de unidade (texto exato do servidor).
+      if (
+        (error.code === 'INVOICE_EXTERNAL_RECIPIENT' || error.code === 'INVOICE_UNIT_TEAM_REQUIRED') &&
+        error.message
+      ) {
         toast({ title: error.message, variant: 'destructive', duration: 7500 });
 
         return;

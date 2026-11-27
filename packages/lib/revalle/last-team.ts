@@ -48,7 +48,9 @@ type MenuOrganisation = {
 /**
  * Time do link "Documentos": o time da página; senão o último aberto, se ainda é da pessoa; senão o primeiro time de
  * unidade (v.26, `unitTeamUrl`, calculado no servidor); senão o primeiro que não é o pessoal; por último o pessoal.
- * "Pessoal" é o primeiro time criado da organização pessoal. Sem time nenhum, null. O time "Contratos para colaboradores" (v.22) só vale quando é o da página: nunca é escolhido sozinho.
+ * v.26: um último time da organização pessoal perde para o time da unidade (o envio abre na unidade); o último time de
+ * outra organização continua valendo. "Pessoal" é o primeiro time criado da organização pessoal. Sem time nenhum, null.
+ * O time "Contratos para colaboradores" (v.22) só vale quando é o da página: nunca é escolhido sozinho.
  */
 export const pickDocumentsTeamUrl = ({
   organisations,
@@ -73,16 +75,20 @@ export const pickDocumentsTeamUrl = ({
         id: team.id,
         url: team.url,
         isPersonal: organisation.type === OrganisationType.PERSONAL && index === 0,
+        isPersonalOrganisation: organisation.type === OrganisationType.PERSONAL,
       }));
     })
     .filter((team) => !isCollaboratorContractTeamUrl(team.url))
     .sort((a, b) => a.id - b.id);
 
-  if (lastTeamUrl && teams.some((team) => team.url === lastTeamUrl)) {
-    return lastTeamUrl;
+  const lastTeam = lastTeamUrl ? teams.find((team) => team.url === lastTeamUrl) : undefined;
+  const hasUnitTeam = Boolean(unitTeamUrl && teams.some((team) => team.url === unitTeamUrl));
+
+  if (lastTeam && !(lastTeam.isPersonalOrganisation && hasUnitTeam)) {
+    return lastTeam.url;
   }
 
-  if (unitTeamUrl && teams.some((team) => team.url === unitTeamUrl)) {
+  if (hasUnitTeam && unitTeamUrl) {
     return unitTeamUrl;
   }
 

@@ -2,6 +2,7 @@ import { prisma } from '@documenso/prisma';
 import { RevalleInvoiceFileKind, RevalleInvoiceStatus } from '@prisma/client';
 
 import { getTeamById } from '../../team/get-team';
+import { getRevalleOwnOnlyScope, revalleOwnOnlyPrismaWhere } from '../visibility/own-only';
 
 export type InvoiceDocumentTags = {
   envelopeId: string;
@@ -31,11 +32,14 @@ export const findInvoiceDocumentTags = async ({
 
   await getTeamById({ userId, teamId });
 
+  // v.26: com "ver só o que enviou ou recebeu", só as notas de que é dono ou destinatário.
+  const ownOnly = await getRevalleOwnOnlyScope(userId);
+
   const rows = await prisma.revalleInvoiceClassification.findMany({
     where: {
       envelopeId: { in: envelopeIds },
       isInvoice: RevalleInvoiceStatus.YES,
-      envelope: { teamId },
+      envelope: { teamId, ...(ownOnly ? { AND: [revalleOwnOnlyPrismaWhere(ownOnly)] } : {}) },
     },
     select: {
       envelopeId: true,

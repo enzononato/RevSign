@@ -1,7 +1,10 @@
 import { extractCookieFromHeaders } from '@documenso/auth/server/lib/utils/cookies';
 import { getOptionalSession } from '@documenso/auth/server/lib/utils/get-session';
 import { PREFERRED_TEAM_URL_COOKIE } from '@documenso/lib/constants/cookies';
-import { findFirstRevalleUnitTeamUrl } from '@documenso/lib/server-only/revalle/visibility/unit-team'; // REVALLE:
+import {
+  findFirstRevalleUnitTeamUrl,
+  isPersonalOrganisationTeam,
+} from '@documenso/lib/server-only/revalle/visibility/unit-team'; // REVALLE:
 import { getTeams } from '@documenso/lib/server-only/team/get-teams';
 import { formatDocumentsPath } from '@documenso/lib/utils/teams';
 import { ZTeamUrlSchema } from '@documenso/trpc/server/team-router/schema';
@@ -39,11 +42,13 @@ export async function loader({ request }: Route.LoaderArgs) {
 
     let currentTeam = teams.find((team) => team.url === preferredTeamUrl);
 
-    // REVALLE (v.26): sem último time aberto, o envio abre no primeiro time de unidade da pessoa.
-    if (!currentTeam) {
-      const unitTeamUrl = await findFirstRevalleUnitTeamUrl(session.user.id).catch(() => null);
+    // REVALLE (v.26): sem último time aberto, ou com o último sendo do espaço pessoal, o envio abre no primeiro time de
+    // unidade da pessoa. O último time de outra organização continua valendo.
+    const revalleUnitTeamUrl = await findFirstRevalleUnitTeamUrl(session.user.id).catch(() => null);
+    const revalleUnitTeam = teams.find((team) => team.url === revalleUnitTeamUrl);
 
-      currentTeam = teams.find((team) => team.url === unitTeamUrl);
+    if (revalleUnitTeam && (!currentTeam || (await isPersonalOrganisationTeam(currentTeam.id).catch(() => false)))) {
+      currentTeam = revalleUnitTeam;
     }
 
     if (!currentTeam && teams.length === 1) {
