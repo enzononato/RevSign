@@ -5,6 +5,7 @@ import { Switch } from '@documenso/ui/primitives/switch';
 import { useToast } from '@documenso/ui/primitives/use-toast';
 import { Trans, useLingui } from '@lingui/react/macro';
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
 
 // Igual a PROFILE_USERS_LIMIT (servidor): a lista vem cortada nesse número.
 const USERS_LIMIT = 100;
@@ -69,8 +70,12 @@ export default function AdminRevallePerfisPage() {
       <p className="mt-4 max-w-2xl text-muted-foreground text-sm">
         <Trans>
           Toda conta é de colaborador: envia e assina. Marque quem também é do Financeiro (aprova a conta contábil de
-          cada nota fiscal) ou da Contabilidade (valida e corrige o centro de custo). Os dois perfis veem todas as notas
-          fiscais, e a mesma pessoa pode ter os dois. A mudança vale na hora.
+          cada nota fiscal) ou da Contabilidade (valida e corrige o centro de custo). Cada pessoa desses perfis só vê as
+          notas fiscais das unidades escolhidas para ela em{' '}
+          <Link to="/admin/unidades" className="font-medium text-brand-text underline-offset-4 hover:underline">
+            Unidades e times
+          </Link>
+          ; sem unidade escolhida, não vê nota nenhuma. A mesma pessoa pode ter os dois perfis. A mudança vale na hora.
         </Trans>
       </p>
 

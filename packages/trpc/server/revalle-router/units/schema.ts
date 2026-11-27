@@ -8,7 +8,8 @@ const ZTeamChoices = z
   .array(
     z.object({
       teamId: z.number().int().positive(),
-      role: z.enum([TeamMemberRole.MEMBER, TeamMemberRole.MANAGER]).default(TeamMemberRole.MEMBER),
+      /** Ausente: mantém o papel atual (membro para quem entra). Administrador do time nunca é rebaixado aqui. */
+      role: z.enum([TeamMemberRole.MEMBER, TeamMemberRole.MANAGER]).optional(),
     }),
   )
   .max(100);

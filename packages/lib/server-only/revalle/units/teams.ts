@@ -62,16 +62,29 @@ const buildTeamUrl = async (unitName: string, teamName: string) => {
 const normalizeTeamName = (name: string) => name.replace(/\s+/g, ' ').trim();
 
 const createTeamInUnit = async (unit: { id: string; name: string; ownerUserId: number }, teamName: string) => {
-  const teamUrl = await buildTeamUrl(unit.name, teamName);
+  const create = async (teamUrl: string) => {
+    // Helper do upstream: grupos internos do time (Admin, Gerente, Membro) e configurações padrão. Sem herdar os
+    // membros da organização: cada pessoa só entra nos times que o TI escolher. O dono da organização dá a permissão.
+    await createTeam({
+      userId: unit.ownerUserId,
+      teamName,
+      teamUrl,
+      organisationId: unit.id,
+      inheritMembers: false,
+    });
 
-  // Helper do upstream: grupos internos do time (Admin, Gerente, Membro) e configurações padrão. Sem herdar os membros
-  // da organização: cada pessoa só entra nos times que o TI escolher. O dono da organização dá a permissão.
-  await createTeam({
-    userId: unit.ownerUserId,
-    teamName,
-    teamUrl,
-    organisationId: unit.id,
-    inheritMembers: false,
+    return teamUrl;
+  };
+
+  const firstUrl = await buildTeamUrl(unit.name, teamName);
+
+  const teamUrl = await create(firstUrl).catch(async (error: unknown) => {
+    // Outro pedido pegou o mesmo endereço no meio: tenta uma vez com sufixo sorteado.
+    if (error instanceof AppError && error.code === AppErrorCode.ALREADY_EXISTS) {
+      return await create(`${firstUrl.slice(0, 20)}-${alphaid(6)}`);
+    }
+
+    throw error;
   });
 
   const team = await prisma.team.findFirstOrThrow({ where: { url: teamUrl }, select: { id: true } });

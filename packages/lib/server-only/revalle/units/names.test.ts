@@ -25,6 +25,18 @@ describe('setoresForUnit', () => {
     expect(setoresForUnit(pairs, 'Juazeiro')).toEqual(['Administrativo', 'Recursos Humanos']);
     expect(setoresForUnit(pairs, 'Serrinha')).toEqual([]);
   });
+
+  it('ignora setor só de desligados; afastado e sem situação contam como ativos', () => {
+    const pairs = [
+      { unidade: 'Senhor do Bonfim', setor: 'Logística', situacao: 'desligado' },
+      { unidade: 'Senhor do Bonfim', setor: 'Entrega', situacao: 'afastado' },
+      { unidade: 'Senhor do Bonfim', setor: 'Comercial', situacao: null },
+      { unidade: 'Senhor do Bonfim', setor: 'Vendas', situacao: 'Demitido' },
+      { unidade: 'Senhor do Bonfim', setor: 'Vendas', situacao: 'ativo' },
+    ];
+
+    expect(setoresForUnit(pairs, 'Bonfim')).toEqual(['Comercial', 'Entrega', 'Vendas']);
+  });
 });
 
 describe('slugifyTeamUrl', () => {

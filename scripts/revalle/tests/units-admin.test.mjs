@@ -1,8 +1,10 @@
 // v.26, Task 1: Admin → "Unidades e times" (`revalle.units.*`). Confere:
 //   - usuário comum recebe 403 (lista e "Criar as 7 unidades"); nada é criado;
 //   - "Criar as 7 unidades" é idempotente pela chave do RH (`RevalleUnit.hrUnitName`): rodar de novo não cria nada;
-//   - os times de cada unidade vêm dos setores do RH (base de teste: `revalle/colaboradores/dev-seed.sql`; "Senhor do
-//     Bonfim" no RH é a unidade "Bonfim") e rodar de novo não repete time;
+//   - os times de cada unidade vêm dos setores do RH com alguém ativo (base de teste: `revalle/colaboradores/dev-seed.sql`;
+//     "afastado" conta como ativo; o casamento "Senhor do Bonfim" → "Bonfim" e o corte dos desligados estão no vitest
+//     `units/names.test.ts`) e rodar de novo não repete time;
+//   - salvar os times mantém o papel de gerente e de administrador do time que continua marcado;
 //   - criar, renomear e remover um time vazio;
 //   - uma pessoa entra na unidade como MEMBRO da organização e MEMBRO de dois times; trocar os times e tirar da unidade;
 //   - "Ver só o que enviou ou recebeu para assinar" e as unidades do Financeiro liga e desliga, e uma organização que não
@@ -112,17 +114,17 @@ test('"Criar as 7 unidades" é idempotente e os times vêm dos setores do RH', a
     'as 7 na ordem da tela',
   );
 
-  // Base de teste: Juazeiro tem Administrativo e Recursos Humanos; "Senhor do Bonfim" tem Logística.
+  // Base de teste: Juazeiro tem Administrativo e Recursos Humanos; Paulo Afonso tem Entrega (colaborador afastado).
   const juazeiro = await getUnit(orgIdOf('Juazeiro'));
   const names = juazeiro.teams.map((team) => team.name);
   assert.ok(names.includes('Administrativo'), names.join(', '));
   assert.ok(names.includes('Recursos Humanos'), names.join(', '));
   assert.equal(new Set(names.map((name) => name.toLowerCase())).size, names.length, 'sem time repetido');
 
-  const bonfim = await getUnit(orgIdOf('Bonfim'));
+  const pauloAfonso = await getUnit(orgIdOf('Paulo Afonso'));
   assert.ok(
-    bonfim.teams.some((team) => team.name === 'Logística'),
-    bonfim.teams.map((team) => team.name).join(', '),
+    pauloAfonso.teams.some((team) => team.name === 'Entrega'),
+    pauloAfonso.teams.map((team) => team.name).join(', '),
   );
 
   // Criar de novo pelo botão da unidade não cria nada.
@@ -232,6 +234,78 @@ test('pessoa entra como membro da unidade e de dois times; troca os times e sai'
   );
   const changed = (await getUnit(organisationId)).members.find((row) => row.userId === person.id);
   assert.deepEqual(changed.teams, [{ teamId: teamB.id, role: 'MANAGER' }]);
+
+  const teamsOf = async () =>
+    (await getUnit(organisationId)).members
+      .find((row) => row.userId === person.id)
+      .teams.map((choice) => [choice.teamId, choice.role])
+      .sort();
+  const groupOf = (teamId, role) =>
+    db(
+      `select tg."organisationGroupId" from "TeamGroup" tg join "OrganisationGroup" og on og.id = tg."organisationGroupId"
+       where tg."teamId" = ${teamId} and tg."teamRole" = '${role}' and og.type = 'INTERNAL_TEAM'`,
+    );
+  const memberId = db(
+    `select id from "OrganisationMember" where "userId" = ${person.id} and "organisationId" = '${organisationId}'`,
+  );
+
+  // Salvar de novo com o time B marcado, sem papel no pedido: continua gerente.
+  await ok(
+    units(adminCookie, 'mutation', 'setMemberTeams', {
+      organisationId,
+      userId: person.id,
+      teams: [{ teamId: teamB.id }],
+    }),
+  );
+  assert.deepEqual(await teamsOf(), [[teamB.id, 'MANAGER']]);
+
+  // Administrador do time A dado fora do painel (tela do upstream): salvar com A marcado não rebaixa nem tira.
+  db(
+    `insert into "OrganisationGroupMember" (id, "groupId", "organisationMemberId")
+     values ('t1_gm_${RUN}', '${groupOf(teamA.id, 'ADMIN')}', '${memberId}')`,
+  );
+  assert.deepEqual(
+    await teamsOf(),
+    [
+      [teamA.id, 'ADMIN'],
+      [teamB.id, 'MANAGER'],
+    ].sort(),
+  );
+
+  await ok(
+    units(adminCookie, 'mutation', 'setMemberTeams', {
+      organisationId,
+      userId: person.id,
+      teams: [
+        { teamId: teamA.id, role: 'MEMBER' },
+        { teamId: teamB.id, role: 'MANAGER' },
+      ],
+    }),
+  );
+  assert.deepEqual(
+    await teamsOf(),
+    [
+      [teamA.id, 'ADMIN'],
+      [teamB.id, 'MANAGER'],
+    ].sort(),
+  );
+  assert.equal(
+    db(
+      `select count(*) from "OrganisationGroupMember" where "organisationMemberId" = '${memberId}'
+       and "groupId" = '${groupOf(teamA.id, 'MEMBER')}'`,
+    ),
+    '0',
+  );
+
+  // Desmarcar A tira a pessoa do time, mesmo sendo administradora dele.
+  await ok(
+    units(adminCookie, 'mutation', 'setMemberTeams', {
+      organisationId,
+      userId: person.id,
+      teams: [{ teamId: teamB.id, role: 'MANAGER' }],
+    }),
+  );
+  assert.deepEqual(await teamsOf(), [[teamB.id, 'MANAGER']]);
 
   // Time de outra unidade é recusado.
   const otherTeam = (await getUnit(orgIdOf('Petrolina'))).teams[0];

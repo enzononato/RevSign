@@ -101,8 +101,18 @@ export const createUnit = async ({
   try {
     await prisma.revalleUnit.create({ data: { organisationId: organisation.id, hrUnitName: hrKey } });
   } catch (error) {
-    // Outro pedido marcou a mesma chave do RH no meio: desfaz a organização recém-criada (ainda vazia).
-    await prisma.organisation.delete({ where: { id: organisation.id } }).catch(() => undefined);
+    // Outro pedido marcou a mesma chave do RH no meio: desfaz a organização recém-criada (ainda vazia), com as linhas de
+    // configuração, claim e portal que `createOrganisation` criou junto.
+    await prisma
+      .$transaction([
+        prisma.organisation.delete({ where: { id: organisation.id } }),
+        prisma.organisationGlobalSettings.deleteMany({ where: { id: organisation.organisationGlobalSettingsId } }),
+        prisma.organisationClaim.deleteMany({ where: { id: organisation.organisationClaimId } }),
+        prisma.organisationAuthenticationPortal.deleteMany({
+          where: { id: organisation.organisationAuthenticationPortalId },
+        }),
+      ])
+      .catch(() => undefined);
 
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       throw new AppError('REVALLE_UNIT_EXISTS', { message: 'Unidade já existe.', statusCode: 409 });

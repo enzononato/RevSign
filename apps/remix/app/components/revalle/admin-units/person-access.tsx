@@ -115,7 +115,8 @@ export const UnitScopeControl = ({
         )}
       </div>
 
-      {names.length === 0 ? (
+      {/* O aviso segue a lista gravada; a lista de unidades só dá os nomes (pode ainda estar carregando). */}
+      {person.scopeOrganisationIds.length === 0 ? (
         <p className="flex items-center gap-1.5 text-sm text-warning-text" data-testid="unit-scope-empty">
           <AlertTriangleIcon className="h-4 w-4 shrink-0" />
           <Trans>Sem unidades: escolha as unidades desta pessoa</Trans>
@@ -123,7 +124,7 @@ export const UnitScopeControl = ({
       ) : (
         <p className="text-muted-foreground text-sm">
           <Building2Icon className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />
-          {names.join(', ')}
+          {names.length > 0 ? names.join(', ') : '…'}
         </p>
       )}
 

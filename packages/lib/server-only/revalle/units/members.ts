@@ -12,7 +12,13 @@ export const UNIT_TEAM_ROLES = [TeamMemberRole.MEMBER, TeamMemberRole.MANAGER] a
 
 export type UnitTeamRole = (typeof UNIT_TEAM_ROLES)[number];
 
-export type UnitTeamChoice = { teamId: number; role: UnitTeamRole };
+/** `role` ausente = mantém o papel atual no time (ou membro, se a pessoa ainda não estiver nele). */
+export type UnitTeamChoice = { teamId: number; role?: UnitTeamRole };
+
+const TEAM_ROLE_RANK: Record<TeamMemberRole, number> = { MEMBER: 1, MANAGER: 2, ADMIN: 3 };
+
+const highestTeamRole = (current: TeamMemberRole | undefined, next: TeamMemberRole): TeamMemberRole =>
+  current && TEAM_ROLE_RANK[current] >= TEAM_ROLE_RANK[next] ? current : next;
 
 export const USER_SEARCH_LIMIT = 10;
 
@@ -104,25 +110,18 @@ export const setUnitMemberTeams = async ({
   const member = await getMemberOrThrow(organisationId, userId);
   const roleGroups = await loadTeamRoleGroups(organisationId);
 
-  const desired = new Set<string>();
+  const allTeamGroupIds = [...roleGroups.values()].flatMap((groups) => [...groups.values()]);
+  const teamOfGroup = new Map(
+    [...roleGroups].flatMap(([teamId, groups]) =>
+      [...groups].map(([role, groupId]) => [groupId, { teamId, role }] as const),
+    ),
+  );
 
   for (const choice of teams) {
-    const groups = roleGroups.get(choice.teamId);
-    const groupId = groups?.get(choice.role);
-
-    if (!groups || !groupId) {
+    if (!roleGroups.has(choice.teamId)) {
       throw new AppError(AppErrorCode.INVALID_BODY, { message: 'Time fora da unidade.' });
     }
-
-    // Um papel por time: se vier repetido, vale o último.
-    for (const otherGroupId of groups.values()) {
-      desired.delete(otherGroupId);
-    }
-
-    desired.add(groupId);
   }
-
-  const allTeamGroupIds = [...roleGroups.values()].flatMap((groups) => [...groups.values()]);
 
   await prisma.$transaction(async (tx) => {
     const current = await tx.organisationGroupMember.findMany({
@@ -131,6 +130,38 @@ export const setUnitMemberTeams = async ({
     });
     const currentIds = new Set(current.map((row) => row.groupId));
 
+    // Papel atual em cada time (o mais alto, se houver mais de um grupo).
+    const currentRoleByTeam = new Map<number, TeamMemberRole>();
+
+    for (const { groupId } of current) {
+      const info = teamOfGroup.get(groupId);
+
+      if (info) {
+        currentRoleByTeam.set(info.teamId, highestTeamRole(currentRoleByTeam.get(info.teamId), info.role));
+      }
+    }
+
+    // Time que continua marcado mantém o papel: administrador do time (dado pelo upstream) nunca é rebaixado aqui, e
+    // sem papel no pedido fica o papel atual. Desmarcar tira a pessoa do time, qualquer que seja o papel.
+    const desiredByTeam = new Map<number, string>();
+
+    for (const choice of teams) {
+      const groups = roleGroups.get(choice.teamId);
+      const currentRole = currentRoleByTeam.get(choice.teamId);
+      const role =
+        currentRole === TeamMemberRole.ADMIN
+          ? TeamMemberRole.ADMIN
+          : (choice.role ?? currentRole ?? TeamMemberRole.MEMBER);
+      const groupId = groups?.get(role);
+
+      if (!groupId) {
+        throw new AppError(AppErrorCode.NOT_FOUND, { message: 'Grupo do time não encontrado.' });
+      }
+
+      desiredByTeam.set(choice.teamId, groupId);
+    }
+
+    const desired = new Set(desiredByTeam.values());
     const toRemove = [...currentIds].filter((groupId) => !desired.has(groupId));
     const toAdd = [...desired].filter((groupId) => !currentIds.has(groupId));
 
@@ -288,7 +319,7 @@ export const getUnitDetail = async ({ organisationId }: { organisationId: string
         }
 
         for (const teamGroup of group.teamGroups) {
-          teamRoles.set(teamGroup.teamId, teamGroup.teamRole);
+          teamRoles.set(teamGroup.teamId, highestTeamRole(teamRoles.get(teamGroup.teamId), teamGroup.teamRole));
         }
       }
 

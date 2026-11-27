@@ -18,11 +18,11 @@ export type ColaboradoresRepository = {
   findManyByCpf(cpfs: string[]): Promise<Colaborador[]>;
   findByEmail(email: string): Promise<Colaborador | null>;
   searchByName(query: string, limit?: number): Promise<Colaborador[]>;
-  /** REVALLE (v.26): pares distintos unidade × setor, para criar os times de cada unidade. Só leitura, sem dado pessoal. */
+  /** REVALLE (v.26): unidade × setor × situação distintos, para criar os times. Só leitura, sem dado pessoal. */
   findDistinctUnidadeSetores(): Promise<UnidadeSetor[]>;
 };
 
-export type UnidadeSetor = { unidade: string; setor: string };
+export type UnidadeSetor = { unidade: string; setor: string; situacao: string | null };
 
 const COLUMNS = COLABORADOR_FIELDS.join(', ');
 
@@ -155,14 +155,19 @@ const createRepository = (connectionString: string): ColaboradoresRepository => 
 
     findDistinctUnidadeSetores: async () => {
       const rows = await queryRows(
-        `SELECT DISTINCT btrim(unidade) AS unidade, btrim(setor) AS setor FROM ${await getSource()} AS c
+        `SELECT DISTINCT btrim(unidade) AS unidade, btrim(setor) AS setor, btrim(situacao) AS situacao
+         FROM ${await getSource()} AS c
          WHERE nullif(btrim(unidade), '') IS NOT NULL AND nullif(btrim(setor), '') IS NOT NULL
          ORDER BY 1, 2
-         LIMIT 5000`,
+         LIMIT 20000`,
         [],
       );
 
-      return rows.map((row) => ({ unidade: String(row.unidade), setor: String(row.setor) }));
+      return rows.map((row) => ({
+        unidade: String(row.unidade),
+        setor: String(row.setor),
+        situacao: row.situacao === null || row.situacao === undefined ? null : String(row.situacao),
+      }));
     },
   };
 };

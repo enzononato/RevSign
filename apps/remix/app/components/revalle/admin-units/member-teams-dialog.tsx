@@ -31,7 +31,8 @@ type MemberTeamsDialogProps = {
   person?: Person;
   initialTeams?: { teamId: number; role: string }[];
   loading?: boolean;
-  onSubmit: (input: { userId: number; teams: { teamId: number; role: UnitTeamRole }[] }) => void | Promise<void>;
+  /** `role` ausente = mantém o papel atual (administrador do time, dado pelo upstream). */
+  onSubmit: (input: { userId: number; teams: { teamId: number; role?: UnitTeamRole }[] }) => void | Promise<void>;
 };
 
 const displayName = (person: Person) => person.name?.trim() || person.email;
@@ -53,7 +54,8 @@ export const MemberTeamsDialog = ({
   const [searchInput, setSearchInput] = useState('');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Person | null>(person ?? null);
-  const [choices, setChoices] = useState<Map<number, UnitTeamRole>>(new Map());
+  // ADMIN só aparece para quem já administra o time: fica marcado, sem troca de papel aqui.
+  const [choices, setChoices] = useState<Map<number, UnitTeamRole | 'ADMIN'>>(new Map());
 
   useEffect(() => {
     if (!open) {
@@ -66,8 +68,8 @@ export const MemberTeamsDialog = ({
     setChoices(
       new Map(
         initialTeams
-          .filter((choice) => choice.role === 'MEMBER' || choice.role === 'MANAGER')
-          .map((choice) => [choice.teamId, choice.role as UnitTeamRole]),
+          .filter((choice) => choice.role === 'MEMBER' || choice.role === 'MANAGER' || choice.role === 'ADMIN')
+          .map((choice) => [choice.teamId, choice.role as UnitTeamRole | 'ADMIN']),
       ),
     );
   }, [open]);
@@ -114,7 +116,7 @@ export const MemberTeamsDialog = ({
 
     void onSubmit({
       userId: selected.id,
-      teams: [...choices].map(([teamId, role]) => ({ teamId, role })),
+      teams: [...choices].map(([teamId, role]) => (role === 'ADMIN' ? { teamId } : { teamId, role })),
     });
   };
 
@@ -248,7 +250,13 @@ export const MemberTeamsDialog = ({
                       </Label>
                     </div>
 
-                    {role !== undefined && (
+                    {role === 'ADMIN' && (
+                      <span className="shrink-0 text-muted-foreground text-sm">
+                        <Trans>Administrador</Trans>
+                      </span>
+                    )}
+
+                    {(role === 'MEMBER' || role === 'MANAGER') && (
                       <Select value={role} onValueChange={(value) => setRole(team.id, value as UnitTeamRole)}>
                         <SelectTrigger className="h-9 w-32" aria-label={t`Papel em ${teamName}`}>
                           <SelectValue />

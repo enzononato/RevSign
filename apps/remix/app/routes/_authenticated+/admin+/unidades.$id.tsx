@@ -188,7 +188,7 @@ export default function AdminUnidadePage() {
     }
   };
 
-  const onAddMember = async (input: { userId: number; teams: { teamId: number; role: UnitTeamRole }[] }) => {
+  const onAddMember = async (input: { userId: number; teams: { teamId: number; role?: UnitTeamRole }[] }) => {
     try {
       await addMember.mutateAsync({ organisationId: unit.organisationId, ...input });
       toast({ title: t`Pessoa adicionada em ${unitName}.` });
@@ -199,7 +199,7 @@ export default function AdminUnidadePage() {
     }
   };
 
-  const onSetMemberTeams = async (input: { userId: number; teams: { teamId: number; role: UnitTeamRole }[] }) => {
+  const onSetMemberTeams = async (input: { userId: number; teams: { teamId: number; role?: UnitTeamRole }[] }) => {
     try {
       await setMemberTeams.mutateAsync({ organisationId: unit.organisationId, ...input });
       toast({ title: t`Times salvos.` });
@@ -469,7 +469,8 @@ export default function AdminUnidadePage() {
         title={<Trans>Remover o time {teamToDeleteName}?</Trans>}
         description={
           <Trans>
-            O time não tem documentos. As pessoas saem dele, mas continuam na unidade. Não dá para desfazer.
+            O time não tem documentos. As pessoas saem dele, mas continuam na unidade, e recebem um e-mail avisando. Não
+            dá para desfazer.
           </Trans>
         }
         confirmLabel={<Trans>Remover time</Trans>}
