@@ -52,8 +52,10 @@ const audit = async (
     | typeof DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_ACCESS_AUTH_2FA_VALIDATED,
   recipient: AccessCodeRecipient,
   requestMetadata: RequestMetadata | undefined,
-  authenticatorUser?: AuthenticatorUser | null,
+  authenticator?: { user: AuthenticatorUser | null },
 ) => {
+  const authenticatorUser = authenticator?.user ?? null;
+
   await prisma.documentAuditLog.create({
     data: createDocumentAuditLogData({
       type,
@@ -67,7 +69,8 @@ const audit = async (
         recipientId: recipient.id,
         recipientName: recipient.name,
         recipientEmail: recipient.email,
-        ...(authenticatorUser ? { revalleMethod: 'AUTHENTICATOR' as const } : {}),
+        // Tentativa pelo autenticador fica marcada mesmo sem dono (sem sessão ou outra conta), só sem usuário.
+        ...(authenticator ? { revalleMethod: 'AUTHENTICATOR' as const } : {}),
       },
     }),
   });
@@ -193,7 +196,7 @@ export const assertRevalleAccessCode = async ({
       DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_ACCESS_AUTH_2FA_FAILED,
       recipient,
       requestMetadata,
-      authenticatorOwner,
+      isAuthenticator ? { user: authenticatorOwner } : undefined,
     );
 
     if (attempt >= REVALLE_MAX_ATTEMPTS) {
@@ -218,7 +221,7 @@ export const assertRevalleAccessCode = async ({
     DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_ACCESS_AUTH_2FA_VALIDATED,
     recipient,
     requestMetadata,
-    authenticatorOwner,
+    authenticatorOwner ? { user: authenticatorOwner } : undefined,
   );
 
   return authenticatorOwner ? 'AUTHENTICATOR' : 'EMAIL';

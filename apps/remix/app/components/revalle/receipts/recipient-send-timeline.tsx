@@ -46,6 +46,11 @@ export const RecipientSendTimeline = ({ steps, className }: RecipientSendTimelin
                 {step.label}
               </span>
               {step.reached && step.atLabel && <span className="text-muted-foreground"> {step.atLabel}</span>}
+              {step.reached && step.detail && (
+                <span className="block text-muted-foreground" data-step-detail>
+                  {step.detail}
+                </span>
+              )}
               <span className="sr-only">{step.reached ? '' : ' (ainda não)'}</span>
             </span>
           </li>

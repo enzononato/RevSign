@@ -152,3 +152,47 @@ describe('buildRecipientTimeline', () => {
     expect(buildRecipientTimeline({ role: 'CC', signingStatus: 'SIGNED' }, undefined)).toEqual([]);
   });
 });
+
+describe('autenticador no passo Assinado (v.26)', () => {
+  const sentAt = at('2026-11-16T12:00:00Z');
+  const signedAt = at('2026-11-16T14:30:00Z');
+  const signer = { role: 'SIGNER', readStatus: 'OPENED', signingStatus: 'SIGNED', signedAt };
+
+  it('a última confirmação pelo autenticador põe o texto no passo Assinado; pelo e-mail, não', () => {
+    const events = collectRecipientSendEvents([
+      { type: 'REVALLE_SEND_RECEIPT', createdAt: sentAt, data: { recipientId: 1, receiptId: 'a' } },
+      { type: 'REVALLE_SEND_RECEIPT', createdAt: sentAt, data: { recipientId: 2, receiptId: 'b' } },
+      {
+        type: 'DOCUMENT_ACCESS_AUTH_2FA_VALIDATED',
+        createdAt: at('2026-11-16T14:29:00Z'),
+        data: { recipientId: 1, revalleMethod: 'AUTHENTICATOR' },
+      },
+      {
+        type: 'DOCUMENT_ACCESS_AUTH_2FA_VALIDATED',
+        createdAt: at('2026-11-16T14:00:00Z'),
+        data: { recipientId: 2, revalleMethod: 'AUTHENTICATOR' },
+      },
+      { type: 'DOCUMENT_ACCESS_AUTH_2FA_VALIDATED', createdAt: at('2026-11-16T14:29:00Z'), data: { recipientId: 2 } },
+    ]);
+
+    const byAuthenticator = buildRecipientTimeline(signer, events.get(1));
+    const byEmail = buildRecipientTimeline(signer, events.get(2));
+
+    expect(byAuthenticator[2]).toMatchObject({ key: 'SIGNED', detail: 'Assinatura confirmada pelo app autenticador' });
+    expect(serializeTimeline(byAuthenticator)[2].detail).toBe('Assinatura confirmada pelo app autenticador');
+    expect(byEmail[2].detail).toBeUndefined();
+  });
+
+  it('ainda não assinou: sem o texto, mesmo com o código validado', () => {
+    const events = collectRecipientSendEvents([
+      {
+        type: 'DOCUMENT_ACCESS_AUTH_2FA_VALIDATED',
+        createdAt: sentAt,
+        data: { recipientId: 1, revalleMethod: 'AUTHENTICATOR' },
+      },
+    ]);
+    const steps = buildRecipientTimeline({ ...signer, signingStatus: 'NOT_SIGNED', signedAt: null }, events.get(1));
+
+    expect(steps[2].detail).toBeUndefined();
+  });
+});

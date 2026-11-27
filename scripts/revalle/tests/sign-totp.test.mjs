@@ -10,13 +10,14 @@ import { createHmac } from 'node:crypto';
 import { after, before, beforeEach, test } from 'node:test';
 
 import { ensureTestAccount, signInAs } from './account-helpers.mjs';
-import { BASE_URL, completeWithCode, createEnvelope, db, distribute, trpc } from './helpers.mjs';
+import { BASE_URL, completeWithCode, createEnvelope, db, distribute, signIn, trpc } from './helpers.mjs';
 
 const MARIA = { cpf: '39053344705', birthDate: '07/03/1990' };
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const OWNER_EMAIL = `totp-${RUN}@revalle.com.br`;
 const GMAIL = `totp-ext-${RUN}@gmail.com`;
 const origin = new URL(BASE_URL).origin;
+const sender = { email: process.env.REVSIGN_USER_EMAIL, password: process.env.REVSIGN_USER_PASSWORD };
 
 // --- RFC 6238 (TOTP, SHA-1, 6 dígitos, 30 s), como os apps autenticadores. ---
 
@@ -114,6 +115,10 @@ beforeEach(() => {
 
 after(() => {
   db(`delete from "RevalleEmailLink" where cpf = '${MARIA.cpf}'`);
+  // Não deixa conta de teste com o autenticador ligado no hml: desliga e desativa.
+  db(
+    `update "User" set "twoFactorEnabled" = false, "twoFactorSecret" = null, "twoFactorBackupCodes" = null, disabled = true where email = '${OWNER_EMAIL}'`,
+  );
 });
 
 // --- Envelope com o portão passado e o campo assinado. ---
@@ -174,6 +179,22 @@ const validatedLog = (s) =>
   db(
     `select coalesce(data->>'revalleMethod', '-') || '|' || coalesce("userId"::text, '-') from "DocumentAuditLog" where "envelopeId" = '${s.id}' and type = 'DOCUMENT_ACCESS_AUTH_2FA_VALIDATED'`,
   );
+// Passos de envio do destinatário como a página do documento mostra (rota /envios, sessão do remetente dos testes).
+const signedStepDetail = async (s) => {
+  const teamUrl = db(`select t.url from "Team" t join "Envelope" e on e."teamId" = t.id where e.id = '${s.id}'`);
+  const res = await fetch(`${BASE_URL}/t/${teamUrl}/documents/${s.id}/envios`, {
+    headers: { Cookie: await signIn(sender.email, sender.password) },
+    redirect: 'manual',
+  });
+
+  assert.equal(res.status, 200, await res.clone().text());
+
+  const status = await res.json();
+  const steps = status.recipients.find((item) => item.recipientId === s.recipient.id)?.steps ?? [];
+
+  return steps.find((step) => step.key === 'SIGNED')?.detail ?? null;
+};
+
 const proofFactors = (s) =>
   db(
     `select string_agg(f->>'factor', ',') from "RevalleSignatureProof", jsonb_array_elements(factors) f where "recipientId" = ${s.recipient.id}`,
@@ -200,10 +221,16 @@ test('dono do e-mail logado com o autenticador: código errado é recusado e con
   assert.equal(validatedLog(s), `AUTHENTICATOR|${ownerId}`);
   assert.equal(proofFactors(s).split(',').includes('AUTHENTICATOR_CODE'), true, proofFactors(s));
   assert.equal(proofFactors(s).split(',').includes('EMAIL_CODE'), false, proofFactors(s));
+
+  // Situação de envio: o passo Assinado traz o método.
+  if (sender.email && sender.password) {
+    assert.equal(await signedStepDetail(s), 'Assinatura confirmada pelo app autenticador');
+  }
 });
 
 test('sem sessão, ou com a sessão de outra conta: o autenticador é recusado e o código por e-mail conclui', async () => {
-  // E-mail de fora da empresa: assina sem conta, então o pedido chega ao passo do código sem sessão.
+  // E-mail de fora da empresa: assina sem conta, então o pedido chega ao passo do código sem sessão. Um e-mail da empresa
+  // sem sessão nem chega a este passo (o portão pede a conta antes: REVALLE_ACCOUNT_REQUIRED, ver account-required.test).
   const s = await prepare(GMAIL);
   const code = totp(ownerSecret, 1);
 
@@ -224,4 +251,33 @@ test('sem sessão, ou com a sessão de outra conta: o autenticador é recusado e
   assert.equal(validatedLog(s), '-|-');
   assert.equal(proofFactors(s).split(',').includes('EMAIL_CODE'), true, proofFactors(s));
   assert.equal(proofFactors(s).split(',').includes('AUTHENTICATOR_CODE'), false, proofFactors(s));
+});
+
+test('autenticador desligado (ex.: "Zerar autenticador"): o código do app é recusado e só o e-mail conclui', async () => {
+  const secret = ownerSecret;
+
+  db(`update "User" set "twoFactorEnabled" = false where id = ${ownerId}`);
+
+  const s = await prepare(OWNER_EMAIL, ownerCookie);
+  const headers = { Cookie: ownerCookie };
+
+  const refused = await completeWithAuthenticator(s, totp(secret, 1), headers);
+
+  assert.notEqual(refused.status, 200, refused.text);
+  assert.equal(signingStatus(s), 'NOT_SIGNED');
+  assert.equal(attempts(s), '1');
+
+  const done = await completeWithCode({
+    token: s.recipient.token,
+    documentId: s.documentId,
+    email: OWNER_EMAIL,
+    headers,
+  });
+
+  assert.equal(done.status, 200, done.text);
+  assert.equal(validatedLog(s), '-|-');
+
+  if (sender.email && sender.password) {
+    assert.equal(await signedStepDetail(s), null);
+  }
 });

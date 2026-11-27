@@ -76,7 +76,12 @@ export type RecipientSendEvents = {
   /** Primeira vez que a pessoa abriu o link. */
   openedAt: Date | null;
   rejectedAt: Date | null;
+  /** v.26: a última confirmação do código foi pelo app autenticador da conta (só presente quando verdadeiro). */
+  signedByAuthenticator?: boolean;
 };
+
+/** v.26: texto do passo Assinado quando a confirmação foi pelo app autenticador. */
+export const AUTHENTICATOR_STEP_DETAIL = 'Assinatura confirmada pelo app autenticador';
 
 // E-mails que levam o link de assinatura (os de antes do comprovante contam como "Enviado").
 const INVITE_EMAIL_TYPES = new Set([
@@ -137,6 +142,8 @@ export const collectRecipientSendEvents = (
 ): Map<number, RecipientSendEvents> => {
   const byRecipient = new Map<number, RecipientSendEvents>();
   const legacySent = new Map<number, Date>();
+  // v.26: a última confirmação do código por destinatário (vale o método da mais nova, como na prova).
+  const lastCode = new Map<number, { at: Date; byAuthenticator: boolean }>();
 
   const idByEmail = new Map<string, number | null>();
 
@@ -189,12 +196,27 @@ export const collectRecipientSendEvents = (
       if (!events.openedAt || log.createdAt.getTime() < events.openedAt.getTime()) {
         events.openedAt = log.createdAt;
       }
+    } else if (log.type === 'DOCUMENT_ACCESS_AUTH_2FA_VALIDATED') {
+      const previous = lastCode.get(recipientId);
+
+      if (!previous || log.createdAt.getTime() >= previous.at.getTime()) {
+        lastCode.set(recipientId, {
+          at: log.createdAt,
+          byAuthenticator: readString(log.data, 'revalleMethod') === 'AUTHENTICATOR',
+        });
+      }
     } else if (log.type === 'DOCUMENT_RECIPIENT_REJECTED') {
       const events = get(recipientId);
 
       if (!events.rejectedAt || log.createdAt.getTime() > events.rejectedAt.getTime()) {
         events.rejectedAt = log.createdAt;
       }
+    }
+  }
+
+  for (const [recipientId, code] of lastCode) {
+    if (code.byAuthenticator) {
+      get(recipientId).signedByAuthenticator = true;
     }
   }
 
@@ -217,6 +239,8 @@ export type TimelineStep = {
   label: string;
   reached: boolean;
   at: Date | null;
+  /** v.26: complemento do passo (ex.: "Assinatura confirmada pelo app autenticador"); ausente quando não há. */
+  detail?: string;
 };
 
 const DONE_STEP_LABELS: Record<string, string> = {
@@ -238,7 +262,7 @@ export const buildRecipientTimeline = (
     return [];
   }
 
-  const { sentAt, openedAt, rejectedAt } = events ?? empty();
+  const { sentAt, openedAt, rejectedAt, signedByAuthenticator } = events ?? empty();
   const isRejected = recipient.signingStatus === 'REJECTED';
   const isDone = recipient.signingStatus === 'SIGNED';
   // Abriu antes do histórico guardar a abertura: o passo vale, sem horário.
@@ -257,6 +281,7 @@ export const buildRecipientTimeline = (
       label: DONE_STEP_LABELS[recipient.role] ?? 'Assinado',
       reached: isDone,
       at: isDone ? (recipient.signedAt ?? null) : null,
+      ...(isDone && signedByAuthenticator ? { detail: AUTHENTICATOR_STEP_DETAIL } : {}),
     });
   }
 
