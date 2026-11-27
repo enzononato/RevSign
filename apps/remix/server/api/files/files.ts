@@ -112,6 +112,7 @@ export const filesRoute = new Hono<HonoEnv>()
 
       const hasAccess = await checkEnvelopeFileAccess({
         userId,
+        envelopeId: envelope.id, // REVALLE:
         teamId: envelope.teamId,
         envelopeType: envelope.type,
         templateType: envelope.templateType,
@@ -184,6 +185,7 @@ export const filesRoute = new Hono<HonoEnv>()
 
         const hasDownloadAccess = await checkEnvelopeFileAccess({
           userId: session.user.id,
+          envelopeId: envelope.id, // REVALLE:
           teamId: envelope.teamId,
           envelopeType: envelope.type,
           templateType: envelope.templateType,

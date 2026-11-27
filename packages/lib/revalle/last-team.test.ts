@@ -26,6 +26,22 @@ describe('pickDocumentsTeamUrl', () => {
     expect(pickDocumentsTeamUrl({ organisations: [personalOrg, otherOrg], lastTeamUrl: 'gone' })).toBe('ti');
   });
 
+  it('uses the unit team when there is no last team (v.26)', () => {
+    const unitOrg = { type: OrganisationType.ORGANISATION, teams: [{ id: 50, url: 'juazeiro-compras' }] };
+
+    expect(
+      pickDocumentsTeamUrl({ organisations: [personalOrg, otherOrg, unitOrg], unitTeamUrl: 'juazeiro-compras' }),
+    ).toBe('juazeiro-compras');
+    expect(
+      pickDocumentsTeamUrl({
+        organisations: [personalOrg, unitOrg],
+        lastTeamUrl: 'personal_abc',
+        unitTeamUrl: 'juazeiro-compras',
+      }),
+    ).toBe('personal_abc');
+    expect(pickDocumentsTeamUrl({ organisations: [personalOrg, otherOrg], unitTeamUrl: 'gone' })).toBe('ti');
+  });
+
   it('falls back to the personal team', () => {
     expect(pickDocumentsTeamUrl({ organisations: [{ ...personalOrg, teams: [{ id: 10, url: 'p' }] }] })).toBe('p');
   });

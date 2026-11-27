@@ -4,6 +4,7 @@ import { getEnvelopeById, getEnvelopeWhereInput } from '@documenso/lib/server-on
 import { generateAuditLogPdf } from '@documenso/lib/server-only/pdf/generate-audit-log-pdf';
 import { generateCertificatePdf } from '@documenso/lib/server-only/pdf/generate-certificate-pdf';
 import { getApiTokenByToken } from '@documenso/lib/server-only/public-api/get-api-token-by-token';
+import { isEnvelopeAllowedByRevalleOwnOnly } from '@documenso/lib/server-only/revalle/visibility/own-only'; // REVALLE:
 import { isDocumentCompleted } from '@documenso/lib/utils/document';
 import { buildTeamWhereQuery } from '@documenso/lib/utils/teams';
 import { prisma } from '@documenso/prisma';
@@ -98,6 +99,13 @@ export const downloadRoute = new Hono<HonoEnv>()
         });
 
         if (!envelopeItem) {
+          return c.json({ error: 'Envelope item not found' }, 404);
+        }
+
+        // REVALLE: "ver só o que enviou ou recebeu" (v.26): documento do colega dá 404 também pela API.
+        if (
+          !(await isEnvelopeAllowedByRevalleOwnOnly({ userId: apiToken.user.id, envelopeId: envelopeItem.envelopeId }))
+        ) {
           return c.json({ error: 'Envelope item not found' }, 404);
         }
 

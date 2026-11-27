@@ -57,6 +57,7 @@ import { assertSentInvoiceRecipientEmails } from '../revalle/invoice/external-re
 import { assertNotPatrimonioTermo } from '../revalle/patrimonio/guard'; // REVALLE:
 import { fillRecipientNamesFromAccounts } from '../revalle/recipients/fill-recipient-names'; // REVALLE:
 import { assertSignaturesInEveryItem } from '../revalle/signature-only'; // REVALLE:
+import { assertInvoiceFromUnitTeam } from '../revalle/visibility/unit-team'; // REVALLE:
 import { assertUserNotDisabledById } from '../user/assert-user-not-disabled';
 import { triggerWebhook } from '../webhooks/trigger/trigger-webhook';
 
@@ -180,10 +181,22 @@ export const sendDocument = async ({
   // nunca é bloqueado. Antes da injeção de formValues (que troca o PDF). Nota fiscal só para e-mails da empresa, em
   // qualquer envio (o documento comum vai para qualquer e-mail).
   const revalleRecipientEmails = envelope.recipients.map((r) => r.email);
+  // REVALLE (v.26): nota fiscal só sai de um time de unidade. A recusa do time vem antes da falta de conta: trocar de
+  // time é o que destrava, e a conta escolhida não muda nada.
+  const revalleAssertUnitTeam = async () =>
+    await assertInvoiceFromUnitTeam({ envelopeId: envelope.id, teamId: envelope.teamId });
   const revalleInvoiceSend =
     envelope.status === DocumentStatus.DRAFT
-      ? await assertInvoiceChoiceBeforeSend(envelope.id, revalleRecipientEmails)
+      ? await assertInvoiceChoiceBeforeSend(envelope.id, revalleRecipientEmails).catch(async (error: unknown) => {
+          await revalleAssertUnitTeam();
+
+          throw error;
+        })
       : 'NONE';
+
+  if (revalleInvoiceSend === 'APPROVAL') {
+    await revalleAssertUnitTeam(); // REVALLE:
+  }
 
   if (envelope.status !== DocumentStatus.DRAFT) {
     await assertSentInvoiceRecipientEmails(envelope.id, revalleRecipientEmails);

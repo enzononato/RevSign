@@ -6,6 +6,7 @@ import type { Expression, ExpressionBuilder, SelectQueryBuilder, SqlBool } from 
 import { TEAM_DOCUMENT_VISIBILITY_MAP } from '../../constants/teams';
 import type { FindResultResponse } from '../../types/search-params';
 import { maskRecipientTokensForDocument } from '../../utils/mask-recipient-tokens-for-document';
+import { getRevalleOwnOnlyScope, revalleOwnOnlyKyselyWhere } from '../revalle/visibility/own-only'; // REVALLE:
 import { getTeamById } from '../team/get-team';
 import { hasExpiredRecipient } from './query-helpers';
 
@@ -192,6 +193,14 @@ export const findEnvelopes = async ({
   // Expired recipient filter (orthogonal to status, additive)
   if (hasExpiredRecipients) {
     qb = qb.where((eb) => hasExpiredRecipient(eb));
+  }
+
+  // REVALLE: "ver só o que enviou ou recebeu" (v.26): documentos só de que é dono ou destinatário. Admin nunca; modelos
+  // seguem só a regra do time.
+  const revalleOwnOnly = await getRevalleOwnOnlyScope(userId);
+
+  if (revalleOwnOnly) {
+    qb = qb.where((eb) => revalleOwnOnlyKyselyWhere(eb, revalleOwnOnly));
   }
 
   // ─── Access control ──────────────────────────────────────────────────

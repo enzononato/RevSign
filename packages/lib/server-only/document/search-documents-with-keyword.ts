@@ -5,6 +5,7 @@ import { DocumentStatus, DocumentVisibility, EnvelopeType, TeamMemberRole } from
 import { match } from 'ts-pattern';
 
 import { mapSecondaryIdToDocumentId } from '../../utils/envelope';
+import { getRevalleOwnOnlyScope, revalleOwnOnlyPrismaWhere } from '../revalle/visibility/own-only'; // REVALLE:
 import { getUserTeamGroups } from '../team/get-user-team-groups';
 
 export type SearchDocumentsWithKeywordOptions = {
@@ -70,10 +71,13 @@ export const searchDocumentsWithKeyword = async ({ query, userId, limit = 20 }: 
     });
   }
 
+  const revalleOwnOnly = await getRevalleOwnOnlyScope(userId); // REVALLE: ver só o que enviou ou recebeu (v.26)
+
   const envelopes = await prisma.envelope.findMany({
     where: {
       type: EnvelopeType.DOCUMENT,
       OR: filters,
+      ...(revalleOwnOnly ? { AND: [revalleOwnOnlyPrismaWhere(revalleOwnOnly)] } : {}), // REVALLE:
     },
     select: {
       id: true,

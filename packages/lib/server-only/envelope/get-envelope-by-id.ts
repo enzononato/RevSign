@@ -5,6 +5,7 @@ import { TEAM_DOCUMENT_VISIBILITY_MAP } from '../../constants/teams';
 import { AppError, AppErrorCode } from '../../errors/app-error';
 import type { EnvelopeIdOptions } from '../../utils/envelope';
 import { unsafeBuildEnvelopeIdQuery } from '../../utils/envelope';
+import { getRevalleOwnOnlyScope, revalleOwnOnlyPrismaWhere } from '../revalle/visibility/own-only'; // REVALLE:
 import { getTeamById } from '../team/get-team';
 
 export type GetEnvelopeByIdOptions = {
@@ -159,6 +160,16 @@ export const getEnvelopeWhereInput = async ({ id, userId, teamId, type }: GetEnv
         email: team.teamEmail.email,
       },
     });
+  }
+
+  // REVALLE: "ver só o que enviou ou recebeu" (v.26): os acessos pelo time passam a exigir dono ou destinatário (o 1º
+  // ramo, dono, já é isso). Admin do sistema nunca é limitado; modelos seguem só a regra do time.
+  const revalleOwnOnly = await getRevalleOwnOnlyScope(userId);
+
+  if (revalleOwnOnly) {
+    for (let index = 1; index < envelopeOrInput.length; index++) {
+      envelopeOrInput[index] = { AND: [envelopeOrInput[index], revalleOwnOnlyPrismaWhere(revalleOwnOnly)] };
+    }
   }
 
   // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

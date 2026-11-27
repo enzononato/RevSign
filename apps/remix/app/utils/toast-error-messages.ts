@@ -32,6 +32,11 @@ export const getDistributeErrorMessage = (code: string): ToastMessageDescriptor 
       title: msg`Invoice with an e-mail outside the company`,
       description: msg`Invoices can only be sent to company e-mails.`,
     }))
+    .with('INVOICE_UNIT_TEAM_REQUIRED', () => ({
+      // REVALLE (v.26): nota fiscal só sai de um time de unidade.
+      title: msg`Nota fiscal fora do time da unidade`,
+      description: msg`Nota fiscal deve ser enviada pelo time da sua unidade. Troque para o time no topo da tela.`,
+    }))
     .with(AppErrorCode.MISSING_SIGNATURE_FIELD, () => ({
       // REVALLE: o servidor recusou o envio porque falta a assinatura de alguém em algum documento do envelope.
       title: msg`Missing signature position`,

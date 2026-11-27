@@ -3,6 +3,7 @@ import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
 import { verifyEmbeddingPresignToken } from '@documenso/lib/server-only/embedding-presign/verify-embedding-presign-token';
 import { generatePartialSignedPdf } from '@documenso/lib/server-only/pdf/generate-partial-signed-pdf';
 import { loadRevalleStamps } from '@documenso/lib/server-only/revalle/proof/load-stamps'; // REVALLE:
+import { isEnvelopeAllowedByRevalleOwnOnly } from '@documenso/lib/server-only/revalle/visibility/own-only'; // REVALLE:
 import { getTeamById } from '@documenso/lib/server-only/team/get-team';
 import { sha256 } from '@documenso/lib/universal/crypto';
 import { getFileServerSide } from '@documenso/lib/universal/upload/get-file.server';
@@ -267,6 +268,7 @@ const handlePendingFileRequest = async ({
 
 type CheckEnvelopeFileAccessOptions = {
   userId: number;
+  envelopeId: string; // REVALLE: "ver só o que enviou ou recebeu" (v.26)
   teamId: number;
   envelopeType: EnvelopeType;
   templateType: TemplateType;
@@ -281,10 +283,16 @@ type CheckEnvelopeFileAccessOptions = {
  */
 export const checkEnvelopeFileAccess = async ({
   userId,
+  envelopeId, // REVALLE:
   teamId,
   envelopeType,
   templateType,
 }: CheckEnvelopeFileAccessOptions): Promise<boolean> => {
+  // REVALLE: com "ver só o que enviou ou recebeu", o arquivo de um documento do colega não sai (admin nunca é limitado).
+  if (!(await isEnvelopeAllowedByRevalleOwnOnly({ userId, envelopeId }))) {
+    return false;
+  }
+
   const team = await getTeamById({ userId, teamId }).catch(() => null);
 
   if (team) {

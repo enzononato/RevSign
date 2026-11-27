@@ -17,6 +17,7 @@ import { match } from 'ts-pattern';
 import type { FindResultResponse } from '../../types/search-params';
 import { maskRecipientTokensForDocument } from '../../utils/mask-recipient-tokens-for-document';
 import { hasExpiredRecipient } from '../envelope/query-helpers';
+import { getRevalleOwnOnlyScope, revalleOwnOnlyKyselyWhere } from '../revalle/visibility/own-only'; // REVALLE:
 import { getTeamById } from '../team/get-team';
 
 export type PeriodSelectorValue = '' | '7d' | '14d' | '30d';
@@ -129,6 +130,8 @@ export const findDocuments = async ({
     select: { id: true, email: true, name: true },
   });
 
+  const revalleOwnOnly = await getRevalleOwnOnlyScope(userId); // REVALLE: ver só o que enviou ou recebeu (v.26)
+
   let team = null;
 
   if (teamId !== undefined) {
@@ -209,6 +212,11 @@ export const findDocuments = async ({
     // Expired recipient filter (orthogonal to status, additive)
     if (hasExpiredRecipients) {
       qb = qb.where((eb) => hasExpiredRecipient(eb));
+    }
+
+    // REVALLE: "ver só o que enviou ou recebeu" (v.26): só dono ou destinatário, em qualquer time. Admin nunca.
+    if (revalleOwnOnly) {
+      qb = qb.where((eb) => revalleOwnOnlyKyselyWhere(eb, revalleOwnOnly));
     }
 
     return qb;

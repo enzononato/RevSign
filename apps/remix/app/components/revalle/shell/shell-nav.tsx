@@ -34,10 +34,13 @@ const subscribeToNothing = () => () => {};
  * autenticado, para o HTML e a hidratação baterem; depois, do `document.cookie`, que o loader do time atualiza a cada
  * time aberto.
  */
-const useLastTeamUrl = () => {
-  const layoutData = useRouteLoaderData('routes/_authenticated+/_layout') as
-    | { lastTeamUrl?: string | null }
+const useLayoutTeamData = () =>
+  useRouteLoaderData('routes/_authenticated+/_layout') as
+    | { lastTeamUrl?: string | null; unitTeamUrl?: string | null }
     | undefined;
+
+const useLastTeamUrl = () => {
+  const layoutData = useLayoutTeamData();
 
   return useSyncExternalStore(
     subscribeToNothing,
@@ -56,9 +59,15 @@ const useShellNavLinks = (): ShellNavLink[] => {
 
   const currentTeam = useOptionalCurrentTeam();
   const lastTeamUrl = useLastTeamUrl();
+  const unitTeamUrl = useLayoutTeamData()?.unitTeamUrl ?? null; // v.26: o time da unidade, sem último time aberto
 
   return useMemo(() => {
-    const teamUrl = pickDocumentsTeamUrl({ organisations, currentTeamUrl: currentTeam?.url, lastTeamUrl });
+    const teamUrl = pickDocumentsTeamUrl({
+      organisations,
+      currentTeamUrl: currentTeam?.url,
+      lastTeamUrl,
+      unitTeamUrl,
+    });
 
     const links: ShellNavLink[] = [];
 
@@ -95,7 +104,7 @@ const useShellNavLinks = (): ShellNavLink[] => {
     }
 
     return links;
-  }, [currentTeam, lastTeamUrl, organisations, pathname, user]);
+  }, [currentTeam, lastTeamUrl, organisations, pathname, unitTeamUrl, user]);
 };
 
 export type ShellNavListProps = {

@@ -9,6 +9,7 @@ import { DateTime } from 'luxon';
 import { STATS_COUNT_CAP } from '../../constants/document';
 import { TEAM_DOCUMENT_VISIBILITY_MAP } from '../../constants/teams';
 import { hasExpiredRecipient } from '../envelope/query-helpers';
+import { getRevalleOwnOnlyScope, revalleOwnOnlyKyselyWhere } from '../revalle/visibility/own-only'; // REVALLE:
 import { getTeamById } from '../team/get-team';
 
 // Kysely query builder type for Envelope queries.
@@ -89,6 +90,8 @@ export const getStats = async ({ userId, teamId, period, search = '', folderId, 
 
   const team = await getTeamById({ userId, teamId });
 
+  const revalleOwnOnly = await getRevalleOwnOnlyScope(userId); // REVALLE: ver só o que enviou ou recebeu (v.26)
+
   const teamEmail = team.teamEmail?.email ?? null;
   const currentTeamRole = team.currentTeamRole ?? TeamMemberRole.MEMBER;
   const allowedVisibilities = TEAM_DOCUMENT_VISIBILITY_MAP[currentTeamRole];
@@ -145,6 +148,11 @@ export const getStats = async ({ userId, teamId, period, search = '', folderId, 
           ),
         ]),
       );
+    }
+
+    // REVALLE: "ver só o que enviou ou recebeu" (v.26): os contadores batem com a lista.
+    if (revalleOwnOnly) {
+      qb = qb.where((eb) => revalleOwnOnlyKyselyWhere(eb, revalleOwnOnly));
     }
 
     return qb;

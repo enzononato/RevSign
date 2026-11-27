@@ -350,6 +350,7 @@ export class AppError extends Error {
         AppErrorCode.CSC_EMBED_FAILED,
         'INVOICE_ACCOUNT_REQUIRED', // REVALLE: NF sem conta contábil (API v1 responde 400 com a mensagem)
         'INVOICE_FILE_REQUIRED', // REVALLE: (Fase 9) envio com 2+ notas sem dizer de qual arquivo (400, não 500)
+        'INVOICE_UNIT_TEAM_REQUIRED', // REVALLE: (v.26) nota fiscal fora de um time de unidade (400, não 500)
         () => 400 as const,
       )
       .with(AppErrorCode.UNAUTHORIZED, () => 401 as const)

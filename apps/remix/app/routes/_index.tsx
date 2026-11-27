@@ -1,6 +1,7 @@
 import { extractCookieFromHeaders } from '@documenso/auth/server/lib/utils/cookies';
 import { getOptionalSession } from '@documenso/auth/server/lib/utils/get-session';
 import { PREFERRED_TEAM_URL_COOKIE } from '@documenso/lib/constants/cookies';
+import { findFirstRevalleUnitTeamUrl } from '@documenso/lib/server-only/revalle/visibility/unit-team'; // REVALLE:
 import { getTeams } from '@documenso/lib/server-only/team/get-teams';
 import { formatDocumentsPath } from '@documenso/lib/utils/teams';
 import { ZTeamUrlSchema } from '@documenso/trpc/server/team-router/schema';
@@ -37,6 +38,13 @@ export async function loader({ request }: Route.LoaderArgs) {
     const teams = await getTeams({ userId: session.user.id });
 
     let currentTeam = teams.find((team) => team.url === preferredTeamUrl);
+
+    // REVALLE (v.26): sem último time aberto, o envio abre no primeiro time de unidade da pessoa.
+    if (!currentTeam) {
+      const unitTeamUrl = await findFirstRevalleUnitTeamUrl(session.user.id).catch(() => null);
+
+      currentTeam = teams.find((team) => team.url === unitTeamUrl);
+    }
 
     if (!currentTeam && teams.length === 1) {
       currentTeam = teams[0];
