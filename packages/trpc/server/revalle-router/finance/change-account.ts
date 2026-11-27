@@ -1,4 +1,5 @@
 import { createInvoiceNewVersion } from '@documenso/lib/server-only/revalle/finance/new-version';
+import { assertInvoiceInUserScope } from '@documenso/lib/server-only/revalle/invoice/unit-scope';
 
 import { ZChangeFinanceAccountRequestSchema, ZChangeFinanceAccountResponseSchema } from './change-account.types';
 import { financeProcedure } from './finance-procedure';
@@ -9,6 +10,8 @@ export const changeFinanceAccountRoute = financeProcedure
   .output(ZChangeFinanceAccountResponseSchema)
   .mutation(async ({ input, ctx }) => {
     const { envelopeId, envelopeItemId, code, reason } = input;
+
+    await assertInvoiceInUserScope({ envelopeId, userId: ctx.user.id });
 
     return await createInvoiceNewVersion({
       envelopeId,

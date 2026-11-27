@@ -1,6 +1,7 @@
 import { isAccountingMember } from '@documenso/lib/server-only/revalle/accounting/members';
 import { resendInvoiceVersion } from '@documenso/lib/server-only/revalle/finance/define-and-send';
 import { isFinanceMember } from '@documenso/lib/server-only/revalle/finance/members';
+import { assertInvoiceInUserScope } from '@documenso/lib/server-only/revalle/invoice/unit-scope';
 import { TRPCError } from '@trpc/server';
 
 import { authenticatedProcedure } from '../../trpc';
@@ -23,6 +24,8 @@ export const resendFinanceVersionRoute = financeOrAccountingProcedure
   .output(ZResendFinanceVersionResponseSchema)
   .mutation(async ({ input, ctx }) => {
     const { envelopeId } = input;
+
+    await assertInvoiceInUserScope({ envelopeId, userId: ctx.user.id });
 
     return await resendInvoiceVersion({
       envelopeId,

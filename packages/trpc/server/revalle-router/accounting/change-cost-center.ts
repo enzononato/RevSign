@@ -1,4 +1,5 @@
 import { createInvoiceNewVersion } from '@documenso/lib/server-only/revalle/finance/new-version';
+import { assertInvoiceInUserScope } from '@documenso/lib/server-only/revalle/invoice/unit-scope';
 
 import { accountingProcedure } from './accounting-procedure';
 import { ZChangeCostCenterRequestSchema, ZChangeCostCenterResponseSchema } from './change-cost-center.types';
@@ -9,6 +10,8 @@ export const changeCostCenterRoute = accountingProcedure
   .output(ZChangeCostCenterResponseSchema)
   .mutation(async ({ input, ctx }) => {
     const { envelopeId, envelopeItemId, code, reason } = input;
+
+    await assertInvoiceInUserScope({ envelopeId, userId: ctx.user.id });
 
     return await createInvoiceNewVersion({
       envelopeId,

@@ -1,4 +1,5 @@
 import { getAccountingCard } from '@documenso/lib/server-only/revalle/accounting/card';
+import { assertInvoiceInUserScope } from '@documenso/lib/server-only/revalle/invoice/unit-scope';
 
 import { accountingProcedure } from './accounting-procedure';
 import { ZGetAccountingCardRequestSchema, ZGetAccountingCardResponseSchema } from './get.types';
@@ -7,4 +8,8 @@ import { ZGetAccountingCardRequestSchema, ZGetAccountingCardResponseSchema } fro
 export const getAccountingCardRoute = accountingProcedure
   .input(ZGetAccountingCardRequestSchema)
   .output(ZGetAccountingCardResponseSchema)
-  .query(async ({ input }) => await getAccountingCard(input.envelopeId, input.envelopeItemId));
+  .query(async ({ input, ctx }) => {
+    await assertInvoiceInUserScope({ envelopeId: input.envelopeId, userId: ctx.user.id });
+
+    return await getAccountingCard(input.envelopeId, input.envelopeItemId);
+  });

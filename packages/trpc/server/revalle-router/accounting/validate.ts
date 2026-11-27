@@ -1,4 +1,5 @@
 import { validateInvoiceCostCenter } from '@documenso/lib/server-only/revalle/accounting/validate-cost-center';
+import { assertInvoiceInUserScope } from '@documenso/lib/server-only/revalle/invoice/unit-scope';
 
 import { accountingProcedure } from './accounting-procedure';
 import { ZValidateCostCenterRequestSchema, ZValidateCostCenterResponseSchema } from './validate.types';
@@ -9,6 +10,8 @@ export const validateCostCenterRoute = accountingProcedure
   .output(ZValidateCostCenterResponseSchema)
   .mutation(async ({ input, ctx }) => {
     const { envelopeId, envelopeItemId } = input;
+
+    await assertInvoiceInUserScope({ envelopeId, userId: ctx.user.id });
 
     return await validateInvoiceCostCenter({
       envelopeId,

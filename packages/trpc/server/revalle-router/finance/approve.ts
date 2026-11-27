@@ -1,4 +1,5 @@
 import { approveInvoiceAccount } from '@documenso/lib/server-only/revalle/finance/approve';
+import { assertInvoiceInUserScope } from '@documenso/lib/server-only/revalle/invoice/unit-scope';
 
 import { ZApproveFinanceAccountRequestSchema, ZApproveFinanceAccountResponseSchema } from './approve.types';
 import { financeProcedure } from './finance-procedure';
@@ -12,6 +13,8 @@ export const approveFinanceAccountRoute = financeProcedure
   .output(ZApproveFinanceAccountResponseSchema)
   .mutation(async ({ input, ctx }) => {
     const { envelopeId, envelopeItemId, code } = input;
+
+    await assertInvoiceInUserScope({ envelopeId, userId: ctx.user.id });
 
     return await approveInvoiceAccount({
       envelopeId,

@@ -27,6 +27,7 @@ import {
   type InvoiceDuplicate,
 } from '../invoice/duplicates';
 import { type LoadedInvoiceFile, loadInvoiceFiles, refreshLegacyInvoiceFiles } from '../invoice/invoice-files';
+import { invoiceScopeWhere, isInvoiceInUserScope } from '../invoice/unit-scope';
 import { isFinanceMember } from './members';
 import { findVisibleSuccessor } from './successor';
 
@@ -36,7 +37,8 @@ import { findVisibleSuccessor } from './successor';
  *
  * Quem abre:
  * - o admin: qualquer NF (inclusive a versão substituída escondida e o rascunho);
- * - o Financeiro e a Contabilidade: qualquer NF enviada, a versão substituída escondida e o rascunho de uma nova versão
+ * - o Financeiro e a Contabilidade (v.26: só as das unidades do seu escopo; fora delas, como qualquer pessoa): qualquer NF
+ *   enviada, a versão substituída escondida e o rascunho de uma nova versão
  *   (envio parado, `isNewVersionDraftRow`); o rascunho comum de outra pessoa, não;
  * - o dono: as dele;
  * - quem é destinatário (pelo e-mail): a NF já enviada; o rascunho de uma nova versão também (o aviso da troca leva a
@@ -119,10 +121,15 @@ const resolveViewer = async (envelope: LoadedEnvelope, userId: number): Promise<
   // O rascunho comum é trabalho do dono: o perfil não vale nele. Quem o abre por ser admin ou dono vê a leitura, sem os
   // cartões, cujas rotas dão 404 nele.
   const isOpenToProfiles = envelope.status !== DocumentStatus.DRAFT || isNewVersionDraftRow(invoice);
+  // v.26: fora das unidades da pessoa, o perfil não vale (ela só abre como dona ou destinatária, sem os cartões).
+  const isProfileInScope =
+    (isFinance || isAccounting) && isOpenToProfiles
+      ? isAdmin || (await isInvoiceInUserScope({ envelopeId: envelope.id, userId }))
+      : false;
   const viewer = {
     isAdmin,
-    isFinance: isFinance && isOpenToProfiles,
-    isAccounting: isAccounting && isOpenToProfiles,
+    isFinance: isFinance && isProfileInScope,
+    isAccounting: isAccounting && isProfileInScope,
     isOwner,
   };
 
@@ -185,9 +192,10 @@ export type InvoiceView = {
   /** Fase 8: fornecedor, número e valor que a IA leu da NF (podem estar errados); nulo quando os três estão vazios. */
   invoiceData: InvoiceDataSummary | null;
   /**
-   * Fase 8: as outras notas vivas com uma chave em comum ou o mesmo arquivo. O Financeiro, a Contabilidade e o admin veem o
-   * título e o id (para o link); o dono vê só data, remetente e situação (`id` e `title` nulos), porque pode não ter acesso
-   * à outra; quem só assina não vê nada.
+   * Fase 8: as outras notas vivas com uma chave em comum ou o mesmo arquivo, de qualquer unidade. O admin vê o título e o
+   * id (para o link); o Financeiro e a Contabilidade também, mas só das notas das suas unidades ou enviadas por eles
+   * (v.26); nos outros casos, e para o dono, só data, remetente e situação (`id` e `title` nulos), porque a pessoa pode
+   * não ter acesso à outra; quem só assina não vê nada.
    */
   duplicates: InvoiceViewDuplicate[];
   /**
@@ -279,8 +287,8 @@ export const getInvoiceView = async ({
   const canOpenOthers = viewer.isAdmin || viewer.isFinance || viewer.isAccounting;
   const showDuplicates = canOpenOthers || viewer.isOwner;
   const toViewDuplicate = ({ envelopeId, title, sentAt, senderName, status }: InvoiceDuplicate) => ({
-    id: canOpenOthers ? envelopeId : null,
-    title: canOpenOthers ? title : null,
+    id: openable(envelopeId) ? envelopeId : null,
+    title: openable(envelopeId) ? title : null,
     sentAt,
     senderName,
     status,
@@ -311,6 +319,16 @@ export const getInvoiceView = async ({
             financeStatus: invoice.financeStatus,
           }),
         };
+  // v.26: a busca compara todas as unidades (uma nota lançada duas vezes em unidades diferentes também avisa), mas o
+  // título e o link da outra só vão a quem a abriria: o admin, ou o perfil quando ela é das suas unidades ou é dele.
+  const openableIds =
+    canOpenOthers && !viewer.isAdmin
+      ? await findOpenableDuplicateIds(
+          userId,
+          [...noteDuplicates.union, ...[...noteDuplicates.byFile.values()].flat()].map((other) => other.envelopeId),
+        )
+      : null;
+  const openable = (otherId: string) => canOpenOthers && (openableIds === null || openableIds.has(otherId));
   const duplicates = noteDuplicates.union.map(toViewDuplicate);
   const documents = await toViewDocuments({
     nfs,
@@ -354,6 +372,21 @@ export const getInvoiceView = async ({
     viewer,
     documentPath,
   };
+};
+
+const findOpenableDuplicateIds = async (userId: number, envelopeIds: string[]): Promise<Set<string>> => {
+  const ids = [...new Set(envelopeIds)];
+
+  if (ids.length === 0) {
+    return new Set();
+  }
+
+  const rows = await prisma.envelope.findMany({
+    where: { id: { in: ids }, OR: [{ userId }, invoiceScopeWhere(userId)] },
+    select: { id: true },
+  });
+
+  return new Set(rows.map((row) => row.id));
 };
 
 /** Fase 9: uma entrada por nota, na ordem dos arquivos. */

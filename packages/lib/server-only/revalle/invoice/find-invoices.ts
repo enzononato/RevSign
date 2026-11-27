@@ -43,6 +43,7 @@ import { DOCUMENT_AUDIT_LOG_TYPE } from '../../../types/document-audit-logs';
 import { isAccountingMember } from '../accounting/members';
 import { isFinanceMember } from '../finance/members';
 import { findDuplicateFileIdsOrEmpty, sentAtOf } from './duplicates';
+import { invoiceScopeWhere } from './unit-scope';
 
 export type InvoiceViewer = { userId: number; isAdmin: boolean };
 
@@ -243,10 +244,11 @@ const financeFilterWhere = (filter: FinanceFilter | undefined): Prisma.RevalleIn
 
 /**
  * Visibilidade igual à do documento no RevSign (só organizações pessoais): o dono, quem é destinatário pelo e-mail (sem
- * ter escondido o documento) e o admin, que vê todas. Fase 6: quem é do Financeiro também vê todas (conferido no banco
- * a cada pedido: desmarcado, deixa de ver na hora); Fase 7: a Contabilidade também. NF excluída pelo remetente some
- * para o dono, para os destinatários, para o Financeiro e para a Contabilidade, mas o admin continua vendo (a
- * contabilidade pode já ter lançado).
+ * ter escondido o documento) e o admin, que vê todas. Fase 6: quem é do Financeiro também vê (conferido no banco a cada
+ * pedido: desmarcado, deixa de ver na hora); Fase 7: a Contabilidade também. v.26: o Financeiro e a Contabilidade veem
+ * só as notas das unidades do seu escopo (`invoiceScopeWhere`); sem escopo, só o que enviaram ou assinam. NF excluída
+ * pelo remetente some para o dono, para os destinatários, para o Financeiro e para a Contabilidade, mas o admin continua
+ * vendo (a contabilidade pode já ter lançado).
  *
  * Fase 6, além das NFs enviadas:
  * - o rascunho de uma nova versão, com o envio parado (`isNewVersionDraftRow`), para o Financeiro, a Contabilidade e o dono
@@ -266,20 +268,29 @@ const buildInvoiceFileWhere = async ({
 }: ResolvedViewer & { filters: TInvoiceFilters }) => {
   const conditions: Prisma.EnvelopeWhereInput[] = [];
 
-  if (!isAdmin && !isFinance && !isAccounting) {
+  if (!isAdmin) {
     const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
     const isRecipient = { email: { equals: user.email, mode: Prisma.QueryMode.insensitive } };
+    const ownOrReceived: Prisma.EnvelopeWhereInput[] = [
+      { userId },
+      {
+        status: { not: DocumentStatus.DRAFT },
+        recipients: { some: { ...isRecipient, documentDeletedAt: null } },
+      },
+      { ...supersededHiddenVersion, recipients: { some: isRecipient } },
+    ];
 
-    conditions.push({
-      OR: [
-        { userId },
-        {
-          status: { not: DocumentStatus.DRAFT },
-          recipients: { some: { ...isRecipient, documentDeletedAt: null } },
-        },
-        { ...supersededHiddenVersion, recipients: { some: isRecipient } },
-      ],
-    });
+    // v.26: o perfil só vale nas unidades da pessoa. As filas do perfil ficam só com elas (uma nota de fora que a
+    // pessoa enviou ou assina daria 404 ao aprovar); fora das filas, ela continua vendo também o que enviou ou assina.
+    const isProfileQueue = (isFinance && filters.finance) || (isAccounting && filters.accounting);
+
+    conditions.push(
+      !isFinance && !isAccounting
+        ? { OR: ownOrReceived }
+        : isProfileQueue
+          ? invoiceScopeWhere(userId)
+          : { OR: [...ownOrReceived, invoiceScopeWhere(userId)] },
+    );
   }
 
   if (!isAdmin) {
