@@ -688,7 +688,10 @@ Imagem `ghcr.io/enzononato/revsign:v2.21.1-revalle.22` (e `revsign-backup` com a
 Imagem `ghcr.io/enzononato/revsign:v2.21.1-revalle.26` (e `revsign-backup` com a mesma tag). Funcionamento das telas:
 `unidades-e-acesso.md`.
 
-1. **Backup antes** (seção "Backup antes de atualizar").
+1. **Antes do deploy, peça ao Financeiro e à Contabilidade para zerar as filas** (aprovar e validar o que está
+   pendente). As notas enviadas pelo espaço pessoal que ainda estiverem pendentes passam a ser só do admin (**Notas
+   fiscais**, logado como admin). Rascunhos de nota no espaço pessoal precisam ser refeitos no time da unidade.
+   **Backup antes** (seção "Backup antes de atualizar").
 2. **Migração.** `20261127100000_revalle_unidades` roda sozinha na subida e só ACRESCENTA (5 tabelas e 2 tipos novos).
    Nada existente é alterado.
 3. **Fuso do container.** Confira que o serviço `revsign` tem `TZ=America/Bahia` na aba **Environment**. Se não tiver,
@@ -697,6 +700,8 @@ Imagem `ghcr.io/enzononato/revsign:v2.21.1-revalle.26` (e `revsign-backup` com a
    folha. Sem ela, vale o maior entre 10 e 5% das contas ativas com CPF vinculado. Só defina se precisar de outro número.
 5. **Tarefa nova.** `internal.revalle-hr-inactivation-sweep`, toda noite às 03:00. Ela nasce com o app. Sem
    `COLABORADORES_DATABASE_URL` ou com a base do RH fora do ar, ela não faz nada.
+   Documentos que a pessoa desativada enviou e ainda esperam assinatura ficam parados até o TI reativar a conta,
+   resolver os documentos e desativar à mão (detalhes em `unidades-e-acesso.md`).
 6. **Atenção ao Financeiro e à Contabilidade.** A partir desta versão, cada pessoa desses perfis só vê as notas das
    unidades escolhidas para ela. **Até o TI escolher as unidades, o Financeiro e a Contabilidade não veem nota nenhuma
    nas filas** (nem nos contadores do menu). Faça o passo 7 logo depois do deploy, de preferência fora do horário de
@@ -712,7 +717,7 @@ Imagem `ghcr.io/enzononato/revsign:v2.21.1-revalle.26` (e `revsign-backup` com a
 8. **Muda o envio de nota fiscal.** Nota fiscal só sai de um time de unidade. No espaço pessoal o envio é recusado com
    "Nota fiscal deve ser enviada pelo time da sua unidade. Troque para o time no topo da tela." Avise quem envia notas
    e coloque essas pessoas numa unidade antes. "Apenas assinar" continua liberado no pessoal. Notas antigas do espaço
-   pessoal ficam onde estão, visíveis só para o admin e para quem enviou.
+   pessoal ficam onde estão, visíveis só para o admin, para quem enviou e para quem assina.
 9. **Integrações pela API.** Um token de API do espaço pessoal não envia mais nota fiscal. Para enviar notas pela API,
    crie o token no time da unidade.
 10. **Conferência de primeiro uso.** Com uma conta de teste numa unidade, envie uma nota pelo time da unidade e confira

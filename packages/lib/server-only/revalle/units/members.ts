@@ -93,8 +93,9 @@ const getMemberOrThrow = async (organisationId: string, userId: number) => {
 
 /**
  * Times da pessoa na unidade: entra nos escolhidos (com o papel escolhido) e sai dos outros. Mexe só nos grupos
- * internos de time (os mesmos que a tela de membros do time usa); o papel na organização não muda. Os documentos que a
- * pessoa enviou continuam dela: quem sai de um time ainda vê o que enviou ou recebeu.
+ * internos de time (os mesmos que a tela de membros do time usa); o papel na organização não muda. Os documentos não
+ * mudam de dono, mas o acesso pelo time segue o upstream: quem sai do time fica só com a Caixa de entrada e as notas
+ * fiscais que enviou.
  */
 export const setUnitMemberTeams = async ({
   organisationId,

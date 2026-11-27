@@ -48,7 +48,8 @@ Clique em **Nova unidade**. Use o mesmo nome da unidade na base do RH, para os t
 
 O nome na base do RH fica gravado na criação e aparece na unidade ("Nome na base do RH: …"). **Renomear** muda só o
 nome que aparece; o nome na base do RH continua o mesmo. Se a unidade foi criada com o nome errado, ela não acha os
-setores: apague a organização em **Admin → Organizações** e crie de novo.
+setores: enquanto a unidade ainda não tem documentos, apague a organização em **Admin → Organizações** e crie de
+novo. Se já tem documentos, não apague (as notas dela sairiam da vista do Financeiro): chame o desenvolvimento.
 
 ### Como o nome da unidade do RH bate
 
@@ -94,8 +95,9 @@ Papéis no time:
 Para mudar os times de alguém, clique na pessoa e salve os times. Quem fica no mesmo time mantém o papel. Desmarcar um
 time tira a pessoa dele.
 
-**Tirar da unidade** tira a pessoa da unidade e de todos os times dela. Os documentos que ela enviou ou recebeu para
-assinar continuam com ela.
+**Tirar da unidade** tira a pessoa da unidade e de todos os times dela. Ela continua com o que recebeu para assinar
+(Caixa de entrada) e com as notas fiscais que enviou. Os outros documentos que ela enviou pelo time ficam no time: os
+colegas e o admin continuam vendo; ela, não. Desmarcar um time tem o mesmo efeito naquele time.
 
 Depois que o TI muda a unidade de alguém, a pessoa precisa recarregar a página para o menu e os avisos mudarem.
 
@@ -121,7 +123,9 @@ O que não muda:
 
 - os modelos do time continuam visíveis para todos do time;
 - os números do painel do time (só gerente e administrador do time veem) continuam contando o time todo;
-- o admin do sistema nunca é limitado, mesmo com a marca.
+- o admin do sistema nunca é limitado, mesmo com a marca;
+- para quem é do Financeiro ou da Contabilidade, as notas das unidades escolhidas continuam na página **Notas fiscais**
+  (a marca vale nos documentos dos times).
 
 ## Financeiro e Contabilidade: as unidades de cada pessoa
 
@@ -164,8 +168,10 @@ Quem ainda não está em nenhuma unidade não consegue enviar nota. Ponha a pess
 ### Notas antigas do espaço pessoal
 
 As notas enviadas pelo espaço pessoal antes da v.26 ficam onde estão. Elas aparecem **só para o admin e para quem
-enviou**. O Financeiro e a Contabilidade não veem essas notas. Se uma delas ainda espera aprovação ou validação, o
-admin cuida.
+enviou** (e para quem assina). O Financeiro e a Contabilidade não veem essas notas. Se uma delas ainda espera
+aprovação ou validação, o admin cuida, em **Notas fiscais** logado como admin. Por isso, peça ao Financeiro e à
+Contabilidade para zerar as filas antes de atualizar. Rascunhos de nota no espaço pessoal precisam ser refeitos no time
+da unidade.
 
 ## Inativação pela folha (toda noite)
 
@@ -181,6 +187,10 @@ Toda noite, às **03:00**, o RevSign confere na base do RH quem está desligado 
 - A conta desativada perde as sessões abertas. Fica um registro com data e origem "folha", sem CPF no log.
 - **Administradores do sistema nunca são desativados pela folha.** Se for o caso, o TI desativa à mão.
 - **Base do RH fora do ar** (ou sem `COLABORADORES_DATABASE_URL`): não faz nada naquela noite.
+- **Documentos que a pessoa enviou e ainda esperam assinatura ficam parados**: quem assina vê que o remetente foi
+  desativado, e o Financeiro não manda nova versão das notas dela. Para destravar: **Reativar** a conta (liga "Mantido
+  ativo pelo TI"), concluir ou cancelar os documentos, e depois desativar à mão. Isso já acontecia quando o TI
+  desativava alguém à mão; agora pode acontecer toda noite.
 
 ### Trava de segurança
 
