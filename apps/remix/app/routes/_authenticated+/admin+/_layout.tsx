@@ -13,6 +13,7 @@ import {
   LineChartIcon,
   type LucideIcon,
   MailIcon,
+  Network, // REVALLE: v.26, Unidades e times
   Settings,
   ShieldCheck, // REVALLE:
   Trophy,
@@ -68,6 +69,7 @@ export default function AdminLayout({ loaderData }: Route.ComponentProps) {
     { to: '/admin/revalle-verificacoes', icon: ShieldCheck, label: 'Verificações' },
     { to: '/admin/revalle-contas-contabeis', icon: Calculator, label: 'Contas contábeis' },
     { to: '/admin/revalle-perfis', icon: UserCogIcon, label: 'Perfis' },
+    { to: '/admin/unidades', icon: Network, label: 'Unidades e times' }, // REVALLE: v.26
   ];
 
   return (

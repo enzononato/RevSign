@@ -10,6 +10,7 @@ import { financeRouter } from './finance/router';
 import { invoiceRouter } from './invoice/router';
 import { recipientAccountNameRoute } from './recipient-account-name';
 import { recipientLinkStatusRoute } from './recipient-link-status';
+import { unitsRouter } from './units/router';
 import { verifyIdentityRoute } from './verify-identity';
 
 export const revalleRouter = router({
@@ -31,4 +32,5 @@ export const revalleRouter = router({
   finance: financeRouter,
   accounting: accountingRouter,
   collaboratorContract: collaboratorContractRouter,
+  units: unitsRouter,
 });
