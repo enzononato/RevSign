@@ -64,9 +64,14 @@ const getAuditLogs = async (envelopeId: string) => {
     where: {
       envelopeId,
       // REVALLE: a conta contábil, o centro de custo e a validação da NF ficam fora do PDF (selado ou baixado); aparecem
-      // só no histórico da tela.
+      // só no histórico da tela. v.26: a nota antiga levada para o time da unidade também.
       type: {
-        notIn: ['REVALLE_INVOICE_ACCOUNT_SET', 'REVALLE_INVOICE_COST_CENTER_SET', 'REVALLE_COST_CENTER_VALIDATED'],
+        notIn: [
+          'REVALLE_INVOICE_ACCOUNT_SET',
+          'REVALLE_INVOICE_COST_CENTER_SET',
+          'REVALLE_COST_CENTER_VALIDATED',
+          'REVALLE_INVOICE_MOVED_TO_UNIT',
+        ],
       },
     },
     orderBy: {

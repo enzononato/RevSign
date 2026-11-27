@@ -9,6 +9,7 @@ import { Building2Icon, ChevronRightIcon, PlusIcon, SparklesIcon } from 'lucide-
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 
+import { LegacyInvoicesCard } from '~/components/revalle/admin-units/legacy-invoices-card';
 import { UnitsNameDialog } from '~/components/revalle/admin-units/name-dialog';
 import { OwnOnlySwitch, UnitScopeControl } from '~/components/revalle/admin-units/person-access';
 import { useUnitsErrorToast } from '~/components/revalle/admin-units/use-units-error';
@@ -258,6 +259,8 @@ export default function AdminUnidadesPage() {
           })}
         </ul>
       )}
+
+      {units.length > 0 && <LegacyInvoicesCard />}
 
       <ProfilesSection units={units.map((unit) => ({ organisationId: unit.organisationId, name: unit.name }))} />
 

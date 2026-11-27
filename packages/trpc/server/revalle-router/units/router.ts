@@ -1,4 +1,5 @@
 import { listProfileScopes, setUserOwnOnly, setUserUnitScope } from '@documenso/lib/server-only/revalle/units/access';
+import { moveLegacyInvoices, previewLegacyInvoices } from '@documenso/lib/server-only/revalle/units/legacy-invoices';
 import {
   addUnitMember,
   getUnitDetail,
@@ -35,6 +36,8 @@ import {
   ZUnitsDeleteTeamRequestSchema,
   ZUnitsGetRequestSchema,
   ZUnitsGetResponseSchema,
+  ZUnitsLegacyInvoicesMoveResponseSchema,
+  ZUnitsLegacyInvoicesPreviewResponseSchema,
   ZUnitsListProfilesResponseSchema,
   ZUnitsListResponseSchema,
   ZUnitsRemoveMemberRequestSchema,
@@ -163,4 +166,19 @@ export const unitsRouter = router({
   listProfiles: procedure
     .output(ZUnitsListProfilesResponseSchema)
     .query(async () => ({ users: await listProfileScopes() })),
+
+  // Task 7: notas antigas do espaço pessoal para o primeiro time de unidade de quem enviou.
+  legacyInvoices: router({
+    preview: procedure
+      .output(ZUnitsLegacyInvoicesPreviewResponseSchema)
+      .query(async () => await previewLegacyInvoices()),
+
+    move: procedure.output(ZUnitsLegacyInvoicesMoveResponseSchema).mutation(
+      async ({ ctx }) =>
+        await moveLegacyInvoices({
+          admin: { id: ctx.user.id, name: ctx.user.name, email: ctx.user.email },
+          requestMetadata: ctx.metadata,
+        }),
+    ),
+  }),
 });

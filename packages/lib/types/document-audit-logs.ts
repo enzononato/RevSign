@@ -81,6 +81,7 @@ export const ZDocumentAuditLogTypeSchema = z.enum([
   'REVALLE_COST_CENTER_CHANGED', // REVALLE: a Contabilidade corrigiu o centro: versão substituída e nova versão
   'REVALLE_SEND_RECEIPT', // REVALLE: comprovante de envio do e-mail com o link de assinatura (um por e-mail entregue ao servidor)
   'REVALLE_RECIPIENT_NAME_FROM_HR', // REVALLE: nome do destinatário trocado pelo nome do RH no portão (sem CPF)
+  'REVALLE_INVOICE_MOVED_TO_UNIT', // REVALLE: nota antiga levada do espaço pessoal para o time da unidade (v.26)
 ]);
 
 export const ZDocumentAuditLogEmailTypeSchema = z.enum([
@@ -1019,6 +1020,20 @@ export const ZDocumentAuditLogEventRevalleRecipientNameFromHrSchema = z.object({
   data: z.object({ recipientId: z.number(), from: z.string().nullable(), to: z.string() }),
 });
 
+// REVALLE: (v.26) o admin levou a nota antiga do espaço pessoal para o primeiro time de unidade de quem enviou. Só ids e
+// nomes de time e de unidade (sem dado pessoal); quem moveu fica no `userId` do evento e em `movedByUserId`.
+export const ZDocumentAuditLogEventRevalleInvoiceMovedToUnitSchema = z.object({
+  type: z.literal(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_MOVED_TO_UNIT),
+  data: z.object({
+    fromTeamId: z.number(),
+    fromTeamName: z.string(),
+    toTeamId: z.number(),
+    toTeamName: z.string(),
+    toUnitName: z.string(),
+    movedByUserId: z.number(),
+  }),
+});
+
 export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
   z.union([
     ZDocumentAuditLogEventEnvelopeItemCreatedSchema,
@@ -1079,6 +1094,7 @@ export const ZDocumentAuditLogSchema = ZDocumentAuditLogBaseSchema.and(
     ZDocumentAuditLogEventRevalleCostCenterChangedSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleSendReceiptSchema, // REVALLE:
     ZDocumentAuditLogEventRevalleRecipientNameFromHrSchema, // REVALLE:
+    ZDocumentAuditLogEventRevalleInvoiceMovedToUnitSchema, // REVALLE: v.26
   ]),
 );
 

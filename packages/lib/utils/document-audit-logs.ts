@@ -837,6 +837,14 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
 
       return { anonymous: text, you: text, user: text };
     })
+    // REVALLE: (v.26) nota antiga levada do espaço pessoal para o time da unidade pelo admin.
+    .with({ type: DOCUMENT_AUDIT_LOG_TYPE.REVALLE_INVOICE_MOVED_TO_UNIT }, ({ data }) => {
+      const team = data.toTeamName;
+      const unit = data.toUnitName;
+      const text = msg`Nota fiscal antiga levada do espaço pessoal para o time ${team} da unidade ${unit}`;
+
+      return { anonymous: text, you: text, user: text };
+    })
     .exhaustive();
 
   let selectedDescription = description.anonymous;

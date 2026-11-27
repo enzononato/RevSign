@@ -159,3 +159,20 @@ export type TUnitsListResponse = z.infer<typeof ZUnitsListResponseSchema>;
 export type TUnitsGetResponse = z.infer<typeof ZUnitsGetResponseSchema>;
 export type TUnitsListProfilesResponse = z.infer<typeof ZUnitsListProfilesResponseSchema>;
 export type TUnitsSearchUsersResponse = z.infer<typeof ZUnitsSearchUsersResponseSchema>;
+
+/** v.26, Task 7: prévia de "Levar as notas antigas para a unidade de quem enviou" (só consulta). */
+export const ZUnitsLegacyInvoicesPreviewResponseSchema = z.object({
+  moveCount: z.number(),
+  movePeopleCount: z.number(),
+  stayCount: z.number(),
+  stayPeople: z.array(
+    z.object({ userId: z.number(), name: z.string().nullable(), email: z.string(), count: z.number() }),
+  ),
+  stayPeopleCount: z.number(),
+});
+
+export const ZUnitsLegacyInvoicesMoveResponseSchema = z.object({
+  moved: z.number(),
+  failed: z.number(),
+  stayed: z.number(),
+});

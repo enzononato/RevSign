@@ -6,17 +6,20 @@ atualizar (unidades, times e acesso, v.26)".
 
 ## Primeiros passos depois de atualizar
 
-Faça logo depois do deploy, como admin. Até o passo 4, o Financeiro e a Contabilidade não veem nota nenhuma nas filas.
+Faça logo depois do deploy, como admin. Até o passo 5, o Financeiro e a Contabilidade não veem nota nenhuma nas filas.
 
 1. Abra **Admin → Unidades e times** e clique em **Criar as 7 unidades**.
 2. Abra cada unidade e confira os times. Se a base do RH não respondeu, clique em **Criar times a partir dos setores
    do RH**.
 3. Em cada unidade, clique em **Adicionar pessoa** e marque os times de cada pessoa. Comece por quem envia notas.
-4. Na lista de unidades, seção **Financeiro e Contabilidade**, clique em **Escolher unidades** para cada pessoa.
+4. Na lista de unidades, clique em **Levar as notas antigas para a unidade de quem enviou** (cartão **Notas antigas
+   do espaço pessoal**). Confira a prévia, ponha numa unidade quem aparece em "ficam" e clique de novo. Detalhes em
+   "Notas antigas do espaço pessoal".
+5. Na lista de unidades, seção **Financeiro e Contabilidade**, clique em **Escolher unidades** para cada pessoa.
    Ninguém pode ficar com "Sem unidades: escolha as unidades desta pessoa".
-5. Ligue **Ver só o que enviou ou recebeu para assinar** para quem não deve ver os documentos dos colegas do time.
-6. Avise quem envia notas: a nota agora sai pelo time da unidade, escolhido no topo da tela.
-7. No dia seguinte, abra **Admin → Usuários → Inativados pela folha** e confira quem a rotina da noite desativou.
+6. Ligue **Ver só o que enviou ou recebeu para assinar** para quem não deve ver os documentos dos colegas do time.
+7. Avise quem envia notas: a nota agora sai pelo time da unidade, escolhido no topo da tela.
+8. No dia seguinte, abra **Admin → Usuários → Inativados pela folha** e confira quem a rotina da noite desativou.
 
 ## O que são unidades e times
 
@@ -24,7 +27,8 @@ Faça logo depois do deploy, como admin. Até o passo 4, o Financeiro e a Contab
   Pombal, Paulo Afonso, Alagoinhas e Serrinha. O admin pode criar outras.
 - **Time** é um setor da unidade (Administrativo, Logística…). Os documentos ficam no time pelo qual foram enviados.
 - Cada pessoa vê os documentos dos times dela. Quem não está em nenhum time da unidade não vê documento da unidade.
-- O **espaço pessoal** continua existindo. Os documentos antigos ficam onde estão.
+- O **espaço pessoal** continua existindo. Os documentos antigos ficam onde estão, menos as notas fiscais, que o admin
+  leva para a unidade de quem enviou (veja "Notas antigas do espaço pessoal").
 - O admin do sistema vê tudo.
 
 O painel fica em **Admin → Unidades e times**. Só o admin abre.
@@ -167,11 +171,33 @@ Quem ainda não está em nenhuma unidade não consegue enviar nota. Ponha a pess
 
 ### Notas antigas do espaço pessoal
 
-As notas enviadas pelo espaço pessoal antes da v.26 ficam onde estão. Elas aparecem **só para o admin e para quem
-enviou** (e para quem assina). O Financeiro e a Contabilidade não veem essas notas. Se uma delas ainda espera
-aprovação ou validação, o admin cuida, em **Notas fiscais** logado como admin. Por isso, peça ao Financeiro e à
-Contabilidade para zerar as filas antes de atualizar. Rascunhos de nota no espaço pessoal precisam ser refeitos no time
-da unidade.
+Antes da v.26 não havia unidades: toda nota fiscal saiu pelo espaço pessoal de quem enviou. O Financeiro e a
+Contabilidade só veem notas de times de unidade, então essas notas somem das filas e do histórico deles. Enquanto
+estão no espaço pessoal, aparecem **só para o admin e para quem enviou** (e para quem assina).
+
+Para trazer as notas de volta, use o cartão **Notas antigas do espaço pessoal**, na lista de **Admin → Unidades e
+times**. Use **depois de pôr as pessoas nas unidades**: a nota vai para o time da unidade de quem enviou.
+
+1. Clique em **Levar as notas antigas para a unidade de quem enviou**. Abre a prévia (nada é gravado ainda): "{n}
+   notas de {p} pessoas vão para a unidade de quem enviou. {k} ficam no espaço pessoal porque quem enviou não está em
+   nenhuma unidade." Logo abaixo, a lista de quem fica.
+2. Se alguém ficou, clique em **Cancelar**, ponha essa pessoa numa unidade e volte ao passo 1.
+3. Clique em **Levar {n} notas**. Ao terminar: "{n} notas levadas para as unidades." Se alguma falhar, o aviso diz
+   quantas; clique de novo para tentar só as que faltam.
+
+Como funciona:
+
+- Vão todas as notas fiscais do espaço pessoal: rascunhos, pendentes, concluídas, recusadas, substituídas e as que
+  quem enviou excluiu. Documento comum ("Apenas assinar") não é tocado.
+- O destino é o **primeiro time de unidade** de quem enviou (o mesmo time que abre por padrão no envio). A nota e as
+  versões dela (nova versão do Financeiro ou da Contabilidade) vão sempre juntas para o mesmo time.
+- A nota sai da pasta em que estava (a pasta é do espaço pessoal) e fica na lista do time.
+- O histórico do documento ganha a linha "Nota fiscal antiga levada do espaço pessoal para o time … da unidade …",
+  com o admin que levou. Essa linha não entra no PDF assinado.
+- Pode rodar de novo quando quiser: só leva o que ainda está no espaço pessoal.
+- Quem assina não percebe nada: o link de assinatura continua o mesmo. Um link antigo do painel de quem enviou (com o
+  endereço do espaço pessoal) deixa de abrir; a nota está agora no time da unidade.
+- Os próximos e-mails e webhooks da nota seguem as configurações do time da unidade.
 
 ## Inativação pela folha (toda noite)
 

@@ -688,10 +688,10 @@ Imagem `ghcr.io/enzononato/revsign:v2.21.1-revalle.22` (e `revsign-backup` com a
 Imagem `ghcr.io/enzononato/revsign:v2.21.1-revalle.26` (e `revsign-backup` com a mesma tag). Funcionamento das telas:
 `unidades-e-acesso.md`.
 
-1. **Antes do deploy, peça ao Financeiro e à Contabilidade para zerar as filas** (aprovar e validar o que está
-   pendente). As notas enviadas pelo espaço pessoal que ainda estiverem pendentes passam a ser só do admin (**Notas
-   fiscais**, logado como admin). Rascunhos de nota no espaço pessoal precisam ser refeitos no time da unidade.
-   **Backup antes** (seção "Backup antes de atualizar").
+1. **Notas antigas do espaço pessoal.** Não é mais preciso zerar as filas antes. Depois de pôr as pessoas nas unidades,
+   use o botão **Levar as notas antigas para a unidade de quem enviou** (Admin → Unidades e times, cartão **Notas
+   antigas do espaço pessoal**) para levar as notas antigas. Até lá, elas ficam só com o admin e com quem enviou.
+   Rascunhos de nota no espaço pessoal também são levados. **Backup antes** (seção "Backup antes de atualizar").
 2. **Migração.** `20261127100000_revalle_unidades` roda sozinha na subida e só ACRESCENTA (5 tabelas e 2 tipos novos).
    Nada existente é alterado.
 3. **Fuso do container.** Confira que o serviço `revsign` tem `TZ=America/Bahia` na aba **Environment**. Se não tiver,
@@ -711,13 +711,15 @@ Imagem `ghcr.io/enzononato/revsign:v2.21.1-revalle.26` (e `revsign-backup` com a
    2. Clique em **Criar as 7 unidades**. Os times nascem dos setores do RH. Se a base do RH não responder, as unidades
       ficam sem times; depois use **Criar times a partir dos setores do RH** em cada unidade.
    3. Em cada unidade, **Adicionar pessoa** e marque os times dela.
-   4. Na seção **Financeiro e Contabilidade** da lista de unidades, clique em **Escolher unidades** para cada pessoa.
+   4. Na lista de unidades, **Levar as notas antigas para a unidade de quem enviou**. Confira a prévia, ponha numa
+      unidade quem aparece em "ficam" e clique de novo.
+   5. Na seção **Financeiro e Contabilidade** da lista de unidades, clique em **Escolher unidades** para cada pessoa.
       Ninguém pode ficar com "Sem unidades: escolha as unidades desta pessoa".
-   5. Detalhes e a lista completa em `unidades-e-acesso.md`, "Primeiros passos depois de atualizar".
+   6. Detalhes e a lista completa em `unidades-e-acesso.md`, "Primeiros passos depois de atualizar".
 8. **Muda o envio de nota fiscal.** Nota fiscal só sai de um time de unidade. No espaço pessoal o envio é recusado com
    "Nota fiscal deve ser enviada pelo time da sua unidade. Troque para o time no topo da tela." Avise quem envia notas
    e coloque essas pessoas numa unidade antes. "Apenas assinar" continua liberado no pessoal. Notas antigas do espaço
-   pessoal ficam onde estão, visíveis só para o admin, para quem enviou e para quem assina.
+   pessoal ficam só com o admin, com quem enviou e com quem assina até o admin levá-las para a unidade (passo 7.4).
 9. **Integrações pela API.** Um token de API do espaço pessoal não envia mais nota fiscal. Para enviar notas pela API,
    crie o token no time da unidade.
 10. **Conferência de primeiro uso.** Com uma conta de teste numa unidade, envie uma nota pelo time da unidade e confira
