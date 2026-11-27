@@ -88,6 +88,13 @@ export default function SettingsSecurity({ loaderData }: Route.ComponentProps) {
                 <Trans>Add an authenticator to serve as a secondary authentication method for signing documents.</Trans>
               )}
             </p>
+
+            {/* REVALLE: v.26, o código do autenticador também confirma a assinatura (no lugar do código por e-mail) */}
+            <p className="mt-1 text-muted-foreground text-sm">
+              <Trans>
+                O código do app autenticador também confirma as suas assinaturas, no lugar do código enviado por e-mail.
+              </Trans>
+            </p>
           </div>
 
           {user.twoFactorEnabled ? <DisableAuthenticatorAppDialog /> : <EnableAuthenticatorAppDialog />}

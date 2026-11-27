@@ -114,6 +114,7 @@ const ZDeviceLocation = z.object({
 const FACTOR_LABELS: Record<string, string> = {
   EMAIL_LINK: 'Link por e-mail',
   EMAIL_CODE: 'Código por e-mail',
+  AUTHENTICATOR_CODE: 'Assinatura confirmada pelo app autenticador',
   EMPLOYEE_CONFIRMATION: 'Confirmação de colaborador',
   EMPLOYEE_LINKED: 'Vínculo de colaborador já confirmado',
   EXTERNAL_EMAIL: 'E-mail externo à empresa',

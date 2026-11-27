@@ -549,6 +549,15 @@ export const formatDocumentAuditLogAction = (i18n: I18n, auditLog: TDocumentAudi
       you: msg`You requested a 2FA token for the document`,
       user: msg`${user} requested a 2FA token for the document`,
     }))
+    // REVALLE: confirmação pelo app autenticador da conta (v.26)
+    .with(
+      { type: DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_ACCESS_AUTH_2FA_VALIDATED, data: { revalleMethod: 'AUTHENTICATOR' } },
+      () => ({
+        anonymous: msg`Assinatura confirmada pelo app autenticador`,
+        you: msg`Assinatura confirmada pelo app autenticador`,
+        user: msg`Assinatura confirmada pelo app autenticador (${user})`,
+      }),
+    )
     .with({ type: DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_ACCESS_AUTH_2FA_VALIDATED }, () => ({
       anonymous: msg`Recipient validated a 2FA token for the document`,
       you: msg`You validated a 2FA token for the document`,

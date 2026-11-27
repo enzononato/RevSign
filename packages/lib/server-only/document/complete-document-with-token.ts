@@ -179,12 +179,12 @@ export const completeDocumentWithToken = async ({
     recipientAuth: recipient.authOptions,
   });
 
-  // REVALLE: quem age (nem CC nem VIEWER) só conclui com o código enviado ao próprio e-mail, seja qual for o authOptions gravado
-  // (nenhum outro fator vale; código errado conta tentativa e bloqueia no 5º). O bloco do upstream fica só para CC/VIEWER.
+  // REVALLE: quem age (nem CC nem VIEWER) só conclui com o código enviado ao próprio e-mail, seja qual for o authOptions gravado,
+  // ou com o app autenticador da conta dona do e-mail (v.26); código errado conta tentativa e bloqueia no 5º. O bloco do upstream fica só para CC/VIEWER.
   const isRevalleActingRecipient = recipient.role !== RecipientRole.CC && recipient.role !== RecipientRole.VIEWER;
 
   if (isRevalleActingRecipient) {
-    await assertRevalleAccessCode({ recipient, accessAuthOptions, requestMetadata });
+    await assertRevalleAccessCode({ recipient, accessAuthOptions, requestMetadata, userId }); // REVALLE: v.26 autenticador do dono do e-mail
   }
 
   if (!isRevalleActingRecipient && derivedRecipientAccessAuth.includes(DocumentAuth.TWO_FACTOR_AUTH)) {

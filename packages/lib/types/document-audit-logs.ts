@@ -621,6 +621,7 @@ export const ZDocumentAuditLogEventDocumentRecipientValidated2FAEmailSchema = z.
     recipientEmail: z.string(),
     recipientName: z.string(),
     recipientId: z.number(),
+    revalleMethod: z.literal('AUTHENTICATOR').optional(), // REVALLE: código do app autenticador da conta (v.26)
   }),
 });
 
@@ -633,6 +634,7 @@ export const ZDocumentAuditLogEventDocumentRecipientFailed2FAEmailSchema = z.obj
     recipientEmail: z.string(),
     recipientName: z.string(),
     recipientId: z.number(),
+    revalleMethod: z.literal('AUTHENTICATOR').optional(), // REVALLE: código do app autenticador da conta (v.26)
   }),
 });
 

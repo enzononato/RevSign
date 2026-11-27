@@ -7,6 +7,7 @@ import { DocumentAuth, type TRecipientAccessAuth } from '../../../types/document
 import type { RequestMetadata } from '../../../universal/extract-request-metadata';
 import { createDocumentAuditLogData } from '../../../utils/document-audit-logs';
 import { validateTwoFactorTokenFromEmail } from '../../2fa/email/validate-2fa-token-from-email';
+import { verifyTwoFactorAuthenticationToken } from '../../2fa/verify-2fa-token';
 import { createRateLimit } from '../../rate-limit/rate-limit';
 import { assertRateLimit } from '../../rate-limit/rate-limit-middleware';
 import { lockRevalleGate } from './lock-gate';
@@ -17,6 +18,14 @@ const revalleCompleteRateLimit = createRateLimit({ action: 'revalle.complete', m
 
 // Mesma janela do upstream para o código por e-mail: 10 períodos de 30 s (5 minutos).
 const CODE_WINDOW = 10;
+
+// v.26: o código do app autenticador vale no período de 30 s atual e no anterior (tolera o relógio do celular atrasado).
+const TOTP_WINDOW = 2;
+
+/** Como a pessoa confirmou a conclusão: código por e-mail ou app autenticador da própria conta (v.26). */
+export type RevalleAccessCodeMethod = 'EMAIL' | 'AUTHENTICATOR';
+
+type AuthenticatorUser = { id: number; name: string | null; email: string };
 
 type AccessCodeRecipient = {
   id: number;
@@ -43,35 +52,82 @@ const audit = async (
     | typeof DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_ACCESS_AUTH_2FA_VALIDATED,
   recipient: AccessCodeRecipient,
   requestMetadata: RequestMetadata | undefined,
+  authenticatorUser?: AuthenticatorUser | null,
 ) => {
   await prisma.documentAuditLog.create({
     data: createDocumentAuditLogData({
       type,
       envelopeId: recipient.envelopeId,
       requestMetadata,
+      // Pelo autenticador, o histórico guarda a conta que confirmou (data, hora e usuário).
+      ...(authenticatorUser
+        ? { user: { id: authenticatorUser.id, name: authenticatorUser.name, email: authenticatorUser.email } }
+        : {}),
       data: {
         recipientId: recipient.id,
         recipientName: recipient.name,
         recipientEmail: recipient.email,
+        ...(authenticatorUser ? { revalleMethod: 'AUTHENTICATOR' as const } : {}),
       },
     }),
   });
 };
 
 /**
- * Na conclusão, quem age (nem CC nem VIEWER) só passa com o código de 6 dígitos enviado ao próprio e-mail.
- * Nenhum outro fator vale (autenticador da conta logada, conta, senha). Cada código errado ou vencido conta;
- * no 5º o link é bloqueado (CODE_ATTEMPTS). O código certo zera o contador.
+ * A conta da sessão só serve para o autenticador se é a dona do e-mail do destinatário (e-mail confirmado, conta ativa)
+ * e tem o autenticador ligado. Sem sessão, ou com outra conta, nulo: vale só o código por e-mail.
+ */
+const findAuthenticatorOwner = async (userId: number | null | undefined, recipientEmail: string) => {
+  if (!userId) {
+    return null;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      emailVerified: true,
+      disabled: true,
+      twoFactorEnabled: true,
+      twoFactorSecret: true,
+    },
+  });
+
+  if (
+    !user ||
+    !user.emailVerified ||
+    user.disabled ||
+    !user.twoFactorEnabled ||
+    !user.twoFactorSecret ||
+    user.email.trim().toLowerCase() !== recipientEmail.trim().toLowerCase()
+  ) {
+    return null;
+  }
+
+  return user;
+};
+
+/**
+ * Na conclusão, quem age (nem CC nem VIEWER) só passa com o código de 6 dígitos enviado ao próprio e-mail, ou (v.26)
+ * com o código do app autenticador, só quando a sessão é a conta dona do e-mail do destinatário e tem o autenticador
+ * ligado. Nenhum outro fator vale (conta, senha, autenticador de outra conta). Cada código errado ou vencido, de um ou
+ * de outro, conta a mesma tentativa; no 5º o link é bloqueado (CODE_ATTEMPTS). O código certo zera o contador.
+ * Devolve o método que confirmou.
  */
 export const assertRevalleAccessCode = async ({
   recipient,
   accessAuthOptions,
   requestMetadata,
+  userId,
 }: {
   recipient: AccessCodeRecipient;
   accessAuthOptions?: TRecipientAccessAuth;
   requestMetadata?: RequestMetadata;
-}): Promise<void> => {
+  /** Usuário da sessão do pedido (o dono do autenticador). */
+  userId?: number | null;
+}): Promise<RevalleAccessCodeMethod> => {
   const identifier = `revalle-complete:${createHash('sha256').update(recipient.token).digest('hex').slice(0, 32)}`;
 
   assertRateLimit(await revalleCompleteRateLimit.check({ ip: requestMetadata?.ipAddress ?? 'unknown', identifier }));
@@ -106,19 +162,39 @@ export const assertRevalleAccessCode = async ({
     });
   }
 
-  const isValid =
-    accessAuthOptions.type === DocumentAuth.TWO_FACTOR_AUTH &&
-    accessAuthOptions.method === 'email' &&
-    typeof accessAuthOptions.token === 'string' &&
-    (await validateTwoFactorTokenFromEmail({
+  const isTwoFactor =
+    accessAuthOptions.type === DocumentAuth.TWO_FACTOR_AUTH && typeof accessAuthOptions.token === 'string';
+  const isAuthenticator = isTwoFactor && accessAuthOptions.method === 'authenticator';
+
+  // Autenticador sem ser o dono do e-mail (sem sessão, outra conta, autenticador desligado): recusado como código errado.
+  const authenticatorOwner = isAuthenticator ? await findAuthenticatorOwner(userId, recipient.email) : null;
+
+  let isValid = false;
+
+  if (isAuthenticator) {
+    isValid =
+      authenticatorOwner !== null &&
+      (await verifyTwoFactorAuthenticationToken({
+        user: authenticatorOwner,
+        totpCode: accessAuthOptions.token,
+        window: TOTP_WINDOW,
+      }));
+  } else if (isTwoFactor && accessAuthOptions.method === 'email') {
+    isValid = await validateTwoFactorTokenFromEmail({
       envelopeId: recipient.envelopeId,
       email: recipient.email,
       code: accessAuthOptions.token,
       window: CODE_WINDOW,
-    }));
+    });
+  }
 
   if (!isValid) {
-    await audit(DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_ACCESS_AUTH_2FA_FAILED, recipient, requestMetadata);
+    await audit(
+      DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_ACCESS_AUTH_2FA_FAILED,
+      recipient,
+      requestMetadata,
+      authenticatorOwner,
+    );
 
     if (attempt >= REVALLE_MAX_ATTEMPTS) {
       await lockRevalleGate({
@@ -138,5 +214,12 @@ export const assertRevalleAccessCode = async ({
     data: { codeFailedAttempts: 0 },
   });
 
-  await audit(DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_ACCESS_AUTH_2FA_VALIDATED, recipient, requestMetadata);
+  await audit(
+    DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_ACCESS_AUTH_2FA_VALIDATED,
+    recipient,
+    requestMetadata,
+    authenticatorOwner,
+  );
+
+  return authenticatorOwner ? 'AUTHENTICATOR' : 'EMAIL';
 };

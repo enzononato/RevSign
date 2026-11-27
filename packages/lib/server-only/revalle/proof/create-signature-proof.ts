@@ -37,7 +37,13 @@ export type ProofEmployee = {
 };
 
 export type ProofFactor = {
-  factor: 'EMAIL_LINK' | 'EMAIL_CODE' | 'EMPLOYEE_CONFIRMATION' | 'EMPLOYEE_LINKED' | 'EXTERNAL_EMAIL';
+  factor:
+    | 'EMAIL_LINK'
+    | 'EMAIL_CODE'
+    | 'AUTHENTICATOR_CODE'
+    | 'EMPLOYEE_CONFIRMATION'
+    | 'EMPLOYEE_LINKED'
+    | 'EXTERNAL_EMAIL';
   at: string;
 };
 
@@ -192,7 +198,7 @@ export const createRevalleSignatureProof = async ({
       ],
     },
     orderBy: { createdAt: 'asc' },
-    select: { type: true, createdAt: true },
+    select: { type: true, createdAt: true, data: true },
   });
 
   const first = (type: string) => logs.find((log) => log.type === type)?.createdAt;
@@ -209,8 +215,18 @@ export const createRevalleSignatureProof = async ({
   const confirmedAt = last(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_IDENTITY_CONFIRMED);
   const linkedAt = last(DOCUMENT_AUDIT_LOG_TYPE.REVALLE_IDENTITY_LINKED);
 
+  // v.26: a última confirmação diz o método (código por e-mail ou app autenticador da conta).
+  const lastCodeLog = [...logs]
+    .reverse()
+    .find((log) => log.type === DOCUMENT_AUDIT_LOG_TYPE.DOCUMENT_ACCESS_AUTH_2FA_VALIDATED);
+  const codeLogData: unknown = lastCodeLog?.data;
+  const codeByAuthenticator =
+    typeof codeLogData === 'object' &&
+    codeLogData !== null &&
+    (codeLogData as { revalleMethod?: unknown }).revalleMethod === 'AUTHENTICATOR';
+
   if (codeAt) {
-    factors.push({ factor: 'EMAIL_CODE', at: codeAt.toISOString() });
+    factors.push({ factor: codeByAuthenticator ? 'AUTHENTICATOR_CODE' : 'EMAIL_CODE', at: codeAt.toISOString() });
   }
 
   // Sem horário real do fator, ele fica de fora (não se inventa com a hora da assinatura).

@@ -4,6 +4,7 @@ import {
   buildRevalleCertificateRows,
   buildRevalleInvoiceCertificateLine,
   buildRevalleInvoiceCostCenterCertificateLine,
+  formatRevalleProofFactors,
   getRevalleSigningPositions,
   invoiceDocumentLabel,
   type RevalleCertificateProof,
@@ -450,5 +451,17 @@ describe('várias notas no mesmo envio (Fase 9)', () => {
       'Nota 2 de 3 (nf-b.pdf): Centro de custo: 201 – Armazém',
     );
     expect(buildRevalleInvoiceCostCenterCertificateLine('201')).toBe('Centro de custo: 201 – Armazém');
+  });
+});
+
+describe('autenticador na assinatura (v.26)', () => {
+  it('o fator do app autenticador sai no lugar do código por e-mail, com data e hora', () => {
+    const label = formatRevalleProofFactors([
+      { factor: 'EMAIL_LINK', at: '2026-10-29T17:30:00.000Z' },
+      { factor: 'AUTHENTICATOR_CODE', at: '2026-10-29T17:33:00.000Z' },
+    ]);
+
+    expect(label).toMatch(/^Link por e-mail \(.+\) · Assinatura confirmada pelo app autenticador \(.+\)$/);
+    expect(label).not.toContain('Código por e-mail');
   });
 });

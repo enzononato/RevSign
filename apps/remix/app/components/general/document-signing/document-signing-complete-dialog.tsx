@@ -306,6 +306,7 @@ export const DocumentSigningCompleteDialog = ({
           .with({ showTwoFactorForm: true }, () => (
             <AccessAuth2FAForm
               token={recipient.token}
+              recipientEmail={recipient.email} // REVALLE: v.26 autenticador da conta dona do e-mail
               error={twoFactorValidationError}
               onSubmit={onTwoFactorFormSubmit}
             />
