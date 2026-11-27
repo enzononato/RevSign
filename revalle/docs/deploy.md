@@ -6,8 +6,8 @@ Endereço de homologação: `assinatura-hml.revalle.com.br`. A produção (`assi
 
 Versões da imagem usadas neste guia:
 
-- App: `ghcr.io/enzononato/revsign:v2.21.1-revalle.25`
-- Backup: `ghcr.io/enzononato/revsign-backup:v2.21.1-revalle.25`
+- App: `ghcr.io/enzononato/revsign:v2.21.1-revalle.26`
+- Backup: `ghcr.io/enzononato/revsign-backup:v2.21.1-revalle.26`
 
 ## O que você precisa ter antes
 
@@ -101,7 +101,7 @@ Por quê: o navegador precisa achar o endereço `assinatura-hml.revalle.com.br`.
 2. Em **Service Name**, escreva `revsign`.
 3. Clique em **Create**.
 4. Na aba **Source**, escolha **Docker Image**.
-5. No campo **Image**, escreva `ghcr.io/enzononato/revsign:v2.21.1-revalle.25`.
+5. No campo **Image**, escreva `ghcr.io/enzononato/revsign:v2.21.1-revalle.26`.
 6. Clique em **Save**.
 7. Abra a aba **Environment** (veja o passo 5 antes de salvar).
 
@@ -148,7 +148,7 @@ Por quê: é o e-mail que envia os convites de assinatura.
 Por quê: copia o banco todo dia, cifrado, para fora da VPS. Detalhes em `backup.md`; crie antes a conta FTP lá descrita (ou deixe `BACKUP_REMOTE_TYPE=none` por enquanto e volte depois). Com `none`, cada backup mostra no log `AVISO: cópia remota desativada` e grava `"remote":"disabled"` e `"warning"` no `last-run.json`, porque os backups ficam só na VPS e não protegem contra a perda do servidor.
 
 1. No projeto, clique em **+ Service** e depois **App**. Nome: `revsign-backup`.
-2. Aba **Source** → **Docker Image** → `ghcr.io/enzononato/revsign-backup:v2.21.1-revalle.25` → **Save**.
+2. Aba **Source** → **Docker Image** → `ghcr.io/enzononato/revsign-backup:v2.21.1-revalle.26` → **Save**.
 3. Abra `backup.env` (do passo 0) no bloco de notas e:
    - Troque `BACKUP_DATABASE_URL=<preencher>` pela mesma Internal Connection URL do passo 2.
    - Para a cópia fora da VPS (recomendada), tire o `#` do começo das linhas `BACKUP_REMOTE_*` do exemplo FTPS e preencha host, usuário e senha da conta FTP (veja `backup.md`). Atenção à pasta: se a conta FTP está presa na pasta `revsign-backups`, use `BACKUP_REMOTE_PATH=/`; se vê a pasta pessoal inteira, mantenha `revsign-backups` (senão cria `revsign-backups/revsign-backups`). Deixe `BACKUP_REMOTE_KNOWN_HOSTS_FILE` comentada (só se usa em SFTP).
@@ -375,7 +375,7 @@ Legenda de "segredo?": **sim** = nunca no repositório, só no EasyPanel e no co
 |---|---|---|---|
 | `PORT` | Porta do app dentro do container | `3000` | não |
 | `NODE_ENV` | Modo de produção (evita mostrar detalhes de erro) | `production` | não |
-| `TZ` | Fuso horário (horas no certificado e no log) | `America/Bahia` | não |
+| `TZ` | Fuso horário (horas no certificado e no log). A inativação pela folha roda às 03:00 desse fuso (v.26): sem a variável, roda às 03:00 UTC (meia-noite na Bahia) | `America/Bahia` | não |
 | `NEXT_PRIVATE_INTERNAL_WEBAPP_URL` | Endereço do app para ele mesmo | `http://localhost:3000` | não |
 | `NEXT_PUBLIC_UPLOAD_TRANSPORT` | Onde guardar os PDFs (no banco) | `database` | não |
 | `NEXT_PRIVATE_JOBS_PROVIDER` | Fila de tarefas interna | `local` | não |
@@ -422,6 +422,7 @@ Legenda de "segredo?": **sim** = nunca no repositório, só no EasyPanel e no co
 | `NEXT_PRIVATE_REVALLE_PATRIMONIO_SENDER_EMAIL` | E-mail da conta do RevSign dona dos termos (remetente dos e-mails); precisa existir e estar ativa | `patrimonio@revalle.com.br` | não |
 | `NEXT_PRIVATE_REVALLE_PATRIMONIO_WEBHOOK_URL` | Endereço que recebe os avisos (`termo.sent`, `termo.signed`…). Sem ela, nenhum aviso. `https://`, ou `http://` só para a rede interna (nome do serviço sem ponto ou IP privado). Não precisa de `NEXT_PRIVATE_WEBHOOK_SSRF_BYPASS_HOSTS`, e essa variável **não** deve ser definida para isso | URL do webhook do Patrimônio | não |
 | `NEXT_PRIVATE_REVALLE_PATRIMONIO_WEBHOOK_SECRET` | Segredo do HMAC dos avisos (o mesmo do lado do Patrimônio). Sem ele, nenhum aviso | `openssl rand -hex 32` | sim |
+| `NEXT_PRIVATE_REVALLE_HR_INACTIVATION_MAX` | (Opcional, v.26) máximo de contas que a inativação pela folha pode desativar numa noite. Acima disso, ninguém é desativado e o log mostra `REVALLE_HR_SWEEP_CAP_EXCEEDED`. Número inteiro, `0` ou mais | não definir (vale o maior entre 10 e 5% das contas ativas com CPF vinculado) | não |
 
 ### Serviço Postgres (`revsign-db`)
 
@@ -681,6 +682,45 @@ Imagem `ghcr.io/enzononato/revsign:v2.21.1-revalle.22` (e `revsign-backup` com a
    "Assinado pela empresa" no certificado. Só depois faça o contrato completo.
 7. **Voltar à imagem anterior.** A imagem antiga ignora as colunas novas, mas contratos criados pela página ficam
    sem tela e os documentos que estavam na fila ficam parados.
+
+## Antes de atualizar (unidades, times e acesso, v.26)
+
+Imagem `ghcr.io/enzononato/revsign:v2.21.1-revalle.26` (e `revsign-backup` com a mesma tag). Funcionamento das telas:
+`unidades-e-acesso.md`.
+
+1. **Backup antes** (seção "Backup antes de atualizar").
+2. **Migração.** `20261127100000_revalle_unidades` roda sozinha na subida e só ACRESCENTA (5 tabelas e 2 tipos novos).
+   Nada existente é alterado.
+3. **Fuso do container.** Confira que o serviço `revsign` tem `TZ=America/Bahia` na aba **Environment**. Se não tiver,
+   acrescente. A inativação pela folha roda às 03:00 do fuso do container; sem a variável, roda às 03:00 UTC.
+4. **Variável opcional.** `NEXT_PRIVATE_REVALLE_HR_INACTIVATION_MAX`: o teto da trava de segurança da inativação pela
+   folha. Sem ela, vale o maior entre 10 e 5% das contas ativas com CPF vinculado. Só defina se precisar de outro número.
+5. **Tarefa nova.** `internal.revalle-hr-inactivation-sweep`, toda noite às 03:00. Ela nasce com o app. Sem
+   `COLABORADORES_DATABASE_URL` ou com a base do RH fora do ar, ela não faz nada.
+6. **Atenção ao Financeiro e à Contabilidade.** A partir desta versão, cada pessoa desses perfis só vê as notas das
+   unidades escolhidas para ela. **Até o TI escolher as unidades, o Financeiro e a Contabilidade não veem nota nenhuma
+   nas filas** (nem nos contadores do menu). Faça o passo 7 logo depois do deploy, de preferência fora do horário de
+   trabalho.
+7. **Logo depois do deploy**, como admin:
+   1. Abra **Admin → Unidades e times**.
+   2. Clique em **Criar as 7 unidades**. Os times nascem dos setores do RH. Se a base do RH não responder, as unidades
+      ficam sem times; depois use **Criar times a partir dos setores do RH** em cada unidade.
+   3. Em cada unidade, **Adicionar pessoa** e marque os times dela.
+   4. Na seção **Financeiro e Contabilidade** da lista de unidades, clique em **Escolher unidades** para cada pessoa.
+      Ninguém pode ficar com "Sem unidades: escolha as unidades desta pessoa".
+   5. Detalhes e a lista completa em `unidades-e-acesso.md`, "Primeiros passos depois de atualizar".
+8. **Muda o envio de nota fiscal.** Nota fiscal só sai de um time de unidade. No espaço pessoal o envio é recusado com
+   "Nota fiscal deve ser enviada pelo time da sua unidade. Troque para o time no topo da tela." Avise quem envia notas
+   e coloque essas pessoas numa unidade antes. "Apenas assinar" continua liberado no pessoal. Notas antigas do espaço
+   pessoal ficam onde estão, visíveis só para o admin e para quem enviou.
+9. **Integrações pela API.** Um token de API do espaço pessoal não envia mais nota fiscal. Para enviar notas pela API,
+   crie o token no time da unidade.
+10. **Conferência de primeiro uso.** Com uma conta de teste numa unidade, envie uma nota pelo time da unidade e confira
+    que ela aparece na fila do Financeiro daquela unidade. Tente enviar outra pelo espaço pessoal e confira a recusa.
+    Em **Admin → Usuários**, confira que o botão **Inativados pela folha** abre (vazio até a primeira noite).
+11. **Voltar à imagem anterior.** A imagem antiga ignora as tabelas novas (só acrescentadas). O Financeiro e a
+    Contabilidade voltam a ver todas as notas, e a rotina da noite para. Contas já desativadas pela folha continuam
+    desativadas: reative à mão em **Admin → Usuários**.
 
 ## Atualizar a versão depois
 
