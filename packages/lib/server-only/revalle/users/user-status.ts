@@ -96,9 +96,27 @@ export const setRevalleKeepActive = async ({
 /**
  * Reativar: reativa a conta (o "ativar usuário" do upstream), registra quem reativou e liga "Mantido ativo pelo TI",
  * para a folha não inativar de novo na noite seguinte.
+ * `keepActive`: 'always' (botão "Reativar") ou 'ifHrInactivated' (o "Ativar conta" do upstream: só liga a marca quando
+ * quem desativou foi a folha; conta desativada à mão pelo TI volta sem a marca).
+ * Ordem: a marca antes de reativar. Se algo falha depois, a conta continua desativada (com a marca, inofensiva), e nunca
+ * fica ativa sem a marca para a folha desativar de novo.
  */
-export const reactivateRevalleUser = async ({ userId, actorId }: { userId: number; actorId: number }) => {
+export const reactivateRevalleUser = async ({
+  userId,
+  actorId,
+  keepActive = 'always',
+}: {
+  userId: number;
+  actorId: number;
+  keepActive?: 'always' | 'ifHrInactivated';
+}) => {
   await assertUserExists(userId);
+
+  const shouldKeepActive = keepActive === 'always' || (await hrInactivatedIds([userId])).length > 0;
+
+  if (shouldKeepActive) {
+    await setRevalleKeepActive({ userId, keepActive: true, actorId });
+  }
 
   await enableUser({ id: userId });
 
@@ -110,8 +128,6 @@ export const reactivateRevalleUser = async ({ userId, actorId }: { userId: numbe
       actorId,
     },
   });
-
-  await setRevalleKeepActive({ userId, keepActive: true, actorId });
 };
 
 /** Registro do "Zerar autenticador" (o reset em si é o do upstream). */

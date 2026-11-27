@@ -3,7 +3,8 @@ import { z } from 'zod';
 import type { JobDefinition } from '../../client/_internal/job';
 
 // REVALLE (v.26): inativação pela folha. Toda noite às 03:00 desativa as contas com CPF vinculado que a base do RH mostra
-// como desligadas (pula quem o TI marcou "Mantido ativo"). Base do RH fora do ar: não faz nada naquela noite.
+// como desligadas (pula quem o TI marcou "Mantido ativo" e os admins). Base do RH fora do ar: não faz nada naquela noite.
+// O horário segue o TZ do processo: o container precisa de TZ=America/Bahia (sem ele, 03:00 UTC = meia-noite na Bahia).
 const REVALLE_HR_INACTIVATION_SWEEP_JOB_DEFINITION_ID = 'internal.revalle-hr-inactivation-sweep';
 
 const REVALLE_HR_INACTIVATION_SWEEP_JOB_DEFINITION_SCHEMA = z.object({});

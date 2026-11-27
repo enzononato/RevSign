@@ -25,7 +25,7 @@ export const enableUserRoute = adminProcedure
       });
     }
 
-    // REVALLE (v.26): ativar à mão é o "Reativar": registra quem reativou e liga "Mantido ativo pelo TI", para a
-    // inativação pela folha não desativar de novo na noite seguinte. Usa o enableUser do upstream por dentro.
-    await reactivateRevalleUser({ userId: id, actorId: ctx.user.id });
+    // REVALLE (v.26): registra quem reativou; se quem desativou foi a folha, liga "Mantido ativo pelo TI" (como o
+    // "Reativar"), para a rotina da noite não desativar de novo. Usa o enableUser do upstream por dentro.
+    await reactivateRevalleUser({ userId: id, actorId: ctx.user.id, keepActive: 'ifHrInactivated' });
   });

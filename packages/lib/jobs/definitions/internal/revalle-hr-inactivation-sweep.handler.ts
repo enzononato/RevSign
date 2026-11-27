@@ -4,10 +4,16 @@ import type { TRevalleHrInactivationSweepJobDefinition } from './revalle-hr-inac
 
 // REVALLE (v.26): inativação pela folha. Só contagens no log (nunca CPF, nome ou e-mail).
 export const run = async ({ io }: { payload: TRevalleHrInactivationSweepJobDefinition; io: JobRunIO }) => {
-  const { unavailable, checked, inactivated, failed } = await sweepHrInactivations();
+  const { unavailable, capped, checked, inactivated, failed } = await sweepHrInactivations();
 
   if (unavailable) {
     io.logger.warn('HR inactivation sweep: base do RH indisponível, nada foi feito');
+
+    return;
+  }
+
+  if (capped) {
+    io.logger.warn('HR inactivation sweep: REVALLE_HR_SWEEP_CAP_EXCEEDED, nada foi feito');
 
     return;
   }

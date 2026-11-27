@@ -3,13 +3,14 @@
 //   - a varredura (`internal.revalle-hr-inactivation-sweep`, disparada como o cron do app dispara: linha em
 //     "BackgroundJob" + POST assinado em /api/jobs) desativa a conta com CPF vinculado que a folha mostra desligada,
 //     encerra as sessões dela e registra INACTIVATED/HR_SYNC;
-//   - não toca a conta com CPF ativo, a conta sem vínculo e a conta "Mantido ativo pelo TI";
+//   - não toca a conta com CPF ativo, a conta sem vínculo, a conta "Mantido ativo pelo TI" e o admin do sistema;
 //   - com a base do RH fora do ar, não faz nada;
-//   - "Reativar" (admin) reativa, liga "Mantido ativo pelo TI" e registra quem reativou: a folha não desativa de novo;
-//     desligar a marca devolve a conta à folha;
-//   - "Zerar autenticador" (o reset de 2FA do upstream) registra TOTP_RESET com quem zerou; não admin recebe 403.
+//   - "Reativar" (admin; não admin recebe 401) reativa, liga "Mantido ativo pelo TI" e registra quem reativou: a folha
+//     não desativa de novo; desligar a marca devolve a conta à folha;
+//   - "Zerar autenticador" (o reset de 2FA do upstream) registra TOTP_RESET com quem zerou; não admin recebe 401
+//     (o `adminProcedure` do upstream).
 //
-// Pessoas FICTÍCIAS 11 a 13 de revalle/colaboradores/dev-seed.sql (bloco inativacao-folha), exclusivas deste teste: o
+// Pessoas FICTÍCIAS 11 a 14 de revalle/colaboradores/dev-seed.sql (bloco inativacao-folha), exclusivas deste teste: o
 // bloco idempotente é aplicado na base de teste do RH antes de começar. Sessões: REVSIGN_USER_* (não admin) e
 // REVSIGN_ADMIN_* (ADMIN). A varredura é global: qualquer conta da stack com CPF desligado também é desativada.
 import assert from 'node:assert/strict';
@@ -25,7 +26,8 @@ const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}
 const DISMISSED_1 = '42000000169';
 const DISMISSED_2 = '42000000240';
 const ACTIVE = '42000000320';
-const CPFS = [DISMISSED_1, DISMISSED_2, ACTIVE].map((cpf) => `'${cpf}'`).join(',');
+const DISMISSED_ADMIN = '42000000401';
+const CPFS = [DISMISSED_1, DISMISSED_2, ACTIVE, DISMISSED_ADMIN].map((cpf) => `'${cpf}'`).join(',');
 
 const COMPOSE = ['compose', '-f', 'revalle/deploy/compose.hml.yml', '--env-file', '../local-hml/hml.env'];
 const compose = (...args) => execFileSync('docker', [...COMPOSE, ...args], { stdio: 'ignore' });
@@ -147,16 +149,22 @@ before(async () => {
   fx.kept = ensureTestAccount(`folha-mantido-${RUN}@revalle.com.br`, 'Teste Folha Mantido');
   fx.active = ensureTestAccount(`folha-ativo-${RUN}@revalle.com.br`, 'Teste Folha Ativo');
   fx.unlinked = ensureTestAccount(`folha-sem-vinculo-${RUN}@revalle.com.br`, 'Teste Folha Sem Vínculo');
+  fx.sysAdmin = ensureTestAccount(`folha-admin-${RUN}@revalle.com.br`, 'Teste Folha Admin');
 
   link(fx.dismissed, DISMISSED_1);
   link(fx.kept, DISMISSED_2);
   link(fx.active, ACTIVE);
+  link(fx.sysAdmin, DISMISSED_ADMIN);
 
   fx.adminId = idOf(admin.email.trim().toLowerCase());
   fx.dismissedId = idOf(fx.dismissed);
   fx.keptId = idOf(fx.kept);
   fx.activeId = idOf(fx.active);
   fx.unlinkedId = idOf(fx.unlinked);
+  fx.sysAdminId = idOf(fx.sysAdmin);
+
+  // Admin do sistema com CPF desligado: a folha nunca desativa.
+  db(`update "User" set roles = '{USER,ADMIN}' where id = ${fx.sysAdminId}`);
 
   db(`insert into "RevalleUserKeepActive" ("userId", "setById") values (${fx.keptId}, ${fx.adminId})`);
 
@@ -177,14 +185,14 @@ test('base do RH fora do ar: ninguém é inativado', async (t) => {
   assert.deepEqual(eventsOf(fx.dismissedId), []);
 });
 
-test('desligado com vínculo é inativado; ativo, sem vínculo e mantido ativo não', async () => {
+test('desligado com vínculo é inativado; ativo, sem vínculo, mantido ativo e admin não', async () => {
   assert.equal(await sweep(), 'COMPLETED');
 
   assert.equal(isDisabled(fx.dismissedId), true);
   assert.deepEqual(eventsOf(fx.dismissedId), ['INACTIVATED|HR_SYNC|']);
   assert.equal(db(`select count(*) from "Session" where "userId" = ${fx.dismissedId}`), '0');
 
-  for (const id of [fx.activeId, fx.unlinkedId, fx.keptId]) {
+  for (const id of [fx.activeId, fx.unlinkedId, fx.keptId, fx.sysAdminId]) {
     assert.equal(isDisabled(id), false);
     assert.deepEqual(eventsOf(id), []);
   }
@@ -211,8 +219,8 @@ test('Reativar: reativa, liga "Mantido ativo pelo TI" e a folha não desativa de
   );
   assert.deepEqual(eventsOf(fx.dismissedId), [
     'INACTIVATED|HR_SYNC|',
-    `REACTIVATED|ADMIN|${fx.adminId}`,
     `KEPT_ACTIVE_ON|ADMIN|${fx.adminId}`,
+    `REACTIVATED|ADMIN|${fx.adminId}`,
   ]);
 
   assert.equal(await sweep(), 'COMPLETED');

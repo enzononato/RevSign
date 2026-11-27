@@ -16,11 +16,12 @@
 -- | 11| Teste Folha Desligado 1     | 42000000169  | 1980-04-10 | (sem e-mail)             | desligado | Juazeiro          |
 -- | 12| Teste Folha Desligado 2     | 42000000240  | 1982-07-22 | (sem e-mail)             | demitido  | Petrolina         |
 -- | 13| Teste Folha Ativo           | 42000000320  | 1990-10-05 | (sem e-mail)             | ativo     | Serrinha          |
+-- | 14| Teste Folha Desligado Admin | 42000000401  | 1979-01-18 | (sem e-mail)             | desligado | Alagoinhas        |
 --
 -- 7 a 9 são exclusivos do aceite da Fase 4 (scripts/revalle/tests/acceptance-f4.test.mjs); nenhum outro teste os usa.
 -- 10 é a pessoa dos cadastros de teste da Fase 7 (signupColaborador em scripts/revalle/tests/helpers.mjs): todo teste que
 -- cria conta se cadastra com o CPF e a data dela.
--- 11 a 13 são exclusivos da inativação pela folha (scripts/revalle/tests/hr-inactivation.test.mjs); nenhum outro teste
+-- 11 a 14 são exclusivos da inativação pela folha (scripts/revalle/tests/hr-inactivation.test.mjs); nenhum outro teste
 -- os usa (o vínculo e-mail ↔ CPF é único por CPF).
 --
 -- Role de leitura: revsign_leitura / revsign_leitura_dev (só desenvolvimento).
@@ -78,7 +79,7 @@ WHERE NOT EXISTS (SELECT 1 FROM rh_colaboradores r WHERE r.cpf_completo = v.cpf_
 -- cadastro-f7:fim
 
 -- inativacao-folha:inicio
--- Colaboradores FICTÍCIOS da inativação pela folha (v.26): dois desligados e um ativo. Bloco idempotente: numa base já
+-- Colaboradores FICTÍCIOS da inativação pela folha (v.26): três desligados (um vira admin no teste) e um ativo. Bloco idempotente: numa base já
 -- criada, rode só este trecho (como os blocos acima).
 INSERT INTO rh_colaboradores
   (cpf_completo, nome_completo, nascimento, cargo_nome, setor_nome, unidade_nome, matricula_rh, email_corp, celular, status_rh)
@@ -86,7 +87,8 @@ SELECT v.*
 FROM (VALUES
   ('42000000169', 'Teste Folha Desligado 1', DATE '1980-04-10', 'Auxiliar Administrativo', 'Administrativo', 'Juazeiro',  '90301', NULL::text, NULL::text, 'desligado'),
   ('42000000240', 'Teste Folha Desligado 2', DATE '1982-07-22', 'Vendedor',                'Comercial',      'Petrolina', '90302', NULL,       NULL,       'demitido'),
-  ('42000000320', 'Teste Folha Ativo',       DATE '1990-10-05', 'Conferente',              'Logística',      'Serrinha',  '90303', NULL,       NULL,       'ativo')
+  ('42000000320', 'Teste Folha Ativo',       DATE '1990-10-05', 'Conferente',              'Logística',      'Serrinha',  '90303', NULL,       NULL,       'ativo'),
+  ('42000000401', 'Teste Folha Desligado Admin', DATE '1979-01-18', 'Analista de TI',      'TI',             'Alagoinhas', '90304', NULL,      NULL,       'desligado')
 ) AS v (cpf_completo, nome_completo, nascimento, cargo_nome, setor_nome, unidade_nome, matricula_rh, email_corp, celular, status_rh)
 WHERE NOT EXISTS (SELECT 1 FROM rh_colaboradores r WHERE r.cpf_completo = v.cpf_completo);
 -- inativacao-folha:fim
