@@ -6226,3 +6226,379 @@ msgstr "O que este envio é"
 
 msgid "Escolha \"Apenas assinar\" ou \"Nota fiscal\" para enviar."
 msgstr "Escolha \"Apenas assinar\" ou \"Nota fiscal\" para enviar."
+
+# v.26 — unidades, times e acesso
+msgid "Digite o código do seu app autenticador"
+msgstr "Digite o código do seu app autenticador"
+
+msgid "Prefiro receber o código por e-mail"
+msgstr "Prefiro receber o código por e-mail"
+
+msgid "O código do app autenticador também confirma as suas assinaturas, no lugar do código enviado por e-mail."
+msgstr "O código do app autenticador também confirma as suas assinaturas, no lugar do código enviado por e-mail."
+
+msgid "Assinatura confirmada pelo app autenticador"
+msgstr "Assinatura confirmada pelo app autenticador"
+
+msgid "Assinatura confirmada pelo app autenticador ({user})"
+msgstr "Assinatura confirmada pelo app autenticador ({user})"
+
+msgid "Inativados pela folha"
+msgstr "Inativados pela folha"
+
+msgid "Reativar"
+msgstr "Reativar"
+
+msgid "Conta reativada. Ela fica marcada como \"Mantido ativo pelo TI\"."
+msgstr "Conta reativada. Ela fica marcada como \"Mantido ativo pelo TI\"."
+
+msgid "Não foi possível reativar. Tente de novo."
+msgstr "Não foi possível reativar. Tente de novo."
+
+msgid "Inativado pela folha"
+msgstr "Inativado pela folha"
+
+msgid "A base do RH mostra esta pessoa como desligada e a rotina da noite desativou a conta. Reativar libera a conta e marca \"Mantido ativo pelo TI\"."
+msgstr "A base do RH mostra esta pessoa como desligada e a rotina da noite desativou a conta. Reativar libera a conta e marca \"Mantido ativo pelo TI\"."
+
+msgid "Mantido ativo pelo TI"
+msgstr "Mantido ativo pelo TI"
+
+msgid "Com a marca ligada, a rotina da noite não desativa esta conta, mesmo que a folha mostre desligado."
+msgstr "Com a marca ligada, a rotina da noite não desativa esta conta, mesmo que a folha mostre desligado."
+
+msgid "Reset 2FA"
+msgstr "Zerar autenticador"
+
+msgid "Reset Two Factor Authentication"
+msgstr "Zerar autenticador"
+
+msgid "2FA Reset"
+msgstr "Autenticador zerado"
+
+msgid "The user's two factor authentication has been reset successfully."
+msgstr "O autenticador da pessoa foi zerado."
+
+msgid "Nota fiscal deve ser enviada pelo time da sua unidade. Troque para o time no topo da tela."
+msgstr "Nota fiscal deve ser enviada pelo time da sua unidade. Troque para o time no topo da tela."
+
+msgid "Nota fiscal fora do time da unidade"
+msgstr "Nota fiscal fora do time da unidade"
+
+msgid "Financeiro e Contabilidade"
+msgstr "Financeiro e Contabilidade"
+
+msgid "Quem é do Financeiro ou da Contabilidade só vê e age nas notas fiscais das unidades escolhidas aqui. Os perfis são marcados em Admin → Perfis."
+msgstr "Quem é do Financeiro ou da Contabilidade só vê e age nas notas fiscais das unidades escolhidas aqui. Os perfis são marcados em Admin → Perfis."
+
+msgid "Pessoa"
+msgstr "Pessoa"
+
+msgid "Unidades que cobre"
+msgstr "Unidades que cobre"
+
+msgid "Visibilidade"
+msgstr "Visibilidade"
+
+msgid "Conta desativada"
+msgstr "Conta desativada"
+
+msgid "Ninguém marcado como Financeiro ou Contabilidade. Marque em Admin → Perfis."
+msgstr "Ninguém marcado como Financeiro ou Contabilidade. Marque em Admin → Perfis."
+
+msgid "Não foi possível carregar. Tente de novo."
+msgstr "Não foi possível carregar. Tente de novo."
+
+msgid "Unidades e times"
+msgstr "Unidades e times"
+
+msgid "Cada unidade é uma organização com os times dos setores. As pessoas entram como membro e só veem os documentos dos times delas."
+msgstr "Cada unidade é uma organização com os times dos setores. As pessoas entram como membro e só veem os documentos dos times delas."
+
+msgid "Criar as que faltam ({missingCount})"
+msgstr "Criar as que faltam ({missingCount})"
+
+msgid "Nova unidade"
+msgstr "Nova unidade"
+
+msgid "Não foi possível carregar as unidades."
+msgstr "Não foi possível carregar as unidades."
+
+msgid "Nenhuma unidade ainda"
+msgstr "Nenhuma unidade ainda"
+
+msgid "Comece pelas 7 unidades: Juazeiro, Bonfim, Petrolina, Ribeira do Pombal, Paulo Afonso, Alagoinhas e Serrinha. Os times nascem dos setores de cada unidade na base do RH."
+msgstr "Comece pelas 7 unidades: Juazeiro, Bonfim, Petrolina, Ribeira do Pombal, Paulo Afonso, Alagoinhas e Serrinha. Os times nascem dos setores de cada unidade na base do RH."
+
+msgid "Criar as 7 unidades"
+msgstr "Criar as 7 unidades"
+
+msgid "Times: {teamCount} · Pessoas: {memberCount}"
+msgstr "Times: {teamCount} · Pessoas: {memberCount}"
+
+msgid "Use o mesmo nome da unidade na base do RH, para os times virem dos setores dela."
+msgstr "Use o mesmo nome da unidade na base do RH, para os times virem dos setores dela."
+
+msgid "Nome da unidade"
+msgstr "Nome da unidade"
+
+msgid "Criar unidade"
+msgstr "Criar unidade"
+
+msgid "Criar times a partir dos setores do RH"
+msgstr "Criar times a partir dos setores do RH"
+
+msgid "Unidades criadas: {createdCount}. Times criados a partir do RH: {teamsCount}."
+msgstr "Unidades criadas: {createdCount}. Times criados a partir do RH: {teamsCount}."
+
+msgid "As 7 unidades já existiam. Times novos a partir do RH: {teamsCount}."
+msgstr "As 7 unidades já existiam. Times novos a partir do RH: {teamsCount}."
+
+msgid "A base do RH não respondeu: as unidades ficaram sem times. Tente \"Criar times a partir dos setores do RH\" depois."
+msgstr "A base do RH não respondeu: as unidades ficaram sem times. Tente \"Criar times a partir dos setores do RH\" depois."
+
+msgid "Unidade {name} criada."
+msgstr "Unidade {name} criada."
+
+msgid "A base do RH não respondeu: crie os times depois."
+msgstr "A base do RH não respondeu: crie os times depois."
+
+msgid "Times criados a partir do RH: {teamsCount}."
+msgstr "Times criados a partir do RH: {teamsCount}."
+
+msgid "Unidade não encontrada"
+msgstr "Unidade não encontrada"
+
+msgid "Ela pode ter sido apagada. Volte para a lista de unidades."
+msgstr "Ela pode ter sido apagada. Volte para a lista de unidades."
+
+msgid "Nome na base do RH: {hrUnitName}"
+msgstr "Nome na base do RH: {hrUnitName}"
+
+msgid "Times"
+msgstr "Times"
+
+msgid "Novo time"
+msgstr "Novo time"
+
+msgid "Nenhum time ainda. Crie a partir dos setores do RH ou um por um em \"Novo time\"."
+msgstr "Nenhum time ainda. Crie a partir dos setores do RH ou um por um em \"Novo time\"."
+
+msgid "Pessoas: {memberCount} · Documentos: {envelopeCount}"
+msgstr "Pessoas: {memberCount} · Documentos: {envelopeCount}"
+
+msgid "Renomear"
+msgstr "Renomear"
+
+msgid "Remover"
+msgstr "Remover"
+
+msgid "Time com documentos não pode ser removido."
+msgstr "Time com documentos não pode ser removido."
+
+msgid "Pessoas"
+msgstr "Pessoas"
+
+msgid "Adicionar pessoa"
+msgstr "Adicionar pessoa"
+
+msgid "Ninguém nesta unidade ainda. Adicione quem já tem conta."
+msgstr "Ninguém nesta unidade ainda. Adicione quem já tem conta."
+
+msgid "Criou a unidade"
+msgstr "Criou a unidade"
+
+msgid "Administra a unidade (todos os times)"
+msgstr "Administra a unidade (todos os times)"
+
+msgid "gerente"
+msgstr "gerente"
+
+msgid "admin"
+msgstr "admin"
+
+msgid "Sem time: ainda não vê documentos da unidade."
+msgstr "Sem time: ainda não vê documentos da unidade."
+
+msgid "Tirar da unidade"
+msgstr "Tirar da unidade"
+
+msgid "Renomear unidade"
+msgstr "Renomear unidade"
+
+msgid "Muda só o nome que aparece. O nome na base do RH continua o mesmo."
+msgstr "Muda só o nome que aparece. O nome na base do RH continua o mesmo."
+
+msgid "Novo time em {unitName}"
+msgstr "Novo time em {unitName}"
+
+msgid "Nome do time"
+msgstr "Nome do time"
+
+msgid "Criar time"
+msgstr "Criar time"
+
+msgid "Renomear time"
+msgstr "Renomear time"
+
+msgid "O endereço do time continua o mesmo."
+msgstr "O endereço do time continua o mesmo."
+
+msgid "Remover o time {teamToDeleteName}?"
+msgstr "Remover o time {teamToDeleteName}?"
+
+msgid "Remover time"
+msgstr "Remover time"
+
+msgid "Tirar {memberToRemoveName} de {unitName}?"
+msgstr "Tirar {memberToRemoveName} de {unitName}?"
+
+msgid "A pessoa sai da unidade e de todos os times dela. Os documentos que ela enviou ou recebeu para assinar continuam com ela."
+msgstr "A pessoa sai da unidade e de todos os times dela. Os documentos que ela enviou ou recebeu para assinar continuam com ela."
+
+msgid "Unidade renomeada para {name}."
+msgstr "Unidade renomeada para {name}."
+
+msgid "A base do RH não respondeu. Nada foi criado; tente de novo mais tarde."
+msgstr "A base do RH não respondeu. Nada foi criado; tente de novo mais tarde."
+
+msgid "A base do RH não tem setores para {unitName}. Confira o nome da unidade no RH."
+msgstr "A base do RH não tem setores para {unitName}. Confira o nome da unidade no RH."
+
+msgid "Todos os setores do RH já têm time ({setorCount})."
+msgstr "Todos os setores do RH já têm time ({setorCount})."
+
+msgid "Times criados a partir do RH: {createdCount}."
+msgstr "Times criados a partir do RH: {createdCount}."
+
+msgid "Time {name} criado."
+msgstr "Time {name} criado."
+
+msgid "Time renomeado para {name}."
+msgstr "Time renomeado para {name}."
+
+msgid "Time {teamName} removido."
+msgstr "Time {teamName} removido."
+
+msgid "Pessoa adicionada em {unitName}."
+msgstr "Pessoa adicionada em {unitName}."
+
+msgid "Times salvos."
+msgstr "Times salvos."
+
+msgid "{name} saiu de {unitName}."
+msgstr "{name} saiu de {unitName}."
+
+msgid "Adicionar pessoa em {unitName}"
+msgstr "Adicionar pessoa em {unitName}"
+
+msgid "Times de {personName}"
+msgstr "Times de {personName}"
+
+msgid "Busque quem já tem conta pelo nome ou e-mail. A pessoa entra na unidade como membro e só vê os times marcados."
+msgstr "Busque quem já tem conta pelo nome ou e-mail. A pessoa entra na unidade como membro e só vê os times marcados."
+
+msgid "Marque os times desta pessoa. Gerente também gerencia o time; membro só envia e assina."
+msgstr "Marque os times desta pessoa. Gerente também gerencia o time; membro só envia e assina."
+
+msgid "Buscando..."
+msgstr "Buscando..."
+
+msgid "Ninguém com esse nome ou e-mail. A pessoa precisa criar a conta antes."
+msgstr "Ninguém com esse nome ou e-mail. A pessoa precisa criar a conta antes."
+
+msgid "Já está na unidade"
+msgstr "Já está na unidade"
+
+msgid "Digite pelo menos 2 letras."
+msgstr "Digite pelo menos 2 letras."
+
+msgid "Esta unidade ainda não tem times. A pessoa entra só na unidade; crie os times depois."
+msgstr "Esta unidade ainda não tem times. A pessoa entra só na unidade; crie os times depois."
+
+msgid "Membro"
+msgstr "Membro"
+
+msgid "Gerente"
+msgstr "Gerente"
+
+msgid "Adicionar"
+msgstr "Adicionar"
+
+msgid "Salvar times"
+msgstr "Salvar times"
+
+msgid "Nome ou e-mail"
+msgstr "Nome ou e-mail"
+
+msgid "Buscar pessoa por nome ou e-mail"
+msgstr "Buscar pessoa por nome ou e-mail"
+
+msgid "Papel em {teamName}"
+msgstr "Papel em {teamName}"
+
+msgid "Ver só o que enviou ou recebeu para assinar"
+msgstr "Ver só o que enviou ou recebeu para assinar"
+
+msgid "Sem unidades: escolha as unidades desta pessoa"
+msgstr "Sem unidades: escolha as unidades desta pessoa"
+
+msgid "Escolher unidades"
+msgstr "Escolher unidades"
+
+msgid "{personName} agora vê só o que enviou ou recebeu para assinar."
+msgstr "{personName} agora vê só o que enviou ou recebeu para assinar."
+
+msgid "{personName} volta a ver os documentos dos times dela."
+msgstr "{personName} volta a ver os documentos dos times dela."
+
+msgid "Unidades de {personName} salvas."
+msgstr "Unidades de {personName} salvas."
+
+msgid "Unidades de {personName}"
+msgstr "Unidades de {personName}"
+
+msgid "No Financeiro e na Contabilidade, a pessoa só vê e age nas notas fiscais das unidades marcadas. Sem nenhuma marcada, não vê nota nenhuma."
+msgstr "No Financeiro e na Contabilidade, a pessoa só vê e age nas notas fiscais das unidades marcadas. Sem nenhuma marcada, não vê nota nenhuma."
+
+msgid "Ainda não há unidades. Crie as unidades primeiro."
+msgstr "Ainda não há unidades. Crie as unidades primeiro."
+
+msgid "Desmarcar todas"
+msgstr "Desmarcar todas"
+
+msgid "Marcar todas"
+msgstr "Marcar todas"
+
+msgid "Salvar unidades"
+msgstr "Salvar unidades"
+
+msgid "Já existe uma unidade com esse nome na base do RH."
+msgstr "Já existe uma unidade com esse nome na base do RH."
+
+msgid "Já existe um time com esse nome nesta unidade."
+msgstr "Já existe um time com esse nome nesta unidade."
+
+msgid "Este time tem documentos e não pode ser removido."
+msgstr "Este time tem documentos e não pode ser removido."
+
+msgid "Quem criou a unidade não pode sair dela."
+msgstr "Quem criou a unidade não pode sair dela."
+
+msgid "Esta conta está desativada. Reative a conta antes de pôr na unidade."
+msgstr "Esta conta está desativada. Reative a conta antes de pôr na unidade."
+
+msgid "Só o administrador pode fazer isso."
+msgstr "Só o administrador pode fazer isso."
+
+msgid "Não encontrado. Atualize a página e tente de novo."
+msgstr "Não encontrado. Atualize a página e tente de novo."
+
+msgid "Toda conta é de colaborador: envia e assina. Marque quem também é do Financeiro (aprova a conta contábil de cada nota fiscal) ou da Contabilidade (valida e corrige o centro de custo). Cada pessoa desses perfis só vê as notas fiscais das unidades escolhidas para ela em <0>Unidades e times</0>; sem unidade escolhida, não vê nota nenhuma. A mesma pessoa pode ter os dois perfis. A mudança vale na hora."
+msgstr "Toda conta é de colaborador: envia e assina. Marque quem também é do Financeiro (aprova a conta contábil de cada nota fiscal) ou da Contabilidade (valida e corrige o centro de custo). Cada pessoa desses perfis só vê as notas fiscais das unidades escolhidas para ela em <0>Unidades e times</0>; sem unidade escolhida, não vê nota nenhuma. A mesma pessoa pode ter os dois perfis. A mudança vale na hora."
+
+msgid "O time não tem documentos. As pessoas saem dele, mas continuam na unidade, e recebem um e-mail avisando. Não dá para desfazer."
+msgstr "O time não tem documentos. As pessoas saem dele, mas continuam na unidade, e recebem um e-mail avisando. Não dá para desfazer."
+
+msgid "Administrador"
+msgstr "Administrador"
