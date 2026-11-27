@@ -303,23 +303,24 @@ const ensureUserUnitTeam = async (adminCookie, email) => {
     status += ' (time criado)';
   }
 
-  const isMember =
-    db(
-      `select count(*) from "TeamGroup" tg join "OrganisationGroupMember" gm on gm."groupId" = tg."organisationGroupId" join "OrganisationMember" m on m.id = gm."organisationMemberId" join "User" u on u.id = m."userId" where tg."teamId" = ${teamId} and u.email = ${sql(email)}`,
-    ) !== '0';
+  // O token da API só pode ser criado por gerente ou administrador do time (MANAGE_TEAM).
+  const role = db(
+    `select coalesce(max(tg."teamRole"::text), '') from "TeamGroup" tg join "OrganisationGroupMember" gm on gm."groupId" = tg."organisationGroupId" join "OrganisationMember" m on m.id = gm."organisationMemberId" join "User" u on u.id = m."userId" where tg."teamId" = ${teamId} and u.email = ${sql(email)}`,
+  );
 
-  if (!isMember) {
-    const res = await trpcAs(adminCookie, 'mutation', 'revalle.units.addMember', {
+  if (role !== 'MANAGER' && role !== 'ADMIN') {
+    const route = role === '' ? 'revalle.units.addMember' : 'revalle.units.setMemberTeams';
+    const res = await trpcAs(adminCookie, 'mutation', route, {
       organisationId,
       userId: userRow(email).id,
-      teams: [{ teamId, role: 'MEMBER' }],
+      teams: [{ teamId, role: 'MANAGER' }],
     });
 
     if (!res.ok) {
       throw failure(`entrada de ${email} na unidade de teste`, res);
     }
 
-    status += ' (membro incluído)';
+    status += ' (gerente do time)';
   }
 
   console.log(`unidade de teste: ${status}`);

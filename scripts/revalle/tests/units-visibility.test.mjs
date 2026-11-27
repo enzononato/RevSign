@@ -92,9 +92,20 @@ const joinOrganisation = (organisationId, account) => {
   );
 };
 
-// Só o ADMIN cria token de API: a conta comum é promovida só para esta chamada (o token continua valendo).
+// Token de API exige papel de gerente no time (MANAGE_TEAM) e, no RevSign, conta ADMIN. Só para esta chamada a conta
+// entra no grupo MANAGER da organização e vira ADMIN; depois volta a membro comum (o token continua valendo).
 const tokenFor = async (account, teamId) => {
+  const tempId = `rsvism_${account.id}_${teamId}_${RUN}`;
+
   db(`update "User" set roles = array['USER','ADMIN']::"Role"[] where id = ${account.id}`);
+  db(
+    `insert into "OrganisationGroupMember" (id, "groupId", "organisationMemberId")
+       select '${tempId}', g.id, m.id from "Team" t
+       join "OrganisationGroup" g on g."organisationId" = t."organisationId" and g.type = 'INTERNAL_ORGANISATION' and g."organisationRole" = 'MANAGER'
+       join "OrganisationMember" m on m."organisationId" = t."organisationId" and m."userId" = ${account.id}
+       where t.id = ${teamId}
+     on conflict do nothing`,
+  );
 
   try {
     const token = await trpcAs(account.cookie, 'mutation', 'apiToken.create', {
@@ -107,6 +118,7 @@ const tokenFor = async (account, teamId) => {
 
     return data(token).token;
   } finally {
+    db(`delete from "OrganisationGroupMember" where id = '${tempId}'`);
     db(`update "User" set roles = array['USER']::"Role"[] where id = ${account.id}`);
   }
 };
