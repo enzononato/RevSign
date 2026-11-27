@@ -550,7 +550,8 @@ esperando, a tela do admin mostra um alerta.
 
 ### O que o Financeiro vê
 
-- Em **Notas fiscais**, **todas** as NFs, começando pelo filtro **Aguardando o Financeiro**.
+- Em **Notas fiscais**, as NFs **das unidades escolhidas para a pessoa** em Admin → Unidades e times (v.26; veja
+  `unidades-e-acesso.md`), começando pelo filtro **Aguardando o Financeiro**.
 - Clicando no título, a **página da NF**, só de leitura: o PDF (com o botão **Baixar PDF**, que baixa o arquivo; depois
   de concluída, com `_signed` no nome), o título, o remetente, quem assina e a situação de cada um, as versões (link
   para a anterior e a nova, quando houver) e o cartão **Financeiro**, com:

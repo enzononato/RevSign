@@ -87,7 +87,8 @@ A pessoa não recebe e-mail. Conta desativada não pode entrar: reative antes.
 Papéis no time:
 
 - **Membro** (padrão): envia e assina. Vê os documentos do time.
-- **Gerente**: também gerencia o time (por exemplo, cria token de API do time).
+- **Gerente**: também gerencia o time. Token de API continua só com o administrador do sistema, e ele precisa ser
+  gerente (ou administrador) do time para criar o token daquele time.
 - **Administrador**: aparece só para leitura. O painel não muda esse papel.
 
 Para mudar os times de alguém, clique na pessoa e salve os times. Quem fica no mesmo time mantém o papel. Desmarcar um
