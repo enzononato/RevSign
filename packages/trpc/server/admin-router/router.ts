@@ -1,3 +1,4 @@
+import { revalleUsersRouter } from '../revalle-router/users/router'; // REVALLE (v.26): inativação pela folha
 import { router } from '../trpc';
 import { adminSearchRoute } from './admin-search';
 import { createAdminOrganisationRoute } from './create-admin-organisation';
@@ -89,6 +90,7 @@ export const adminRouter = router({
     disable: disableUserRoute,
     resetTwoFactor: resetTwoFactorRoute,
     findTeams: findUserTeamsRoute,
+    revalle: revalleUsersRouter, // REVALLE (v.26): inativação pela folha (situação, Reativar, "Mantido ativo pelo TI")
   },
   document: {
     find: findDocumentsRoute,

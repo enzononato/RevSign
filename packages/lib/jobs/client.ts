@@ -34,6 +34,7 @@ import { PROCESS_SIGNING_REMINDER_JOB_DEFINITION } from './definitions/internal/
 import { REVALLE_COLLABORATOR_BULK_SEND_JOB_DEFINITION } from './definitions/internal/revalle-collaborator-bulk-send'; // REVALLE: contrato para colaboradores (v.21)
 import { REVALLE_COLLABORATOR_CONTRACT_BUILD_JOB_DEFINITION } from './definitions/internal/revalle-collaborator-contract-build'; // REVALLE: contrato para colaboradores (v.22)
 import { REVALLE_COLLABORATOR_SEND_SWEEP_JOB_DEFINITION } from './definitions/internal/revalle-collaborator-send-sweep'; // REVALLE: contrato para colaboradores (v.21)
+import { REVALLE_HR_INACTIVATION_SWEEP_JOB_DEFINITION } from './definitions/internal/revalle-hr-inactivation-sweep'; // REVALLE: inativação pela folha (v.26)
 import { REVALLE_INVOICE_SUGGEST_JOB_DEFINITION } from './definitions/internal/revalle-invoice-suggest'; // REVALLE: sugestão de conta da nota fiscal
 import { REVALLE_PATRIMONIO_WEBHOOK_JOB_DEFINITION } from './definitions/internal/revalle-patrimonio-webhook'; // REVALLE: avisos ao Patrimônio
 import { REVALLE_PATRIMONIO_WEBHOOK_SWEEP_JOB_DEFINITION } from './definitions/internal/revalle-patrimonio-webhook-sweep'; // REVALLE: avisos ao Patrimônio
@@ -95,6 +96,7 @@ export const jobsClient = new JobClient([
   REVALLE_COLLABORATOR_BULK_SEND_JOB_DEFINITION,
   REVALLE_COLLABORATOR_CONTRACT_BUILD_JOB_DEFINITION, // REVALLE: contrato para colaboradores (v.22)
   REVALLE_COLLABORATOR_SEND_SWEEP_JOB_DEFINITION,
+  REVALLE_HR_INACTIVATION_SWEEP_JOB_DEFINITION, // REVALLE: inativação pela folha (v.26), toda noite às 03:00
 ] as const);
 
 export const jobs = jobsClient;

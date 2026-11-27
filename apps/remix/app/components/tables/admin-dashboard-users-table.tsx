@@ -10,7 +10,7 @@ import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
 import type { Role, Subscription } from '@prisma/client';
 import { Edit, Loader } from 'lucide-react';
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { type ReactNode, useEffect, useMemo, useState, useTransition } from 'react'; // REVALLE: ReactNode
 import { Link } from 'react-router';
 
 type UserData = {
@@ -29,9 +29,17 @@ type AdminDashboardUsersTableProps = {
   totalPages: number;
   perPage: number;
   page: number;
+  /** REVALLE (v.26): ação extra por linha (o "Reativar" do filtro "Inativados pela folha"). */
+  rowAction?: (user: UserData) => ReactNode;
 };
 
-export const AdminDashboardUsersTable = ({ users, totalPages, perPage, page }: AdminDashboardUsersTableProps) => {
+export const AdminDashboardUsersTable = ({
+  users,
+  totalPages,
+  perPage,
+  page,
+  rowAction, // REVALLE:
+}: AdminDashboardUsersTableProps) => {
   const { _ } = useLingui();
 
   const [isPending, startTransition] = useTransition();
@@ -70,17 +78,21 @@ export const AdminDashboardUsersTable = ({ users, totalPages, perPage, page }: A
         accessorKey: 'edit',
         cell: ({ row }) => {
           return (
-            <Button variant="outline" size="sm" asChild>
-              <Link to={`/admin/users/${row.original.id}`}>
-                <Edit className="mr-1.5 h-4 w-4" /> {/* REVALLE: v3-7a */}
-                <Trans>Edit</Trans>
-              </Link>
-            </Button>
+            // REVALLE (v.26): ação extra da linha ao lado do Editar.
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" asChild>
+                <Link to={`/admin/users/${row.original.id}`}>
+                  <Edit className="mr-1.5 h-4 w-4" /> {/* REVALLE: v3-7a */}
+                  <Trans>Edit</Trans>
+                </Link>
+              </Button>
+              {rowAction?.(row.original)}
+            </div>
           );
         },
       },
     ] satisfies DataTableColumnDef<(typeof users)[number]>[];
-  }, []);
+  }, [rowAction]); // REVALLE: rowAction
 
   useEffect(() => {
     startTransition(() => {

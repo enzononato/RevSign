@@ -1,4 +1,5 @@
 import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
+import { recordRevalleTotpReset } from '@documenso/lib/server-only/revalle/users/user-status'; // REVALLE:
 import { prisma } from '@documenso/prisma';
 
 import { adminProcedure } from '../trpc';
@@ -16,7 +17,10 @@ export const resetTwoFactorRoute = adminProcedure
       },
     });
 
-    return await resetTwoFactor({ userId });
+    await resetTwoFactor({ userId });
+
+    // REVALLE (v.26): "Zerar autenticador" registra quem zerou.
+    await recordRevalleTotpReset({ userId, actorId: ctx.user.id });
   });
 
 export type ResetTwoFactorOptions = {

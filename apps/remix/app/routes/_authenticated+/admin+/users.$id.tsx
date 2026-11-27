@@ -21,6 +21,7 @@ import { AdminUserDisableDialog } from '~/components/dialogs/admin-user-disable-
 import { AdminUserEnableDialog } from '~/components/dialogs/admin-user-enable-dialog';
 import { AdminUserResetTwoFactorDialog } from '~/components/dialogs/admin-user-reset-two-factor-dialog';
 import { GenericErrorLayout } from '~/components/general/generic-error-layout';
+import { RevalleUserStatusPanel } from '~/components/revalle/admin-users/hr-inactivation'; // REVALLE:
 import { AdminOrganisationsTable } from '~/components/tables/admin-organisations-table';
 import { AdminUserTeamsTable } from '~/components/tables/admin-user-teams-table';
 
@@ -228,6 +229,8 @@ const AdminUserPage = ({ user }: { user: TGetUserResponse }) => {
       </Accordion>
 
       <div className="mt-16 flex flex-col gap-4">
+        {/* REVALLE (v.26): inativação pela folha ("Reativar") e "Mantido ativo pelo TI". */}
+        <RevalleUserStatusPanel userId={user.id} />
         {user && user.twoFactorEnabled && <AdminUserResetTwoFactorDialog user={user} />}
         {user && user.disabled && <AdminUserEnableDialog userToEnable={user} />}
         {user && !user.disabled && <AdminUserDisableDialog userToDisable={user} />}

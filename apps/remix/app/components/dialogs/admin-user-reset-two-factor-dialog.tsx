@@ -81,7 +81,10 @@ export const AdminUserResetTwoFactorDialog = ({ className, user }: AdminUserRese
     <div className={className}>
       <Alert className="flex flex-col items-center justify-between gap-4 p-6 md:flex-row" variant="neutral">
         <div>
-          <AlertTitle>Reset Two Factor Authentication</AlertTitle>
+          {/* REVALLE (v.26): título traduzível ("Zerar autenticador" no overlay pt-BR). */}
+          <AlertTitle>
+            <Trans>Reset Two Factor Authentication</Trans>
+          </AlertTitle>
           <AlertDescription className="mr-2">
             <Trans>
               Reset the users two factor authentication. This action is irreversible and will disable two factor
