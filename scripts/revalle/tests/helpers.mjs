@@ -428,13 +428,38 @@ export const trpcAs = async (cookie, kind, procedure, input, extraHeaders = {}) 
     );
   }
 
-  return parse(
+  const response = parse(
     await fetch(`${BASE_URL}/api/trpc/${procedure}`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ json: input }),
     }),
   );
+
+  return grantLegacyUnitScope(procedure, input, await response);
+};
+
+// v.26: Financeiro e Contabilidade só veem as notas das unidades escolhidas (`RevalleUnitScope`). As suítes anteriores
+// marcam o perfil e esperam ver toda nota; para elas, marcar o perfil também dá a pessoa todas as unidades (só no teste).
+// As suítes de unidade (`units-*`) chamam `disableLegacyUnitScope()` e montam o escopo elas mesmas.
+let legacyUnitScope = true;
+
+export const disableLegacyUnitScope = () => {
+  legacyUnitScope = false;
+};
+
+const LEGACY_SCOPE_PROCEDURES = new Set(['revalle.finance.adminSetMember', 'revalle.accounting.adminSetMember']);
+
+const grantLegacyUnitScope = (procedure, input, response) => {
+  const granted = input?.member === true || input?.isMember === true;
+
+  if (legacyUnitScope && granted && response.status === 200 && LEGACY_SCOPE_PROCEDURES.has(procedure)) {
+    db(
+      `insert into "RevalleUnitScope" ("userId", "organisationId") select ${Number(input.userId)}, "organisationId" from "RevalleUnit" on conflict do nothing`,
+    );
+  }
+
+  return response;
 };
 
 // O bloco "Conta e centro de custo" de um arquivo do rascunho, como o editor põe (com o time do envelope na sessão).

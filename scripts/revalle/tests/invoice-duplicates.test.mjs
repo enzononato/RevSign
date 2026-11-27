@@ -26,6 +26,7 @@
 
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -566,7 +567,9 @@ before(async () => {
   db('delete from "RateLimit"');
 
   teamUrl = db(
-    `select t.url from "Team" t join "Organisation" o on o.id = t."organisationId" where o."ownerUserId" = ${userId} limit 1`,
+    `select t.url from "ApiToken" a join "Team" t on t.id = a."teamId" where a.token = '${createHash('sha512')
+      .update(process.env.REVSIGN_API_TOKEN ?? '')
+      .digest('hex')}'`,
   );
 
   accountant = await createConfirmedAccount({

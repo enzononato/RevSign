@@ -262,7 +262,7 @@ const UNIT_TEAM_NAME = 'Envios';
 
 // Unidade de teste com o time "Envios" e admin@hml.local como membro dele. Idempotente; só leitura por SQL, gravação
 // pelas rotas do painel "Unidades e times".
-const ensureUserUnitTeam = async (adminCookie, email) => {
+const ensureUserUnitTeam = async (adminCookie, email, teamName = UNIT_TEAM_NAME) => {
   let organisationId = db(`select "organisationId" from "RevalleUnit" where "hrUnitName" = ${sql(UNIT_HR_NAME)}`);
   let status = 'ok';
 
@@ -284,14 +284,14 @@ const ensureUserUnitTeam = async (adminCookie, email) => {
 
   let teamId = Number(
     db(
-      `select id from "Team" where "organisationId" = ${sql(organisationId)} and name = ${sql(UNIT_TEAM_NAME)} order by id limit 1`,
+      `select id from "Team" where "organisationId" = ${sql(organisationId)} and name = ${sql(teamName)} order by id limit 1`,
     ) || 0,
   );
 
   if (!teamId) {
     const res = await trpcAs(adminCookie, 'mutation', 'revalle.units.createTeam', {
       organisationId,
-      name: UNIT_TEAM_NAME,
+      name: teamName,
     });
 
     teamId = res.body?.result?.data?.json?.teamId;
@@ -406,7 +406,14 @@ await ensureToken({
   temporaryAdmin: true,
   teamId: userUnitTeamId,
 });
-await ensureToken({ email: ADMIN_EMAIL, cookie: adminCookie, file: 'rsadmin.token', temporaryAdmin: false });
+await ensureToken({
+  email: ADMIN_EMAIL,
+  cookie: adminCookie,
+  file: 'rsadmin.token',
+  temporaryAdmin: false,
+  // Outro time da mesma unidade: os testes contam com o remetente e o usuário comum em times diferentes.
+  teamId: await ensureUserUnitTeam(adminCookie, ADMIN_EMAIL, 'Envios do admin'),
+});
 
 const roles = userRow(USER_EMAIL).roles.join(',');
 

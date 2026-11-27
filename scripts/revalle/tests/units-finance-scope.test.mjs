@@ -25,6 +25,7 @@ import {
   createConfirmedAccount,
   createEnvelope,
   db,
+  disableLegacyUnitScope,
   distribute,
   ensureInvoiceAccounts,
   fetchIdempotent,
@@ -32,6 +33,8 @@ import {
   signIn,
   trpcAs,
 } from './helpers.mjs';
+
+disableLegacyUnitScope();
 
 assertNoPaidGeminiCalls();
 

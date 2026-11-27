@@ -21,6 +21,7 @@
 
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -358,7 +359,9 @@ before(async () => {
   assert.equal(marked.status, 200, marked.text);
   db(`delete from "RevalleFinanceMember" where "userId" = ${userId}`);
   fx.teamUrl = db(
-    `select t.url from "Team" t join "Organisation" o on o.id = t."organisationId" where o."ownerUserId" = ${userId} limit 1`,
+    `select t.url from "ApiToken" a join "Team" t on t.id = a."teamId" where a.token = '${createHash('sha512')
+      .update(process.env.REVSIGN_API_TOKEN ?? '')
+      .digest('hex')}'`,
   );
 
   const imported = await trpcAs(adminCookie, 'mutation', 'revalle.invoice.adminImportAccounts', { csv: ACCOUNTS_CSV });

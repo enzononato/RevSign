@@ -18,7 +18,9 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 
 import { ensureTestAccount } from './account-helpers.mjs';
-import { db, signIn, trpcAs } from './helpers.mjs';
+import { db, disableLegacyUnitScope, signIn, trpcAs } from './helpers.mjs';
+
+disableLegacyUnitScope();
 
 const user = { email: process.env.REVSIGN_USER_EMAIL, password: process.env.REVSIGN_USER_PASSWORD };
 const admin = { email: process.env.REVSIGN_ADMIN_EMAIL, password: process.env.REVSIGN_ADMIN_PASSWORD };
